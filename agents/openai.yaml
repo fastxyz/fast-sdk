@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fast SDK"
+  short_description: "Fast chain SDK workflows for agents"
+  default_prompt: "Use $fast-sdk to integrate Fast wallet setup, balances, transfers, signing, or token lookups in this project."

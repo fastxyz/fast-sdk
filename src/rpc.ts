@@ -15,7 +15,7 @@ function toJSON(data: unknown): string {
 export async function rpcCall(
   url: string,
   method: string,
-  params: Record<string, unknown>,
+  params: unknown,
   timeoutMs = 15_000,
 ): Promise<unknown> {
   const controller = new AbortController();

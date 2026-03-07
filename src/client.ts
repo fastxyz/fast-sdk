@@ -167,11 +167,19 @@ function mapSubmissionError(
  * await f.balance();
  * await f.send({ to: 'fast1...', amount: '1.0' });
  * ```
+ *
+ * @example Custom RPC endpoint
+ * ```ts
+ * const f = fast({
+ *   network: 'testnet',
+ *   rpcUrl: 'https://custom-rpc.example.com/proxy'
+ * });
+ * ```
  */
-export function fast(opts?: { network?: NetworkType }): FastClient {
+export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastClient {
   const network: NetworkType = opts?.network ?? 'testnet';
   const defaults = FAST_CHAIN_CONFIGS[network];
-  const rpcUrl = defaults.rpc;
+  const rpcUrl = opts?.rpcUrl ?? defaults.rpc;
 
   let _address: string | null = null;
   let _keyfilePath: string | null = null;

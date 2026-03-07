@@ -30,9 +30,9 @@ export const FAST_CHAIN_CONFIGS: Record<NetworkType, ChainConfig> = {
 export const DEFAULT_RPC_URL = 'https://staging.api.fastset.xyz/proxy';
 
 const FAST_KNOWN_TOKENS: Record<string, KnownFastToken> = {
-  SETUSDC: {
-    symbol: 'SETUSDC',
-    tokenId: '0x1e744900021182b293538bb6685b77df095e351364d550021614ce90c8ab9e0a',
+  FASTUSDC: {
+    symbol: 'fastUSDC',
+    tokenId: '0x1b48766165f2cc84292d8c06b0523e1eefd7586049be0f82249c002f88a409ef',
     decimals: 6,
   },
 };

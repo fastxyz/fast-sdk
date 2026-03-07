@@ -13,7 +13,7 @@ export type KnownFastToken = {
 /** Default Fast chain configs */
 export const FAST_CHAIN_CONFIGS: Record<NetworkType, ChainConfig> = {
   testnet: {
-    rpc: 'https://api.fast.xyz/proxy',
+    rpc: 'https://staging.api.fastset.xyz/proxy',
     keyfile: '~/.fast/keys/fast.json',
     network: 'testnet',
     defaultToken: 'SET',
@@ -27,7 +27,7 @@ export const FAST_CHAIN_CONFIGS: Record<NetworkType, ChainConfig> = {
 };
 
 /** Default RPC URL */
-export const DEFAULT_RPC_URL = 'https://api.fast.xyz/proxy';
+export const DEFAULT_RPC_URL = 'https://staging.api.fastset.xyz/proxy';
 
 const FAST_KNOWN_TOKENS: Record<string, KnownFastToken> = {
   SETUSDC: {

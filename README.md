@@ -2,12 +2,12 @@
 
 Standalone Fast chain SDK extracted from `/Users/chris/Documents/Workspace/money`.
 
-This repo contains only `@fast/sdk`. It does not include the AllSet SDK or the old workspace wiring from the `money` monorepo.
+This repo contains only `@fastxyz/sdk`. It does not include the AllSet SDK or the old workspace wiring from the `money` monorepo.
 
 ## Install
 
 ```bash
-npm install @fast/sdk
+npm install @fastxyz/sdk
 ```
 
 ## Development
@@ -26,7 +26,7 @@ npm test
 ## Usage
 
 ```ts
-import { fast } from '@fast/sdk';
+import { fast } from '@fastxyz/sdk';
 
 const client = fast({ network: 'testnet' });
 await client.setup();

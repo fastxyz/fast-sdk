@@ -1,20 +1,20 @@
 ---
 name: fast-sdk
 description: >
-  Fast chain SDK for AI agents and Node.js apps. Use @fast/sdk to create or load a Fast wallet,
+  Fast chain SDK for AI agents and Node.js apps. Use @fastxyz/sdk to create or load a Fast wallet,
   check balances, send SET or Fast tokens, sign or verify messages, list held tokens, look up token metadata,
   submit low-level claims, derive EVM-compatible signatures from certificates, and export wallet info.
   Trigger this skill when a user wants to integrate Fast chain payments or wallet actions in code,
   or when asked to send funds, inspect balances, sign or verify data, or query Fast token holdings.
   Do NOT use for swaps, bridges, AllSet flows, lending, staking, or generic EVM SDK work.
 metadata:
-  short-description: Use @fast/sdk for Fast wallet, balance, transfer, token, and signing workflows.
+  short-description: Use @fastxyz/sdk for Fast wallet, balance, transfer, token, and signing workflows.
   compatibility: Node.js 20+, npm, network access for Fast RPC, and filesystem access to ~/.fast or FAST_CONFIG_DIR.
 ---
 
 # Fast SDK
 
-Use `@fast/sdk` for Fast chain wallet operations in Node.js or TypeScript.
+Use `@fastxyz/sdk` for Fast chain wallet operations in Node.js or TypeScript.
 
 ## Install
 
@@ -23,21 +23,21 @@ Use the local repo when you are already working inside this checkout.
 When the package is published, install it into the target project with its existing package manager.
 
 ```bash
-npm install @fast/sdk
+npm install @fastxyz/sdk
 ```
 
-If `npm install @fast/sdk` fails because the first npm release has not happened yet, use this repo as the source of truth and wire it into the target project from a local checkout or git dependency instead of inventing a different package name.
+If `npm install @fastxyz/sdk` fails because the first npm release has not happened yet, use this repo as the source of truth and wire it into the target project from a local checkout or git dependency instead of inventing a different package name.
 
 ## Default Workflow
 
-1. Import `fast` from `@fast/sdk`.
+1. Import `fast` from `@fastxyz/sdk`.
 2. Create the client with `fast({ network: 'testnet' })` unless the user explicitly asked for mainnet.
 3. Call `await client.setup()` before any balance, send, faucet, signing, or token operation.
 4. Use the high-level methods first: `balance`, `send`, `faucet`, `sign`, `verify`, `tokens`, `tokenInfo`, `exportKeys`.
 5. Use `submit` or `evmSign` only when the user explicitly needs low-level claim or certificate handling.
 
 ```ts
-import { fast } from '@fast/sdk';
+import { fast } from '@fastxyz/sdk';
 
 const client = fast({ network: 'testnet' });
 const { address } = await client.setup();
@@ -169,7 +169,7 @@ const evm = await client.evmSign({
 Catch `FastError` and branch on `error.code`, not on raw message text.
 
 ```ts
-import { FastError, fast } from '@fast/sdk';
+import { FastError, fast } from '@fastxyz/sdk';
 
 try {
   const client = fast({ network: 'testnet' });

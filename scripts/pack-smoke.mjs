@@ -43,9 +43,9 @@ try {
     stdio: 'inherit',
   });
 
-  const installedManifestPath = path.join(tempDir, 'node_modules', '@fast', 'sdk', 'package.json');
+  const installedManifestPath = path.join(tempDir, 'node_modules', '@fastxyz', 'sdk', 'package.json');
   const installedManifest = JSON.parse(readFileSync(installedManifestPath, 'utf8'));
-  if (installedManifest.name !== '@fast/sdk') {
+  if (installedManifest.name !== '@fastxyz/sdk') {
     throw new Error(`Unexpected installed package name: ${installedManifest.name}`);
   }
 
@@ -54,7 +54,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      'import { fast, FastError } from "@fast/sdk"; if (typeof fast !== "function") throw new Error("fast export missing"); if (typeof FastError !== "function") throw new Error("FastError export missing");',
+      'import { fast, FastError } from "@fastxyz/sdk"; if (typeof fast !== "function") throw new Error("fast export missing"); if (typeof FastError !== "function") throw new Error("FastError export missing");',
     ],
     {
       cwd: tempDir,

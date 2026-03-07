@@ -400,32 +400,6 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
       }
     },
 
-    async faucet(opts?: { address?: string }): Promise<{ address: string }> {
-      ensureSetup();
-
-      if (network !== 'testnet') {
-        throw new FastError('UNSUPPORTED_OPERATION', 'Faucet is only available on testnet.', {
-          note: 'Switch to fast({ network: "testnet" }) or fund this address externally.',
-        });
-      }
-
-      const targetAddress = opts?.address ?? _address!;
-      decodeFastAddressOrThrow(targetAddress);
-
-      try {
-        await rpcCall(rpcUrl, 'proxy_faucetDrip', [targetAddress]);
-      } catch (err: unknown) {
-        if (err instanceof FastError) throw err;
-        const rawMessage = err instanceof Error ? err.message : String(err);
-        const safeMessage = sanitizeProxyErrorMessage(rawMessage, 'Faucet request failed.');
-        throw new FastError('TX_FAILED', safeMessage, {
-          note: 'Retry in a few seconds. The faucet may be rate-limited.',
-        });
-      }
-
-      return { address: targetAddress };
-    },
-
     async submit(params: {
       recipient: string;
       claim: Record<string, unknown>;

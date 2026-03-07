@@ -453,21 +453,6 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
       }
     },
 
-    async evmSign(params: {
-      certificate: unknown;
-    }): Promise<{ transaction: number[]; signature: string }> {
-      const result = await rpcCall(rpcUrl, 'proxy_evmSignCertificate', {
-        certificate: params.certificate,
-      });
-      const typed = result as { transaction?: number[]; signature?: string } | null;
-      if (!typed?.transaction || !typed?.signature) {
-        throw new FastError('TX_FAILED', 'proxy_evmSignCertificate returned invalid response', {
-          note: 'The FastSet proxy failed to cross-sign the certificate.',
-        });
-      }
-      return { transaction: typed.transaction, signature: typed.signature };
-    },
-
     async sign(params: {
       message: string | Uint8Array;
     }): Promise<{ signature: string; address: string }> {

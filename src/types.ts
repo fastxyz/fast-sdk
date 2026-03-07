@@ -44,8 +44,6 @@ export interface FastClient {
   }>;
   /** Submit any claim to the Fast chain. Returns txHash and certificate. */
   submit(params: { recipient: string; claim: Record<string, unknown> }): Promise<{ txHash: string; certificate: unknown }>;
-  /** Get EVM-compatible cross-signature for a transaction certificate */
-  evmSign(params: { certificate: unknown }): Promise<{ transaction: number[]; signature: string }>;
   /** Export public key and address (never exposes private key) */
   exportKeys(): Promise<{ publicKey: string; address: string }>;
   /** The current wallet address, or null if setup() hasn't been called */

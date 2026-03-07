@@ -53,6 +53,7 @@ describe('fast() factory', () => {
       'setup',
       'balance',
       'send',
+      'faucet',
       'submit',
       'evmSign',
       'sign',
@@ -362,6 +363,33 @@ describe('custom token resolution', () => {
     assert.equal(tx.claim?.TokenTransfer?.amount, '16e360');
   });
 
+  it('send() throws INVALID_ADDRESS for malformed recipient before RPC submit', async () => {
+    let rpcCalled = false;
+
+    globalThis.fetch = (async (_url: string | URL | Request, _init?: RequestInit) => {
+      rpcCalled = true;
+      throw new Error('RPC should not be called for invalid destination address');
+    }) as typeof fetch;
+
+    const f = fast({ network: 'mainnet' });
+    await f.setup();
+
+    await assert.rejects(
+      () => f.send({
+        to: 'fast1invalid_address_here',
+        amount: '1',
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof FastError);
+        assert.equal(error.code, 'INVALID_ADDRESS');
+        assert.match(error.message, /Invalid Fast address/i);
+        return true;
+      },
+    );
+
+    assert.equal(rpcCalled, false);
+  });
+
   it('send() maps Fast insufficient funding errors to INSUFFICIENT_BALANCE', async () => {
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
       const bodyText = typeof init?.body === 'string' ? init.body : '';
@@ -382,7 +410,7 @@ describe('custom token resolution', () => {
             id: 1,
             error: {
               code: -32000,
-              message: 'quorum not reached: SubmitError(FastSet(InsufficientFunding))',
+              message: 'Execution error: panicked at validator/src/ledger/validator.rs:97:8: quorum not reached: SubmitError(FastSet(InsufficientFunding))',
             },
           }),
           {
@@ -407,6 +435,7 @@ describe('custom token resolution', () => {
       (error: unknown) => {
         assert.ok(error instanceof FastError);
         assert.equal(error.code, 'INSUFFICIENT_BALANCE');
+        assert.doesNotMatch(error.message, /validator\/src|panicked at/i);
         return true;
       },
     );
@@ -474,5 +503,44 @@ describe('custom token resolution', () => {
     assert.equal(info.decimals, 6);
     assert.equal(info.address, '0x1e744900021182b293538bb6685b77df095e351364d550021614ce90c8ab9e0a');
     assert.equal(info.totalSupply, '12345000000');
+  });
+});
+
+describe('faucet()', () => {
+  it('requests a testnet faucet drip for the current wallet', async () => {
+    let faucetParams: unknown = null;
+
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const bodyText = typeof init?.body === 'string' ? init.body : '';
+      const parsed = JSON.parse(bodyText) as { method: string; params: unknown };
+
+      if (parsed.method === 'proxy_faucetDrip') {
+        faucetParams = parsed.params;
+        return rpcResult({ ok: true });
+      }
+
+      throw new Error(`Unexpected RPC method: ${parsed.method}`);
+    }) as typeof fetch;
+
+    const f = fast({ network: 'testnet' });
+    const { address } = await f.setup();
+    const result = await f.faucet();
+
+    assert.equal(result.address, address);
+    assert.deepEqual(faucetParams, [address]);
+  });
+
+  it('throws on mainnet', async () => {
+    const f = fast({ network: 'mainnet' });
+    await f.setup();
+
+    await assert.rejects(
+      () => f.faucet(),
+      (error: unknown) => {
+        assert.ok(error instanceof FastError);
+        assert.equal(error.code, 'UNSUPPORTED_OPERATION');
+        return true;
+      },
+    );
   });
 });

@@ -32,8 +32,8 @@ If `npm install @fast/sdk` fails because the first npm release has not happened 
 
 1. Import `fast` from `@fast/sdk`.
 2. Create the client with `fast({ network: 'testnet' })` unless the user explicitly asked for mainnet.
-3. Call `await client.setup()` before any balance, send, signing, or token operation.
-4. Use the high-level methods first: `balance`, `send`, `sign`, `verify`, `tokens`, `tokenInfo`, `exportKeys`.
+3. Call `await client.setup()` before any balance, send, faucet, signing, or token operation.
+4. Use the high-level methods first: `balance`, `send`, `faucet`, `sign`, `verify`, `tokens`, `tokenInfo`, `exportKeys`.
 5. Use `submit` or `evmSign` only when the user explicitly needs low-level claim or certificate handling.
 
 ```ts
@@ -95,6 +95,15 @@ const tx = await client.send({
 - Returns `{ txHash, explorerUrl }`.
 - Validate the `fast1...` destination before calling `send()`.
 
+### Request testnet faucet tokens
+
+```ts
+const drip = await client.faucet();
+```
+
+- `faucet()` calls `proxy_faucetDrip` for the current wallet on `testnet`.
+- You can override the destination: `await client.faucet({ address: 'fast1...' })`.
+
 ### Sign and verify messages
 
 ```ts
@@ -138,7 +147,7 @@ const submitted = await client.submit({
   claim: {
     TokenTransfer: {
       token_id: [/* 32 bytes */],
-      amount: '1000000',
+      amount: 'de0b6b3a7640000',
       user_data: null,
     },
   },
@@ -150,6 +159,9 @@ const evm = await client.evmSign({
 ```
 
 - `submit()` sends a low-level claim and returns `{ txHash, certificate }`.
+- `submit()` `TokenTransfer.amount` is a hex string in raw base units (no `0x` prefix).
+- Native `SET` uses 18 decimals: `0xde0b6b3a7640000` = 1 SET, `0x56bc75e2d63100000` = 100 SET.
+- `SETUSDC` uses 6 decimals.
 - `evmSign()` derives an EVM-compatible signature from a Fast certificate.
 
 ## Errors

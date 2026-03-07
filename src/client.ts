@@ -53,6 +53,11 @@ type FastTokenInfoResponse = {
   requested_token_metadata?: Array<[number[], FastTokenMetadata | null]>;
 } | null;
 
+type RpcErrorPayload = {
+  message?: string;
+  code?: number;
+};
+
 function isNativeFastToken(token: string): boolean {
   const upper = token.toUpperCase();
   return upper === 'SET' || upper === 'FAST';
@@ -64,6 +69,92 @@ function tokenIdToHex(tokenId: number[] | Uint8Array): string {
 
 function stripHexPrefix(hex: string): string {
   return hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
+}
+
+function parseRpcErrorPayload(rawMessage: string): RpcErrorPayload | null {
+  const prefix = 'RPC error:';
+  if (!rawMessage.startsWith(prefix)) {
+    return null;
+  }
+
+  const jsonPart = rawMessage.slice(prefix.length).trim();
+  if (!jsonPart) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(jsonPart) as RpcErrorPayload;
+    if (parsed && typeof parsed === 'object') {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function sanitizeProxyErrorMessage(rawMessage: string, fallback: string): string {
+  const rpcError = parseRpcErrorPayload(rawMessage);
+  let message = (rpcError?.message ?? rawMessage).replace(/\s+/g, ' ').trim();
+
+  for (const marker of ['panicked at', 'stack backtrace', 'validator/src/', 'RUST_BACKTRACE']) {
+    const idx = message.toLowerCase().indexOf(marker.toLowerCase());
+    if (idx >= 0) {
+      message = message.slice(0, idx).trim();
+    }
+  }
+
+  message = message
+    .replace(/(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\.(?:rs|ts|js):\d+(?::\d+)?/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return message || fallback;
+}
+
+function isInsufficientBalanceMessage(message: string): boolean {
+  return /\binsufficient\b|InsufficientFunding/i.test(message);
+}
+
+function decodeFastAddressOrThrow(address: string): Uint8Array {
+  try {
+    const decoded = bech32m.decode(address, 90);
+    if (decoded.prefix !== 'fast') {
+      throw new Error(`invalid prefix: ${decoded.prefix}`);
+    }
+    const pubkey = new Uint8Array(bech32m.fromWords(decoded.words));
+    if (pubkey.length !== 32) {
+      throw new Error(`expected 32-byte pubkey, got ${pubkey.length}`);
+    }
+    return pubkey;
+  } catch {
+    throw new FastError('INVALID_ADDRESS', `Invalid Fast address: ${address}`, {
+      note: 'Use a valid fast1... bech32m address.',
+    });
+  }
+}
+
+function mapSubmissionError(
+  err: unknown,
+  opts: { insufficientNote: string; txFailedNote: string; txFailedFallbackMessage: string },
+): FastError {
+  if (err instanceof FastError) {
+    return err;
+  }
+
+  const rawMessage = err instanceof Error ? err.message : String(err);
+  const sanitizedMessage = sanitizeProxyErrorMessage(rawMessage, opts.txFailedFallbackMessage);
+
+  if (isInsufficientBalanceMessage(rawMessage) || isInsufficientBalanceMessage(sanitizedMessage)) {
+    return new FastError('INSUFFICIENT_BALANCE', 'Insufficient balance for this transfer.', {
+      note: opts.insufficientNote,
+    });
+  }
+
+  return new FastError('TX_FAILED', sanitizedMessage, {
+    note: opts.txFailedNote,
+  });
 }
 
 /**
@@ -258,13 +349,14 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
       token?: string;
     }): Promise<{ txHash: string; explorerUrl: string }> {
       ensureSetup();
+      decodeFastAddressOrThrow(params.to);
 
       // Resolve token ID and decimals
       let tokenId: Uint8Array = SET_TOKEN_ID;
       let decimals = FAST_DECIMALS;
 
       if (params.token && !isNativeFastToken(params.token)) {
-        const accountInfo = await fetchAccountInfo(addressToPubkey(_address!));
+        const accountInfo = await fetchAccountInfo(decodeFastAddressOrThrow(_address!));
 
         if (HEX_TOKEN_PATTERN.test(params.token)) {
           tokenId = hexToTokenId(params.token);
@@ -300,17 +392,38 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
           explorerUrl: `${EXPLORER_BASE}/${result.txHash}`,
         };
       } catch (err: unknown) {
-        if (err instanceof FastError) throw err;
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('InsufficientFunding') || msg.includes('insufficient')) {
-          throw new FastError('INSUFFICIENT_BALANCE', msg, {
-            note: 'Fund your Fast wallet with SET or SETUSDC, then retry.',
-          });
-        }
-        throw new FastError('TX_FAILED', msg, {
-          note: 'Wait 5 seconds, then retry the send.',
+        throw mapSubmissionError(err, {
+          insufficientNote: 'Fund your Fast wallet with SET or SETUSDC, then retry.',
+          txFailedNote: 'Wait 5 seconds, then retry the send.',
+          txFailedFallbackMessage: 'Transaction submission failed.',
         });
       }
+    },
+
+    async faucet(opts?: { address?: string }): Promise<{ address: string }> {
+      ensureSetup();
+
+      if (network !== 'testnet') {
+        throw new FastError('UNSUPPORTED_OPERATION', 'Faucet is only available on testnet.', {
+          note: 'Switch to fast({ network: "testnet" }) or fund this address externally.',
+        });
+      }
+
+      const targetAddress = opts?.address ?? _address!;
+      decodeFastAddressOrThrow(targetAddress);
+
+      try {
+        await rpcCall(rpcUrl, 'proxy_faucetDrip', [targetAddress]);
+      } catch (err: unknown) {
+        if (err instanceof FastError) throw err;
+        const rawMessage = err instanceof Error ? err.message : String(err);
+        const safeMessage = sanitizeProxyErrorMessage(rawMessage, 'Faucet request failed.');
+        throw new FastError('TX_FAILED', safeMessage, {
+          note: 'Retry in a few seconds. The faucet may be rate-limited.',
+        });
+      }
+
+      return { address: targetAddress };
     },
 
     async submit(params: {
@@ -318,8 +431,8 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
       claim: Record<string, unknown>;
     }): Promise<{ txHash: string; certificate: unknown }> {
       ensureSetup();
-      const senderPubkey = addressToPubkey(_address!);
-      const recipientPubkey = addressToPubkey(params.recipient);
+      const senderPubkey = decodeFastAddressOrThrow(_address!);
+      const recipientPubkey = decodeFastAddressOrThrow(params.recipient);
 
       try {
         return await withKey<{ txHash: string; certificate: unknown }>(
@@ -358,15 +471,10 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
           },
         );
       } catch (err: unknown) {
-        if (err instanceof FastError) throw err;
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('InsufficientFunding') || msg.includes('insufficient')) {
-          throw new FastError('INSUFFICIENT_BALANCE', msg, {
-            note: 'Fund your Fast wallet with SET or SETUSDC, then retry.',
-          });
-        }
-        throw new FastError('TX_FAILED', msg, {
-          note: 'Wait 5 seconds, then retry.',
+        throw mapSubmissionError(err, {
+          insufficientNote: 'Fund your Fast wallet with SET or SETUSDC, then retry.',
+          txFailedNote: 'Wait 5 seconds, then retry.',
+          txFailedFallbackMessage: 'Transaction submission failed.',
         });
       }
     },

@@ -26,6 +26,8 @@ export interface FastClient {
   balance(opts?: { token?: string }): Promise<{ amount: string; token: string }>;
   /** Send tokens to an address. Defaults to native SET; custom tokens can be passed by held symbol or hex token ID. */
   send(params: { to: string; amount: string; token?: string }): Promise<{ txHash: string; explorerUrl: string }>;
+  /** Request testnet faucet funds for the current wallet or an explicit address */
+  faucet(opts?: { address?: string }): Promise<{ address: string }>;
   /** Sign a message with the wallet's Ed25519 key */
   sign(params: { message: string | Uint8Array }): Promise<{ signature: string; address: string }>;
   /** Verify an Ed25519 signature against a fast1... address */

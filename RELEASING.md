@@ -5,7 +5,7 @@ This repo publishes `@fastxyz/sdk` to npm from Git tags.
 ## One-time npm setup
 
 1. Create or verify access to the `@fastxyz` npm scope.
-2. Configure npm trusted publishing for `Pi-Squared-Inc/fast-sdk`.
+2. Configure npm trusted publishing for `fastxyz/fast-sdk`.
 3. Register the publish workflow filename exactly as `.github/workflows/publish.yml`.
 
 Trusted publishing is the expected path for this repo. Do not add a long-lived npm token unless trusted publishing is unavailable.

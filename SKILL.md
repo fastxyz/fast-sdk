@@ -26,7 +26,7 @@ When the package is published, install it into the target project with its exist
 npm install @fastxyz/sdk
 ```
 
-If `npm install @fastxyz/sdk` fails because the first npm release has not happened yet, use this repo as the source of truth and wire it into the target project from a local checkout or git dependency instead of inventing a different package name.
+If `npm install @fastxyz/sdk` fails due to a registry or auth issue, use this repo as the source of truth and wire it into the target project from a local checkout or git dependency instead of inventing a different package name.
 
 ## Default Workflow
 

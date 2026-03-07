@@ -39,12 +39,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Pi-Squared-Inc/fast-sdk.git"
+    "url": "git+https://github.com/fastxyz/fast-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/Pi-Squared-Inc/fast-sdk/issues"
+    "url": "https://github.com/fastxyz/fast-sdk/issues"
   },
-  "homepage": "https://github.com/Pi-Squared-Inc/fast-sdk#readme",
+  "homepage": "https://github.com/fastxyz/fast-sdk#readme",
   "dependencies": {
     "@mysten/bcs": "^2.0.2",
     "@noble/ed25519": "^2.1.0",

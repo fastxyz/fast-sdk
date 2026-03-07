@@ -10,7 +10,8 @@ import { FastError } from '../src/errors.js';
 let tmpDir: string;
 let originalConfigDir: string | undefined;
 const originalFetch = globalThis.fetch;
-const SET_USDC_TOKEN_ID = [30, 116, 73, 0, 2, 17, 130, 178, 147, 83, 139, 182, 104, 91, 119, 223, 9, 94, 53, 19, 100, 213, 80, 2, 22, 20, 206, 144, 200, 171, 158, 10] as const;
+// fastUSDC token ID on staging
+const FAST_USDC_TOKEN_ID = [27, 72, 118, 97, 101, 242, 204, 132, 41, 45, 140, 6, 176, 82, 62, 30, 239, 215, 88, 96, 73, 190, 15, 130, 36, 156, 0, 47, 136, 164, 9, 239] as const;
 
 function rpcResult(result: unknown): Response {
   return new Response(
@@ -53,9 +54,7 @@ describe('fast() factory', () => {
       'setup',
       'balance',
       'send',
-      'faucet',
       'submit',
-      'evmSign',
       'sign',
       'verify',
       'tokens',
@@ -228,10 +227,10 @@ describe('custom token resolution', () => {
 
     const f = fast({ network: 'mainnet' });
     await f.setup();
-    const result = await f.balance({ token: 'SETUSDC' });
+    const result = await f.balance({ token: 'fastUSDC' });
 
     assert.equal(result.amount, '0');
-    assert.equal(result.token, 'SETUSDC');
+    assert.equal(result.token, 'fastUSDC');
   });
 
   it('balance() resolves a held token symbol like SETUSDC', async () => {
@@ -243,14 +242,14 @@ describe('custom token resolution', () => {
         assert.deepEqual(parsed.params.token_balances_filter, []);
         return rpcResult({
           balance: '0',
-          token_balance: [[SET_USDC_TOKEN_ID, '4fba280']],
+          token_balance: [[FAST_USDC_TOKEN_ID, '4fba280']],
           next_nonce: 10,
         });
       }
 
       if (parsed.method === 'proxy_getTokenInfo') {
         return rpcResult({
-          requested_token_metadata: [[SET_USDC_TOKEN_ID, { token_name: 'setUSDC', decimals: 6 }]],
+          requested_token_metadata: [[FAST_USDC_TOKEN_ID, { token_name: 'fastUSDC', decimals: 6 }]],
         });
       }
 
@@ -259,10 +258,10 @@ describe('custom token resolution', () => {
 
     const f = fast({ network: 'mainnet' });
     await f.setup();
-    const result = await f.balance({ token: 'SETUSDC' });
+    const result = await f.balance({ token: 'fastUSDC' });
 
     assert.equal(result.amount, '83.6');
-    assert.equal(result.token, 'setUSDC');
+    assert.equal(result.token, 'fastUSDC');
   });
 
   it('send() resolves a held token symbol like SETUSDC before submit', async () => {
@@ -276,14 +275,14 @@ describe('custom token resolution', () => {
         assert.deepEqual(parsed.params.token_balances_filter, []);
         return rpcResult({
           balance: '0',
-          token_balance: [[SET_USDC_TOKEN_ID, '4fba280']],
+          token_balance: [[FAST_USDC_TOKEN_ID, '4fba280']],
           next_nonce: 7,
         });
       }
 
       if (parsed.method === 'proxy_getTokenInfo') {
         return rpcResult({
-          requested_token_metadata: [[SET_USDC_TOKEN_ID, { token_name: 'setUSDC', decimals: 6 }]],
+          requested_token_metadata: [[FAST_USDC_TOKEN_ID, { token_name: 'fastUSDC', decimals: 6 }]],
         });
       }
 
@@ -300,7 +299,7 @@ describe('custom token resolution', () => {
     const result = await f.send({
       to: address,
       amount: '1.5',
-      token: 'SETUSDC',
+      token: 'fastUSDC',
     });
 
     assert.ok(result.txHash.startsWith('0x'));
@@ -313,7 +312,7 @@ describe('custom token resolution', () => {
         };
       };
     };
-    assert.deepEqual(tx.claim?.TokenTransfer?.token_id, SET_USDC_TOKEN_ID);
+    assert.deepEqual(tx.claim?.TokenTransfer?.token_id, FAST_USDC_TOKEN_ID);
     assert.equal(tx.claim?.TokenTransfer?.amount, '16e360');
   });
 
@@ -346,7 +345,7 @@ describe('custom token resolution', () => {
     const result = await f.send({
       to: address,
       amount: '1.5',
-      token: 'SETUSDC',
+      token: 'fastUSDC',
     });
 
     assert.ok(result.txHash.startsWith('0x'));
@@ -359,7 +358,7 @@ describe('custom token resolution', () => {
         };
       };
     };
-    assert.deepEqual(tx.claim?.TokenTransfer?.token_id, SET_USDC_TOKEN_ID);
+    assert.deepEqual(tx.claim?.TokenTransfer?.token_id, FAST_USDC_TOKEN_ID);
     assert.equal(tx.claim?.TokenTransfer?.amount, '16e360');
   });
 
@@ -430,7 +429,7 @@ describe('custom token resolution', () => {
       () => f.send({
         to: address,
         amount: '1.5',
-        token: 'SETUSDC',
+        token: 'fastUSDC',
       }),
       (error: unknown) => {
         assert.ok(error instanceof FastError);
@@ -449,15 +448,15 @@ describe('custom token resolution', () => {
       if (parsed.method === 'proxy_getAccountInfo') {
         return rpcResult({
           balance: '0',
-          token_balance: [[SET_USDC_TOKEN_ID, '4fba280']],
+          token_balance: [[FAST_USDC_TOKEN_ID, '4fba280']],
           next_nonce: 10,
         });
       }
 
       if (parsed.method === 'proxy_getTokenInfo') {
         return rpcResult({
-          requested_token_metadata: [[SET_USDC_TOKEN_ID, {
-            token_name: 'setUSDC',
+          requested_token_metadata: [[FAST_USDC_TOKEN_ID, {
+            token_name: 'fastUSDC',
             decimals: 6,
             total_supply: '30ccd8f20',
             admin: [1, 2, 3],
@@ -471,11 +470,11 @@ describe('custom token resolution', () => {
 
     const f = fast({ network: 'mainnet' });
     await f.setup();
-    const info = await f.tokenInfo({ token: 'SETUSDC' });
+    const info = await f.tokenInfo({ token: 'fastUSDC' });
 
-    assert.equal(info.symbol, 'setUSDC');
+    assert.equal(info.symbol, 'fastUSDC');
     assert.equal(info.decimals, 6);
-    assert.equal(info.address, '0x1e744900021182b293538bb6685b77df095e351364d550021614ce90c8ab9e0a');
+    assert.equal(info.address, '0x1b48766165f2cc84292d8c06b0523e1eefd7586049be0f82249c002f88a409ef');
   });
 
   it('tokenInfo() resolves the known SETUSDC token without requiring a held balance', async () => {
@@ -485,8 +484,8 @@ describe('custom token resolution', () => {
 
       if (parsed.method === 'proxy_getTokenInfo') {
         return rpcResult({
-          requested_token_metadata: [[SET_USDC_TOKEN_ID, {
-            token_name: 'setUSDC',
+          requested_token_metadata: [[FAST_USDC_TOKEN_ID, {
+            token_name: 'fastUSDC',
             decimals: 6,
             total_supply: '12345000000',
           }]],
@@ -497,50 +496,13 @@ describe('custom token resolution', () => {
     }) as typeof fetch;
 
     const f = fast({ network: 'mainnet' });
-    const info = await f.tokenInfo({ token: 'SETUSDC' });
+    const info = await f.tokenInfo({ token: 'fastUSDC' });
 
-    assert.equal(info.symbol, 'setUSDC');
+    assert.equal(info.symbol, 'fastUSDC');
     assert.equal(info.decimals, 6);
-    assert.equal(info.address, '0x1e744900021182b293538bb6685b77df095e351364d550021614ce90c8ab9e0a');
+    assert.equal(info.address, '0x1b48766165f2cc84292d8c06b0523e1eefd7586049be0f82249c002f88a409ef');
     assert.equal(info.totalSupply, '12345000000');
   });
 });
 
-describe('faucet()', () => {
-  it('requests a testnet faucet drip for the current wallet', async () => {
-    let faucetParams: unknown = null;
-
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
-      const bodyText = typeof init?.body === 'string' ? init.body : '';
-      const parsed = JSON.parse(bodyText) as { method: string; params: unknown };
-
-      if (parsed.method === 'proxy_faucetDrip') {
-        faucetParams = parsed.params;
-        return rpcResult({ ok: true });
-      }
-
-      throw new Error(`Unexpected RPC method: ${parsed.method}`);
-    }) as typeof fetch;
-
-    const f = fast({ network: 'testnet' });
-    const { address } = await f.setup();
-    const result = await f.faucet();
-
-    assert.equal(result.address, address);
-    assert.deepEqual(faucetParams, [address]);
-  });
-
-  it('throws on mainnet', async () => {
-    const f = fast({ network: 'mainnet' });
-    await f.setup();
-
-    await assert.rejects(
-      () => f.faucet(),
-      (error: unknown) => {
-        assert.ok(error instanceof FastError);
-        assert.equal(error.code, 'UNSUPPORTED_OPERATION');
-        return true;
-      },
-    );
-  });
-});
+// faucet() tests removed - faucet no longer available

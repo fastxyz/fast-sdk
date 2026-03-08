@@ -11,7 +11,7 @@ let tmpDir: string;
 let originalConfigDir: string | undefined;
 const originalFetch = globalThis.fetch;
 // fastUSDC token ID on staging
-const FAST_USDC_TOKEN_ID = [27, 72, 118, 97, 101, 242, 204, 132, 41, 45, 140, 6, 176, 82, 62, 30, 239, 215, 88, 96, 73, 190, 15, 130, 36, 156, 0, 47, 136, 164, 9, 239] as const;
+const FAST_USDC_TOKEN_ID = [180, 207, 27, 158, 34, 123, 182, 162, 27, 149, 147, 56, 137, 93, 251, 57, 184, 210, 169, 109, 250, 28, 229, 221, 99, 53, 97, 193, 147, 18, 76, 181] as const;
 
 function rpcResult(result: unknown): Response {
   return new Response(
@@ -208,7 +208,7 @@ describe('sign() / verify() roundtrip', () => {
 });
 
 describe('custom token resolution', () => {
-  it('balance() returns 0 for the known SETUSDC token when the wallet holds none', async () => {
+  it('balance() returns 0 for the known FASTUSDC token when the wallet holds none', async () => {
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
       const bodyText = typeof init?.body === 'string' ? init.body : '';
       const parsed = JSON.parse(bodyText) as { method: string; params: Record<string, unknown> };
@@ -233,7 +233,7 @@ describe('custom token resolution', () => {
     assert.equal(result.token, 'fastUSDC');
   });
 
-  it('balance() resolves a held token symbol like SETUSDC', async () => {
+  it('balance() resolves a held token symbol like FASTUSDC', async () => {
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
       const bodyText = typeof init?.body === 'string' ? init.body : '';
       const parsed = JSON.parse(bodyText) as { method: string; params: Record<string, unknown> };
@@ -264,7 +264,7 @@ describe('custom token resolution', () => {
     assert.equal(result.token, 'fastUSDC');
   });
 
-  it('send() resolves a held token symbol like SETUSDC before submit', async () => {
+  it('send() resolves a held token symbol like FASTUSDC before submit', async () => {
     let submittedTransaction: unknown = null;
 
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
@@ -316,7 +316,7 @@ describe('custom token resolution', () => {
     assert.equal(tx.claim?.TokenTransfer?.amount, '16e360');
   });
 
-  it('send() resolves the known SETUSDC token even when the wallet holds none yet', async () => {
+  it('send() resolves the known FASTUSDC token even when the wallet holds none yet', async () => {
     let submittedTransaction: unknown = null;
 
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
@@ -440,7 +440,7 @@ describe('custom token resolution', () => {
     );
   });
 
-  it('tokenInfo() resolves a held token symbol like SETUSDC', async () => {
+  it('tokenInfo() resolves a held token symbol like FASTUSDC', async () => {
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
       const bodyText = typeof init?.body === 'string' ? init.body : '';
       const parsed = JSON.parse(bodyText) as { method: string; params: Record<string, unknown> };
@@ -474,10 +474,10 @@ describe('custom token resolution', () => {
 
     assert.equal(info.symbol, 'fastUSDC');
     assert.equal(info.decimals, 6);
-    assert.equal(info.address, '0x1b48766165f2cc84292d8c06b0523e1eefd7586049be0f82249c002f88a409ef');
+    assert.equal(info.address, '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5');
   });
 
-  it('tokenInfo() resolves the known SETUSDC token without requiring a held balance', async () => {
+  it('tokenInfo() resolves the known FASTUSDC token without requiring a held balance', async () => {
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
       const bodyText = typeof init?.body === 'string' ? init.body : '';
       const parsed = JSON.parse(bodyText) as { method: string; params: Record<string, unknown> };
@@ -500,7 +500,7 @@ describe('custom token resolution', () => {
 
     assert.equal(info.symbol, 'fastUSDC');
     assert.equal(info.decimals, 6);
-    assert.equal(info.address, '0x1b48766165f2cc84292d8c06b0523e1eefd7586049be0f82249c002f88a409ef');
+    assert.equal(info.address, '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5');
     assert.equal(info.totalSupply, '12345000000');
   });
 });

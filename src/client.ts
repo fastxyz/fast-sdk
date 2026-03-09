@@ -353,7 +353,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
       }
 
       throw new FastError('TOKEN_NOT_FOUND', `Token '${tok}' not found on Fast chain`, {
-        note: 'Use a held token symbol like "SETUSDC" or pass the hex token ID directly:\n  await f.balance({ token: "0x..." })',
+        note: 'Use a held token symbol like "fastUSDC" or pass the hex token ID directly:\n  await f.balance({ token: "0x..." })',
       });
     },
 
@@ -380,7 +380,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
           const resolved = await resolveNamedToken(accountInfo, params.token);
           if (!resolved) {
             throw new FastError('TOKEN_NOT_FOUND', `Token '${params.token}' not found on Fast chain`, {
-              note: 'Use a held token symbol like "SETUSDC" or pass the hex token ID directly:\n  await f.send({ to: "fast1...", amount: "1", token: "0x..." })',
+              note: 'Use a held token symbol like "fastUSDC" or pass the hex token ID directly:\n  await f.send({ to: "fast1...", amount: "1", token: "0x..." })',
             });
           }
           tokenId = resolved.tokenId;
@@ -407,7 +407,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
         };
       } catch (err: unknown) {
         throw mapSubmissionError(err, {
-          insufficientNote: 'Fund your Fast wallet with SET or SETUSDC, then retry.',
+          insufficientNote: 'Fund your Fast wallet with SET or fastUSDC, then retry.',
           txFailedNote: 'Wait 5 seconds, then retry the send.',
           txFailedFallbackMessage: 'Transaction submission failed.',
         });
@@ -460,7 +460,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
         );
       } catch (err: unknown) {
         throw mapSubmissionError(err, {
-          insufficientNote: 'Fund your Fast wallet with SET or SETUSDC, then retry.',
+          insufficientNote: 'Fund your Fast wallet with SET or fastUSDC, then retry.',
           txFailedNote: 'Wait 5 seconds, then retry.',
           txFailedFallbackMessage: 'Transaction submission failed.',
         });
@@ -637,7 +637,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
           const resolved = await resolveNamedToken(accountInfo, upper);
           if (!resolved) {
             throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on Fast chain`, {
-              note: 'Call setup() first for symbol lookup, or provide a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0x1e74..." })',
+              note: 'Call setup() first for symbol lookup, or provide a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0xb4cf..." })',
             });
           }
           tokenIdBytes = resolved.tokenId;
@@ -652,7 +652,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
       const entry = result?.requested_token_metadata?.[0];
       if (!entry?.[1]) {
         throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on Fast chain`, {
-          note: 'Provide a held token symbol like "SETUSDC", or a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0x1e74..." })',
+          note: 'Provide a held token symbol like "fastUSDC", or a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0xb4cf..." })',
         });
       }
 

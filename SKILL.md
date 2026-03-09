@@ -78,7 +78,7 @@ const { address } = await client.setup();
 ```ts
 const native = await client.balance();
 const usdc = await client.balance({ token: 'fastUSDC' });
-const byId = await client.balance({ token: '0x1e744900021182b293538bb6685b77df095e351364d550021614ce90c8ab9e0a' });
+const byId = await client.balance({ token: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5' });
 ```
 
 - Native token defaults to `SET`.

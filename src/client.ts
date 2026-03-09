@@ -260,10 +260,16 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
 
     const known = resolveKnownFastToken(token);
     if (known) {
+      const tokenId = hexToTokenId(known.tokenId);
+      const metadata = await fetchTokenMetadata([tokenId]);
+      const meta = metadata.get(tokenIdToHex(tokenId));
+      if (!meta) {
+        return null;
+      }
       return {
-        tokenId: hexToTokenId(known.tokenId),
-        decimals: known.decimals,
-        symbol: known.symbol,
+        tokenId,
+        decimals: meta.decimals ?? known.decimals,
+        symbol: meta.token_name ?? known.symbol,
         rawBalance: '0',
       };
     }

@@ -208,7 +208,7 @@ describe('sign() / verify() roundtrip', () => {
 });
 
 describe('custom token resolution', () => {
-  it('balance() returns 0 for the known FASTUSDC token when the wallet holds none', async () => {
+  it('balance() returns 0 for the known FASTUSDC token when metadata exists but the wallet holds none', async () => {
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
       const bodyText = typeof init?.body === 'string' ? init.body : '';
       const parsed = JSON.parse(bodyText) as { method: string; params: Record<string, unknown> };
@@ -222,15 +222,56 @@ describe('custom token resolution', () => {
         });
       }
 
+      if (parsed.method === 'proxy_getTokenInfo') {
+        return rpcResult({
+          requested_token_metadata: [[FAST_USDC_TOKEN_ID, { token_name: 'fastUSDC', decimals: 6 }]],
+        });
+      }
+
       throw new Error(`Unexpected RPC method: ${parsed.method}`);
     }) as typeof fetch;
 
-    const f = fast({ network: 'mainnet' });
+    const f = fast({ network: 'testnet' });
     await f.setup();
     const result = await f.balance({ token: 'fastUSDC' });
 
     assert.equal(result.amount, '0');
     assert.equal(result.token, 'fastUSDC');
+  });
+
+  it('balance() throws TOKEN_NOT_FOUND when known FASTUSDC metadata is missing on the selected network', async () => {
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const bodyText = typeof init?.body === 'string' ? init.body : '';
+      const parsed = JSON.parse(bodyText) as { method: string; params: Record<string, unknown> };
+
+      if (parsed.method === 'proxy_getAccountInfo') {
+        return rpcResult({
+          balance: '0',
+          token_balance: [],
+          next_nonce: 10,
+        });
+      }
+
+      if (parsed.method === 'proxy_getTokenInfo') {
+        return rpcResult({
+          requested_token_metadata: [[FAST_USDC_TOKEN_ID, null]],
+        });
+      }
+
+      throw new Error(`Unexpected RPC method: ${parsed.method}`);
+    }) as typeof fetch;
+
+    const f = fast({ network: 'mainnet' });
+    await f.setup();
+
+    await assert.rejects(
+      () => f.balance({ token: 'fastUSDC' }),
+      (error: unknown) => {
+        assert.ok(error instanceof FastError);
+        assert.equal(error.code, 'TOKEN_NOT_FOUND');
+        return true;
+      },
+    );
   });
 
   it('balance() resolves a held token symbol like FASTUSDC', async () => {
@@ -316,7 +357,7 @@ describe('custom token resolution', () => {
     assert.equal(tx.claim?.TokenTransfer?.amount, '16e360');
   });
 
-  it('send() resolves the known FASTUSDC token even when the wallet holds none yet', async () => {
+  it('send() resolves the known FASTUSDC token when metadata exists even if the wallet holds none yet', async () => {
     let submittedTransaction: unknown = null;
 
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
@@ -332,6 +373,12 @@ describe('custom token resolution', () => {
         });
       }
 
+      if (parsed.method === 'proxy_getTokenInfo') {
+        return rpcResult({
+          requested_token_metadata: [[FAST_USDC_TOKEN_ID, { token_name: 'fastUSDC', decimals: 6 }]],
+        });
+      }
+
       if (parsed.method === 'proxy_submitTransaction') {
         submittedTransaction = parsed.params.transaction;
         return rpcResult({ Success: { envelope: { hash: 'abc123' }, signatures: [] } });
@@ -340,7 +387,7 @@ describe('custom token resolution', () => {
       throw new Error(`Unexpected RPC method: ${parsed.method}`);
     }) as typeof fetch;
 
-    const f = fast({ network: 'mainnet' });
+    const f = fast({ network: 'testnet' });
     const { address } = await f.setup();
     const result = await f.send({
       to: address,
@@ -360,6 +407,45 @@ describe('custom token resolution', () => {
     };
     assert.deepEqual(tx.claim?.TokenTransfer?.token_id, FAST_USDC_TOKEN_ID);
     assert.equal(tx.claim?.TokenTransfer?.amount, '16e360');
+  });
+
+  it('send() throws TOKEN_NOT_FOUND when known FASTUSDC metadata is missing on the selected network', async () => {
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const bodyText = typeof init?.body === 'string' ? init.body : '';
+      const parsed = JSON.parse(bodyText) as { method: string; params: Record<string, unknown> };
+
+      if (parsed.method === 'proxy_getAccountInfo') {
+        return rpcResult({
+          balance: '0',
+          token_balance: [],
+          next_nonce: 4,
+        });
+      }
+
+      if (parsed.method === 'proxy_getTokenInfo') {
+        return rpcResult({
+          requested_token_metadata: [[FAST_USDC_TOKEN_ID, null]],
+        });
+      }
+
+      throw new Error(`Unexpected RPC method: ${parsed.method}`);
+    }) as typeof fetch;
+
+    const f = fast({ network: 'mainnet' });
+    const { address } = await f.setup();
+
+    await assert.rejects(
+      () => f.send({
+        to: address,
+        amount: '1.5',
+        token: 'fastUSDC',
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof FastError);
+        assert.equal(error.code, 'TOKEN_NOT_FOUND');
+        return true;
+      },
+    );
   });
 
   it('send() throws INVALID_ADDRESS for malformed recipient before RPC submit', async () => {
@@ -402,6 +488,12 @@ describe('custom token resolution', () => {
         });
       }
 
+      if (parsed.method === 'proxy_getTokenInfo') {
+        return rpcResult({
+          requested_token_metadata: [[FAST_USDC_TOKEN_ID, { token_name: 'fastUSDC', decimals: 6 }]],
+        });
+      }
+
       if (parsed.method === 'proxy_submitTransaction') {
         return new Response(
           JSON.stringify({
@@ -422,7 +514,7 @@ describe('custom token resolution', () => {
       throw new Error(`Unexpected RPC method: ${parsed.method}`);
     }) as typeof fetch;
 
-    const f = fast({ network: 'mainnet' });
+    const f = fast({ network: 'testnet' });
     const { address } = await f.setup();
 
     await assert.rejects(

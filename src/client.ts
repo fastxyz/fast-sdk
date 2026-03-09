@@ -23,7 +23,7 @@ import {
   TransactionBcs,
   hashTransaction,
   FAST_DECIMALS,
-  SET_TOKEN_ID,
+  FAST_TOKEN_ID,
   EXPLORER_BASE,
   tokenIdEquals,
   hexToTokenId,
@@ -32,7 +32,7 @@ import { pubkeyToAddress, addressToPubkey } from './address.js';
 import { toHex, fromHex } from './utils.js';
 import type { FastClient, NetworkType } from './types.js';
 
-const DEFAULT_TOKEN = 'SET';
+const DEFAULT_TOKEN = 'FAST';
 const HEX_TOKEN_PATTERN = /^(0x)?[0-9a-fA-F]+$/;
 
 type FastAccountInfo = {
@@ -60,7 +60,7 @@ type RpcErrorPayload = {
 
 function isNativeFastToken(token: string): boolean {
   const upper = token.toUpperCase();
-  return upper === 'SET' || upper === 'FAST';
+  return upper === 'FAST' || upper === 'FAST';
 }
 
 function tokenIdToHex(tokenId: number[] | Uint8Array): string {
@@ -325,7 +325,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
 
       if (!result) return { amount: '0', token: tok };
 
-      // Native SET balance
+      // Native FAST balance
       if (isNativeFastToken(tok)) {
         const hexBalance = result.balance ?? '0';
         return { amount: fromHex(hexBalance, FAST_DECIMALS), token: tok.toUpperCase() };
@@ -366,7 +366,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
       decodeFastAddressOrThrow(params.to);
 
       // Resolve token ID and decimals
-      let tokenId: Uint8Array = SET_TOKEN_ID;
+      let tokenId: Uint8Array = FAST_TOKEN_ID;
       let decimals = FAST_DECIMALS;
 
       if (params.token && !isNativeFastToken(params.token)) {
@@ -407,7 +407,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
         };
       } catch (err: unknown) {
         throw mapSubmissionError(err, {
-          insufficientNote: 'Fund your Fast wallet with SET or fastUSDC, then retry.',
+          insufficientNote: 'Fund your Fast wallet with FAST or fastUSDC, then retry.',
           txFailedNote: 'Wait 5 seconds, then retry the send.',
           txFailedFallbackMessage: 'Transaction submission failed.',
         });
@@ -460,7 +460,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
         );
       } catch (err: unknown) {
         throw mapSubmissionError(err, {
-          insufficientNote: 'Fund your Fast wallet with SET or fastUSDC, then retry.',
+          insufficientNote: 'Fund your Fast wallet with FAST or fastUSDC, then retry.',
           txFailedNote: 'Wait 5 seconds, then retry.',
           txFailedFallbackMessage: 'Transaction submission failed.',
         });
@@ -535,11 +535,11 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
 
       const tokens: Array<{ symbol: string; address: string; balance: string; decimals: number }> = [];
 
-      // Native SET
+      // Native FAST
       const nativeHex = result.balance ?? '0';
       tokens.push({
         symbol: DEFAULT_TOKEN,
-        address: `0x${Buffer.from(SET_TOKEN_ID).toString('hex')}`,
+        address: `0x${Buffer.from(FAST_TOKEN_ID).toString('hex')}`,
         balance: fromHex(nativeHex, FAST_DECIMALS),
         decimals: FAST_DECIMALS,
       });
@@ -612,14 +612,14 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
       const tok = params.token;
       const upper = tok.toUpperCase();
 
-      // Native SET token — RPC returns null for it, so handle locally
+      // Native FAST token — RPC returns null for it, so handle locally
       const isSet = isNativeFastToken(tok)
-        || (HEX_TOKEN_PATTERN.test(tok) && tokenIdEquals(hexToTokenId(tok), SET_TOKEN_ID));
+        || (HEX_TOKEN_PATTERN.test(tok) && tokenIdEquals(hexToTokenId(tok), FAST_TOKEN_ID));
       if (isSet) {
         return {
-          name: 'SET',
-          symbol: 'SET',
-          address: `0x${Buffer.from(SET_TOKEN_ID).toString('hex')}`,
+          name: 'FAST',
+          symbol: 'FAST',
+          address: `0x${Buffer.from(FAST_TOKEN_ID).toString('hex')}`,
           decimals: FAST_DECIMALS,
         };
       }

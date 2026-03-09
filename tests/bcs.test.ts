@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   FAST_DECIMALS,
-  SET_TOKEN_ID,
+  FAST_TOKEN_ID,
   EXPLORER_BASE,
   tokenIdEquals,
   hexToTokenId,
@@ -17,33 +17,33 @@ describe('bcs', () => {
       assert.equal(FAST_DECIMALS, 18);
     });
 
-    it('SET_TOKEN_ID should be a Uint8Array', () => {
-      assert.ok(SET_TOKEN_ID instanceof Uint8Array);
+    it('FAST_TOKEN_ID should be a Uint8Array', () => {
+      assert.ok(FAST_TOKEN_ID instanceof Uint8Array);
     });
 
-    it('SET_TOKEN_ID should have length 32', () => {
-      assert.equal(SET_TOKEN_ID.length, 32);
+    it('FAST_TOKEN_ID should have length 32', () => {
+      assert.equal(FAST_TOKEN_ID.length, 32);
     });
 
-    it('SET_TOKEN_ID[0] should be 0xfa', () => {
-      assert.equal(SET_TOKEN_ID[0], 0xfa);
+    it('FAST_TOKEN_ID[0] should be 0xfa', () => {
+      assert.equal(FAST_TOKEN_ID[0], 0xfa);
     });
 
-    it('SET_TOKEN_ID[1] should be 0x57', () => {
-      assert.equal(SET_TOKEN_ID[1], 0x57);
+    it('FAST_TOKEN_ID[1] should be 0x57', () => {
+      assert.equal(FAST_TOKEN_ID[1], 0x57);
     });
 
-    it('SET_TOKEN_ID[2] should be 0x5e', () => {
-      assert.equal(SET_TOKEN_ID[2], 0x5e);
+    it('FAST_TOKEN_ID[2] should be 0x5e', () => {
+      assert.equal(FAST_TOKEN_ID[2], 0x5e);
     });
 
-    it('SET_TOKEN_ID[3] should be 0x70', () => {
-      assert.equal(SET_TOKEN_ID[3], 0x70);
+    it('FAST_TOKEN_ID[3] should be 0x70', () => {
+      assert.equal(FAST_TOKEN_ID[3], 0x70);
     });
 
-    it('SET_TOKEN_ID bytes 4-31 should all be 0', () => {
+    it('FAST_TOKEN_ID bytes 4-31 should all be 0', () => {
       assert.ok(
-        SET_TOKEN_ID.slice(4).every((b) => b === 0),
+        FAST_TOKEN_ID.slice(4).every((b) => b === 0),
         'Expected bytes 4-31 to all be 0',
       );
     });
@@ -54,16 +54,16 @@ describe('bcs', () => {
   });
 
   describe('tokenIdEquals', () => {
-    it('should return true when comparing SET_TOKEN_ID to itself', () => {
-      assert.equal(tokenIdEquals(SET_TOKEN_ID, SET_TOKEN_ID), true);
+    it('should return true when comparing FAST_TOKEN_ID to itself', () => {
+      assert.equal(tokenIdEquals(FAST_TOKEN_ID, FAST_TOKEN_ID), true);
     });
 
-    it('should return true with number[] first arg matching SET_TOKEN_ID', () => {
-      assert.equal(tokenIdEquals(Array.from(SET_TOKEN_ID), SET_TOKEN_ID), true);
+    it('should return true with number[] first arg matching FAST_TOKEN_ID', () => {
+      assert.equal(tokenIdEquals(Array.from(FAST_TOKEN_ID), FAST_TOKEN_ID), true);
     });
 
     it('should return false for different arrays of same length', () => {
-      assert.equal(tokenIdEquals(new Uint8Array(32), SET_TOKEN_ID), false);
+      assert.equal(tokenIdEquals(new Uint8Array(32), FAST_TOKEN_ID), false);
     });
 
     it('should return false for arrays of different lengths', () => {
@@ -76,14 +76,14 @@ describe('bcs', () => {
   });
 
   describe('hexToTokenId', () => {
-    it('should parse 0xfa575e70 to match SET_TOKEN_ID', () => {
+    it('should parse 0xfa575e70 to match FAST_TOKEN_ID', () => {
       const result = hexToTokenId('0xfa575e70');
-      assert.equal(tokenIdEquals(result, SET_TOKEN_ID), true);
+      assert.equal(tokenIdEquals(result, FAST_TOKEN_ID), true);
     });
 
-    it('should parse fa575e70 (no 0x prefix) to match SET_TOKEN_ID', () => {
+    it('should parse fa575e70 (no 0x prefix) to match FAST_TOKEN_ID', () => {
       const result = hexToTokenId('fa575e70');
-      assert.equal(tokenIdEquals(result, SET_TOKEN_ID), true);
+      assert.equal(tokenIdEquals(result, FAST_TOKEN_ID), true);
     });
 
     it('should parse 0X-prefixed all-ff hex to all 0xff bytes', () => {
@@ -115,7 +115,7 @@ describe('bcs', () => {
       timestamp_nanos: 0n,
       claim: {
         TokenTransfer: {
-          token_id: SET_TOKEN_ID,
+          token_id: FAST_TOKEN_ID,
           amount: 'de0b6b3a7640000',
           user_data: null,
         },

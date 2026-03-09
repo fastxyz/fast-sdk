@@ -59,7 +59,7 @@ describe('config', () => {
             rpc: 'https://example.com',
             keyfile: '/tmp/k.json',
             network: 'testnet',
-            defaultToken: 'SET',
+            defaultToken: 'FAST',
           },
         },
       };
@@ -80,7 +80,7 @@ describe('config', () => {
         rpc: 'https://example.com',
         keyfile: '/tmp/k.json',
         network: 'testnet',
-        defaultToken: 'SET',
+        defaultToken: 'FAST',
       };
       await setNetworkConfig('fast', networkCfg);
       const result = await getNetworkConfig('fast');
@@ -94,7 +94,7 @@ describe('config', () => {
         rpc: 'https://a.example.com',
         keyfile: '/tmp/a.json',
         network: 'testnet',
-        defaultToken: 'SET',
+        defaultToken: 'FAST',
       };
       const netCfgB = {
         rpc: 'https://b.example.com',

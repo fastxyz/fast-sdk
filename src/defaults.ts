@@ -16,13 +16,13 @@ export const FAST_NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
     rpc: 'https://staging.proxy.fastset.xyz',
     keyfile: '~/.fast/keys/fast.json',
     network: 'testnet',
-    defaultToken: 'SET',
+    defaultToken: 'FAST',
   },
   mainnet: {
     rpc: 'https://api.fast.xyz/proxy',
     keyfile: '~/.fast/keys/fast.json',
     network: 'mainnet',
-    defaultToken: 'SET',
+    defaultToken: 'FAST',
   },
 };
 

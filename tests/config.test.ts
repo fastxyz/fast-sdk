@@ -9,8 +9,8 @@ import {
   getKeysDir,
   loadConfig,
   saveConfig,
-  getChainConfig,
-  setChainConfig,
+  getNetworkConfig,
+  setNetworkConfig,
 } from '../src/config.js';
 
 describe('config', () => {
@@ -45,16 +45,16 @@ describe('config', () => {
   });
 
   describe('loadConfig — no file', () => {
-    it('returns { chains: {} } when no config file exists', async () => {
+    it('returns { networks: {} } when no config file exists', async () => {
       const config = await loadConfig();
-      assert.deepEqual(config, { chains: {} });
+      assert.deepEqual(config, { networks: {} });
     });
   });
 
   describe('saveConfig / loadConfig roundtrip', () => {
     it('saves and loads config with deep equality', async () => {
       const config = {
-        chains: {
+        networks: {
           fast: {
             rpc: 'https://example.com',
             keyfile: '/tmp/k.json',
@@ -69,50 +69,50 @@ describe('config', () => {
     });
   });
 
-  describe('setChainConfig / getChainConfig', () => {
-    it('getChainConfig returns null for a nonexistent chain', async () => {
-      const result = await getChainConfig('nonexistent');
+  describe('setNetworkConfig / getNetworkConfig', () => {
+    it('getNetworkConfig returns null for a nonexistent network', async () => {
+      const result = await getNetworkConfig('nonexistent');
       assert.equal(result, null);
     });
 
-    it('setChainConfig persists and getChainConfig retrieves the config', async () => {
-      const chainCfg = {
+    it('setNetworkConfig persists and getNetworkConfig retrieves the config', async () => {
+      const networkCfg = {
         rpc: 'https://example.com',
         keyfile: '/tmp/k.json',
         network: 'testnet',
         defaultToken: 'SET',
       };
-      await setChainConfig('fast', chainCfg);
-      const result = await getChainConfig('fast');
-      assert.deepEqual(result, chainCfg);
+      await setNetworkConfig('fast', networkCfg);
+      const result = await getNetworkConfig('fast');
+      assert.deepEqual(result, networkCfg);
     });
   });
 
   describe('config accumulation', () => {
-    it('setting two chains preserves both in the loaded config', async () => {
-      const cfgA = {
+    it('setting two networks preserves both in the loaded config', async () => {
+      const netCfgA = {
         rpc: 'https://a.example.com',
         keyfile: '/tmp/a.json',
         network: 'testnet',
         defaultToken: 'SET',
       };
-      const cfgB = {
+      const netCfgB = {
         rpc: 'https://b.example.com',
         keyfile: '/tmp/b.json',
         network: 'mainnet',
         defaultToken: 'ETH',
       };
-      await setChainConfig('a', cfgA);
-      await setChainConfig('b', cfgB);
+      await setNetworkConfig('a', netCfgA);
+      await setNetworkConfig('b', netCfgB);
 
       const loaded = await loadConfig();
-      assert.ok('a' in loaded.chains);
-      assert.ok('b' in loaded.chains);
+      assert.ok('a' in loaded.networks);
+      assert.ok('b' in loaded.networks);
 
-      const resultA = await getChainConfig('a');
-      const resultB = await getChainConfig('b');
-      assert.deepEqual(resultA, cfgA);
-      assert.deepEqual(resultB, cfgB);
+      const resultA = await getNetworkConfig('a');
+      const resultB = await getNetworkConfig('b');
+      assert.deepEqual(resultA, netCfgA);
+      assert.deepEqual(resultB, netCfgB);
     });
   });
 });

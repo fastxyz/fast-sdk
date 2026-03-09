@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { FastConfig, ChainConfig } from './types.js';
+import type { FastConfig, NetworkConfig } from './types.js';
 
 /**
  * Returns the expanded path to the config directory (~/.fast/ by default).
@@ -33,20 +33,20 @@ function getConfigPath(): string {
 
 /**
  * Load the config from ~/.fast/config.json.
- * Returns { chains: {} } if the file does not exist.
+ * Returns { networks: {} } if the file does not exist.
  */
 export async function loadConfig(): Promise<FastConfig> {
   const configPath = getConfigPath();
   try {
     const raw = await fs.readFile(configPath, 'utf-8');
     const parsed = JSON.parse(raw) as FastConfig;
-    if (!parsed.chains || typeof parsed.chains !== 'object') {
-      throw new Error(`Invalid config at ${configPath}: missing "chains" object`);
+    if (!parsed.networks || typeof parsed.networks !== 'object') {
+      throw new Error(`Invalid config at ${configPath}: missing "networks" object`);
     }
     return parsed;
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { chains: {} };
+      return { networks: {} };
     }
     throw new Error(
       `Failed to load config from ${configPath}: ${(err as Error).message}`
@@ -85,18 +85,18 @@ export async function saveConfig(config: FastConfig): Promise<void> {
 }
 
 /**
- * Get the config for a specific chain, or null if not configured.
+ * Get the config for a specific network, or null if not configured.
  */
-export async function getChainConfig(chain: string): Promise<ChainConfig | null> {
+export async function getNetworkConfig(network: string): Promise<NetworkConfig | null> {
   const config = await loadConfig();
-  return config.chains[chain] ?? null;
+  return config.networks[network] ?? null;
 }
 
 /**
- * Add or update a chain's config and persist it.
+ * Add or update a network's config and persist it.
  */
-export async function setChainConfig(chain: string, chainConfig: ChainConfig): Promise<void> {
+export async function setNetworkConfig(network: string, networkConfig: NetworkConfig): Promise<void> {
   const config = await loadConfig();
-  config.chains[chain] = chainConfig;
+  config.networks[network] = networkConfig;
   await saveConfig(config);
 }

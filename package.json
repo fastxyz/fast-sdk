@@ -1,12 +1,12 @@
 {
   "name": "@fastxyz/sdk",
   "version": "0.1.0",
-  "description": "Fast chain SDK — wallet management, payments, and RPC",
+  "description": "Fast SDK — wallet management, payments, and RPC",
   "keywords": [
     "fast",
     "sdk",
     "payments",
-    "blockchain"
+    "settlement"
   ],
   "type": "module",
   "main": "./dist/index.js",

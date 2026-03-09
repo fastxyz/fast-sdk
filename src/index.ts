@@ -1,5 +1,5 @@
 /**
- * @fastxyz/sdk — Fast chain SDK for AI agents
+ * @fastxyz/sdk — Fast SDK for AI agents
  *
  * Primary API: fast({ network: 'testnet' }) → FastClient
  */

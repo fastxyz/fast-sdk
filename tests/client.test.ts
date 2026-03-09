@@ -88,7 +88,7 @@ describe('ensureSetup guard', () => {
       () => f.balance(),
       (err: unknown) => {
         assert(err instanceof FastError);
-        assert.equal(err.code, 'CHAIN_NOT_CONFIGURED');
+        assert.equal(err.code, 'NETWORK_NOT_CONFIGURED');
         return true;
       },
     );
@@ -100,7 +100,7 @@ describe('ensureSetup guard', () => {
       () => f.send({ to: 'fast1abc', amount: '1.0' }),
       (err: unknown) => {
         assert(err instanceof FastError);
-        assert.equal(err.code, 'CHAIN_NOT_CONFIGURED');
+        assert.equal(err.code, 'NETWORK_NOT_CONFIGURED');
         return true;
       },
     );
@@ -112,7 +112,7 @@ describe('ensureSetup guard', () => {
       () => f.exportKeys(),
       (err: unknown) => {
         assert(err instanceof FastError);
-        assert.equal(err.code, 'CHAIN_NOT_CONFIGURED');
+        assert.equal(err.code, 'NETWORK_NOT_CONFIGURED');
         return true;
       },
     );

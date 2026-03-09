@@ -16,8 +16,8 @@ import {
   signEd25519,
   verifyEd25519,
 } from './keys.js';
-import { getKeysDir, setChainConfig } from './config.js';
-import { FAST_CHAIN_CONFIGS, configKey, resolveKnownFastToken } from './defaults.js';
+import { getKeysDir, setNetworkConfig } from './config.js';
+import { FAST_NETWORK_CONFIGS, configKey, resolveKnownFastToken } from './defaults.js';
 import { rpcCall } from './rpc.js';
 import {
   TransactionBcs,
@@ -158,7 +158,7 @@ function mapSubmissionError(
 }
 
 /**
- * Create a Fast chain client.
+ * Create a Fast client.
  *
  * @example
  * ```ts
@@ -178,7 +178,7 @@ function mapSubmissionError(
  */
 export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastClient {
   const network: NetworkType = opts?.network ?? 'testnet';
-  const defaults = FAST_CHAIN_CONFIGS[network];
+  const defaults = FAST_NETWORK_CONFIGS[network];
   const rpcUrl = opts?.rpcUrl ?? defaults.rpc;
 
   let _address: string | null = null;
@@ -186,7 +186,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
 
   function ensureSetup(): void {
     if (!_address || !_keyfilePath) {
-      throw new FastError('CHAIN_NOT_CONFIGURED', 'Call setup() before using other methods', {
+      throw new FastError('NETWORK_NOT_CONFIGURED', 'Call setup() before using other methods', {
         note: "const f = fast({ network: 'testnet' });\nawait f.setup();",
       });
     }
@@ -300,7 +300,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
       }
 
       const key = configKey(network);
-      await setChainConfig(key, {
+      await setNetworkConfig(key, {
         rpc: rpcUrl,
         keyfile: _keyfilePath,
         network,
@@ -352,7 +352,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
         };
       }
 
-      throw new FastError('TOKEN_NOT_FOUND', `Token '${tok}' not found on Fast chain`, {
+      throw new FastError('TOKEN_NOT_FOUND', `Token '${tok}' not found on Fast`, {
         note: 'Use a held token symbol like "fastUSDC" or pass the hex token ID directly:\n  await f.balance({ token: "0x..." })',
       });
     },
@@ -379,7 +379,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
         } else {
           const resolved = await resolveNamedToken(accountInfo, params.token);
           if (!resolved) {
-            throw new FastError('TOKEN_NOT_FOUND', `Token '${params.token}' not found on Fast chain`, {
+            throw new FastError('TOKEN_NOT_FOUND', `Token '${params.token}' not found on Fast`, {
               note: 'Use a held token symbol like "fastUSDC" or pass the hex token ID directly:\n  await f.send({ to: "fast1...", amount: "1", token: "0x..." })',
             });
           }
@@ -636,7 +636,7 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
           const accountInfo = await fetchAccountInfo(addressToPubkey(_address!));
           const resolved = await resolveNamedToken(accountInfo, upper);
           if (!resolved) {
-            throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on Fast chain`, {
+            throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on Fast`, {
               note: 'Call setup() first for symbol lookup, or provide a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0xb4cf..." })',
             });
           }
@@ -644,14 +644,14 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
         }
       }
 
-      // Query on-chain metadata
+      // Query on-network metadata
       const result = (await rpcCall(rpcUrl, 'proxy_getTokenInfo', {
         token_ids: [tokenIdBytes],
       })) as FastTokenInfoResponse;
 
       const entry = result?.requested_token_metadata?.[0];
       if (!entry?.[1]) {
-        throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on Fast chain`, {
+        throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on Fast`, {
           note: 'Provide a held token symbol like "fastUSDC", or a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0xb4cf..." })',
         });
       }

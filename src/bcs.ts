@@ -1,7 +1,7 @@
 /**
- * bcs.ts — BCS schema definitions for Fast chain transactions
+ * bcs.ts — BCS schema definitions for Fast transactions
  *
- * Must match on-chain types exactly.
+ * Must match on-network types exactly.
  */
 
 import { bcs } from '@mysten/bcs';

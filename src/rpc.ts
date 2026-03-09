@@ -1,5 +1,5 @@
 /**
- * rpc.ts — JSON-RPC helper for the Fast chain proxy API
+ * rpc.ts — JSON-RPC helper for the Fast network proxy API
  */
 
 /** JSON serializer that handles Uint8Array and BigInt */
@@ -11,7 +11,7 @@ function toJSON(data: unknown): string {
   });
 }
 
-/** Call a JSON-RPC method on the Fast chain proxy */
+/** Call a JSON-RPC method on the Fast network proxy */
 export async function rpcCall(
   url: string,
   method: string,

@@ -1,8 +1,8 @@
 /**
- * defaults.ts — Default Fast chain configuration
+ * defaults.ts — Default Fast configuration
  */
 
-import type { NetworkType, ChainConfig } from './types.js';
+import type { NetworkType, NetworkConfig } from './types.js';
 
 export type KnownFastToken = {
   symbol: string;
@@ -10,8 +10,8 @@ export type KnownFastToken = {
   decimals: number;
 };
 
-/** Default Fast chain configs */
-export const FAST_CHAIN_CONFIGS: Record<NetworkType, ChainConfig> = {
+/** Default Fast configs */
+export const FAST_NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
   testnet: {
     rpc: 'https://staging.proxy.fastset.xyz',
     keyfile: '~/.fast/keys/fast.json',

@@ -2,7 +2,7 @@
 name: fast-sdk
 description: >
   Fast SDK for AI agents and Node.js apps. Use @fastxyz/sdk to create or load a Fast wallet,
-  check balances, send FAST or Fast tokens, sign or verify messages, list held tokens, look up token metadata,
+  check balances, send FAST tokens, sign or verify messages, list held tokens, look up token metadata,
   submit low-level claims, and export wallet info.
   Trigger this skill when a user wants to integrate Fast payments or wallet actions in code,
   or when asked to send funds, inspect balances, sign or verify data, or query Fast token holdings.

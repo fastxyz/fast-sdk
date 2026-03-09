@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fast SDK — wallet management, payments, and RPC",
   "keywords": [
     "fast",
@@ -32,7 +32,7 @@
   "engines": {
     "node": ">=20"
   },
-  "author": "Pi2Labs",
+  "author": "Fast.xyz",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

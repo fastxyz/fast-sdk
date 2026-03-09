@@ -3,7 +3,7 @@ name: fast-sdk
 description: >
   Fast chain SDK for AI agents and Node.js apps. Use @fastxyz/sdk to create or load a Fast wallet,
   check balances, send SET or Fast tokens, sign or verify messages, list held tokens, look up token metadata,
-  submit low-level claims, derive EVM-compatible signatures from certificates, and export wallet info.
+  submit low-level claims, and export wallet info.
   Trigger this skill when a user wants to integrate Fast chain payments or wallet actions in code,
   or when asked to send funds, inspect balances, sign or verify data, or query Fast token holdings.
   Do NOT use for swaps, bridges, AllSet flows, lending, staking, or generic EVM SDK work.
@@ -32,9 +32,9 @@ If `npm install @fastxyz/sdk` fails due to a registry or auth issue, use this re
 
 1. Import `fast` from `@fastxyz/sdk`.
 2. Create the client with `fast({ network: 'testnet' })` unless the user explicitly asked for mainnet.
-3. Call `await client.setup()` before any balance, send, faucet, signing, or token operation.
-4. Use the high-level methods first: `balance`, `send`, `faucet`, `sign`, `verify`, `tokens`, `tokenInfo`, `exportKeys`.
-5. Use `submit` or `evmSign` only when the user explicitly needs low-level claim or certificate handling.
+3. Call `await client.setup()` before any balance, send, signing, or token operation.
+4. Use the high-level methods first: `balance`, `send`, `sign`, `verify`, `tokens`, `tokenInfo`, `exportKeys`.
+5. Use `submit` only when the user explicitly needs low-level claim handling.
 
 ```ts
 import { fast } from '@fastxyz/sdk';
@@ -42,6 +42,15 @@ import { fast } from '@fastxyz/sdk';
 const client = fast({ network: 'testnet' });
 const { address } = await client.setup();
 const balance = await client.balance();
+```
+
+### Custom RPC endpoint
+
+```ts
+const client = fast({
+  network: 'testnet',
+  rpcUrl: 'https://custom-rpc.example.com/proxy'
+});
 ```
 
 ## Safety Rules
@@ -68,12 +77,12 @@ const { address } = await client.setup();
 
 ```ts
 const native = await client.balance();
-const usdc = await client.balance({ token: 'SETUSDC' });
-const byId = await client.balance({ token: '0x1e744900021182b293538bb6685b77df095e351364d550021614ce90c8ab9e0a' });
+const usdc = await client.balance({ token: 'fastUSDC' });
+const byId = await client.balance({ token: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5' });
 ```
 
 - Native token defaults to `SET`.
-- Custom tokens can be referenced by held symbol like `SETUSDC` or by hex token ID.
+- Custom tokens can be referenced by held symbol like `fastUSDC` or by hex token ID.
 
 ### Send tokens
 
@@ -88,21 +97,12 @@ const tx = await client.send({
 const tx = await client.send({
   to: 'fast1...',
   amount: '5',
-  token: 'SETUSDC',
+  token: 'fastUSDC',
 });
 ```
 
 - Returns `{ txHash, explorerUrl }`.
 - Validate the `fast1...` destination before calling `send()`.
-
-### Request testnet faucet tokens
-
-```ts
-const drip = await client.faucet();
-```
-
-- `faucet()` calls `proxy_faucetDrip` for the current wallet on `testnet`.
-- You can override the destination: `await client.faucet({ address: 'fast1...' })`.
 
 ### Sign and verify messages
 
@@ -122,7 +122,7 @@ const checked = await client.verify({
 
 ```ts
 const holdings = await client.tokens();
-const info = await client.tokenInfo({ token: 'SETUSDC' });
+const info = await client.tokenInfo({ token: 'fastUSDC' });
 ```
 
 - `tokens()` lists held tokens with symbol, address, balance, and decimals.
@@ -153,16 +153,12 @@ const submitted = await client.submit({
   },
 });
 
-const evm = await client.evmSign({
-  certificate: submitted.certificate,
-});
 ```
 
 - `submit()` sends a low-level claim and returns `{ txHash, certificate }`.
 - `submit()` `TokenTransfer.amount` is a hex string in raw base units (no `0x` prefix).
 - Native `SET` uses 18 decimals: `0xde0b6b3a7640000` = 1 SET, `0x56bc75e2d63100000` = 100 SET.
-- `SETUSDC` uses 6 decimals.
-- `evmSign()` derives an EVM-compatible signature from a Fast certificate.
+- `fastUSDC` uses 6 decimals.
 
 ## Errors
 

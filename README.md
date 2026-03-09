@@ -1,8 +1,6 @@
 # Fast SDK
 
-Standalone Fast chain SDK extracted from `/Users/chris/Documents/Workspace/money`.
-
-This repo contains only `@fastxyz/sdk`. It does not include the AllSet SDK or the old workspace wiring from the `money` monorepo.
+Official TypeScript SDK for the Fast chain. Build wallets, send tokens, check balances, sign messages, and interact with Fast chain in Node.js applications.
 
 ## Install
 
@@ -10,20 +8,7 @@ This repo contains only `@fastxyz/sdk`. It does not include the AllSet SDK or th
 npm install @fastxyz/sdk
 ```
 
-## Development
-
-```bash
-npm install
-```
-
-## Scripts
-
-```bash
-npm run build
-npm test
-```
-
-## Usage
+## Quick Start
 
 ```ts
 import { fast } from '@fastxyz/sdk';
@@ -31,10 +16,42 @@ import { fast } from '@fastxyz/sdk';
 const client = fast({ network: 'testnet' });
 await client.setup();
 
+// Check balance
 const balance = await client.balance();
 console.log(balance);
+
+// Send tokens
+const tx = await client.send({
+  to: 'fast1...',
+  amount: '1.0',
+});
+console.log(tx.txHash);
+```
+
+## Features
+
+- **Wallet Management** - Create or load Fast chain wallets
+- **Token Operations** - Send SET, fastUSDC, or any Fast token
+- **Balance Queries** - Check native and token balances
+- **Message Signing** - Sign and verify messages with Ed25519
+- **Token Metadata** - Look up token info and list holdings
+
+## Documentation
+
+See [SKILL.md](./SKILL.md) for detailed API documentation and usage examples.
+
+## Development
+
+```bash
+npm install
+npm run build
+npm test
 ```
 
 ## Releasing
 
-See `RELEASING.md` for the tag-driven npm release flow and the npm trusted publishing setup this repo expects.
+See [RELEASING.md](./RELEASING.md) for the npm release workflow.
+
+## License
+
+MIT

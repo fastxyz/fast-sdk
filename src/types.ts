@@ -22,12 +22,10 @@ export interface FastConfig {
 export interface FastClient {
   /** Create or load a wallet, persist config. Must be called before other methods. */
   setup(): Promise<{ address: string }>;
-  /** Get balance for native SET, a held custom token symbol like SETUSDC, or a hex token ID */
+  /** Get balance for native SET, a held custom token symbol like fastUSDC, or a hex token ID */
   balance(opts?: { token?: string }): Promise<{ amount: string; token: string }>;
   /** Send tokens to an address. Defaults to native SET; custom tokens can be passed by held symbol or hex token ID. */
   send(params: { to: string; amount: string; token?: string }): Promise<{ txHash: string; explorerUrl: string }>;
-  /** Request testnet faucet funds for the current wallet or an explicit address */
-  faucet(opts?: { address?: string }): Promise<{ address: string }>;
   /** Sign a message with the wallet's Ed25519 key */
   sign(params: { message: string | Uint8Array }): Promise<{ signature: string; address: string }>;
   /** Verify an Ed25519 signature against a fast1... address */
@@ -46,8 +44,6 @@ export interface FastClient {
   }>;
   /** Submit any claim to the Fast chain. Returns txHash and certificate. */
   submit(params: { recipient: string; claim: Record<string, unknown> }): Promise<{ txHash: string; certificate: unknown }>;
-  /** Get EVM-compatible cross-signature for a transaction certificate */
-  evmSign(params: { certificate: unknown }): Promise<{ transaction: number[]; signature: string }>;
   /** Export public key and address (never exposes private key) */
   exportKeys(): Promise<{ publicKey: string; address: string }>;
   /** The current wallet address, or null if setup() hasn't been called */

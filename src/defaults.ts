@@ -13,7 +13,7 @@ export type KnownFastToken = {
 /** Default Fast chain configs */
 export const FAST_CHAIN_CONFIGS: Record<NetworkType, ChainConfig> = {
   testnet: {
-    rpc: 'https://api.fast.xyz/proxy',
+    rpc: 'https://staging.proxy.fastset.xyz',
     keyfile: '~/.fast/keys/fast.json',
     network: 'testnet',
     defaultToken: 'SET',
@@ -27,12 +27,12 @@ export const FAST_CHAIN_CONFIGS: Record<NetworkType, ChainConfig> = {
 };
 
 /** Default RPC URL */
-export const DEFAULT_RPC_URL = 'https://api.fast.xyz/proxy';
+export const DEFAULT_RPC_URL = 'https://staging.proxy.fastset.xyz';
 
 const FAST_KNOWN_TOKENS: Record<string, KnownFastToken> = {
-  SETUSDC: {
-    symbol: 'SETUSDC',
-    tokenId: '0x1e744900021182b293538bb6685b77df095e351364d550021614ce90c8ab9e0a',
+  FASTUSDC: {
+    symbol: 'fastUSDC',
+    tokenId: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5',
     decimals: 6,
   },
 };

@@ -167,11 +167,19 @@ function mapSubmissionError(
  * await f.balance();
  * await f.send({ to: 'fast1...', amount: '1.0' });
  * ```
+ *
+ * @example Custom RPC endpoint
+ * ```ts
+ * const f = fast({
+ *   network: 'testnet',
+ *   rpcUrl: 'https://custom-rpc.example.com/proxy'
+ * });
+ * ```
  */
-export function fast(opts?: { network?: NetworkType }): FastClient {
+export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastClient {
   const network: NetworkType = opts?.network ?? 'testnet';
   const defaults = FAST_CHAIN_CONFIGS[network];
-  const rpcUrl = defaults.rpc;
+  const rpcUrl = opts?.rpcUrl ?? defaults.rpc;
 
   let _address: string | null = null;
   let _keyfilePath: string | null = null;
@@ -252,10 +260,16 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
 
     const known = resolveKnownFastToken(token);
     if (known) {
+      const tokenId = hexToTokenId(known.tokenId);
+      const metadata = await fetchTokenMetadata([tokenId]);
+      const meta = metadata.get(tokenIdToHex(tokenId));
+      if (!meta) {
+        return null;
+      }
       return {
-        tokenId: hexToTokenId(known.tokenId),
-        decimals: known.decimals,
-        symbol: known.symbol,
+        tokenId,
+        decimals: meta.decimals ?? known.decimals,
+        symbol: meta.token_name ?? known.symbol,
         rawBalance: '0',
       };
     }
@@ -339,7 +353,7 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
       }
 
       throw new FastError('TOKEN_NOT_FOUND', `Token '${tok}' not found on Fast chain`, {
-        note: 'Use a held token symbol like "SETUSDC" or pass the hex token ID directly:\n  await f.balance({ token: "0x..." })',
+        note: 'Use a held token symbol like "fastUSDC" or pass the hex token ID directly:\n  await f.balance({ token: "0x..." })',
       });
     },
 
@@ -366,7 +380,7 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
           const resolved = await resolveNamedToken(accountInfo, params.token);
           if (!resolved) {
             throw new FastError('TOKEN_NOT_FOUND', `Token '${params.token}' not found on Fast chain`, {
-              note: 'Use a held token symbol like "SETUSDC" or pass the hex token ID directly:\n  await f.send({ to: "fast1...", amount: "1", token: "0x..." })',
+              note: 'Use a held token symbol like "fastUSDC" or pass the hex token ID directly:\n  await f.send({ to: "fast1...", amount: "1", token: "0x..." })',
             });
           }
           tokenId = resolved.tokenId;
@@ -393,37 +407,11 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
         };
       } catch (err: unknown) {
         throw mapSubmissionError(err, {
-          insufficientNote: 'Fund your Fast wallet with SET or SETUSDC, then retry.',
+          insufficientNote: 'Fund your Fast wallet with SET or fastUSDC, then retry.',
           txFailedNote: 'Wait 5 seconds, then retry the send.',
           txFailedFallbackMessage: 'Transaction submission failed.',
         });
       }
-    },
-
-    async faucet(opts?: { address?: string }): Promise<{ address: string }> {
-      ensureSetup();
-
-      if (network !== 'testnet') {
-        throw new FastError('UNSUPPORTED_OPERATION', 'Faucet is only available on testnet.', {
-          note: 'Switch to fast({ network: "testnet" }) or fund this address externally.',
-        });
-      }
-
-      const targetAddress = opts?.address ?? _address!;
-      decodeFastAddressOrThrow(targetAddress);
-
-      try {
-        await rpcCall(rpcUrl, 'proxy_faucetDrip', [targetAddress]);
-      } catch (err: unknown) {
-        if (err instanceof FastError) throw err;
-        const rawMessage = err instanceof Error ? err.message : String(err);
-        const safeMessage = sanitizeProxyErrorMessage(rawMessage, 'Faucet request failed.');
-        throw new FastError('TX_FAILED', safeMessage, {
-          note: 'Retry in a few seconds. The faucet may be rate-limited.',
-        });
-      }
-
-      return { address: targetAddress };
     },
 
     async submit(params: {
@@ -472,26 +460,11 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
         );
       } catch (err: unknown) {
         throw mapSubmissionError(err, {
-          insufficientNote: 'Fund your Fast wallet with SET or SETUSDC, then retry.',
+          insufficientNote: 'Fund your Fast wallet with SET or fastUSDC, then retry.',
           txFailedNote: 'Wait 5 seconds, then retry.',
           txFailedFallbackMessage: 'Transaction submission failed.',
         });
       }
-    },
-
-    async evmSign(params: {
-      certificate: unknown;
-    }): Promise<{ transaction: number[]; signature: string }> {
-      const result = await rpcCall(rpcUrl, 'proxy_evmSignCertificate', {
-        certificate: params.certificate,
-      });
-      const typed = result as { transaction?: number[]; signature?: string } | null;
-      if (!typed?.transaction || !typed?.signature) {
-        throw new FastError('TX_FAILED', 'proxy_evmSignCertificate returned invalid response', {
-          note: 'The FastSet proxy failed to cross-sign the certificate.',
-        });
-      }
-      return { transaction: typed.transaction, signature: typed.signature };
     },
 
     async sign(params: {
@@ -664,7 +637,7 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
           const resolved = await resolveNamedToken(accountInfo, upper);
           if (!resolved) {
             throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on Fast chain`, {
-              note: 'Call setup() first for symbol lookup, or provide a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0x1e74..." })',
+              note: 'Call setup() first for symbol lookup, or provide a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0xb4cf..." })',
             });
           }
           tokenIdBytes = resolved.tokenId;
@@ -679,7 +652,7 @@ export function fast(opts?: { network?: NetworkType }): FastClient {
       const entry = result?.requested_token_metadata?.[0];
       if (!entry?.[1]) {
         throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on Fast chain`, {
-          note: 'Provide a held token symbol like "SETUSDC", or a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0x1e74..." })',
+          note: 'Provide a held token symbol like "fastUSDC", or a valid hex token ID.\n  Example: await f.tokenInfo({ token: "0xb4cf..." })',
         });
       }
 

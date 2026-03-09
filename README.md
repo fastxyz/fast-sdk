@@ -31,7 +31,7 @@ console.log(tx.txHash);
 ## Features
 
 - **Wallet Management** - Create or load Fast wallets
-- **Token Operations** - Send SET, fastUSDC, or any Fast token
+- **Token Operations** - Send FAST, fastUSDC, or any Fast token
 - **Balance Queries** - Check native and token balances
 - **Message Signing** - Sign and verify messages with Ed25519
 - **Token Metadata** - Look up token info and list holdings

@@ -120,9 +120,9 @@ export function hashTransaction(transaction: FastTransaction): string {
 
 export const FAST_DECIMALS = 18;
 
-/** Native SET token ID: [0xfa, 0x57, 0x5e, 0x70, 0, 0, ..., 0] */
-export const SET_TOKEN_ID = new Uint8Array(32);
-SET_TOKEN_ID.set([0xfa, 0x57, 0x5e, 0x70], 0);
+/** Native FAST token ID: [0xfa, 0x57, 0x5e, 0x70, 0, 0, ..., 0] */
+export const FAST_TOKEN_ID = new Uint8Array(32);
+FAST_TOKEN_ID.set([0xfa, 0x57, 0x5e, 0x70], 0);
 
 export const EXPLORER_BASE = 'https://explorer.fastset.xyz/txs';
 

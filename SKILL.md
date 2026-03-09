@@ -2,7 +2,7 @@
 name: fast-sdk
 description: >
   Fast SDK for AI agents and Node.js apps. Use @fastxyz/sdk to create or load a Fast wallet,
-  check balances, send SET or Fast tokens, sign or verify messages, list held tokens, look up token metadata,
+  check balances, send FAST tokens, sign or verify messages, list held tokens, look up token metadata,
   submit low-level claims, and export wallet info.
   Trigger this skill when a user wants to integrate Fast payments or wallet actions in code,
   or when asked to send funds, inspect balances, sign or verify data, or query Fast token holdings.
@@ -81,7 +81,7 @@ const usdc = await client.balance({ token: 'fastUSDC' });
 const byId = await client.balance({ token: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5' });
 ```
 
-- Native token defaults to `SET`.
+- Native token defaults to `FAST`.
 - Custom tokens can be referenced by held symbol like `fastUSDC` or by hex token ID.
 
 ### Send tokens
@@ -157,7 +157,7 @@ const submitted = await client.submit({
 
 - `submit()` sends a low-level claim and returns `{ txHash, certificate }`.
 - `submit()` `TokenTransfer.amount` is a hex string in raw base units (no `0x` prefix).
-- Native `SET` uses 18 decimals: `0xde0b6b3a7640000` = 1 SET, `0x56bc75e2d63100000` = 100 SET.
+- Native `FAST` uses 18 decimals: `0xde0b6b3a7640000` = 1 FAST, `0x56bc75e2d63100000` = 100 FAST.
 - `fastUSDC` uses 6 decimals.
 
 ## Errors

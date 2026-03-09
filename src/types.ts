@@ -22,9 +22,9 @@ export interface FastConfig {
 export interface FastClient {
   /** Create or load a wallet, persist config. Must be called before other methods. */
   setup(): Promise<{ address: string }>;
-  /** Get balance for native SET, a held custom token symbol like fastUSDC, or a hex token ID */
+  /** Get balance for native FAST, a held custom token symbol like fastUSDC, or a hex token ID */
   balance(opts?: { token?: string }): Promise<{ amount: string; token: string }>;
-  /** Send tokens to an address. Defaults to native SET; custom tokens can be passed by held symbol or hex token ID. */
+  /** Send tokens to an address. Defaults to native FAST; custom tokens can be passed by held symbol or hex token ID. */
   send(params: { to: string; amount: string; token?: string }): Promise<{ txHash: string; explorerUrl: string }>;
   /** Sign a message with the wallet's Ed25519 key */
   sign(params: { message: string | Uint8Array }): Promise<{ signature: string; address: string }>;

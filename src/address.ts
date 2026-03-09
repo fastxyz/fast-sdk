@@ -1,5 +1,5 @@
 /**
- * address.ts — Fast chain address encoding (bech32m)
+ * address.ts — Fast address encoding (bech32m)
  *
  * Fast addresses are bech32m-encoded with HRP 'fast' (e.g. fast1...).
  * Internally they map to raw 32-byte Ed25519 public keys.

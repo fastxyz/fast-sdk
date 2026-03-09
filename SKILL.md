@@ -1,10 +1,10 @@
 ---
 name: fast-sdk
 description: >
-  Fast chain SDK for AI agents and Node.js apps. Use @fastxyz/sdk to create or load a Fast wallet,
+  Fast SDK for AI agents and Node.js apps. Use @fastxyz/sdk to create or load a Fast wallet,
   check balances, send SET or Fast tokens, sign or verify messages, list held tokens, look up token metadata,
   submit low-level claims, and export wallet info.
-  Trigger this skill when a user wants to integrate Fast chain payments or wallet actions in code,
+  Trigger this skill when a user wants to integrate Fast payments or wallet actions in code,
   or when asked to send funds, inspect balances, sign or verify data, or query Fast token holdings.
   Do NOT use for swaps, bridges, AllSet flows, lending, staking, or generic EVM SDK work.
 metadata:
@@ -14,7 +14,7 @@ metadata:
 
 # Fast SDK
 
-Use `@fastxyz/sdk` for Fast chain wallet operations in Node.js or TypeScript.
+Use `@fastxyz/sdk` for Fast wallet operations in Node.js or TypeScript.
 
 ## Install
 
@@ -70,7 +70,7 @@ const client = fast({ network: 'testnet' });
 const { address } = await client.setup();
 ```
 
-- `setup()` creates or loads the wallet and persists chain config.
+- `setup()` creates or loads the wallet and persists network config.
 - `client.address` is `null` before setup and a `fast1...` address after setup.
 
 ### Check balances
@@ -180,7 +180,7 @@ try {
 
 Common codes:
 
-- `CHAIN_NOT_CONFIGURED`: call `setup()` first.
+- `NETWORK_NOT_CONFIGURED`: call `setup()` first.
 - `INSUFFICIENT_BALANCE`: fund the wallet or reduce the amount.
 - `INVALID_ADDRESS`: stop and correct the destination.
 - `TOKEN_NOT_FOUND`: use a held symbol or a valid hex token ID.

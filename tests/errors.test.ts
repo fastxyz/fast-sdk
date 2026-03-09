@@ -72,7 +72,7 @@ describe('FastError', () => {
   describe('all error codes', () => {
     const codes: FastErrorCode[] = [
       'INSUFFICIENT_BALANCE',
-      'CHAIN_NOT_CONFIGURED',
+      'NETWORK_NOT_CONFIGURED',
       'TX_FAILED',
       'INVALID_ADDRESS',
       'TOKEN_NOT_FOUND',

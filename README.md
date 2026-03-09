@@ -1,6 +1,6 @@
 # Fast SDK
 
-Official TypeScript SDK for the Fast chain. Build wallets, send tokens, check balances, sign messages, and interact with Fast chain in Node.js applications.
+Official TypeScript SDK for the Fast network. Build wallets, send tokens, check balances, sign messages, and interact with Fast in Node.js applications.
 
 ## Install
 
@@ -30,7 +30,7 @@ console.log(tx.txHash);
 
 ## Features
 
-- **Wallet Management** - Create or load Fast chain wallets
+- **Wallet Management** - Create or load Fast wallets
 - **Token Operations** - Send SET, fastUSDC, or any Fast token
 - **Balance Queries** - Check native and token balances
 - **Message Signing** - Sign and verify messages with Ed25519

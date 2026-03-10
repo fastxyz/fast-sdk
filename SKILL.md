@@ -246,6 +246,49 @@ if (result.explorerUrl) {
 }
 ```
 
+**Where does `fastUSDC` token info come from?**
+
+The SDK resolves token symbols (like `fastUSDC`) from JSON files in this priority order:
+
+```
+1. ~/.fast/tokens.json          ← User overrides (highest priority)
+2. src/data/tokens.json         ← Bundled defaults (ships with package)
+3. Hardcoded fallbacks          ← Last resort
+```
+
+**Bundled defaults** (`src/data/tokens.json`):
+```json
+{
+  "FAST": {
+    "symbol": "FAST",
+    "tokenId": "native",
+    "decimals": 9
+  },
+  "fastUSDC": {
+    "symbol": "fastUSDC",
+    "tokenId": "0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5",
+    "decimals": 6
+  }
+}
+```
+
+When you call `wallet.send({ token: 'fastUSDC' })`, the SDK:
+1. Looks up "fastUSDC" in tokens config
+2. Gets `tokenId` (hex) and `decimals` (6)
+3. Converts amount `10.5` → `10500000` (10.5 × 10^6)
+4. Submits transaction with the token ID bytes
+
+**To add custom tokens**, create `~/.fast/tokens.json`:
+```json
+{
+  "MYTOKEN": {
+    "symbol": "MYTOKEN",
+    "tokenId": "0x1234567890abcdef...",
+    "decimals": 18
+  }
+}
+```
+
 ### Example 3: Sign and verify message
 
 ```ts

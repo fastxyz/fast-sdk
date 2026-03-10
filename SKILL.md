@@ -219,9 +219,36 @@ Common codes:
 
 - Default config dir: `~/.fast`
 - Override config dir: `FAST_CONFIG_DIR`
-- Config file: `~/.fast/config.json`
 - Key file: `~/.fast/keys/default.json` (or `~/.fast/keys/{name}.json` for named keys)
 - Optional seed env var: `MONEY_FAST_PRIVATE_KEY`
+
+### Configuration Files (Optional)
+
+Network and token configuration is loaded from JSON files. User overrides in `~/.fast/` take precedence over bundled defaults:
+
+- `~/.fast/networks.json` — Custom networks
+- `~/.fast/tokens.json` — Custom tokens
+
+Example `~/.fast/networks.json`:
+```json
+{
+  "custom-net": {
+    "rpc": "https://custom.rpc.url/proxy",
+    "explorer": "https://custom.explorer.url"
+  }
+}
+```
+
+Example `~/.fast/tokens.json`:
+```json
+{
+  "MYTOKEN": {
+    "symbol": "MYTOKEN",
+    "tokenId": "0x1234...",
+    "decimals": 18
+  }
+}
+```
 
 ## Not for This Skill
 

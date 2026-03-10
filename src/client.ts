@@ -16,15 +16,14 @@ import {
   signEd25519,
   verifyEd25519,
 } from './keys.js';
-import { getKeysDir, setNetworkConfig } from './config.js';
-import { FAST_NETWORK_CONFIGS, configKey, resolveKnownFastToken } from './defaults.js';
+import { getKeysDir } from './config.js';
+import { getNetworkInfo, resolveKnownFastToken, getExplorerUrl, FAST_NETWORK_CONFIGS } from './defaults.js';
 import { rpcCall } from './rpc.js';
 import {
   TransactionBcs,
   hashTransaction,
   FAST_DECIMALS,
   FAST_TOKEN_ID,
-  EXPLORER_BASE,
   tokenIdEquals,
   hexToTokenId,
 } from './bcs.js';
@@ -195,10 +194,12 @@ function mapSubmissionError(
  */
 export function fast(opts?: FastOptions): FastClient {
   const network: NetworkType = opts?.network ?? 'testnet';
-  const defaults = FAST_NETWORK_CONFIGS[network];
-  const rpcUrl = opts?.rpcUrl ?? defaults.rpc;
+  // Use fallback for sync initialization; setup() can override with loaded config
+  const fallbackRpc = FAST_NETWORK_CONFIGS[network]?.rpc ?? 'https://staging.proxy.fastset.xyz';
+  let rpcUrl = opts?.rpcUrl ?? fallbackRpc;
   const keyName = opts?.key ?? 'default';
   const explicitKeyFile = opts?.keyFile;
+  let _explorerUrl: string | null = null;
 
   let _address: string | null = null;
   let _keyfilePath: string | null = null;
@@ -277,7 +278,7 @@ export function fast(opts?: FastOptions): FastClient {
       };
     }
 
-    const known = resolveKnownFastToken(token);
+    const known = await resolveKnownFastToken(token);
     if (known) {
       const tokenId = hexToTokenId(known.tokenId);
       const metadata = await fetchTokenMetadata([tokenId]);
@@ -302,6 +303,15 @@ export function fast(opts?: FastOptions): FastClient {
     },
 
     async setup(): Promise<{ address: string }> {
+      // Load network config from JSON files (if not overridden by user)
+      if (!opts?.rpcUrl) {
+        const networkInfo = await getNetworkInfo(network);
+        if (networkInfo?.rpc) {
+          rpcUrl = networkInfo.rpc;
+        }
+      }
+      _explorerUrl = await getExplorerUrl(network);
+
       // Resolve key file path: explicit keyFile > named key > default
       if (explicitKeyFile) {
         _keyfilePath = expandHome(explicitKeyFile);
@@ -322,14 +332,6 @@ export function fast(opts?: FastOptions): FastClient {
         await saveKeyfile(_keyfilePath, keypair);
         _address = pubkeyToAddress(keypair.publicKey);
       }
-
-      const cfgKey = configKey(network);
-      await setNetworkConfig(cfgKey, {
-        rpc: rpcUrl,
-        keyfile: _keyfilePath,
-        network,
-        defaultToken: DEFAULT_TOKEN,
-      });
 
       return { address: _address };
     },
@@ -425,9 +427,10 @@ export function fast(opts?: FastOptions): FastClient {
             },
           },
         });
+        const baseUrl = _explorerUrl ?? 'https://explorer.fast.xyz';
         return {
           txHash: result.txHash,
-          explorerUrl: `${EXPLORER_BASE}/${result.txHash}`,
+          explorerUrl: `${baseUrl}/txs/${result.txHash}`,
         };
       } catch (err: unknown) {
         throw mapSubmissionError(err, {
@@ -652,7 +655,7 @@ export function fast(opts?: FastOptions): FastClient {
       if (HEX_TOKEN_PATTERN.test(tok)) {
         tokenIdBytes = hexToTokenId(tok);
       } else {
-        const known = resolveKnownFastToken(tok);
+        const known = await resolveKnownFastToken(tok);
         if (known) {
           tokenIdBytes = hexToTokenId(known.tokenId);
         } else {

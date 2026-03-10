@@ -147,13 +147,7 @@ describe('setup()', () => {
     assert.ok(stat.isFile(), `expected keyfile at ${keyfilePath}`);
   });
 
-  it('creates a config at path.join(tmpDir, "config.json")', async () => {
-    const f = fast();
-    await f.setup();
-    const configPath = path.join(tmpDir, 'config.json');
-    const stat = await fs.stat(configPath);
-    assert.ok(stat.isFile(), `expected config at ${configPath}`);
-  });
+  // Note: config.json is no longer created — network/token config is loaded from JSON files
 });
 
 describe('setup() idempotency', () => {

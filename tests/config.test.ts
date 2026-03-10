@@ -4,14 +4,16 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { getConfigDir, getKeysDir } from '../src/config.js';
 import {
-  getConfigDir,
-  getKeysDir,
-  loadConfig,
-  saveConfig,
-  getNetworkConfig,
-  setNetworkConfig,
-} from '../src/config.js';
+  getNetworkInfo,
+  getAllNetworks,
+  resolveKnownFastToken,
+  getAllTokens,
+  getDefaultRpcUrl,
+  getExplorerUrl,
+  clearDefaultsCache,
+} from '../src/defaults.js';
 
 describe('config', () => {
   let tmpDir: string;
@@ -21,6 +23,7 @@ describe('config', () => {
     originalConfigDir = process.env.FAST_CONFIG_DIR;
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fast-config-test-'));
     process.env.FAST_CONFIG_DIR = tmpDir;
+    clearDefaultsCache();
   });
 
   after(async () => {
@@ -29,6 +32,7 @@ describe('config', () => {
     } else {
       delete process.env.FAST_CONFIG_DIR;
     }
+    clearDefaultsCache();
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -43,76 +47,162 @@ describe('config', () => {
       assert.equal(getKeysDir(), path.join(tmpDir, 'keys'));
     });
   });
+});
 
-  describe('loadConfig — no file', () => {
-    it('returns { networks: {} } when no config file exists', async () => {
-      const config = await loadConfig();
-      assert.deepEqual(config, { networks: {} });
+describe('defaults', () => {
+  let tmpDir: string;
+  let originalConfigDir: string | undefined;
+
+  before(async () => {
+    originalConfigDir = process.env.FAST_CONFIG_DIR;
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fast-defaults-test-'));
+    process.env.FAST_CONFIG_DIR = tmpDir;
+    clearDefaultsCache();
+  });
+
+  after(async () => {
+    if (originalConfigDir !== undefined) {
+      process.env.FAST_CONFIG_DIR = originalConfigDir;
+    } else {
+      delete process.env.FAST_CONFIG_DIR;
+    }
+    clearDefaultsCache();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  describe('getNetworkInfo', () => {
+    it('returns testnet config', async () => {
+      const info = await getNetworkInfo('testnet');
+      assert.ok(info);
+      assert.ok(info.rpc.includes('fastset.xyz'));
+      assert.ok(info.explorer);
+    });
+
+    it('returns mainnet config', async () => {
+      const info = await getNetworkInfo('mainnet');
+      assert.ok(info);
+      assert.ok(info.rpc);
+      assert.ok(info.explorer);
+    });
+
+    it('returns null for unknown network', async () => {
+      const info = await getNetworkInfo('unknown-network');
+      assert.equal(info, null);
     });
   });
 
-  describe('saveConfig / loadConfig roundtrip', () => {
-    it('saves and loads config with deep equality', async () => {
-      const config = {
-        networks: {
-          fast: {
-            rpc: 'https://example.com',
-            keyfile: '/tmp/k.json',
-            network: 'testnet',
-            defaultToken: 'FAST',
+  describe('getAllNetworks', () => {
+    it('returns at least testnet and mainnet', async () => {
+      const networks = await getAllNetworks();
+      assert.ok('testnet' in networks);
+      assert.ok('mainnet' in networks);
+    });
+  });
+
+  describe('resolveKnownFastToken', () => {
+    it('resolves FAST token (case-insensitive)', async () => {
+      const fast = await resolveKnownFastToken('FAST');
+      assert.ok(fast);
+      assert.equal(fast.symbol, 'FAST');
+      assert.equal(fast.decimals, 9);
+
+      const fastLower = await resolveKnownFastToken('fast');
+      assert.deepEqual(fastLower, fast);
+    });
+
+    it('resolves fastUSDC token (case-insensitive)', async () => {
+      const usdc = await resolveKnownFastToken('fastUSDC');
+      assert.ok(usdc);
+      assert.equal(usdc.symbol, 'fastUSDC');
+      assert.equal(usdc.decimals, 6);
+      assert.ok(usdc.tokenId.startsWith('0x'));
+
+      const usdcUpper = await resolveKnownFastToken('FASTUSDC');
+      assert.deepEqual(usdcUpper, usdc);
+    });
+
+    it('returns null for unknown token', async () => {
+      const unknown = await resolveKnownFastToken('UNKNOWN_TOKEN');
+      assert.equal(unknown, null);
+    });
+  });
+
+  describe('getAllTokens', () => {
+    it('returns at least FAST and FASTUSDC', async () => {
+      const tokens = await getAllTokens();
+      assert.ok('FAST' in tokens);
+      assert.ok('FASTUSDC' in tokens);
+    });
+  });
+
+  describe('getDefaultRpcUrl', () => {
+    it('returns testnet RPC by default', async () => {
+      const url = await getDefaultRpcUrl();
+      assert.ok(url.includes('fastset.xyz'));
+    });
+
+    it('returns mainnet RPC when specified', async () => {
+      const url = await getDefaultRpcUrl('mainnet');
+      assert.ok(url.includes('fast.xyz'));
+    });
+  });
+
+  describe('getExplorerUrl', () => {
+    it('returns explorer URL', async () => {
+      const url = await getExplorerUrl();
+      assert.ok(url.includes('fast.xyz') || url.includes('explorer'));
+    });
+  });
+
+  describe('user overrides', () => {
+    before(async () => {
+      clearDefaultsCache();
+      // Write user override files
+      await fs.writeFile(
+        path.join(tmpDir, 'networks.json'),
+        JSON.stringify({
+          custom: {
+            rpc: 'https://custom.example.com',
+            explorer: 'https://custom-explorer.example.com',
           },
-        },
-      };
-      await saveConfig(config);
-      const loaded = await loadConfig();
-      assert.deepEqual(loaded, config);
+        })
+      );
+      await fs.writeFile(
+        path.join(tmpDir, 'tokens.json'),
+        JSON.stringify({
+          CUSTOMTOKEN: {
+            symbol: 'CUSTOM',
+            tokenId: '0x1234567890abcdef',
+            decimals: 18,
+          },
+        })
+      );
     });
-  });
 
-  describe('setNetworkConfig / getNetworkConfig', () => {
-    it('getNetworkConfig returns null for a nonexistent network', async () => {
-      const result = await getNetworkConfig('nonexistent');
-      assert.equal(result, null);
+    after(async () => {
+      clearDefaultsCache();
     });
 
-    it('setNetworkConfig persists and getNetworkConfig retrieves the config', async () => {
-      const networkCfg = {
-        rpc: 'https://example.com',
-        keyfile: '/tmp/k.json',
-        network: 'testnet',
-        defaultToken: 'FAST',
-      };
-      await setNetworkConfig('fast', networkCfg);
-      const result = await getNetworkConfig('fast');
-      assert.deepEqual(result, networkCfg);
+    it('loads custom network from user override', async () => {
+      const info = await getNetworkInfo('custom');
+      assert.ok(info);
+      assert.equal(info.rpc, 'https://custom.example.com');
+      assert.equal(info.explorer, 'https://custom-explorer.example.com');
     });
-  });
 
-  describe('config accumulation', () => {
-    it('setting two networks preserves both in the loaded config', async () => {
-      const netCfgA = {
-        rpc: 'https://a.example.com',
-        keyfile: '/tmp/a.json',
-        network: 'testnet',
-        defaultToken: 'FAST',
-      };
-      const netCfgB = {
-        rpc: 'https://b.example.com',
-        keyfile: '/tmp/b.json',
-        network: 'mainnet',
-        defaultToken: 'ETH',
-      };
-      await setNetworkConfig('a', netCfgA);
-      await setNetworkConfig('b', netCfgB);
+    it('loads custom token from user override', async () => {
+      const token = await resolveKnownFastToken('CUSTOMTOKEN');
+      assert.ok(token);
+      assert.equal(token.symbol, 'CUSTOM');
+      assert.equal(token.decimals, 18);
+    });
 
-      const loaded = await loadConfig();
-      assert.ok('a' in loaded.networks);
-      assert.ok('b' in loaded.networks);
+    it('user overrides do not remove bundled defaults', async () => {
+      const testnet = await getNetworkInfo('testnet');
+      assert.ok(testnet);
 
-      const resultA = await getNetworkConfig('a');
-      const resultB = await getNetworkConfig('b');
-      assert.deepEqual(resultA, netCfgA);
-      assert.deepEqual(resultB, netCfgB);
+      const fast = await resolveKnownFastToken('FAST');
+      assert.ok(fast);
     });
   });
 });

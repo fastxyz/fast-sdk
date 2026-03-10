@@ -17,19 +17,6 @@ export interface FastOptions {
   keyFile?: string;
 }
 
-/** Network configuration */
-export interface NetworkConfig {
-  rpc: string;
-  keyfile: string;
-  network: string;
-  defaultToken: string;
-}
-
-/** Persisted SDK config (~/.fast/config.json) */
-export interface FastConfig {
-  networks: Record<string, NetworkConfig>;
-}
-
 /** Client returned by the fast() factory — the primary SDK interface for agents */
 export interface FastClient {
   /** Create or load a wallet, persist config. Must be called before other methods. */

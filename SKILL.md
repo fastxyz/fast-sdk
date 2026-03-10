@@ -88,37 +88,29 @@ If you need to override these, create `~/.fast/networks.json` with your values â
 
 ```ts
 const provider = new FastProvider({
-  rpcUrl: 'https://my-custom-rpc.example.com/proxy'
-});
-// Explorer will be loaded from networks.json (or null if not found)
-```
-
-### Option 4: Custom RPC URL + Custom Explorer URL
-
-```ts
-const provider = new FastProvider({
   rpcUrl: 'https://my-custom-rpc.example.com/proxy',
-  explorerUrl: 'https://my-custom-explorer.example.com'
+  explorerUrl: 'https://my-custom-explorer.example.com'  // Optional
 });
 ```
 
-### Option 5: Custom RPC URL without Explorer
+**Note:** `explorerUrl` is optional. If not provided, `getExplorerUrl()` returns `null`.
 
 ```ts
+// Without explorerUrl - getExplorerUrl() returns null
 const provider = new FastProvider({
   rpcUrl: 'https://my-custom-rpc.example.com/proxy'
-  // No explorerUrl - getExplorerUrl() will return null
 });
+const url = await provider.getExplorerUrl(txHash);  // â†’ null
 ```
 
-### Option 6: Network + Custom RPC Override
+### Option 4: Network + Custom RPC Override
 
 ```ts
 const provider = new FastProvider({
   network: 'testnet',
   rpcUrl: 'https://my-custom-rpc.example.com/proxy'
-  // Uses custom RPC, but explorer from testnet config
 });
+// Uses custom RPC; explorerUrl is null unless explicitly provided
 ```
 
 ### All ProviderOptions

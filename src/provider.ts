@@ -81,8 +81,11 @@ export class FastProvider {
       this._explicitExplorerUrl = true;
     }
     
-    if (opts?.rpcUrl && this._explicitExplorerUrl) {
-      this._initialized = true; // Skip async init if both URLs are explicit
+    // If custom rpcUrl provided, skip network config loading entirely
+    // (explorerUrl will be null unless explicitly provided)
+    if (opts?.rpcUrl) {
+      this._explicitExplorerUrl = true; // Don't load from network config
+      this._initialized = true;
     }
   }
 

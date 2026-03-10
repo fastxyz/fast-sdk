@@ -139,10 +139,10 @@ describe('setup()', () => {
     assert.equal(f.address, result.address);
   });
 
-  it('creates a keyfile at path.join(tmpDir, "keys", "fast.json")', async () => {
+  it('creates a keyfile at path.join(tmpDir, "keys", "default.json")', async () => {
     const f = fast();
     await f.setup();
-    const keyfilePath = path.join(tmpDir, 'keys', 'fast.json');
+    const keyfilePath = path.join(tmpDir, 'keys', 'default.json');
     const stat = await fs.stat(keyfilePath);
     assert.ok(stat.isFile(), `expected keyfile at ${keyfilePath}`);
   });
@@ -162,6 +162,58 @@ describe('setup() idempotency', () => {
     const first = await f.setup();
     const second = await f.setup();
     assert.equal(first.address, second.address);
+  });
+});
+
+describe('named keys', () => {
+  it('creates keyfile with custom name via key option', async () => {
+    const f = fast({ key: 'merchant' });
+    await f.setup();
+    const keyfilePath = path.join(tmpDir, 'keys', 'merchant.json');
+    const stat = await fs.stat(keyfilePath);
+    assert.ok(stat.isFile(), `expected keyfile at ${keyfilePath}`);
+  });
+
+  it('different key names create different addresses', async () => {
+    const merchant = fast({ key: 'merchant2' });
+    const buyer = fast({ key: 'buyer2' });
+    const merchantResult = await merchant.setup();
+    const buyerResult = await buyer.setup();
+    assert.notEqual(merchantResult.address, buyerResult.address);
+  });
+
+  it('same key name returns same address', async () => {
+    const f1 = fast({ key: 'consistent' });
+    const f2 = fast({ key: 'consistent' });
+    const result1 = await f1.setup();
+    const result2 = await f2.setup();
+    assert.equal(result1.address, result2.address);
+  });
+});
+
+describe('explicit keyFile', () => {
+  it('uses explicit keyFile path when provided', async () => {
+    const customPath = path.join(tmpDir, 'custom', 'mykey.json');
+    const f = fast({ keyFile: customPath });
+    await f.setup();
+    const stat = await fs.stat(customPath);
+    assert.ok(stat.isFile(), `expected keyfile at ${customPath}`);
+  });
+
+  it('keyFile takes priority over key option', async () => {
+    const customPath = path.join(tmpDir, 'priority', 'priority.json');
+    const f = fast({ key: 'ignored', keyFile: customPath });
+    await f.setup();
+    const stat = await fs.stat(customPath);
+    assert.ok(stat.isFile(), `expected keyfile at ${customPath}`);
+    // Verify the key option file was NOT created
+    const ignoredPath = path.join(tmpDir, 'keys', 'ignored.json');
+    try {
+      await fs.stat(ignoredPath);
+      assert.fail('ignored.json should not exist');
+    } catch (err: unknown) {
+      assert.equal((err as NodeJS.ErrnoException).code, 'ENOENT');
+    }
   });
 });
 

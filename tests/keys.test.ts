@@ -98,13 +98,13 @@ describe('keys', () => {
 
       const loaded = await loadKeyfile(seededPath);
       const fromDisk = JSON.parse(await fs.readFile(seededPath, 'utf-8')) as {
-        publicKey: string;
         privateKey: string;
+        address: string;
       };
 
       assert.equal(loaded.privateKey, '1111111111111111111111111111111111111111111111111111111111111111');
       assert.equal(fromDisk.privateKey, loaded.privateKey);
-      assert.equal(fromDisk.publicKey, loaded.publicKey);
+      assert.ok(fromDisk.address.startsWith('fast1'), 'address should start with fast1');
       assert.equal(loaded.publicKey.length, 64);
     });
   });

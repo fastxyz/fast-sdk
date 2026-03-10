@@ -11,6 +11,7 @@ import { open, readFile, mkdir, copyFile, chmod } from 'node:fs/promises';
 import { dirname, basename, join } from 'node:path';
 import { constants } from 'node:fs';
 import { expandHome } from './utils.js';
+import { pubkeyToAddress } from './address.js';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 
@@ -85,6 +86,10 @@ export async function generateEd25519Key(): Promise<{ publicKey: string; private
 /**
  * Load a keyfile from disk.
  * Expands `~` in the path.
+ * 
+ * Supports two formats:
+ * - New format: { privateKey, address } - publicKey is derived
+ * - Legacy format: { publicKey, privateKey } - for backward compatibility
  */
 export async function loadKeyfile(
   path: string,
@@ -108,15 +113,31 @@ export async function loadKeyfile(
     }
   }
   const parsed = JSON.parse(raw) as Record<string, unknown>;
-  if (typeof parsed.publicKey !== 'string' || typeof parsed.privateKey !== 'string') {
-    throw new Error(`Keyfile at ${resolved} is missing publicKey or privateKey fields`);
+  
+  if (typeof parsed.privateKey !== 'string') {
+    throw new Error(`Keyfile at ${resolved} is missing privateKey field`);
   }
-  return { publicKey: parsed.publicKey, privateKey: parsed.privateKey };
+  
+  // If publicKey exists (legacy format), use it; otherwise derive from privateKey
+  let publicKey: string;
+  if (typeof parsed.publicKey === 'string') {
+    publicKey = parsed.publicKey;
+  } else {
+    // Derive publicKey from privateKey
+    const keypair = await keypairFromPrivateKey(parsed.privateKey);
+    publicKey = keypair.publicKey;
+  }
+  
+  return { publicKey, privateKey: parsed.privateKey };
 }
 
 /**
  * Save a keypair to a keyfile.
  * Creates parent directories with mode 0700 and writes the file with mode 0600.
+ *
+ * File format: { privateKey, address }
+ * - privateKey: hex-encoded Ed25519 private key (required for signing)
+ * - address: bech32m address (for human reference, derived from publicKey)
  *
  * Uses O_CREAT | O_WRONLY | O_EXCL so the call **fails** if the file already
  * exists.  This prevents any code path from accidentally overwriting a wallet
@@ -132,7 +153,8 @@ export async function saveKeyfile(
   const resolved = expandHome(keyPath);
   const dir = dirname(resolved);
   await mkdir(dir, { recursive: true, mode: 0o700 });
-  const json = JSON.stringify({ publicKey: keypair.publicKey, privateKey: keypair.privateKey }, null, 2);
+  const address = pubkeyToAddress(keypair.publicKey);
+  const json = JSON.stringify({ privateKey: keypair.privateKey, address }, null, 2);
 
   // O_EXCL: fail if file exists — never overwrite a keyfile
   const fd = await open(resolved, constants.O_CREAT | constants.O_WRONLY | constants.O_EXCL, 0o600);

@@ -5,6 +5,18 @@
 /** Network types */
 export type NetworkType = 'testnet' | 'mainnet';
 
+/** Options for the fast() factory */
+export interface FastOptions {
+  /** Network to connect to (default: 'testnet') */
+  network?: NetworkType;
+  /** Custom RPC URL (overrides network default) */
+  rpcUrl?: string;
+  /** Named key - resolves to ~/.fast/keys/{key}.json (default: 'default') */
+  key?: string;
+  /** Explicit key file path - takes priority over `key` if both provided */
+  keyFile?: string;
+}
+
 /** Network configuration */
 export interface NetworkConfig {
   rpc: string;

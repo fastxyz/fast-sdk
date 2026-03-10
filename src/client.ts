@@ -29,8 +29,8 @@ import {
   hexToTokenId,
 } from './bcs.js';
 import { pubkeyToAddress, addressToPubkey } from './address.js';
-import { toHex, fromHex } from './utils.js';
-import type { FastClient, NetworkType } from './types.js';
+import { toHex, fromHex, expandHome } from './utils.js';
+import type { FastClient, NetworkType, FastOptions } from './types.js';
 
 const DEFAULT_TOKEN = 'FAST';
 const HEX_TOKEN_PATTERN = /^(0x)?[0-9a-fA-F]+$/;
@@ -160,12 +160,29 @@ function mapSubmissionError(
 /**
  * Create a Fast client.
  *
- * @example
+ * @example Basic usage
  * ```ts
  * const f = fast({ network: 'testnet' });
  * await f.setup();
  * await f.balance();
  * await f.send({ to: 'fast1...', amount: '1.0' });
+ * ```
+ *
+ * @example Named keys (multiple wallets)
+ * ```ts
+ * const merchant = fast({ network: 'testnet', key: 'merchant' });
+ * await merchant.setup();  // Uses ~/.fast/keys/merchant.json
+ *
+ * const buyer = fast({ network: 'testnet', key: 'buyer' });
+ * await buyer.setup();     // Uses ~/.fast/keys/buyer.json
+ * ```
+ *
+ * @example Custom key file path
+ * ```ts
+ * const f = fast({
+ *   network: 'testnet',
+ *   keyFile: '/secure/keys/prod.json'
+ * });
  * ```
  *
  * @example Custom RPC endpoint
@@ -176,10 +193,12 @@ function mapSubmissionError(
  * });
  * ```
  */
-export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastClient {
+export function fast(opts?: FastOptions): FastClient {
   const network: NetworkType = opts?.network ?? 'testnet';
   const defaults = FAST_NETWORK_CONFIGS[network];
   const rpcUrl = opts?.rpcUrl ?? defaults.rpc;
+  const keyName = opts?.key ?? 'default';
+  const explicitKeyFile = opts?.keyFile;
 
   let _address: string | null = null;
   let _keyfilePath: string | null = null;
@@ -283,8 +302,13 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
     },
 
     async setup(): Promise<{ address: string }> {
-      const keysDir = getKeysDir();
-      _keyfilePath = path.join(keysDir, 'fast.json');
+      // Resolve key file path: explicit keyFile > named key > default
+      if (explicitKeyFile) {
+        _keyfilePath = expandHome(explicitKeyFile);
+      } else {
+        const keysDir = getKeysDir();
+        _keyfilePath = path.join(keysDir, `${keyName}.json`);
+      }
 
       try {
         const existing = await loadKeyfile(_keyfilePath);
@@ -299,8 +323,8 @@ export function fast(opts?: { network?: NetworkType; rpcUrl?: string }): FastCli
         _address = pubkeyToAddress(keypair.publicKey);
       }
 
-      const key = configKey(network);
-      await setNetworkConfig(key, {
+      const cfgKey = configKey(network);
+      await setNetworkConfig(cfgKey, {
         rpc: rpcUrl,
         keyfile: _keyfilePath,
         network,

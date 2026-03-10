@@ -12,4 +12,4 @@ export { FastError } from './errors.js';
 export type { FastErrorCode } from './errors.js';
 
 // Types
-export type { FastClient, NetworkType } from './types.js';
+export type { FastClient, NetworkType, FastOptions } from './types.js';

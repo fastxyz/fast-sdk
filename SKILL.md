@@ -53,6 +53,34 @@ const client = fast({
 });
 ```
 
+### Named keys (multiple wallets)
+
+Use the `key` option to manage multiple wallets:
+
+```ts
+// Creates/loads ~/.fast/keys/merchant.json
+const merchant = fast({ network: 'testnet', key: 'merchant' });
+await merchant.setup();
+
+// Creates/loads ~/.fast/keys/buyer.json
+const buyer = fast({ network: 'testnet', key: 'buyer' });
+await buyer.setup();
+
+// Default key (equivalent to key: 'default')
+const f = fast({ network: 'testnet' });  // Uses ~/.fast/keys/default.json
+```
+
+### Explicit key file path
+
+Use `keyFile` to specify an exact path (takes priority over `key`):
+
+```ts
+const client = fast({
+  network: 'testnet',
+  keyFile: '/secure/keys/prod.json'
+});
+```
+
 ## Safety Rules
 
 - Default to `testnet`. Use `mainnet` only with explicit user approval because it uses real funds.
@@ -192,7 +220,7 @@ Common codes:
 - Default config dir: `~/.fast`
 - Override config dir: `FAST_CONFIG_DIR`
 - Config file: `~/.fast/config.json`
-- Key file: `~/.fast/keys/fast.json`
+- Key file: `~/.fast/keys/default.json` (or `~/.fast/keys/{name}.json` for named keys)
 - Optional seed env var: `MONEY_FAST_PRIVATE_KEY`
 
 ## Not for This Skill

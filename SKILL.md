@@ -93,7 +93,9 @@ const provider = new FastProvider({
 });
 ```
 
-**Note:** `explorerUrl` is optional. If not provided, `getExplorerUrl()` returns `null`.
+**Notes:**
+- `explorerUrl` is optional. If not provided, `getExplorerUrl()` returns `null`.
+- If both `network` and `rpcUrl` are provided, `rpcUrl` takes effect (network config is ignored).
 
 ```ts
 // Without explorerUrl - getExplorerUrl() returns null
@@ -101,16 +103,6 @@ const provider = new FastProvider({
   rpcUrl: 'https://my-custom-rpc.example.com/proxy'
 });
 const url = await provider.getExplorerUrl(txHash);  // → null
-```
-
-### Option 4: Network + Custom RPC Override
-
-```ts
-const provider = new FastProvider({
-  network: 'testnet',
-  rpcUrl: 'https://my-custom-rpc.example.com/proxy'
-});
-// Uses custom RPC; explorerUrl is null unless explicitly provided
 ```
 
 ### All ProviderOptions

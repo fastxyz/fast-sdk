@@ -2,8 +2,9 @@
  * types.ts — Fast SDK types
  */
 
-/** Network types */
-export type NetworkType = 'testnet' | 'mainnet';
+/** Network names. Built-in networks are `testnet` and `mainnet`, but custom names are allowed. */
+type BuiltinNetworkType = 'testnet' | 'mainnet';
+export type NetworkType = BuiltinNetworkType | (string & {});
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * Provider Types
@@ -11,7 +12,7 @@ export type NetworkType = 'testnet' | 'mainnet';
 
 /** Options for creating a FastProvider */
 export interface ProviderOptions {
-  /** Network to connect to (default: 'testnet') */
+  /** Network to connect to (default: 'testnet'). Can be a custom name from ~/.fast/networks.json. */
   network?: NetworkType;
   /** Custom RPC URL (overrides network default) */
   rpcUrl?: string;

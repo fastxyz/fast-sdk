@@ -109,9 +109,9 @@ const url = await provider.getExplorerUrl(txHash);  // → null
 
 ```ts
 interface ProviderOptions {
-  network?: 'testnet' | 'mainnet';  // Default: 'testnet'
-  rpcUrl?: string;                   // Overrides network RPC
-  explorerUrl?: string;              // Overrides network explorer (null if not set)
+  network?: string;       // Default: 'testnet'; also accepts custom names from ~/.fast/networks.json
+  rpcUrl?: string;        // Overrides network RPC
+  explorerUrl?: string;   // Overrides network explorer (null if not set)
 }
 ```
 
@@ -452,6 +452,7 @@ export FAST_CONFIG_DIR=/custom/path
 ```
 
 Note: `explorer` is optional. If omitted, `getExplorerUrl()` returns `null`.
+Use these with `new FastProvider({ network: 'devnet' })` or any other key you define.
 
 ### Custom tokens.json
 

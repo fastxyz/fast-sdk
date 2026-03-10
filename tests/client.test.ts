@@ -11,6 +11,7 @@ import { clearDefaultsCache } from '../src/defaults.js';
 let tmpDir: string;
 let originalConfigDir: string | undefined;
 const originalFetch = globalThis.fetch;
+const VALID_FAST_ADDRESS = 'fast1424242424242424242424242424242424242424242424242424qlc29x9';
 // fastUSDC token ID on staging
 const FAST_USDC_TOKEN_ID = [180, 207, 27, 158, 34, 123, 182, 162, 27, 149, 147, 56, 137, 93, 251, 57, 184, 210, 169, 109, 250, 28, 229, 221, 99, 53, 97, 193, 147, 18, 76, 181] as const;
 
@@ -41,8 +42,11 @@ after(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
-afterEach(() => {
+afterEach(async () => {
   globalThis.fetch = originalFetch;
+  clearDefaultsCache();
+  await fs.rm(path.join(tmpDir, 'networks.json'), { force: true });
+  await fs.rm(path.join(tmpDir, 'tokens.json'), { force: true });
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -75,7 +79,7 @@ describe('FastProvider', () => {
       });
 
       const provider = new FastProvider();
-      const balance = await provider.getBalance('fast1424242424242424242424242424242424242424242424242424qlc29x9');
+      const balance = await provider.getBalance(VALID_FAST_ADDRESS);
       assert.equal(balance.token, 'FAST');
       assert.equal(balance.amount, '10');
     });
@@ -84,7 +88,7 @@ describe('FastProvider', () => {
       globalThis.fetch = async () => rpcResult(null);
 
       const provider = new FastProvider();
-      const balance = await provider.getBalance('fast1424242424242424242424242424242424242424242424242424qlc29x9');
+      const balance = await provider.getBalance(VALID_FAST_ADDRESS);
       assert.equal(balance.amount, '0');
     });
 
@@ -98,10 +102,46 @@ describe('FastProvider', () => {
 
       const provider = new FastProvider();
       const balance = await provider.getBalance(
-        'fast1424242424242424242424242424242424242424242424242424qlc29x9',
+        VALID_FAST_ADDRESS,
         'fastUSDC'
       );
       assert.equal(balance.token, 'fastUSDC');
+      assert.equal(balance.amount, '1');
+    });
+
+    it('uses live token decimals for symbol balances when config is stale', async () => {
+      await fs.writeFile(
+        path.join(tmpDir, 'tokens.json'),
+        JSON.stringify({
+          FASTUSDC: {
+            symbol: 'fastUSDC',
+            tokenId: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5',
+            decimals: 18,
+          },
+        })
+      );
+      clearDefaultsCache();
+
+      globalThis.fetch = async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { method: string };
+        if (body.method === 'proxy_getAccountInfo') {
+          return rpcResult({
+            balance: '0x0',
+            token_balance: [[FAST_USDC_TOKEN_ID, '0xf4240']],
+          });
+        }
+        if (body.method === 'proxy_getTokenInfo') {
+          return rpcResult({
+            requested_token_metadata: [
+              [FAST_USDC_TOKEN_ID, { token_name: 'fastUSDC', decimals: 6 }],
+            ],
+          });
+        }
+        throw new Error(`Unexpected RPC method: ${body.method}`);
+      };
+
+      const provider = new FastProvider();
+      const balance = await provider.getBalance(VALID_FAST_ADDRESS, 'fastUSDC');
       assert.equal(balance.amount, '1');
     });
   });
@@ -129,7 +169,7 @@ describe('FastProvider', () => {
       };
 
       const provider = new FastProvider();
-      const tokens = await provider.getTokens('fast1424242424242424242424242424242424242424242424242424qlc29x9');
+      const tokens = await provider.getTokens(VALID_FAST_ADDRESS);
       
       assert.ok(tokens.length >= 1);
       const fastToken = tokens.find(t => t.symbol === 'FAST');
@@ -154,6 +194,33 @@ describe('FastProvider', () => {
       const provider = new FastProvider();
       const info = await provider.getTokenInfo('unknown');
       assert.equal(info, null);
+    });
+
+    it('returns full admin and minter metadata', async () => {
+      globalThis.fetch = async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { method: string };
+        assert.equal(body.method, 'proxy_getTokenInfo');
+        return rpcResult({
+          requested_token_metadata: [
+            [
+              FAST_USDC_TOKEN_ID,
+              {
+                token_name: 'fastUSDC',
+                decimals: 6,
+                total_supply: '1000000',
+                admin: [1, 2, 3, 4],
+                mints: [[5, 6, 7, 8], [9, 10, 11, 12]],
+              },
+            ],
+          ],
+        });
+      };
+
+      const provider = new FastProvider();
+      const info = await provider.getTokenInfo('0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5');
+      assert.ok(info);
+      assert.equal(info.admin, '0x01020304');
+      assert.deepEqual(info.minters, ['0x05060708', '0x090a0b0c']);
     });
   });
 
@@ -190,6 +257,25 @@ describe('FastProvider', () => {
       });
       const url = await provider.getExplorerUrl();
       assert.equal(url, 'https://my-explorer.com');
+    });
+
+    it('loads explorer and RPC from a custom named network', async () => {
+      await fs.writeFile(
+        path.join(tmpDir, 'networks.json'),
+        JSON.stringify({
+          custom: {
+            rpc: 'https://custom.example.com/proxy',
+            explorer: 'https://custom.example.com/explorer',
+          },
+        })
+      );
+      clearDefaultsCache();
+
+      const provider = new FastProvider({ network: 'custom' });
+      const url = await provider.getExplorerUrl();
+      assert.equal(provider.network, 'custom');
+      assert.equal(provider.rpcUrl, 'https://custom.example.com/proxy');
+      assert.equal(url, 'https://custom.example.com/explorer');
     });
   });
 });
@@ -317,6 +403,65 @@ describe('FastWallet', () => {
       const balance = await wallet.balance();
       assert.equal(balance.token, 'FAST');
       assert.equal(balance.amount, '10');
+    });
+  });
+
+  describe('send (mocked)', () => {
+    it('uses live token decimals for symbol sends when config is stale', async () => {
+      await fs.writeFile(
+        path.join(tmpDir, 'tokens.json'),
+        JSON.stringify({
+          FASTUSDC: {
+            symbol: 'fastUSDC',
+            tokenId: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5',
+            decimals: 18,
+          },
+        })
+      );
+      clearDefaultsCache();
+
+      const provider = new FastProvider();
+      const wallet = await FastWallet.generate(provider);
+      let sawTokenInfo = false;
+
+      globalThis.fetch = async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as {
+          method: string;
+          params: {
+            transaction?: {
+              claim?: {
+                TokenTransfer?: {
+                  amount?: string;
+                };
+              };
+            };
+          };
+        };
+
+        if (body.method === 'proxy_getTokenInfo') {
+          sawTokenInfo = true;
+          return rpcResult({
+            requested_token_metadata: [
+              [FAST_USDC_TOKEN_ID, { token_name: 'fastUSDC', decimals: 6 }],
+            ],
+          });
+        }
+
+        if (body.method === 'proxy_getAccountInfo') {
+          return rpcResult({ next_nonce: 7 });
+        }
+
+        if (body.method === 'proxy_submitTransaction') {
+          assert.equal(body.params.transaction?.claim?.TokenTransfer?.amount, 'f4240');
+          return rpcResult({ Success: { certificate: 'ok' } });
+        }
+
+        throw new Error(`Unexpected RPC method: ${body.method}`);
+      };
+
+      const tx = await wallet.send({ to: VALID_FAST_ADDRESS, amount: '1', token: 'fastUSDC' });
+      assert.ok(sawTokenInfo);
+      assert.ok(tx.txHash);
     });
   });
 

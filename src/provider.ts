@@ -47,6 +47,10 @@ function tokenIdToHex(tokenId: number[] | Uint8Array): string {
   return Buffer.from(new Uint8Array(tokenId)).toString('hex').toLowerCase();
 }
 
+function bytesToHex(value: number[] | Uint8Array): string {
+  return `0x${Buffer.from(new Uint8Array(value)).toString('hex')}`;
+}
+
 function stripHexPrefix(hex: string): string {
   return hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
 }
@@ -166,7 +170,9 @@ export class FastProvider {
       if (!entry) return { amount: '0', token: known.symbol };
       const [, bal] = entry;
       const rawBalance = stripHexPrefix(bal);
-      return { amount: fromHex(rawBalance, known.decimals), token: known.symbol };
+      const metadata = await this.fetchTokenMetadata([tokenIdBytes]);
+      const decimals = metadata.get(tokenIdToHex(tokenIdBytes))?.decimals ?? known.decimals;
+      return { amount: fromHex(rawBalance, decimals), token: known.symbol };
     }
 
     return { amount: '0', token };
@@ -273,7 +279,8 @@ export class FastProvider {
       tokenId: '0x' + tidHex,
       decimals: meta.decimals ?? FAST_DECIMALS,
       totalSupply: meta.total_supply,
-      admin: meta.admin ? 'fast1' + Buffer.from(meta.admin).toString('hex').slice(0, 8) + '...' : undefined,
+      admin: meta.admin ? bytesToHex(meta.admin) : undefined,
+      minters: meta.mints?.map((minter) => bytesToHex(minter)),
     };
   }
 

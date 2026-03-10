@@ -70,6 +70,7 @@ Network and token configuration is loaded from JSON files:
 - **User overrides**: `~/.fast/networks.json`, `~/.fast/tokens.json`
 
 User overrides take precedence over bundled defaults.
+Pass `network: 'your-network-name'` to `FastProvider` for any key defined in `~/.fast/networks.json`.
 
 ## Documentation
 

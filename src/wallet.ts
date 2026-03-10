@@ -289,8 +289,14 @@ export class FastWallet {
     } else {
       const known = await resolveKnownFastToken(tok);
       if (known && known.tokenId !== 'native') {
-        tokenId = hexToTokenId(known.tokenId);
-        decimals = known.decimals;
+        const info = await this._provider.getTokenInfo(known.tokenId);
+        if (!info || info.tokenId === 'native') {
+          throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on ${this._provider.network}`, {
+            note: 'Use a token symbol configured for the selected network or pass a valid hex token ID.',
+          });
+        }
+        tokenId = hexToTokenId(info.tokenId);
+        decimals = info.decimals;
       } else {
         throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found`, {
           note: 'Use a known token symbol (FAST, fastUSDC) or a hex token ID.',

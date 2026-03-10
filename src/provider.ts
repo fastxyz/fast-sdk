@@ -67,14 +67,22 @@ export class FastProvider {
   private _rpcUrl: string;
   private _network: NetworkType;
   private _explorerUrl: string | null = null;
+  private _explicitExplorerUrl: boolean = false;
   private _initialized = false;
 
   constructor(opts?: ProviderOptions) {
     this._network = opts?.network ?? 'testnet';
     // Use provided RPC URL or fallback; will be updated in init() if needed
     this._rpcUrl = opts?.rpcUrl ?? 'https://staging.proxy.fastset.xyz';
-    if (opts?.rpcUrl) {
-      this._initialized = true; // Skip async init if RPC URL is explicit
+    
+    // Handle explicit explorer URL
+    if (opts?.explorerUrl !== undefined) {
+      this._explorerUrl = opts.explorerUrl;
+      this._explicitExplorerUrl = true;
+    }
+    
+    if (opts?.rpcUrl && this._explicitExplorerUrl) {
+      this._initialized = true; // Skip async init if both URLs are explicit
     }
   }
 
@@ -86,7 +94,10 @@ export class FastProvider {
     if (networkInfo?.rpc) {
       this._rpcUrl = networkInfo.rpc;
     }
-    this._explorerUrl = await getExplorerUrl(this._network);
+    // Only load explorer from config if not explicitly provided
+    if (!this._explicitExplorerUrl) {
+      this._explorerUrl = await getExplorerUrl(this._network);
+    }
     this._initialized = true;
   }
 
@@ -100,11 +111,11 @@ export class FastProvider {
     return this._network;
   }
 
-  /** Get the explorer URL for a transaction */
-  async getExplorerUrl(txHash?: string): Promise<string> {
+  /** Get the explorer URL for a transaction. Returns null if no explorer configured. */
+  async getExplorerUrl(txHash?: string): Promise<string | null> {
     await this.init();
-    const base = this._explorerUrl ?? 'https://explorer.fast.xyz';
-    return txHash ? `${base}/txs/${txHash}` : base;
+    if (!this._explorerUrl) return null;
+    return txHash ? `${this._explorerUrl}/txs/${txHash}` : this._explorerUrl;
   }
 
   /**

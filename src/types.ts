@@ -15,6 +15,8 @@ export interface ProviderOptions {
   network?: NetworkType;
   /** Custom RPC URL (overrides network default) */
   rpcUrl?: string;
+  /** Custom explorer URL (overrides network default) */
+  explorerUrl?: string;
 }
 
 /** Token info returned by provider queries */
@@ -53,7 +55,7 @@ export interface WalletKeyfileOptions {
 /** Result of a send operation */
 export interface SendResult {
   txHash: string;
-  explorerUrl: string;
+  explorerUrl: string | null;
 }
 
 /** Result of a sign operation */

@@ -22,7 +22,7 @@ import bundledTokens from './data/tokens.json' with { type: 'json' };
 
 export type NetworkInfo = {
   rpc: string;
-  explorer: string;
+  explorer?: string;
 };
 
 export type KnownFastToken = {
@@ -169,10 +169,11 @@ export async function getDefaultRpcUrl(network: NetworkType = 'testnet'): Promis
 
 /**
  * Get the explorer URL for a network.
+ * Returns null if no explorer is configured.
  */
-export async function getExplorerUrl(network: NetworkType = 'testnet'): Promise<string> {
+export async function getExplorerUrl(network: NetworkType = 'testnet'): Promise<string | null> {
   const info = await getNetworkInfo(network);
-  return info?.explorer ?? FALLBACK_NETWORKS.testnet.explorer;
+  return info?.explorer ?? null;
 }
 
 /**

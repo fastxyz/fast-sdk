@@ -158,16 +158,38 @@ describe('FastProvider', () => {
   });
 
   describe('getExplorerUrl', () => {
-    it('returns explorer URL', async () => {
+    it('returns explorer URL from network config', async () => {
       const provider = new FastProvider();
       const url = await provider.getExplorerUrl();
-      assert.ok(url.includes('fast.xyz') || url.includes('explorer'));
+      assert.ok(url === null || url.includes('fast.xyz') || url.includes('explorer'));
     });
 
     it('returns explorer URL with tx hash', async () => {
-      const provider = new FastProvider();
+      const provider = new FastProvider({ explorerUrl: 'https://test.explorer.com' });
       const url = await provider.getExplorerUrl('abc123');
+      assert.ok(url);
       assert.ok(url.includes('abc123'));
+      assert.ok(url.includes('test.explorer.com'));
+    });
+
+    it('returns null when no explorer configured', async () => {
+      const provider = new FastProvider({ 
+        rpcUrl: 'https://custom.rpc.com',
+        explorerUrl: undefined 
+      });
+      // Force init without network lookup
+      (provider as any)._initialized = true;
+      (provider as any)._explorerUrl = null;
+      const url = await provider.getExplorerUrl('abc123');
+      assert.equal(url, null);
+    });
+
+    it('uses explicit explorerUrl from constructor', async () => {
+      const provider = new FastProvider({ 
+        explorerUrl: 'https://my-explorer.com' 
+      });
+      const url = await provider.getExplorerUrl();
+      assert.equal(url, 'https://my-explorer.com');
     });
   });
 });

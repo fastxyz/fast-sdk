@@ -121,16 +121,27 @@ interface ProviderOptions {
 
 **Important:** You must have a FastProvider before creating a FastWallet.
 
-### Option 1: From keyfile path (auto-create if missing)
+### Option 1: From keyfile path
 
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
 
 const provider = new FastProvider({ network: 'testnet' });
+
+// Simple: pass path directly
 const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
-// If file doesn't exist: generates new key, saves to file, returns wallet
-// If file exists: loads key from file, returns wallet
+
+// With options: use object form
+const wallet = await FastWallet.fromKeyfile({ 
+  keyFile: '~/.fast/keys/default.json',
+  createIfMissing: false  // Optional, default: true
+}, provider);
 ```
+
+**Notes:**
+- If file doesn't exist and `createIfMissing: true` (default): generates new key, saves to file, returns wallet
+- If file doesn't exist and `createIfMissing: false`: throws `KEYFILE_NOT_FOUND` error
+- If file exists: loads key from file, returns wallet
 
 ### Option 2: From keyfile with named key
 
@@ -138,30 +149,10 @@ const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provide
 const provider = new FastProvider({ network: 'testnet' });
 const wallet = await FastWallet.fromKeyfile({ key: 'merchant' }, provider);
 // Resolves to: ~/.fast/keys/merchant.json
-// Auto-creates if missing
+// Auto-creates if missing (unless createIfMissing: false)
 ```
 
-### Option 3: From keyfile with explicit path
-
-```ts
-const provider = new FastProvider({ network: 'testnet' });
-const wallet = await FastWallet.fromKeyfile({ 
-  keyFile: '/custom/path/to/wallet.json' 
-}, provider);
-// Auto-creates if missing
-```
-
-### Option 4: From keyfile - fail if missing
-
-```ts
-const provider = new FastProvider({ network: 'testnet' });
-const wallet = await FastWallet.fromKeyfile({ 
-  keyFile: '~/.fast/keys/must-exist.json',
-  createIfMissing: false  // Throws KEYFILE_NOT_FOUND if file doesn't exist
-}, provider);
-```
-
-### Option 5: From private key (hex string)
+### Option 3: From private key (hex string)
 
 ```ts
 const provider = new FastProvider({ network: 'testnet' });
@@ -171,22 +162,16 @@ const wallet = await FastWallet.fromPrivateKey(privateKey, provider);
 // Use saveToKeyfile() to persist if needed
 ```
 
-### Option 6: Generate new random wallet
+### Option 4: Generate new random wallet
 
 ```ts
 const provider = new FastProvider({ network: 'testnet' });
 const wallet = await FastWallet.generate(provider);
 console.log('New address:', wallet.address);
 // Does NOT save to disk - wallet exists only in memory
-```
 
-### Option 7: Generate and save to disk
-
-```ts
-const provider = new FastProvider({ network: 'testnet' });
-const wallet = await FastWallet.generate(provider);
+// To persist:
 await wallet.saveToKeyfile('~/.fast/keys/new-wallet.json');
-// Now persisted to disk
 ```
 
 ### All WalletKeyfileOptions
@@ -205,9 +190,9 @@ interface WalletKeyfileOptions {
 |--------|--------|------------|----------|
 | `fromKeyfile(path, provider)` | File or generate | ✅ Yes | Most common |
 | `fromKeyfile({ key: 'name' }, provider)` | Named file | ✅ Yes | Multiple wallets |
-| `fromKeyfile({ createIfMissing: false }, provider)` | File only | N/A | Must exist |
+| `fromKeyfile({ ..., createIfMissing: false }, provider)` | File only | N/A | Must exist |
 | `fromPrivateKey(hex, provider)` | Memory | ❌ No | Import existing key |
-| `generate(provider)` | Random | ❌ No | Create new, save later |
+| `generate(provider)` + `saveToKeyfile()` | Random | ❌ Manual | Create new wallet |
 
 ---
 

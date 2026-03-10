@@ -58,6 +58,32 @@ const provider = new FastProvider({ network: 'testnet' });
 const provider = new FastProvider({ network: 'mainnet' });
 ```
 
+**Where do `testnet` and `mainnet` configs come from?**
+
+The SDK loads network configuration from JSON files in this priority order:
+
+```
+1. ~/.fast/networks.json        ← User overrides (highest priority)
+2. src/data/networks.json       ← Bundled defaults (ships with package)
+3. Hardcoded fallbacks          ← Last resort if JSON fails to load
+```
+
+**Bundled defaults** (`src/data/networks.json`):
+```json
+{
+  "testnet": {
+    "rpc": "https://staging.proxy.fastset.xyz",
+    "explorer": "https://explorer.fast.xyz"
+  },
+  "mainnet": {
+    "rpc": "https://api.fast.xyz/proxy",
+    "explorer": "https://explorer.fast.xyz"
+  }
+}
+```
+
+If you need to override these, create `~/.fast/networks.json` with your values — they will take precedence.
+
 ### Option 3: Custom RPC URL
 
 ```ts

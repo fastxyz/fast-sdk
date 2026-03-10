@@ -1,15 +1,28 @@
 /**
- * @fastxyz/sdk — Fast SDK for AI agents
+ * @fastxyz/sdk — Fast SDK
  *
- * Primary API: fast({ network: 'testnet' }) → FastClient
+ * Primary API:
+ * - FastProvider: Read-only connection to the Fast network
+ * - FastWallet: Wallet for signing transactions
  */
 
-// Primary API — what agents use
-export { fast } from './client.js';
+// Primary API
+export { FastProvider } from './provider.js';
+export { FastWallet } from './wallet.js';
 
 // Errors
 export { FastError } from './errors.js';
 export type { FastErrorCode } from './errors.js';
 
 // Types
-export type { FastClient, NetworkType, FastOptions } from './types.js';
+export type {
+  NetworkType,
+  ProviderOptions,
+  WalletKeyfileOptions,
+  TokenInfo,
+  TokenBalance,
+  SendResult,
+  SignResult,
+  SubmitResult,
+  ExportedKeys,
+} from './types.js';

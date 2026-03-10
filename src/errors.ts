@@ -12,7 +12,8 @@ export type FastErrorCode =
   | 'INVALID_ADDRESS'
   | 'TOKEN_NOT_FOUND'
   | 'INVALID_PARAMS'
-  | 'UNSUPPORTED_OPERATION';
+  | 'UNSUPPORTED_OPERATION'
+  | 'KEYFILE_NOT_FOUND';
 
 export class FastError extends Error {
   readonly code: FastErrorCode;

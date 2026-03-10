@@ -2,62 +2,77 @@
  * types.ts — Fast SDK types
  */
 
-/** Network types */
-export type NetworkType = 'testnet' | 'mainnet';
+/** Network names. Built-in networks are `testnet` and `mainnet`, but custom names are allowed. */
+type BuiltinNetworkType = 'testnet' | 'mainnet';
+export type NetworkType = BuiltinNetworkType | (string & {});
 
-/** Options for the fast() factory */
-export interface FastOptions {
-  /** Network to connect to (default: 'testnet') */
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Provider Types
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/** Options for creating a FastProvider */
+export interface ProviderOptions {
+  /** Network to connect to (default: 'testnet'). Can be a custom name from ~/.fast/networks.json. */
   network?: NetworkType;
   /** Custom RPC URL (overrides network default) */
   rpcUrl?: string;
-  /** Named key - resolves to ~/.fast/keys/{key}.json (default: 'default') */
-  key?: string;
-  /** Explicit key file path - takes priority over `key` if both provided */
+  /** Custom explorer URL (overrides network default) */
+  explorerUrl?: string;
+}
+
+/** Token info returned by provider queries */
+export interface TokenInfo {
+  name: string;
+  symbol: string;
+  tokenId: string;
+  decimals: number;
+  totalSupply?: string;
+  admin?: string;
+  minters?: string[];
+}
+
+/** Token balance entry */
+export interface TokenBalance {
+  symbol: string;
+  tokenId: string;
+  balance: string;
+  decimals: number;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Wallet Types
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/** Options for creating a FastWallet from keyfile */
+export interface WalletKeyfileOptions {
+  /** Path to keyfile (default: ~/.fast/keys/default.json) */
   keyFile?: string;
+  /** Named key - resolves to ~/.fast/keys/{key}.json */
+  key?: string;
+  /** Create new key if keyfile doesn't exist (default: true) */
+  createIfMissing?: boolean;
 }
 
-/** Network configuration */
-export interface NetworkConfig {
-  rpc: string;
-  keyfile: string;
-  network: string;
-  defaultToken: string;
+/** Result of a send operation */
+export interface SendResult {
+  txHash: string;
+  explorerUrl: string | null;
 }
 
-/** Persisted SDK config (~/.fast/config.json) */
-export interface FastConfig {
-  networks: Record<string, NetworkConfig>;
+/** Result of a sign operation */
+export interface SignResult {
+  signature: string;
+  address: string;
 }
 
-/** Client returned by the fast() factory — the primary SDK interface for agents */
-export interface FastClient {
-  /** Create or load a wallet, persist config. Must be called before other methods. */
-  setup(): Promise<{ address: string }>;
-  /** Get balance for native FAST, a held custom token symbol like fastUSDC, or a hex token ID */
-  balance(opts?: { token?: string }): Promise<{ amount: string; token: string }>;
-  /** Send tokens to an address. Defaults to native FAST; custom tokens can be passed by held symbol or hex token ID. */
-  send(params: { to: string; amount: string; token?: string }): Promise<{ txHash: string; explorerUrl: string }>;
-  /** Sign a message with the wallet's Ed25519 key */
-  sign(params: { message: string | Uint8Array }): Promise<{ signature: string; address: string }>;
-  /** Verify an Ed25519 signature against a fast1... address */
-  verify(params: { message: string | Uint8Array; signature: string; address: string }): Promise<{ valid: boolean }>;
-  /** List all tokens held on-network with balances (queries Fast directly) */
-  tokens(): Promise<Array<{ symbol: string; address: string; balance: string; decimals: number }>>;
-  /** Get on-network metadata for a token by held symbol or hex token ID */
-  tokenInfo(params: { token: string }): Promise<{
-    name: string;
-    symbol: string;
-    address: string;
-    decimals: number;
-    totalSupply?: string;
-    admin?: string;
-    minters?: string[];
-  }>;
-  /** Submit any claim to the Fast network. Returns txHash and certificate. */
-  submit(params: { recipient: string; claim: Record<string, unknown> }): Promise<{ txHash: string; certificate: unknown }>;
-  /** Export public key and address (never exposes private key) */
-  exportKeys(): Promise<{ publicKey: string; address: string }>;
-  /** The current wallet address, or null if setup() hasn't been called */
-  readonly address: string | null;
+/** Result of a submit operation */
+export interface SubmitResult {
+  txHash: string;
+  certificate: unknown;
+}
+
+/** Exported wallet keys (never includes private key) */
+export interface ExportedKeys {
+  publicKey: string;
+  address: string;
 }

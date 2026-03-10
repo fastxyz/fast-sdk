@@ -122,7 +122,12 @@ export function toHex(humanAmount: string, decimals: number): string {
 /** Convert hex string to human-readable decimal (for Fast protocol) */
 export function fromHex(hexAmount: string, decimals: number): string {
   if (!hexAmount || hexAmount === '0') return '0';
-  return toHuman(BigInt(`0x${hexAmount}`), decimals);
+  // Handle hex strings with or without '0x' prefix
+  const cleanHex = hexAmount.startsWith('0x') || hexAmount.startsWith('0X')
+    ? hexAmount.slice(2)
+    : hexAmount;
+  if (!cleanHex || cleanHex === '0') return '0';
+  return toHuman(BigInt(`0x${cleanHex}`), decimals);
 }
 
 /**

@@ -349,19 +349,6 @@ for (const token of tokens) {
 }
 ```
 
-### Example 5: Custom network setup
-
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-
-const provider = new FastProvider({
-  rpcUrl: 'https://staging.proxy.fastset.xyz',
-  explorerUrl: 'https://explorer.fast.xyz'
-});
-
-const wallet = await FastWallet.fromKeyfile('~/.fast/keys/staging.json', provider);
-```
-
 ---
 
 ## FastProvider Methods Reference

@@ -246,15 +246,43 @@ if (result.explorerUrl) {
 }
 ```
 
-**Where does `fastUSDC` token info come from?**
+**How does the SDK resolve the `token` parameter?**
 
-The SDK resolves token symbols (like `fastUSDC`) from JSON files in this priority order:
+The SDK checks the `token` value in this order:
 
+```
+1. Is it 'FAST'?        → Use native FAST token (decimals: 9)
+2. Is it a hex (0x...)? → Use as token ID directly (query network for decimals)
+3. Is it a symbol?      → Look up in tokens.json config
+```
+
+**Option A: Use token symbol** (convenient for known tokens)
+
+```ts
+await wallet.send({ to, amount: '10', token: 'fastUSDC' });
+```
+
+Symbols are resolved from tokens.json in this priority:
 ```
 1. ~/.fast/tokens.json          ← User overrides (highest priority)
 2. src/data/tokens.json         ← Bundled defaults (ships with package)
 3. Hardcoded fallbacks          ← Last resort
 ```
+
+**Option B: Use hex token ID** (works for ANY token on the network)
+
+```ts
+await wallet.send({ 
+  to, 
+  amount: '10', 
+  token: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5' 
+});
+```
+
+When using hex token ID:
+- No tokens.json lookup needed
+- SDK queries the network for token decimals via RPC
+- Works for any token deployed on the Fast network
 
 **Bundled defaults** (`src/data/tokens.json`):
 ```json
@@ -272,13 +300,7 @@ The SDK resolves token symbols (like `fastUSDC`) from JSON files in this priorit
 }
 ```
 
-When you call `wallet.send({ token: 'fastUSDC' })`, the SDK:
-1. Looks up "fastUSDC" in tokens config
-2. Gets `tokenId` (hex) and `decimals` (6)
-3. Converts amount `10.5` → `10500000` (10.5 × 10^6)
-4. Submits transaction with the token ID bytes
-
-**To add custom tokens**, create `~/.fast/tokens.json`:
+**To add custom token symbols**, create `~/.fast/tokens.json`:
 ```json
 {
   "MYTOKEN": {
@@ -288,6 +310,8 @@ When you call `wallet.send({ token: 'fastUSDC' })`, the SDK:
   }
 }
 ```
+
+This lets you use `token: 'MYTOKEN'` instead of the full hex ID.
 
 ### Example 3: Sign and verify message
 

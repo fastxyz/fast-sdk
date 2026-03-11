@@ -47,6 +47,11 @@ const MintBcs = bcs.struct('Mint', {
   amount: AmountBcs,
 });
 
+const BurnBcs = bcs.struct('Burn', {
+  token_id: bcs.bytes(32),
+  amount: AmountBcs,
+});
+
 const ExternalClaimBodyBcs = bcs.struct('ExternalClaimBody', {
   verifier_committee: bcs.vector(bcs.bytes(32)),
   verifier_quorum: bcs.u64(),
@@ -63,6 +68,7 @@ const ClaimTypeBcs = bcs.enum('ClaimType', {
   TokenCreation: TokenCreationBcs,
   TokenManagement: TokenManagementBcs,
   Mint: MintBcs,
+  Burn: BurnBcs,
   StateInitialization: bcs.struct('StateInitialization', { dummy: bcs.u8() }),
   StateUpdate: bcs.struct('StateUpdate', { dummy: bcs.u8() }),
   ExternalClaim: ExternalClaimFullBcs,

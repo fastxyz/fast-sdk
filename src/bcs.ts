@@ -110,12 +110,27 @@ export const TransactionBcs = bcs.struct('Transaction', {
 
 export type FastTransaction = Parameters<typeof TransactionBcs.serialize>[0];
 
+/** BCS variant index for Release20260303 inside the VersionedTransaction enum */
+const RELEASE_20260303_VARIANT_INDEX = 1;
+
+/**
+ * Serialize a transaction as VersionedTransaction::Release20260303.
+ * Prepends the BCS enum variant index (ULEB128-encoded 1) before the inner transaction bytes.
+ */
+export function serializeVersionedTransaction(transaction: FastTransaction): Uint8Array {
+  const innerBytes = TransactionBcs.serialize(transaction).toBytes();
+  const versioned = new Uint8Array(1 + innerBytes.length);
+  versioned[0] = RELEASE_20260303_VARIANT_INDEX;
+  versioned.set(innerBytes, 1);
+  return versioned;
+}
+
 // ---------------------------------------------------------------------------
-// Transaction hashing: keccak256(BCS(transaction))
+// Transaction hashing: keccak256(BCS(VersionedTransaction::Release20260303(tx)))
 // ---------------------------------------------------------------------------
 
 export function hashTransaction(transaction: FastTransaction): string {
-  const serialized = TransactionBcs.serialize(transaction).toBytes();
+  const serialized = serializeVersionedTransaction(transaction);
   const hash = keccak_256(serialized);
   return `0x${Buffer.from(hash).toString('hex')}`;
 }

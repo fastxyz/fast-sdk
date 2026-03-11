@@ -429,9 +429,11 @@ describe('FastWallet', () => {
           method: string;
           params: {
             transaction?: {
-              claim?: {
-                TokenTransfer?: {
-                  amount?: string;
+              Release20260303?: {
+                claim?: {
+                  TokenTransfer?: {
+                    amount?: string;
+                  };
                 };
               };
             };
@@ -452,7 +454,7 @@ describe('FastWallet', () => {
         }
 
         if (body.method === 'proxy_submitTransaction') {
-          assert.equal(body.params.transaction?.claim?.TokenTransfer?.amount, 'f4240');
+          assert.equal(body.params.transaction?.Release20260303?.claim?.TokenTransfer?.amount, 'f4240');
           return rpcResult({ Success: { certificate: 'ok' } });
         }
 

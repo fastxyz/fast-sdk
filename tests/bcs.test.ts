@@ -8,6 +8,8 @@ import {
   tokenIdEquals,
   hexToTokenId,
   hashTransaction,
+  serializeVersionedTransaction,
+  TransactionBcs,
   type FastTransaction,
 } from '../src/bcs.js';
 
@@ -138,6 +140,40 @@ describe('bcs', () => {
     it('should produce a different hash when nonce changes', () => {
       const tx2: FastTransaction = { ...tx, nonce: 1 };
       assert.notEqual(hashTransaction(tx), hashTransaction(tx2));
+    });
+  });
+
+  describe('serializeVersionedTransaction', () => {
+    const tx: FastTransaction = {
+      sender: new Uint8Array(32),
+      recipient: new Uint8Array(32),
+      nonce: 0,
+      timestamp_nanos: 0n,
+      claim: {
+        TokenTransfer: {
+          token_id: FAST_TOKEN_ID,
+          amount: 'de0b6b3a7640000',
+          user_data: null,
+        },
+      },
+      archival: false,
+    };
+
+    it('should prepend Release20260303 variant index byte 0x01', () => {
+      const bytes = serializeVersionedTransaction(tx);
+      assert.equal(bytes[0], 1, 'First byte should be Release20260303 variant index (1)');
+    });
+
+    it('result length should be 1 + inner BCS length', () => {
+      const bytes = serializeVersionedTransaction(tx);
+      const innerLen = TransactionBcs.serialize(tx).toBytes().length;
+      assert.equal(bytes.length, 1 + innerLen);
+    });
+
+    it('should be deterministic', () => {
+      const a = serializeVersionedTransaction(tx);
+      const b = serializeVersionedTransaction(tx);
+      assert.deepEqual(a, b);
     });
   });
 });

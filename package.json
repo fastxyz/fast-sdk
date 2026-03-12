@@ -27,7 +27,8 @@
     "pack:dry-run": "node ./scripts/pack-dry-run.mjs",
     "pack:smoke": "node ./scripts/pack-smoke.mjs",
     "release:verify-tag": "node ./scripts/verify-tag-version.mjs",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "live:smoke": "node --import tsx ./scripts/live-smoke.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -14,6 +14,8 @@ import {
 } from '../src/bcs.js';
 
 describe('bcs', () => {
+  const CLAIM_VARIANT_OFFSET = 88;
+
   describe('constants', () => {
     it('FAST_DECIMALS should equal 18', () => {
       assert.equal(FAST_DECIMALS, 18);
@@ -176,4 +178,48 @@ describe('bcs', () => {
       assert.deepEqual(a, b);
     });
   });
+  describe('claim variant ordering', () => {
+    it('serializes Burn at claim variant index 4', () => {
+      const tx: FastTransaction = {
+        sender: new Uint8Array(32),
+        recipient: new Uint8Array(32),
+        nonce: 0,
+        timestamp_nanos: 0n,
+        claim: {
+          Burn: {
+            token_id: FAST_TOKEN_ID,
+            amount: '1',
+          },
+        },
+        archival: false,
+      };
+
+      const bytes = TransactionBcs.serialize(tx).toBytes();
+      assert.equal(bytes[CLAIM_VARIANT_OFFSET], 4);
+    });
+
+    it('serializes ExternalClaim at claim variant index 7', () => {
+      const tx: FastTransaction = {
+        sender: new Uint8Array(32),
+        recipient: new Uint8Array(32),
+        nonce: 0,
+        timestamp_nanos: 0n,
+        claim: {
+          ExternalClaim: {
+            claim: {
+              verifier_committee: [new Uint8Array(32)],
+              verifier_quorum: 1,
+              claim_data: [1, 2, 3],
+            },
+            signatures: [[new Uint8Array(32), new Uint8Array(64)]],
+          },
+        },
+        archival: false,
+      };
+
+      const bytes = TransactionBcs.serialize(tx).toBytes();
+      assert.equal(bytes[CLAIM_VARIANT_OFFSET], 7);
+    });
+  });
+
 });

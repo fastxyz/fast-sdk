@@ -374,6 +374,8 @@ for (const token of tokens) {
 | `exportKeys()` | Export public key + address | `{ publicKey, address }` |
 | `saveToKeyfile(path)` | Save in-memory wallet to disk | `void` |
 
+`submit()` automatically signs and submits the current FastSet `VersionedTransaction::Release20260303` envelope, including the matching BCS transaction hash.
+
 ## FastWallet Properties
 
 | Property | Description |

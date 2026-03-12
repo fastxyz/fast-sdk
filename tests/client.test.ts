@@ -465,6 +465,52 @@ describe('FastWallet', () => {
       assert.ok(sawTokenInfo);
       assert.ok(tx.txHash);
     });
+
+    it('serializes timestamp_nanos with the exact digits sent for signing', async () => {
+      const provider = new FastProvider();
+      const wallet = await FastWallet.generate(provider);
+      const fixedMs = 1773281639713;
+      const expectedTimestamp = '1773281639713000000';
+      const originalDateNow = Date.now;
+
+      Date.now = () => fixedMs;
+
+      try {
+        globalThis.fetch = async (_input, init) => {
+          const rawBody = String(init?.body);
+          const body = JSON.parse(rawBody) as {
+            method: string;
+            params: {
+              transaction?: {
+                Release20260303?: {
+                  timestamp_nanos?: number;
+                };
+              };
+            };
+          };
+
+          if (body.method === 'proxy_getAccountInfo') {
+            return rpcResult({ next_nonce: 7 });
+          }
+
+          if (body.method === 'proxy_submitTransaction') {
+            assert.match(rawBody, new RegExp(`"timestamp_nanos":${expectedTimestamp}`));
+            assert.equal(
+              body.params.transaction?.Release20260303?.timestamp_nanos?.toString(),
+              expectedTimestamp,
+            );
+            return rpcResult({ Success: { certificate: 'ok' } });
+          }
+
+          throw new Error(`Unexpected RPC method: ${body.method}`);
+        };
+
+        const tx = await wallet.send({ to: VALID_FAST_ADDRESS, amount: '1' });
+        assert.ok(tx.txHash);
+      } finally {
+        Date.now = originalDateNow;
+      }
+    });
   });
 
   describe('sign/verify', () => {

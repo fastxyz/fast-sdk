@@ -8,10 +8,14 @@ import {
   tokenIdEquals,
   hexToTokenId,
   hashTransaction,
+  serializeVersionedTransaction,
+  TransactionBcs,
   type FastTransaction,
 } from '../src/bcs.js';
 
 describe('bcs', () => {
+  const CLAIM_VARIANT_OFFSET = 88;
+
   describe('constants', () => {
     it('FAST_DECIMALS should equal 18', () => {
       assert.equal(FAST_DECIMALS, 18);
@@ -140,4 +144,82 @@ describe('bcs', () => {
       assert.notEqual(hashTransaction(tx), hashTransaction(tx2));
     });
   });
+
+  describe('serializeVersionedTransaction', () => {
+    const tx: FastTransaction = {
+      sender: new Uint8Array(32),
+      recipient: new Uint8Array(32),
+      nonce: 0,
+      timestamp_nanos: 0n,
+      claim: {
+        TokenTransfer: {
+          token_id: FAST_TOKEN_ID,
+          amount: 'de0b6b3a7640000',
+          user_data: null,
+        },
+      },
+      archival: false,
+    };
+
+    it('should prepend Release20260303 variant index byte 0x01', () => {
+      const bytes = serializeVersionedTransaction(tx);
+      assert.equal(bytes[0], 1, 'First byte should be Release20260303 variant index (1)');
+    });
+
+    it('result length should be 1 + inner BCS length', () => {
+      const bytes = serializeVersionedTransaction(tx);
+      const innerLen = TransactionBcs.serialize(tx).toBytes().length;
+      assert.equal(bytes.length, 1 + innerLen);
+    });
+
+    it('should be deterministic', () => {
+      const a = serializeVersionedTransaction(tx);
+      const b = serializeVersionedTransaction(tx);
+      assert.deepEqual(a, b);
+    });
+  });
+  describe('claim variant ordering', () => {
+    it('serializes Burn at claim variant index 4', () => {
+      const tx: FastTransaction = {
+        sender: new Uint8Array(32),
+        recipient: new Uint8Array(32),
+        nonce: 0,
+        timestamp_nanos: 0n,
+        claim: {
+          Burn: {
+            token_id: FAST_TOKEN_ID,
+            amount: '1',
+          },
+        },
+        archival: false,
+      };
+
+      const bytes = TransactionBcs.serialize(tx).toBytes();
+      assert.equal(bytes[CLAIM_VARIANT_OFFSET], 4);
+    });
+
+    it('serializes ExternalClaim at claim variant index 7', () => {
+      const tx: FastTransaction = {
+        sender: new Uint8Array(32),
+        recipient: new Uint8Array(32),
+        nonce: 0,
+        timestamp_nanos: 0n,
+        claim: {
+          ExternalClaim: {
+            claim: {
+              verifier_committee: [new Uint8Array(32)],
+              verifier_quorum: 1,
+              claim_data: [1, 2, 3],
+            },
+            signatures: [[new Uint8Array(32), new Uint8Array(64)]],
+          },
+        },
+        archival: false,
+      };
+
+      const bytes = TransactionBcs.serialize(tx).toBytes();
+      assert.equal(bytes[CLAIM_VARIANT_OFFSET], 7);
+    });
+  });
+
 });

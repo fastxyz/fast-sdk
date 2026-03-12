@@ -21,6 +21,7 @@ import {
 import { rpcCall } from './rpc.js';
 import {
   TransactionBcs,
+  serializeVersionedTransaction,
   hashTransaction,
   FAST_DECIMALS,
   FAST_TOKEN_ID,
@@ -403,9 +404,9 @@ export class FastWallet {
       archival: false,
     };
 
-    // Serialize and create signing message
-    const msgHead = new TextEncoder().encode('Transaction::');
-    const msgBody = TransactionBcs.serialize(transaction).toBytes();
+    // Serialize as VersionedTransaction and create signing message
+    const msgHead = new TextEncoder().encode('VersionedTransaction::');
+    const msgBody = serializeVersionedTransaction(transaction);
     const msg = new Uint8Array(msgHead.length + msgBody.length);
     msg.set(msgHead, 0);
     msg.set(msgBody, msgHead.length);
@@ -427,7 +428,7 @@ export class FastWallet {
     // Submit
     try {
       const submitResult = await rpcCall(this._provider.rpcUrl, 'proxy_submitTransaction', {
-        transaction,
+        transaction: { Release20260303: transaction },
         signature: { Signature: signature },
       });
 

@@ -61,6 +61,7 @@ await wallet.send({ to: 'fast1...', amount: '10' });
 - **Balance Queries** - Check native and token balances
 - **Message Signing** - Sign and verify messages with Ed25519
 - **Token Metadata** - Look up token info and list holdings
+- **Protocol Compatibility** - Submit transactions using the current `VersionedTransaction::Release20260303` FastSet envelope automatically
 
 ## Configuration
 

@@ -8,11 +8,14 @@ import { FastProvider, FastWallet } from '../src/index.js';
 import { FastError } from '../src/errors.js';
 import { clearDefaultsCache } from '../src/defaults.js';
 import type { FastTransactionCertificate } from '../src/index.js';
+import { FAST_TOKEN_ID } from '../src/bcs.js';
+import { bytesToPrefixedHex } from '../src/bytes.js';
 
 let tmpDir: string;
 let originalConfigDir: string | undefined;
 const originalFetch = globalThis.fetch;
 const VALID_FAST_ADDRESS = 'fast1424242424242424242424242424242424242424242424242424qlc29x9';
+const NATIVE_FAST_TOKEN_ID = bytesToPrefixedHex(FAST_TOKEN_ID);
 // testUSDC token ID on staging
 const FAST_USDC_TOKEN_ID = [156, 82, 254, 148, 101, 245, 123, 197, 38, 193, 26, 160, 192, 72, 253, 135, 9, 170, 70, 171, 192, 109, 21, 200, 12, 190, 217, 38, 61, 77, 77, 248] as const;
 
@@ -110,6 +113,18 @@ describe('FastProvider', () => {
       assert.equal(balance.amount, '1');
     });
 
+    it('returns FAST balance by native token hex id', async () => {
+      globalThis.fetch = async () => rpcResult({
+        balance: '0xde0b6b3a7640000',
+        token_balance: [],
+      });
+
+      const provider = new FastProvider();
+      const balance = await provider.getBalance(VALID_FAST_ADDRESS, NATIVE_FAST_TOKEN_ID);
+      assert.equal(balance.token, 'FAST');
+      assert.equal(balance.amount, '1');
+    });
+
     it('uses live token decimals for symbol balances when config is stale', async () => {
       await fs.writeFile(
         path.join(tmpDir, 'tokens.json'),
@@ -178,7 +193,16 @@ describe('FastProvider', () => {
       const info = await provider.getTokenInfo('FAST');
       assert.ok(info);
       assert.equal(info.symbol, 'FAST');
-      assert.equal(info.decimals, 9);
+      assert.equal(info.decimals, 18);
+    });
+
+    it('returns FAST token info for the native token hex id without RPC call', async () => {
+      const provider = new FastProvider();
+      const info = await provider.getTokenInfo(NATIVE_FAST_TOKEN_ID);
+      assert.ok(info);
+      assert.equal(info.symbol, 'FAST');
+      assert.equal(info.tokenId, 'native');
+      assert.equal(info.decimals, 18);
     });
 
     it('returns null for unknown token', async () => {

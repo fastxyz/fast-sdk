@@ -27,6 +27,10 @@ function isNativeFastToken(token: string): boolean {
   return token.toUpperCase() === 'FAST';
 }
 
+function isNativeFastTokenId(token: string): boolean {
+  return HEX_TOKEN_PATTERN.test(token) && tokenIdEquals(hexToTokenId(token), FAST_TOKEN_ID);
+}
+
 function tokenIdToHex(tokenId: number[] | Uint8Array): string {
   return bytesToHex(tokenId);
 }
@@ -107,9 +111,9 @@ export class BaseFastProvider {
     const result = await this.fetchAccountInfo(pubkey);
     if (!result) return { amount: '0', token };
 
-    if (isNativeFastToken(token)) {
+    if (isNativeFastToken(token) || isNativeFastTokenId(token)) {
       const hexBalance = result.balance ?? '0';
-      return { amount: fromHex(hexBalance, FAST_DECIMALS), token: token.toUpperCase() };
+      return { amount: fromHex(hexBalance, FAST_DECIMALS), token: 'FAST' };
     }
 
     if (HEX_TOKEN_PATTERN.test(token)) {
@@ -184,7 +188,7 @@ export class BaseFastProvider {
   async getTokenInfo(token: string): Promise<TokenInfo | null> {
     await this.init();
 
-    if (token.toUpperCase() === 'FAST') {
+    if (isNativeFastToken(token) || isNativeFastTokenId(token)) {
       const known = await this.resolveKnownToken('FAST');
       return {
         name: 'FAST',

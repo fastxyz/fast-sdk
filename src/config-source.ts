@@ -28,7 +28,7 @@ export const FALLBACK_TOKENS: Record<NetworkType, Record<string, KnownFastToken>
     FAST: {
       symbol: 'FAST',
       tokenId: 'native',
-      decimals: 9,
+      decimals: 18,
     },
     TESTUSDC: {
       symbol: 'testUSDC',
@@ -40,7 +40,7 @@ export const FALLBACK_TOKENS: Record<NetworkType, Record<string, KnownFastToken>
     FAST: {
       symbol: 'FAST',
       tokenId: 'native',
-      decimals: 9,
+      decimals: 18,
     },
     FASTUSDC: {
       symbol: 'fastUSDC',

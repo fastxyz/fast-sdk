@@ -24,6 +24,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "test": "node --import tsx --test tests/*.test.ts",
+    "test:live": "node --import tsx --test --test-concurrency=1 tests/integration.test.ts",
     "pack:dry-run": "node ./scripts/pack-dry-run.mjs",
     "pack:smoke": "node ./scripts/pack-smoke.mjs",
     "release:verify-tag": "node ./scripts/verify-tag-version.mjs",

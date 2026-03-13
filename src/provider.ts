@@ -163,7 +163,7 @@ export class FastProvider {
     }
 
     // Known token symbol (e.g., 'fastUSDC')
-    const known = await resolveKnownFastToken(token);
+    const known = await resolveKnownFastToken(token, this._network);
     if (known && known.tokenId !== 'native') {
       const tokenIdBytes = hexToTokenId(known.tokenId);
       const entry = result.token_balance?.find(([tid]) => tokenIdEquals(tid, tokenIdBytes));
@@ -243,7 +243,7 @@ export class FastProvider {
 
     // Native FAST
     if (upper === 'FAST') {
-      const known = await resolveKnownFastToken('FAST');
+      const known = await resolveKnownFastToken('FAST', this._network);
       return {
         name: 'FAST',
         symbol: 'FAST',
@@ -259,7 +259,7 @@ export class FastProvider {
       tokenIdBytes = hexToTokenId(token);
     } else {
       // Known symbol
-      const known = await resolveKnownFastToken(token);
+      const known = await resolveKnownFastToken(token, this._network);
       if (known && known.tokenId !== 'native') {
         tokenIdBytes = hexToTokenId(known.tokenId);
       } else {

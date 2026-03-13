@@ -288,7 +288,7 @@ export class FastWallet {
       const info = await this._provider.getTokenInfo(tok);
       decimals = info?.decimals ?? FAST_DECIMALS;
     } else {
-      const known = await resolveKnownFastToken(tok);
+      const known = await resolveKnownFastToken(tok, this._provider.network);
       if (known && known.tokenId !== 'native') {
         const info = await this._provider.getTokenInfo(known.tokenId);
         if (!info || info.tokenId === 'native') {

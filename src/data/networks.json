@@ -1,6 +1,6 @@
 {
   "testnet": {
-    "rpc": "https://staging.proxy.fastset.xyz",
+    "rpc": "https://testnet.api.fast.xyz/proxy",
     "explorer": "https://explorer.fast.xyz"
   },
   "mainnet": {

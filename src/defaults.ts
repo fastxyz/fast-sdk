@@ -37,7 +37,7 @@ export type KnownFastToken = {
 
 const FALLBACK_NETWORKS: Record<NetworkType, NetworkInfo> = {
   testnet: {
-    rpc: 'https://staging.proxy.fastset.xyz',
+    rpc: 'https://testnet.api.fast.xyz/proxy',
     explorer: 'https://explorer.fast.xyz',
   },
   mainnet: {
@@ -46,16 +46,30 @@ const FALLBACK_NETWORKS: Record<NetworkType, NetworkInfo> = {
   },
 };
 
-const FALLBACK_TOKENS: Record<string, KnownFastToken> = {
-  FAST: {
-    symbol: 'FAST',
-    tokenId: 'native',
-    decimals: 9,
+const FALLBACK_TOKENS: Record<NetworkType, Record<string, KnownFastToken>> = {
+  testnet: {
+    FAST: {
+      symbol: 'FAST',
+      tokenId: 'native',
+      decimals: 9,
+    },
+    TESTUSDC: {
+      symbol: 'testUSDC',
+      tokenId: '0x9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8',
+      decimals: 6,
+    },
   },
-  FASTUSDC: {
-    symbol: 'fastUSDC',
-    tokenId: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5',
-    decimals: 6,
+  mainnet: {
+    FAST: {
+      symbol: 'FAST',
+      tokenId: 'native',
+      decimals: 9,
+    },
+    FASTUSDC: {
+      symbol: 'fastUSDC',
+      tokenId: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5',
+      decimals: 6,
+    },
   },
 };
 
@@ -64,7 +78,7 @@ const FALLBACK_TOKENS: Record<string, KnownFastToken> = {
  * ───────────────────────────────────────────────────────────────────────────── */
 
 let _networksCache: Record<string, NetworkInfo> | null = null;
-let _tokensCache: Record<string, KnownFastToken> | null = null;
+let _tokensCache: Record<NetworkType, Record<string, KnownFastToken>> | null = null;
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * JSON Loading Helpers
@@ -99,23 +113,35 @@ async function loadNetworks(): Promise<Record<string, NetworkInfo>> {
   return merged;
 }
 
-async function loadTokens(): Promise<Record<string, KnownFastToken>> {
+async function loadTokens(): Promise<Record<NetworkType, Record<string, KnownFastToken>>> {
   if (_tokensCache) return _tokensCache;
 
-  // Start with hardcoded fallbacks
-  const merged: Record<string, KnownFastToken> = { ...FALLBACK_TOKENS };
+  // Start with hardcoded fallbacks (deep copy)
+  const merged: Record<NetworkType, Record<string, KnownFastToken>> = {
+    testnet: { ...FALLBACK_TOKENS.testnet },
+    mainnet: { ...FALLBACK_TOKENS.mainnet },
+  };
 
   // Layer 2: Bundled JSON (imported as module)
-  for (const [key, value] of Object.entries(bundledTokens)) {
-    merged[key.toUpperCase()] = value as KnownFastToken;
+  const bundled = bundledTokens as Record<string, Record<string, KnownFastToken>>;
+  for (const network of ['testnet', 'mainnet'] as NetworkType[]) {
+    if (bundled[network]) {
+      for (const [key, value] of Object.entries(bundled[network])) {
+        merged[network][key.toUpperCase()] = value;
+      }
+    }
   }
 
   // Layer 3: User overrides (~/.fast/tokens.json)
   const userPath = path.join(getConfigDir(), 'tokens.json');
-  const user = await loadJsonFile<Record<string, KnownFastToken>>(userPath);
+  const user = await loadJsonFile<Record<string, Record<string, KnownFastToken>>>(userPath);
   if (user) {
-    for (const [key, value] of Object.entries(user)) {
-      merged[key.toUpperCase()] = value;
+    for (const network of ['testnet', 'mainnet'] as NetworkType[]) {
+      if (user[network]) {
+        for (const [key, value] of Object.entries(user[network])) {
+          merged[network][key.toUpperCase()] = value;
+        }
+      }
     }
   }
 
@@ -147,16 +173,22 @@ export async function getAllNetworks(): Promise<Record<string, NetworkInfo>> {
  * Resolve a known token by symbol (case-insensitive).
  * Returns null if token is not found.
  */
-export async function resolveKnownFastToken(token: string): Promise<KnownFastToken | null> {
+export async function resolveKnownFastToken(
+  token: string,
+  network: NetworkType = 'testnet'
+): Promise<KnownFastToken | null> {
   const tokens = await loadTokens();
-  return tokens[token.toUpperCase()] ?? null;
+  return tokens[network]?.[token.toUpperCase()] ?? null;
 }
 
 /**
- * Get all known tokens.
+ * Get all known tokens for a network.
  */
-export async function getAllTokens(): Promise<Record<string, KnownFastToken>> {
-  return loadTokens();
+export async function getAllTokens(
+  network: NetworkType = 'testnet'
+): Promise<Record<string, KnownFastToken>> {
+  const tokens = await loadTokens();
+  return tokens[network] ?? {};
 }
 
 /**

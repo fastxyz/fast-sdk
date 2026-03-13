@@ -1,6 +1,11 @@
 # Fast SDK
 
-Official TypeScript SDK for the Fast network. Build wallets, send tokens, check balances, sign messages, and interact with Fast in Node.js applications.
+Official TypeScript SDK for the Fast network.
+
+The package now has two entrypoints:
+
+- `@fastxyz/sdk` for Node.js apps, keyfiles, and `~/.fast/*` config overrides
+- `@fastxyz/sdk/browser` for browser and extension apps with no `node:*` dependency chain
 
 ## Install
 
@@ -8,74 +13,123 @@ Official TypeScript SDK for the Fast network. Build wallets, send tokens, check 
 npm install @fastxyz/sdk
 ```
 
-## Quick Start
+## Node Quick Start
 
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
 
-// Create provider (read-only connection)
 const provider = new FastProvider({ network: 'testnet' });
-
-// Create or load wallet
 const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
 
-// Check balance
-const balance = await wallet.balance();
-console.log(balance);
-
-// Send tokens
 const tx = await wallet.send({
   to: 'fast1...',
-  amount: '1.0',
+  amount: '1',
 });
+
 console.log(tx.txHash);
+console.log(tx.certificate);
+console.log(tx.explorerUrl);
+
+const signed = await wallet.sign({ message: 'Hello, Fast!' });
+console.log(signed.signature);
+console.log(signed.messageBytes);
+```
+
+## Browser Quick Start
+
+```ts
+import { FastBrowserWallet, FastProvider } from '@fastxyz/sdk/browser';
+
+const provider = new FastProvider({ network: 'testnet' });
+const wallet = FastBrowserWallet.fromInjected(window.fastset, provider);
+
+await wallet.connect();
+
+const tx = await wallet.send({
+  to: 'fast1...',
+  amount: '1',
+});
+
+console.log(tx.txHash);
+console.log(tx.certificate);
+
+const signed = await wallet.sign({ message: 'Hello from the browser' });
+console.log(signed.signature);
+console.log(signed.messageBytes);
 ```
 
 ## Architecture
 
-The SDK uses a Provider/Wallet separation:
+- `FastProvider` is read-only and available from both entrypoints.
+- `FastWallet` is Node-only and supports keyfiles, generated wallets, and private-key imports.
+- `FastBrowserWallet` is browser-only and wraps an injected wallet such as `window.fastset`.
 
-- **FastProvider** — Read-only connection to the Fast network. No private key needed.
-- **FastWallet** — Wallet for signing transactions. Requires a provider.
+### Supported in `@fastxyz/sdk/browser`
 
-### Read-only operations (no key needed)
+- provider reads
+- token and network config from bundled defaults or constructor overrides
+- address helpers
+- transaction hashing and certificate helpers
+- injected-wallet `connect`, `sign`, `send`, and `submitClaim`
 
-```ts
-const provider = new FastProvider({ network: 'testnet' });
-const balance = await provider.getBalance('fast1...');
-const tokenInfo = await provider.getTokenInfo('fastUSDC');
-```
+### Node-only
 
-### Signing operations (key required)
+- `FastWallet`
+- keyfile storage and `saveToKeyfile()`
+- `~/.fast/networks.json` and `~/.fast/tokens.json`
+- `FAST_CONFIG_DIR`
+- env-seeded keyfile behavior
 
-```ts
-const provider = new FastProvider({ network: 'testnet' });
-const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
-await wallet.send({ to: 'fast1...', amount: '10' });
-```
+## Public Helpers
 
-## Features
+The package exports browser-safe protocol helpers from both entrypoints:
 
-- **Wallet Management** - Create, load, or generate Fast wallets
-- **Token Operations** - Send FAST, fastUSDC, or any Fast token
-- **Balance Queries** - Check native and token balances
-- **Message Signing** - Sign and verify messages with Ed25519
-- **Token Metadata** - Look up token info and list holdings
-- **Protocol Compatibility** - Submit transactions using the current `VersionedTransaction::Release20260303` FastSet envelope automatically
+- `pubkeyToAddress`, `addressToPubkey`, `normalizeFastAddress`
+- `FAST_TOKEN_ID`, `FAST_DECIMALS`
+- `hashTransaction`, `serializeVersionedTransaction`
+- `getCertificateTransaction`, `getCertificateHash`, `getCertificateTokenTransfer`
 
 ## Configuration
 
-Network and token configuration is loaded from JSON files:
+`FastProvider` accepts constructor-level config injection:
 
-- **Bundled defaults**: `src/data/networks.json`, `src/data/tokens.json`
-- **User overrides**: `~/.fast/networks.json`, `~/.fast/tokens.json`
+```ts
+const provider = new FastProvider({
+  network: 'custom',
+  networks: {
+    custom: {
+      rpc: 'https://custom.example.com/proxy',
+      explorer: 'https://custom.example.com/explorer',
+    },
+  },
+  tokens: {
+    MYTOKEN: {
+      symbol: 'MYTOKEN',
+      tokenId: '0x1234',
+      decimals: 18,
+    },
+  },
+});
+```
 
-User overrides take precedence over bundled defaults.
-Pass `network: 'your-network-name'` to `FastProvider` for any key defined in `~/.fast/networks.json`.
+Node entrypoint config precedence:
 
-## Documentation
+1. constructor overrides
+2. `~/.fast/networks.json` and `~/.fast/tokens.json`
+3. bundled defaults
+4. hardcoded fallbacks
 
-See [SKILL.md](./SKILL.md) for detailed API documentation and usage examples.
+Browser entrypoint config precedence:
+
+1. constructor overrides
+2. bundled defaults
+3. hardcoded fallbacks
+
+## API Notes
+
+- `wallet.send()` returns `{ txHash, certificate, explorerUrl }`
+- `wallet.sign()` returns `{ signature, address, messageBytes }`
+- `provider.getCertificateByNonce(address, nonce)` fetches a certificate directly from RPC
 
 ## Development
 
@@ -83,12 +137,10 @@ See [SKILL.md](./SKILL.md) for detailed API documentation and usage examples.
 npm install
 npm run build
 npm test
+npm run pack:dry-run
+npm run pack:smoke
 ```
 
 ## Releasing
 
-See [RELEASING.md](./RELEASING.md) for the npm release workflow.
-
-## License
-
-MIT
+See [RELEASING.md](./RELEASING.md).

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { pubkeyToAddress, addressToPubkey } from '../src/address.js';
+import { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from '../src/address.js';
 
 describe('address', () => {
   describe('pubkeyToAddress', () => {
@@ -65,6 +65,14 @@ describe('address', () => {
 
     it('should throw on an empty string', () => {
       assert.throws(() => addressToPubkey(''));
+    });
+  });
+
+  describe('normalizeFastAddress', () => {
+    it('canonicalizes a valid address', () => {
+      const hex = 'aa'.repeat(32);
+      const address = pubkeyToAddress(hex).toUpperCase();
+      assert.equal(normalizeFastAddress(address), pubkeyToAddress(hex));
     });
   });
 });

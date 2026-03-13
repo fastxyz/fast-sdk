@@ -1,20 +1,21 @@
 ---
 name: fast-sdk
 description: >
-  Fast SDK for AI agents and Node.js apps. Use @fastxyz/sdk to create or load a Fast wallet,
-  check balances, send FAST tokens, sign or verify messages, list held tokens, look up token metadata,
-  submit low-level claims, and export wallet info.
+  Fast SDK for AI agents, Node.js apps, and browser apps. Use @fastxyz/sdk for Node keyfile wallets
+  and @fastxyz/sdk/browser for browser-safe provider and injected-wallet flows. The SDK can create or
+  load a Fast wallet, check balances, send FAST tokens, sign or verify messages, list held tokens,
+  look up token metadata, fetch certificates, and export wallet info.
   Trigger this skill when a user wants to integrate Fast payments or wallet actions in code,
   or when asked to send funds, inspect balances, sign or verify data, or query Fast token holdings.
   Do NOT use for swaps, bridges, AllSet flows, lending, staking, or generic EVM SDK work.
 metadata:
-  short-description: Use @fastxyz/sdk for Fast wallet, balance, transfer, token, and signing workflows.
-  compatibility: Node.js 20+, npm, network access for Fast RPC, and filesystem access to ~/.fast or FAST_CONFIG_DIR.
+  short-description: Use @fastxyz/sdk or @fastxyz/sdk/browser for Fast wallet, balance, transfer, token, and signing workflows.
+  compatibility: Node.js 20+ for @fastxyz/sdk; modern browsers for @fastxyz/sdk/browser; network access for Fast RPC; filesystem access only for Node keyfile workflows.
 ---
 
 # Fast SDK
 
-Use `@fastxyz/sdk` for Fast wallet operations in Node.js or TypeScript.
+Use `@fastxyz/sdk` for Node.js keyfile wallets and `@fastxyz/sdk/browser` for browser-safe provider and injected-wallet flows.
 
 ## Install
 
@@ -33,7 +34,8 @@ The SDK uses **Provider/Wallet separation**:
 | Component | Purpose | Private Key? |
 |-----------|---------|--------------|
 | **FastProvider** | Read-only connection to Fast network | ❌ Not needed |
-| **FastWallet** | Sign and send transactions | ✅ Required |
+| **FastWallet** | Node.js keyfile or private-key wallet | ✅ Required |
+| **FastBrowserWallet** | Browser injected wallet facade | Injected by extension |
 
 **Rule:** Always create a Provider first, then create a Wallet with that Provider.
 
@@ -112,8 +114,40 @@ interface ProviderOptions {
   network?: string;       // Default: 'testnet'; also accepts custom names from ~/.fast/networks.json
   rpcUrl?: string;        // Overrides network RPC
   explorerUrl?: string;   // Overrides network explorer (null if not set)
+  networks?: Record<string, { rpc: string; explorer?: string }>;
+  tokens?: Record<string, { symbol: string; tokenId: string; decimals: number }>;
 }
 ```
+
+### Browser-safe provider and injected wallet
+
+Use the browser entrypoint when bundling for web apps or extensions:
+
+```ts
+import { FastBrowserWallet, FastProvider } from '@fastxyz/sdk/browser';
+
+const provider = new FastProvider({
+  network: 'testnet',
+});
+
+const wallet = FastBrowserWallet.fromInjected(window.fastset, provider);
+await wallet.connect();
+
+const tx = await wallet.send({
+  to: 'fast1recipient...',
+  amount: '1',
+});
+
+console.log(tx.txHash);
+console.log(tx.certificate);
+```
+
+Browser bundle boundaries:
+
+- No `node:*` dependency chain
+- No `~/.fast/*` config loading
+- No keyfile storage
+- Use bundled defaults or constructor-injected `networks` / `tokens`
 
 ---
 
@@ -241,6 +275,7 @@ const result = await wallet.send({
 });
 
 console.log('TX Hash:', result.txHash);
+console.log('Certificate:', result.certificate);
 if (result.explorerUrl) {
   console.log('Explorer:', result.explorerUrl);
 }
@@ -325,6 +360,7 @@ const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provide
 const signed = await wallet.sign({ message: 'Hello, Fast!' });
 console.log('Signature:', signed.signature);
 console.log('Signer:', signed.address);
+console.log('Message bytes:', signed.messageBytes);
 
 // Verify
 const verified = await wallet.verify({
@@ -359,6 +395,7 @@ for (const token of tokens) {
 | `getTokens(address)` | List all token balances | `TokenBalance[]` |
 | `getTokenInfo(token)` | Get token metadata | `TokenInfo \| null` |
 | `getAccountInfo(address)` | Raw account info from RPC | `object \| null` |
+| `getCertificateByNonce(address, nonce)` | Fetch one certificate by nonce | `FastTransactionCertificate \| null` |
 | `getExplorerUrl(txHash?)` | Get explorer URL | `string \| null` |
 
 ## FastWallet Methods Reference
@@ -367,12 +404,27 @@ for (const token of tokens) {
 |--------|-------------|---------|
 | `balance(token?)` | Get wallet balance | `{ amount, token }` |
 | `tokens()` | List all token balances | `TokenBalance[]` |
-| `send({ to, amount, token? })` | Send tokens | `{ txHash, explorerUrl }` |
-| `sign({ message })` | Sign a message | `{ signature, address }` |
+| `send({ to, amount, token? })` | Send tokens | `{ txHash, certificate, explorerUrl }` |
+| `sign({ message })` | Sign a message | `{ signature, address, messageBytes }` |
 | `verify({ message, signature, address })` | Verify signature | `{ valid }` |
 | `submit({ recipient, claim })` | Low-level claim submission | `{ txHash, certificate }` |
 | `exportKeys()` | Export public key + address | `{ publicKey, address }` |
 | `saveToKeyfile(path)` | Save in-memory wallet to disk | `void` |
+
+## FastBrowserWallet Methods Reference
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `connect()` | Connect to injected wallet | `boolean` |
+| `disconnect()` | Disconnect injected wallet | `boolean` |
+| `isConnected()` | Check connection status | `boolean` |
+| `getAccounts()` | Get injected accounts | `FastBrowserWalletAccount[]` |
+| `getActiveNetwork()` | Get injected wallet network | `string` |
+| `balance(token?)` | Read active account balance via provider | `{ amount, token }` |
+| `tokens()` | Read active account token balances via provider | `TokenBalance[]` |
+| `send({ to, amount, token? })` | Send tokens through injected wallet | `{ txHash, certificate, explorerUrl }` |
+| `sign({ message })` | Sign through injected wallet | `{ signature, address, messageBytes }` |
+| `submitClaim({...})` | Submit external claim through injected wallet | `{ txHash, certificate }` |
 
 `submit()` automatically signs and submits the current FastSet `VersionedTransaction::Release20260303` envelope, including the matching BCS transaction hash.
 

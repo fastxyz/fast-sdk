@@ -9,7 +9,6 @@ import path from 'node:path';
 import { FastError } from './errors.js';
 import { FastProvider } from './provider.js';
 import { getKeysDir } from './config.js';
-import { resolveKnownFastToken } from './defaults.js';
 import {
   generateEd25519Key,
   saveKeyfile,
@@ -28,7 +27,9 @@ import {
   hexToTokenId,
 } from './bcs.js';
 import { pubkeyToAddress, addressToPubkey } from './address.js';
-import { toHex, expandHome } from './utils.js';
+import { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from './bytes.js';
+import { toHex } from './amounts.js';
+import { expandHome } from './utils.js';
 import type {
   WalletKeyfileOptions,
   SendResult,
@@ -49,10 +50,6 @@ type RpcErrorPayload = {
 function isNativeFastToken(token: string): boolean {
   const upper = token.toUpperCase();
   return upper === 'FAST';
-}
-
-function stripHexPrefix(hex: string): string {
-  return hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
 }
 
 function parseRpcErrorPayload(rawMessage: string): RpcErrorPayload | null {
@@ -166,9 +163,9 @@ export class FastWallet {
 
     // Derive public key and address from private key
     const { getPublicKey } = await import('@noble/ed25519');
-    const privKeyBytes = Buffer.from(cleanKey, 'hex');
+    const privKeyBytes = hexToBytes(cleanKey);
     const pubKeyBytes = await getPublicKey(privKeyBytes);
-    const publicKey = Buffer.from(pubKeyBytes).toString('hex');
+    const publicKey = bytesToHex(pubKeyBytes);
     const address = pubkeyToAddress(publicKey);
 
     // Create wallet with in-memory keypair
@@ -288,7 +285,7 @@ export class FastWallet {
       const info = await this._provider.getTokenInfo(tok);
       decimals = info?.decimals ?? FAST_DECIMALS;
     } else {
-      const known = await resolveKnownFastToken(tok);
+      const known = await this._provider.resolveKnownToken(tok);
       if (known && known.tokenId !== 'native') {
         const info = await this._provider.getTokenInfo(known.tokenId);
         if (!info || info.tokenId === 'native') {
@@ -323,6 +320,7 @@ export class FastWallet {
     const explorerUrl = await this._provider.getExplorerUrl(result.txHash);
     return {
       txHash: result.txHash,
+      certificate: result.certificate,
       explorerUrl,
     };
   }
@@ -335,7 +333,7 @@ export class FastWallet {
   async sign(params: { message: string | Uint8Array }): Promise<SignResult> {
     const messageBytes =
       typeof params.message === 'string'
-        ? new TextEncoder().encode(params.message)
+        ? utf8ToBytes(params.message)
         : params.message;
 
     let signature: Uint8Array;
@@ -349,8 +347,9 @@ export class FastWallet {
     }
 
     return {
-      signature: Buffer.from(signature).toString('hex'),
+      signature: bytesToHex(signature),
       address: this._address,
+      messageBytes: bytesToHex(messageBytes),
     };
   }
 
@@ -368,12 +367,12 @@ export class FastWallet {
   }): Promise<{ valid: boolean }> {
     const messageBytes =
       typeof params.message === 'string'
-        ? new TextEncoder().encode(params.message)
+        ? utf8ToBytes(params.message)
         : params.message;
 
-    const sigBytes = Buffer.from(params.signature, 'hex');
+    const sigBytes = hexToBytes(params.signature);
     const pubkey = addressToPubkey(params.address);
-    const pubkeyHex = Buffer.from(pubkey).toString('hex');
+    const pubkeyHex = bytesToHex(pubkey);
 
     // verifyEd25519 signature order: (signature, message, publicKey)
     const valid = await verifyEd25519(sigBytes, messageBytes, pubkeyHex);
@@ -432,7 +431,9 @@ export class FastWallet {
         signature: { Signature: signature },
       });
 
-      const certificate = (submitResult as { Success?: unknown })?.Success ?? submitResult;
+      const certificate = (
+        (submitResult as { Success?: SubmitResult['certificate'] })?.Success ?? submitResult
+      ) as SubmitResult['certificate'];
 
       return {
         txHash,

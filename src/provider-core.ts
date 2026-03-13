@@ -1,0 +1,299 @@
+import { FAST_DECIMALS, FAST_TOKEN_ID, hexToTokenId, tokenIdEquals } from './bcs.js';
+import { bytesToPrefixedHex, bytesToHex, stripHexPrefix } from './bytes.js';
+import { addressToPubkey } from './address.js';
+import { FastError } from './errors.js';
+import { fromHex } from './amounts.js';
+import { rpcCall } from './rpc.js';
+import type { ConfigSource } from './config-source.js';
+import type {
+  FastAccountInfo,
+  FastNonceRange,
+  FastTokenMetadata,
+  FastTransactionCertificate,
+  KnownFastToken,
+  NetworkType,
+  ProviderOptions,
+  TokenBalance,
+  TokenInfo,
+} from './types.js';
+
+const HEX_TOKEN_PATTERN = /^(0x)?[0-9a-fA-F]+$/;
+
+type FastTokenInfoResponse = {
+  requested_token_metadata?: Array<[number[], FastTokenMetadata | null]>;
+} | null;
+
+function isNativeFastToken(token: string): boolean {
+  return token.toUpperCase() === 'FAST';
+}
+
+function tokenIdToHex(tokenId: number[] | Uint8Array): string {
+  return bytesToHex(tokenId);
+}
+
+export class BaseFastProvider {
+  private _rpcUrl: string;
+  private _network: NetworkType;
+  private _explorerUrl: string | null = null;
+  private _explicitExplorerUrl = false;
+  private _initialized = false;
+  private _configSource: ConfigSource;
+
+  constructor(opts: ProviderOptions | undefined, configSource: ConfigSource) {
+    this._configSource = configSource;
+    this._network = opts?.network ?? 'testnet';
+    this._rpcUrl = opts?.rpcUrl ?? 'https://staging.proxy.fastset.xyz';
+
+    if (opts?.explorerUrl !== undefined) {
+      this._explorerUrl = opts.explorerUrl;
+      this._explicitExplorerUrl = true;
+    }
+
+    if (opts?.rpcUrl) {
+      this._explicitExplorerUrl = true;
+      this._initialized = true;
+    }
+  }
+
+  protected async init(): Promise<void> {
+    if (this._initialized) return;
+
+    const networkInfo = await this._configSource.getNetworkInfo(this._network);
+    if (networkInfo?.rpc) {
+      this._rpcUrl = networkInfo.rpc;
+    }
+    if (!this._explicitExplorerUrl) {
+      this._explorerUrl = await this._configSource.getExplorerUrl(this._network);
+    }
+    this._initialized = true;
+  }
+
+  get rpcUrl(): string {
+    return this._rpcUrl;
+  }
+
+  get network(): NetworkType {
+    return this._network;
+  }
+
+  async getExplorerUrl(txHash?: string): Promise<string | null> {
+    await this.init();
+    if (!this._explorerUrl) return null;
+    return txHash ? `${this._explorerUrl}/txs/${txHash}` : this._explorerUrl;
+  }
+
+  async resolveKnownToken(token: string): Promise<KnownFastToken | null> {
+    return this._configSource.resolveKnownFastToken(token);
+  }
+
+  async getKnownTokens(): Promise<Record<string, KnownFastToken>> {
+    return this._configSource.getAllTokens();
+  }
+
+  async getKnownNetworks(): Promise<Record<string, { rpc: string; explorer?: string }>> {
+    return this._configSource.getAllNetworks();
+  }
+
+  async getBalance(address: string, token: string = 'FAST'): Promise<{ amount: string; token: string }> {
+    await this.init();
+
+    let pubkey: Uint8Array;
+    try {
+      pubkey = addressToPubkey(address);
+    } catch {
+      return { amount: '0', token };
+    }
+
+    const result = await this.fetchAccountInfo(pubkey);
+    if (!result) return { amount: '0', token };
+
+    if (isNativeFastToken(token)) {
+      const hexBalance = result.balance ?? '0';
+      return { amount: fromHex(hexBalance, FAST_DECIMALS), token: token.toUpperCase() };
+    }
+
+    if (HEX_TOKEN_PATTERN.test(token)) {
+      const tokenIdBytes = hexToTokenId(token);
+      const entry = result.token_balance?.find(([tid]) => tokenIdEquals(tid, tokenIdBytes));
+      if (!entry) return { amount: '0', token };
+      const [, bal] = entry;
+      const metadata = await this.fetchTokenMetadata([tokenIdBytes]);
+      const decimals = metadata.get(tokenIdToHex(tokenIdBytes))?.decimals ?? FAST_DECIMALS;
+      return { amount: fromHex(stripHexPrefix(bal), decimals), token };
+    }
+
+    const known = await this.resolveKnownToken(token);
+    if (known && known.tokenId !== 'native') {
+      const tokenIdBytes = hexToTokenId(known.tokenId);
+      const entry = result.token_balance?.find(([tid]) => tokenIdEquals(tid, tokenIdBytes));
+      if (!entry) return { amount: '0', token: known.symbol };
+      const [, bal] = entry;
+      const metadata = await this.fetchTokenMetadata([tokenIdBytes]);
+      const decimals = metadata.get(tokenIdToHex(tokenIdBytes))?.decimals ?? known.decimals;
+      return { amount: fromHex(stripHexPrefix(bal), decimals), token: known.symbol };
+    }
+
+    return { amount: '0', token };
+  }
+
+  async getTokens(address: string): Promise<TokenBalance[]> {
+    await this.init();
+
+    let pubkey: Uint8Array;
+    try {
+      pubkey = addressToPubkey(address);
+    } catch {
+      return [];
+    }
+
+    const result = await this.fetchAccountInfo(pubkey);
+    if (!result) return [];
+
+    const tokens: TokenBalance[] = [];
+
+    if (result.balance) {
+      tokens.push({
+        symbol: 'FAST',
+        tokenId: 'native',
+        balance: fromHex(result.balance, FAST_DECIMALS),
+        decimals: FAST_DECIMALS,
+      });
+    }
+
+    if (result.token_balance && result.token_balance.length > 0) {
+      const tokenIds = result.token_balance.map(([tid]) => new Uint8Array(tid));
+      const metadata = await this.fetchTokenMetadata(tokenIds);
+
+      for (const [tid, bal] of result.token_balance) {
+        const tidHex = tokenIdToHex(tid);
+        const meta = metadata.get(tidHex);
+        const decimals = meta?.decimals ?? FAST_DECIMALS;
+
+        tokens.push({
+          symbol: meta?.token_name ?? `${tidHex.slice(0, 8)}...`,
+          tokenId: `0x${tidHex}`,
+          balance: fromHex(stripHexPrefix(bal), decimals),
+          decimals,
+        });
+      }
+    }
+
+    return tokens;
+  }
+
+  async getTokenInfo(token: string): Promise<TokenInfo | null> {
+    await this.init();
+
+    if (token.toUpperCase() === 'FAST') {
+      const known = await this.resolveKnownToken('FAST');
+      return {
+        name: 'FAST',
+        symbol: 'FAST',
+        tokenId: 'native',
+        decimals: known?.decimals ?? FAST_DECIMALS,
+      };
+    }
+
+    let tokenIdBytes: Uint8Array;
+    if (HEX_TOKEN_PATTERN.test(token)) {
+      tokenIdBytes = hexToTokenId(token);
+    } else {
+      const known = await this.resolveKnownToken(token);
+      if (known && known.tokenId !== 'native') {
+        tokenIdBytes = hexToTokenId(known.tokenId);
+      } else {
+        return null;
+      }
+    }
+
+    const metadata = await this.fetchTokenMetadata([tokenIdBytes]);
+    const tidHex = tokenIdToHex(tokenIdBytes);
+    const meta = metadata.get(tidHex);
+    if (!meta) return null;
+
+    return {
+      name: meta.token_name ?? tidHex,
+      symbol: meta.token_name ?? tidHex.slice(0, 8),
+      tokenId: `0x${tidHex}`,
+      decimals: meta.decimals ?? FAST_DECIMALS,
+      totalSupply: meta.total_supply,
+      admin: meta.admin ? bytesToPrefixedHex(meta.admin) : undefined,
+      minters: meta.mints?.map((minter) => bytesToPrefixedHex(minter)),
+    };
+  }
+
+  async getAccountInfo(address: string): Promise<FastAccountInfo> {
+    await this.init();
+
+    let pubkey: Uint8Array;
+    try {
+      pubkey = addressToPubkey(address);
+    } catch {
+      return null;
+    }
+
+    return this.fetchAccountInfo(pubkey);
+  }
+
+  async getCertificateByNonce(
+    address: string,
+    nonce: number,
+  ): Promise<FastTransactionCertificate | null> {
+    await this.init();
+
+    let pubkey: Uint8Array;
+    try {
+      pubkey = addressToPubkey(address);
+    } catch {
+      return null;
+    }
+
+    const result = await this.fetchAccountInfo(pubkey, {
+      certificateByNonce: { start: nonce, end: nonce },
+    });
+    return result?.requested_certificates?.[0] ?? null;
+  }
+
+  private async fetchAccountInfo(
+    pubkey: Uint8Array,
+    opts?: { certificateByNonce?: FastNonceRange | null },
+  ): Promise<FastAccountInfo> {
+    return (await rpcCall(this._rpcUrl, 'proxy_getAccountInfo', {
+      address: pubkey,
+      token_balances_filter: [],
+      state_key_filter: null,
+      certificate_by_nonce: opts?.certificateByNonce ?? null,
+    })) as FastAccountInfo;
+  }
+
+  private async fetchTokenMetadata(tokenIds: Uint8Array[]): Promise<Map<string, FastTokenMetadata>> {
+    const uniq = new Map<string, Uint8Array>();
+    for (const tokenId of tokenIds) {
+      const key = tokenIdToHex(tokenId);
+      if (!uniq.has(key)) {
+        uniq.set(key, tokenId);
+      }
+    }
+    if (uniq.size === 0) {
+      return new Map();
+    }
+
+    const result = (await rpcCall(this._rpcUrl, 'proxy_getTokenInfo', {
+      token_ids: [...uniq.values()],
+    })) as FastTokenInfoResponse;
+
+    const metadata = new Map<string, FastTokenMetadata>();
+    for (const [tokenId, meta] of result?.requested_token_metadata ?? []) {
+      if (meta) {
+        metadata.set(tokenIdToHex(tokenId), meta);
+      }
+    }
+    return metadata;
+  }
+
+  protected assertInitialized(): void {
+    if (!this._initialized) {
+      throw new FastError('UNSUPPORTED_OPERATION', 'Provider is not initialized');
+    }
+  }
+}

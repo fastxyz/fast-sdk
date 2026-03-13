@@ -54,7 +54,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      'import { FastProvider, FastWallet, FastError } from "@fastxyz/sdk"; if (typeof FastProvider !== "function") throw new Error("FastProvider export missing"); if (typeof FastWallet !== "function") throw new Error("FastWallet export missing"); if (typeof FastError !== "function") throw new Error("FastError export missing");',
+      'import { FastProvider, FastWallet, FastError } from "@fastxyz/sdk"; import { FastProvider as BrowserFastProvider, FastBrowserWallet } from "@fastxyz/sdk/browser"; if (typeof FastProvider !== "function") throw new Error("FastProvider export missing"); if (typeof FastWallet !== "function") throw new Error("FastWallet export missing"); if (typeof FastError !== "function") throw new Error("FastError export missing"); if (typeof BrowserFastProvider !== "function") throw new Error("Browser FastProvider export missing"); if (typeof FastBrowserWallet !== "function") throw new Error("FastBrowserWallet export missing");',
     ],
     {
       cwd: tempDir,

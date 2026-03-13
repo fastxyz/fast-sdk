@@ -7,6 +7,7 @@ import path from 'node:path';
 import { FastProvider, FastWallet } from '../src/index.js';
 import { FastError } from '../src/errors.js';
 import { clearDefaultsCache } from '../src/defaults.js';
+import type { FastTransactionCertificate } from '../src/index.js';
 
 let tmpDir: string;
 let originalConfigDir: string | undefined;
@@ -464,6 +465,7 @@ describe('FastWallet', () => {
       const tx = await wallet.send({ to: VALID_FAST_ADDRESS, amount: '1', token: 'fastUSDC' });
       assert.ok(sawTokenInfo);
       assert.ok(tx.txHash);
+      assert.deepEqual(tx.certificate, { certificate: 'ok' } as unknown as FastTransactionCertificate);
     });
 
     it('serializes timestamp_nanos with the exact digits sent for signing', async () => {
@@ -507,6 +509,7 @@ describe('FastWallet', () => {
 
         const tx = await wallet.send({ to: VALID_FAST_ADDRESS, amount: '1' });
         assert.ok(tx.txHash);
+        assert.deepEqual(tx.certificate, { certificate: 'ok' } as unknown as FastTransactionCertificate);
       } finally {
         Date.now = originalDateNow;
       }
@@ -524,6 +527,7 @@ describe('FastWallet', () => {
 
       assert.ok(signed.signature);
       assert.equal(signed.address, wallet.address);
+      assert.equal(signed.messageBytes, Buffer.from(message, 'utf8').toString('hex'));
 
       const verified = await wallet.verify({
         message,
@@ -546,6 +550,47 @@ describe('FastWallet', () => {
         address: wallet.address,
       });
       assert.equal(verified.valid, false);
+    });
+  });
+
+  describe('getCertificateByNonce', () => {
+    it('returns the requested certificate for a nonce', async () => {
+      const certificate = {
+        envelope: {
+          transaction: {
+            Release20260303: {
+              sender: new Array(32).fill(0),
+              recipient: new Array(32).fill(0),
+              nonce: 7,
+              timestamp_nanos: 1,
+              claim: {
+                TokenTransfer: {
+                  token_id: new Array(32).fill(0),
+                  amount: '1',
+                  user_data: null,
+                },
+              },
+              archival: false,
+            },
+          },
+          signature: { Signature: [] },
+        },
+        signatures: [],
+      } as FastTransactionCertificate;
+
+      globalThis.fetch = async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as {
+          method: string;
+          params: { certificate_by_nonce?: { start: number; end: number } | null };
+        };
+        assert.equal(body.method, 'proxy_getAccountInfo');
+        assert.deepEqual(body.params.certificate_by_nonce, { start: 7, end: 7 });
+        return rpcResult({ requested_certificates: [certificate] });
+      };
+
+      const provider = new FastProvider();
+      const result = await provider.getCertificateByNonce(VALID_FAST_ADDRESS, 7);
+      assert.deepEqual(result, certificate);
     });
   });
 

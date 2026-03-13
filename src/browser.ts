@@ -1,21 +1,13 @@
 /**
- * @fastxyz/sdk — Fast SDK
- *
- * Primary API:
- * - FastProvider: Read-only connection to the Fast network
- * - FastWallet: Wallet for signing transactions
+ * @fastxyz/sdk/browser — Browser-safe Fast SDK entrypoint
  */
 
-// Primary API
-export { FastProvider } from './provider.js';
-export { FastWallet } from './wallet.js';
+export { FastProvider } from './provider.browser.js';
 export { FastBrowserWallet } from './browser-wallet.js';
 
-// Errors
 export { FastError } from './errors.js';
 export type { FastErrorCode } from './errors.js';
 
-// Browser-safe helpers and constants
 export { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from './address.js';
 export {
   FAST_DECIMALS,
@@ -31,8 +23,6 @@ export {
   getCertificateHash,
   getCertificateTokenTransfer,
 } from './certificate.js';
-
-// Config accessors
 export {
   getNetworkInfo,
   getAllNetworks,
@@ -41,15 +31,13 @@ export {
   getDefaultRpcUrl,
   getExplorerUrl,
   clearDefaultsCache,
-} from './defaults.js';
+} from './defaults.browser.js';
 
-// Types
 export type {
   KnownFastToken,
   NetworkInfo,
   NetworkType,
   ProviderOptions,
-  WalletKeyfileOptions,
   TokenInfo,
   TokenBalance,
   FastAccountInfo,
@@ -64,6 +52,5 @@ export type {
   SendResult,
   SignResult,
   SubmitResult,
-  ExportedKeys,
 } from './types.js';
 export type { FastTransaction } from './bcs.js';

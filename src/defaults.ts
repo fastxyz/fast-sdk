@@ -9,62 +9,19 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { NetworkType } from './types.js';
+import {
+  createStaticConfigSource,
+  mergeNetworkMaps,
+  mergeTokenMaps,
+  normalizeNetworkMap,
+  normalizeTokenMap,
+  type ConfigSource,
+} from './config-source.js';
+import type { KnownFastToken, NetworkInfo, NetworkType } from './types.js';
 import { getConfigDir } from './config.js';
+export type { KnownFastToken, NetworkInfo };
 
-// Import bundled JSON directly (resolveJsonModule: true in tsconfig)
-import bundledNetworks from './data/networks.json' with { type: 'json' };
-import bundledTokens from './data/tokens.json' with { type: 'json' };
-
-/* ─────────────────────────────────────────────────────────────────────────────
- * Types
- * ───────────────────────────────────────────────────────────────────────────── */
-
-export type NetworkInfo = {
-  rpc: string;
-  explorer?: string;
-};
-
-export type KnownFastToken = {
-  symbol: string;
-  tokenId: string;
-  decimals: number;
-};
-
-/* ─────────────────────────────────────────────────────────────────────────────
- * Hardcoded Fallbacks (used if JSON files fail to load)
- * ───────────────────────────────────────────────────────────────────────────── */
-
-const FALLBACK_NETWORKS: Record<NetworkType, NetworkInfo> = {
-  testnet: {
-    rpc: 'https://staging.proxy.fastset.xyz',
-    explorer: 'https://explorer.fast.xyz',
-  },
-  mainnet: {
-    rpc: 'https://api.fast.xyz/proxy',
-    explorer: 'https://explorer.fast.xyz',
-  },
-};
-
-const FALLBACK_TOKENS: Record<string, KnownFastToken> = {
-  FAST: {
-    symbol: 'FAST',
-    tokenId: 'native',
-    decimals: 9,
-  },
-  FASTUSDC: {
-    symbol: 'fastUSDC',
-    tokenId: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5',
-    decimals: 6,
-  },
-};
-
-/* ─────────────────────────────────────────────────────────────────────────────
- * Cache (lazy-loaded on first access)
- * ───────────────────────────────────────────────────────────────────────────── */
-
-let _networksCache: Record<string, NetworkInfo> | null = null;
-let _tokensCache: Record<string, KnownFastToken> | null = null;
+let _nodeConfigSource: ConfigSource | null = null;
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * JSON Loading Helpers
@@ -79,48 +36,68 @@ async function loadJsonFile<T>(filePath: string): Promise<T | null> {
   }
 }
 
-async function loadNetworks(): Promise<Record<string, NetworkInfo>> {
-  if (_networksCache) return _networksCache;
+export function createNodeConfigSource(opts?: {
+  networks?: Record<string, NetworkInfo>;
+  tokens?: Record<string, KnownFastToken>;
+}): ConfigSource {
+  let networksCache: Record<string, NetworkInfo> | null = null;
+  let tokensCache: Record<string, KnownFastToken> | null = null;
 
-  // Start with hardcoded fallbacks
-  const merged: Record<string, NetworkInfo> = { ...FALLBACK_NETWORKS };
-
-  // Layer 2: Bundled JSON (imported as module)
-  Object.assign(merged, bundledNetworks as Record<string, NetworkInfo>);
-
-  // Layer 3: User overrides (~/.fast/networks.json)
-  const userPath = path.join(getConfigDir(), 'networks.json');
-  const user = await loadJsonFile<Record<string, NetworkInfo>>(userPath);
-  if (user) {
-    Object.assign(merged, user);
+  async function loadNetworks(): Promise<Record<string, NetworkInfo>> {
+    if (networksCache) return networksCache;
+    const userPath = path.join(getConfigDir(), 'networks.json');
+    const user = await loadJsonFile<Record<string, NetworkInfo>>(userPath);
+    networksCache = mergeNetworkMaps(
+      await createStaticConfigSource().getAllNetworks(),
+      normalizeNetworkMap(user),
+      normalizeNetworkMap(opts?.networks),
+    );
+    return networksCache;
   }
 
-  _networksCache = merged;
-  return merged;
+  async function loadTokens(): Promise<Record<string, KnownFastToken>> {
+    if (tokensCache) return tokensCache;
+    const userPath = path.join(getConfigDir(), 'tokens.json');
+    const user = await loadJsonFile<Record<string, KnownFastToken>>(userPath);
+    tokensCache = mergeTokenMaps(
+      await createStaticConfigSource().getAllTokens(),
+      normalizeTokenMap(user),
+      normalizeTokenMap(opts?.tokens),
+    );
+    return tokensCache;
+  }
+
+  return {
+    async getNetworkInfo(network: string): Promise<NetworkInfo | null> {
+      const networks = await loadNetworks();
+      return networks[network] ?? null;
+    },
+    async getAllNetworks(): Promise<Record<string, NetworkInfo>> {
+      return loadNetworks();
+    },
+    async resolveKnownFastToken(token: string): Promise<KnownFastToken | null> {
+      const tokens = await loadTokens();
+      return tokens[token.toUpperCase()] ?? null;
+    },
+    async getAllTokens(): Promise<Record<string, KnownFastToken>> {
+      return loadTokens();
+    },
+    async getDefaultRpcUrl(network: NetworkType = 'testnet'): Promise<string> {
+      const networks = await loadNetworks();
+      return networks[network]?.rpc ?? (await createStaticConfigSource().getDefaultRpcUrl(network));
+    },
+    async getExplorerUrl(network: NetworkType = 'testnet'): Promise<string | null> {
+      const networks = await loadNetworks();
+      return networks[network]?.explorer ?? null;
+    },
+  };
 }
 
-async function loadTokens(): Promise<Record<string, KnownFastToken>> {
-  if (_tokensCache) return _tokensCache;
-
-  // Start with hardcoded fallbacks
-  const merged: Record<string, KnownFastToken> = { ...FALLBACK_TOKENS };
-
-  // Layer 2: Bundled JSON (imported as module)
-  for (const [key, value] of Object.entries(bundledTokens)) {
-    merged[key.toUpperCase()] = value as KnownFastToken;
+function getDefaultNodeConfigSource(): ConfigSource {
+  if (!_nodeConfigSource) {
+    _nodeConfigSource = createNodeConfigSource();
   }
-
-  // Layer 3: User overrides (~/.fast/tokens.json)
-  const userPath = path.join(getConfigDir(), 'tokens.json');
-  const user = await loadJsonFile<Record<string, KnownFastToken>>(userPath);
-  if (user) {
-    for (const [key, value] of Object.entries(user)) {
-      merged[key.toUpperCase()] = value;
-    }
-  }
-
-  _tokensCache = merged;
-  return merged;
+  return _nodeConfigSource;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -132,15 +109,14 @@ async function loadTokens(): Promise<Record<string, KnownFastToken>> {
  * Returns null if network is not found.
  */
 export async function getNetworkInfo(network: string): Promise<NetworkInfo | null> {
-  const networks = await loadNetworks();
-  return networks[network] ?? null;
+  return getDefaultNodeConfigSource().getNetworkInfo(network);
 }
 
 /**
  * Get all known networks.
  */
 export async function getAllNetworks(): Promise<Record<string, NetworkInfo>> {
-  return loadNetworks();
+  return getDefaultNodeConfigSource().getAllNetworks();
 }
 
 /**
@@ -148,23 +124,21 @@ export async function getAllNetworks(): Promise<Record<string, NetworkInfo>> {
  * Returns null if token is not found.
  */
 export async function resolveKnownFastToken(token: string): Promise<KnownFastToken | null> {
-  const tokens = await loadTokens();
-  return tokens[token.toUpperCase()] ?? null;
+  return getDefaultNodeConfigSource().resolveKnownFastToken(token);
 }
 
 /**
  * Get all known tokens.
  */
 export async function getAllTokens(): Promise<Record<string, KnownFastToken>> {
-  return loadTokens();
+  return getDefaultNodeConfigSource().getAllTokens();
 }
 
 /**
  * Get the default RPC URL for a network.
  */
 export async function getDefaultRpcUrl(network: NetworkType = 'testnet'): Promise<string> {
-  const info = await getNetworkInfo(network);
-  return info?.rpc ?? FALLBACK_NETWORKS.testnet.rpc;
+  return getDefaultNodeConfigSource().getDefaultRpcUrl(network);
 }
 
 /**
@@ -172,16 +146,14 @@ export async function getDefaultRpcUrl(network: NetworkType = 'testnet'): Promis
  * Returns null if no explorer is configured.
  */
 export async function getExplorerUrl(network: NetworkType = 'testnet'): Promise<string | null> {
-  const info = await getNetworkInfo(network);
-  return info?.explorer ?? null;
+  return getDefaultNodeConfigSource().getExplorerUrl(network);
 }
 
 /**
  * Clear the cache (useful for testing).
  */
 export function clearDefaultsCache(): void {
-  _networksCache = null;
-  _tokensCache = null;
+  _nodeConfigSource = null;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -189,4 +161,4 @@ export function clearDefaultsCache(): void {
  * ───────────────────────────────────────────────────────────────────────────── */
 
 /** @deprecated Use getDefaultRpcUrl() instead */
-export const DEFAULT_RPC_URL = FALLBACK_NETWORKS.testnet.rpc;
+export const DEFAULT_RPC_URL = 'https://staging.proxy.fastset.xyz';

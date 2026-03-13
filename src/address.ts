@@ -6,10 +6,11 @@
  */
 
 import { bech32m } from 'bech32';
+import { hexToBytes, bytesToHex } from './bytes.js';
 
 /** Convert a hex-encoded public key to a fast1... bech32m address */
 export function pubkeyToAddress(publicKeyHex: string): string {
-  const pubBytes = Buffer.from(publicKeyHex, 'hex');
+  const pubBytes = hexToBytes(publicKeyHex);
   const words = bech32m.toWords(pubBytes);
   return bech32m.encode('fast', words, 90);
 }
@@ -18,4 +19,9 @@ export function pubkeyToAddress(publicKeyHex: string): string {
 export function addressToPubkey(address: string): Uint8Array {
   const { words } = bech32m.decode(address, 90);
   return new Uint8Array(bech32m.fromWords(words));
+}
+
+/** Decode and re-encode an address to its canonical fast1... representation. */
+export function normalizeFastAddress(address: string): string {
+  return pubkeyToAddress(bytesToHex(addressToPubkey(address)));
 }

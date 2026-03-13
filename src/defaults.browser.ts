@@ -11,6 +11,7 @@ function getDefaultBrowserConfigSource(): ConfigSource {
 }
 
 export function createBrowserConfigSource(opts?: {
+  network?: NetworkType;
   networks?: Record<string, NetworkInfo>;
   tokens?: Record<string, KnownFastToken>;
 }): ConfigSource {
@@ -25,12 +26,17 @@ export async function getAllNetworks(): Promise<Record<string, NetworkInfo>> {
   return getDefaultBrowserConfigSource().getAllNetworks();
 }
 
-export async function resolveKnownFastToken(token: string): Promise<KnownFastToken | null> {
-  return getDefaultBrowserConfigSource().resolveKnownFastToken(token);
+export async function resolveKnownFastToken(
+  token: string,
+  network: NetworkType = 'testnet',
+): Promise<KnownFastToken | null> {
+  return getDefaultBrowserConfigSource().resolveKnownFastToken(token, network);
 }
 
-export async function getAllTokens(): Promise<Record<string, KnownFastToken>> {
-  return getDefaultBrowserConfigSource().getAllTokens();
+export async function getAllTokens(
+  network: NetworkType = 'testnet',
+): Promise<Record<string, KnownFastToken>> {
+  return getDefaultBrowserConfigSource().getAllTokens(network);
 }
 
 export async function getDefaultRpcUrl(network: NetworkType = 'testnet'): Promise<string> {

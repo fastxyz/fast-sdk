@@ -83,11 +83,11 @@ export class BaseFastProvider {
   }
 
   async resolveKnownToken(token: string): Promise<KnownFastToken | null> {
-    return this._configSource.resolveKnownFastToken(token);
+    return this._configSource.resolveKnownFastToken(token, this._network);
   }
 
   async getKnownTokens(): Promise<Record<string, KnownFastToken>> {
-    return this._configSource.getAllTokens();
+    return this._configSource.getAllTokens(this._network);
   }
 
   async getKnownNetworks(): Promise<Record<string, { rpc: string; explorer?: string }>> {

@@ -74,7 +74,7 @@ describe('defaults', () => {
     it('returns testnet config', async () => {
       const info = await getNetworkInfo('testnet');
       assert.ok(info);
-      assert.ok(info.rpc.includes('fastset.xyz'));
+      assert.ok(info.rpc.includes('fast.xyz'));
       assert.ok(info.explorer);
     });
 
@@ -110,14 +110,14 @@ describe('defaults', () => {
       assert.deepEqual(fastLower, fast);
     });
 
-    it('resolves fastUSDC token (case-insensitive)', async () => {
-      const usdc = await resolveKnownFastToken('fastUSDC');
+    it('resolves testUSDC token (case-insensitive)', async () => {
+      const usdc = await resolveKnownFastToken('testUSDC');
       assert.ok(usdc);
-      assert.equal(usdc.symbol, 'fastUSDC');
+      assert.equal(usdc.symbol, 'testUSDC');
       assert.equal(usdc.decimals, 6);
       assert.ok(usdc.tokenId.startsWith('0x'));
 
-      const usdcUpper = await resolveKnownFastToken('FASTUSDC');
+      const usdcUpper = await resolveKnownFastToken('TESTUSDC');
       assert.deepEqual(usdcUpper, usdc);
     });
 
@@ -128,17 +128,17 @@ describe('defaults', () => {
   });
 
   describe('getAllTokens', () => {
-    it('returns at least FAST and FASTUSDC', async () => {
+    it('returns at least FAST and TESTUSDC', async () => {
       const tokens = await getAllTokens();
       assert.ok('FAST' in tokens);
-      assert.ok('FASTUSDC' in tokens);
+      assert.ok('TESTUSDC' in tokens);
     });
   });
 
   describe('getDefaultRpcUrl', () => {
     it('returns testnet RPC by default', async () => {
       const url = await getDefaultRpcUrl();
-      assert.ok(url.includes('fastset.xyz'));
+      assert.ok(url.includes('fast.xyz'));
     });
 
     it('returns mainnet RPC when specified', async () => {
@@ -170,10 +170,12 @@ describe('defaults', () => {
       await fs.writeFile(
         path.join(tmpDir, 'tokens.json'),
         JSON.stringify({
-          CUSTOMTOKEN: {
-            symbol: 'CUSTOM',
-            tokenId: '0x1234567890abcdef',
-            decimals: 18,
+          testnet: {
+            CUSTOMTOKEN: {
+              symbol: 'CUSTOM',
+              tokenId: '0x1234567890abcdef',
+              decimals: 18,
+            },
           },
         })
       );

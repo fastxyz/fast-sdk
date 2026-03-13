@@ -9,28 +9,10 @@
 // Primary API
 export { FastProvider } from './provider.js';
 export { FastWallet } from './wallet.js';
-export { FastBrowserWallet } from './browser-wallet.js';
 
 // Errors
 export { FastError } from './errors.js';
 export type { FastErrorCode } from './errors.js';
-
-// Browser-safe helpers and constants
-export { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from './address.js';
-export {
-  FAST_DECIMALS,
-  FAST_TOKEN_ID,
-  EXPLORER_BASE,
-  hexToTokenId,
-  tokenIdEquals,
-  hashTransaction,
-  serializeVersionedTransaction,
-} from './bcs.js';
-export {
-  getCertificateTransaction,
-  getCertificateHash,
-  getCertificateTokenTransfer,
-} from './certificate.js';
 
 // Config accessors
 export {
@@ -58,9 +40,6 @@ export type {
   FastTransactionEnvelope,
   FastTransactionCertificate,
   FastTokenTransferSummary,
-  FastBrowserWalletAccount,
-  FastBrowserWalletConnectOptions,
-  FastBrowserWalletAdapter,
   SendResult,
   SignResult,
   SubmitResult,

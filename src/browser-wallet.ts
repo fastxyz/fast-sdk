@@ -1,4 +1,4 @@
-import { FAST_DECIMALS } from './bcs.js';
+import { FAST_DECIMALS, FAST_TOKEN_ID, hexToTokenId, tokenIdEquals } from './bcs.js';
 import { getCertificateHash } from './certificate.js';
 import { FastError } from './errors.js';
 import { toHex } from './amounts.js';
@@ -212,6 +212,11 @@ export class FastBrowserWallet {
     }
 
     if (HEX_TOKEN_PATTERN.test(token)) {
+      const tokenId = hexToTokenId(token);
+      if (tokenIdEquals(tokenId, FAST_TOKEN_ID)) {
+        return { tokenId: 'native', decimals: FAST_DECIMALS };
+      }
+
       const info = await this._provider.getTokenInfo(token);
       return {
         tokenId: info?.tokenId ?? `0x${stripHexPrefix(token).toLowerCase()}`,

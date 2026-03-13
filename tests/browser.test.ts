@@ -14,7 +14,7 @@ import {
   type FastTransaction,
   type FastTransactionCertificate,
 } from '../src/browser.js';
-import { bytesToHex } from '../src/bytes.js';
+import { bytesToHex, bytesToPrefixedHex } from '../src/bytes.js';
 
 const VALID_FAST_ADDRESS = 'fast1424242424242424242424242424242424242424242424242424qlc29x9';
 const originalFetch = globalThis.fetch;
@@ -256,5 +256,21 @@ describe('browser entrypoint', () => {
     assert.equal(wallet.address, seenAccounts[0]?.address ?? null);
 
     unsubscribe();
+  });
+
+  it('treats the FAST token hex id as a native transfer', async () => {
+    const mock = createMockInjectedWallet();
+    const wallet = FastBrowserWallet.fromInjected(mock.adapter, new FastProvider());
+
+    assert.equal(await wallet.connect(), true);
+
+    await wallet.send({
+      to: VALID_FAST_ADDRESS,
+      amount: '1',
+      token: bytesToPrefixedHex(FAST_TOKEN_ID),
+    });
+
+    assert.equal(mock.calls.transfer.length, 1);
+    assert.equal(mock.calls.transfer[0]?.tokenId, undefined);
   });
 });

@@ -9,7 +9,7 @@ import {
   hashTransaction,
   type FastTransaction,
   type FastTransactionCertificate,
-} from '../src/index.js';
+} from '../src/browser.js';
 
 const SENDER = new Uint8Array(32).fill(1);
 const RECIPIENT = new Uint8Array(32).fill(2);

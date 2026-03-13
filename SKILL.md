@@ -15,7 +15,7 @@ metadata:
 
 # Fast SDK
 
-Use `@fastxyz/sdk` for Node.js keyfile wallets and `@fastxyz/sdk/browser` for browser-safe provider and injected-wallet flows.
+Use `@fastxyz/sdk` for Node.js keyfile wallets and `@fastxyz/sdk/browser` for browser-safe provider, helpers, and injected-wallet flows.
 
 ## Install
 

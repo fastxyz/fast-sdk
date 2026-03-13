@@ -82,7 +82,7 @@ console.log(signed.messageBytes);
 
 ## Public Helpers
 
-The package exports browser-safe protocol helpers from both entrypoints:
+Browser-safe protocol helpers are exported from `@fastxyz/sdk/browser`:
 
 - `pubkeyToAddress`, `addressToPubkey`, `normalizeFastAddress`
 - `FAST_TOKEN_ID`, `FAST_DECIMALS`

@@ -5,7 +5,7 @@ Official TypeScript SDK for the Fast network.
 The package now has two entrypoints:
 
 - `@fastxyz/sdk` for Node.js apps, keyfiles, and `~/.fast/*` config overrides
-- `@fastxyz/sdk/browser` for browser and extension apps with no `node:*` dependency chain
+- `@fastxyz/sdk/browser` for browser-safe provider, config, and protocol helpers with no `node:*` dependency chain
 
 ## Install
 
@@ -38,31 +38,23 @@ console.log(signed.messageBytes);
 ## Browser Quick Start
 
 ```ts
-import { FastBrowserWallet, FastProvider } from '@fastxyz/sdk/browser';
+import { FastProvider, getCertificateHash } from '@fastxyz/sdk/browser';
 
 const provider = new FastProvider({ network: 'testnet' });
-const wallet = FastBrowserWallet.fromInjected(window.fastset, provider);
+const balance = await provider.getBalance('fast1...', 'FAST');
+console.log(balance.amount);
 
-await wallet.connect();
-
-const tx = await wallet.send({
-  to: 'fast1...',
-  amount: '1',
-});
-
-console.log(tx.txHash);
-console.log(tx.certificate);
-
-const signed = await wallet.sign({ message: 'Hello from the browser' });
-console.log(signed.signature);
-console.log(signed.messageBytes);
+const certificate = await provider.getCertificateByNonce('fast1...', 1);
+if (certificate) {
+  console.log(getCertificateHash(certificate));
+}
 ```
 
 ## Architecture
 
 - `FastProvider` is read-only and available from both entrypoints.
 - `FastWallet` is Node-only and supports keyfiles, generated wallets, and private-key imports.
-- `FastBrowserWallet` is browser-only and wraps an injected wallet such as `window.fastset`.
+- `@fastxyz/sdk/browser` stays low-level and does not bundle an injected-wallet wrapper.
 
 ### Supported in `@fastxyz/sdk/browser`
 
@@ -70,7 +62,8 @@ console.log(signed.messageBytes);
 - token and network config from bundled defaults or constructor overrides
 - address helpers
 - transaction hashing and certificate helpers
-- injected-wallet `connect`, `sign`, `send`, and `submitClaim`
+
+If your browser app uses an injected wallet such as `window.fastset`, keep that wrapper in app code or a separate client package.
 
 ### Node-only
 
@@ -127,8 +120,8 @@ Browser entrypoint config precedence:
 
 ## API Notes
 
-- `wallet.send()` returns `{ txHash, certificate, explorerUrl }`
-- `wallet.sign()` returns `{ signature, address, messageBytes }`
+- `wallet.send()` returns `{ txHash, certificate, explorerUrl }` on the Node `FastWallet`
+- `wallet.sign()` returns `{ signature, address, messageBytes }` on the Node `FastWallet`
 - `provider.getCertificateByNonce(address, nonce)` fetches a certificate directly from RPC
 
 ## Development

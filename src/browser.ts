@@ -3,7 +3,6 @@
  */
 
 export { FastProvider } from './provider.browser.js';
-export { FastBrowserWallet } from './browser-wallet.js';
 
 export { FastError } from './errors.js';
 export type { FastErrorCode } from './errors.js';
@@ -46,9 +45,6 @@ export type {
   FastTransactionEnvelope,
   FastTransactionCertificate,
   FastTokenTransferSummary,
-  FastBrowserWalletAccount,
-  FastBrowserWalletConnectOptions,
-  FastBrowserWalletAdapter,
   SendResult,
   SignResult,
   SubmitResult,

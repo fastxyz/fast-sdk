@@ -16,7 +16,7 @@ describe('entrypoints', () => {
 
   it('exposes browser-safe values from the browser entrypoint', () => {
     assert.equal(typeof browserEntrypoint.FastProvider, 'function');
-    assert.equal(typeof browserEntrypoint.FastBrowserWallet, 'function');
+    assert.equal('FastBrowserWallet' in browserEntrypoint, false);
     assert.ok(browserEntrypoint.FAST_TOKEN_ID instanceof Uint8Array);
     assert.equal(typeof browserEntrypoint.getCertificateHash, 'function');
   });

@@ -157,39 +157,3 @@ export interface ExportedKeys {
   publicKey: string;
   address: string;
 }
-
-export interface FastBrowserWalletAccount {
-  address: string;
-  publicKey: string;
-}
-
-export interface FastBrowserWalletConnectOptions {
-  permissions?: string[];
-}
-
-export interface FastBrowserWalletAdapter {
-  connect(options?: { permissions: string[] }): Promise<boolean>;
-  disconnect(): Promise<boolean>;
-  isConnected(): boolean;
-  getAccounts(): Promise<FastBrowserWalletAccount[]>;
-  getActiveNetwork(): Promise<string>;
-  onAccountChanged(callback: (account: FastBrowserWalletAccount) => void): () => void;
-  signMessage(params: {
-    message: number[];
-    account: FastBrowserWalletAccount;
-  }): Promise<{ signature: string; messageBytes: string }>;
-  transfer(params: {
-    amount: string;
-    recipient: string;
-    account: FastBrowserWalletAccount;
-    tokenId?: string;
-  }): Promise<FastTransactionCertificate>;
-  submitClaim(params: {
-    recipient: string;
-    claimData: number[];
-    account: FastBrowserWalletAccount;
-    verifierCommittee?: Array<number[]>;
-    verifierQuorum?: number;
-    signatures?: Array<[number[], number[]]>;
-  }): Promise<FastTransactionCertificate>;
-}

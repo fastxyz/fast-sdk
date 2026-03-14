@@ -27,6 +27,9 @@ export type {
   ExportedKeys,
 } from './types.js';
 
+// Key utilities
+export { generateEd25519Key, keypairFromPrivateKey, loadKeyfile, saveKeyfile, withKey, signEd25519, verifyEd25519 } from './keys.js';
+
 // BCS schemas and utilities (for advanced use cases like payment verification)
 export {
   TransactionBcs,

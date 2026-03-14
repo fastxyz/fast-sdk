@@ -21,18 +21,22 @@ ed.etc.sha512Sync = (...msgs: Uint8Array[]) => sha512(
 );
 
 const PRIVATE_KEY_HEX_PATTERN = /^(0x)?[0-9a-fA-F]{64}$/;
+const PRIVATE_KEY_BASE64_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 
 function normalizeEnvPrivateKey(value: string): string {
   const trimmed = value.trim();
-  if (!PRIVATE_KEY_HEX_PATTERN.test(trimmed)) {
-    throw new Error('MONEY_FAST_PRIVATE_KEY must be a 32-byte hex string');
+  if (PRIVATE_KEY_HEX_PATTERN.test(trimmed)) {
+    return trimmed.startsWith('0x') || trimmed.startsWith('0X')
+      ? trimmed.slice(2).toLowerCase()
+      : trimmed.toLowerCase();
   }
-  return trimmed.startsWith('0x') || trimmed.startsWith('0X')
-    ? trimmed.slice(2).toLowerCase()
-    : trimmed.toLowerCase();
+  if (PRIVATE_KEY_BASE64_PATTERN.test(trimmed)) {
+    return Buffer.from(trimmed, 'base64').toString('hex');
+  }
+  throw new Error('Private key must be a 32-byte hex or base64 string');
 }
 
-async function keypairFromPrivateKey(
+export async function keypairFromPrivateKey(
   privateKey: string,
 ): Promise<{ publicKey: string; privateKey: string }> {
   const normalized = normalizeEnvPrivateKey(privateKey);

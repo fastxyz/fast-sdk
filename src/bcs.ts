@@ -95,6 +95,8 @@ const ClaimTypeBcs = bcs.enum('ClaimType', {
   ),
 });
 
+const debugBcs = process.env.DEBUG?.split(',').some((s) => s.trim() === 'fast-sdk' || s.trim() === 'fast-sdk:bcs') ?? false;
+
 export const TransactionBcs = bcs.struct('Transaction', {
   sender: bcs.bytes(32),
   recipient: bcs.bytes(32),
@@ -128,9 +130,12 @@ const RELEASE_20260303_VARIANT_INDEX = 1;
  */
 export function serializeVersionedTransaction(transaction: FastTransaction): Uint8Array {
   const innerBytes = TransactionBcs.serialize(transaction).toBytes();
-  const versioned = new Uint8Array(1 + innerBytes.length);
-  versioned[0] = RELEASE_20260303_VARIANT_INDEX;
-  versioned.set(innerBytes, 1);
+  const prefix = new TextEncoder().encode('VersionedTransaction::');
+  const versioned = new Uint8Array(prefix.length + 1 + innerBytes.length);
+  versioned.set(prefix, 0);
+  versioned[prefix.length] = RELEASE_20260303_VARIANT_INDEX;
+  versioned.set(innerBytes, prefix.length + 1);
+  if (debugBcs) console.error('[fast-sdk:bcs] serializeVersionedTransaction:', bytesToHex(versioned));
   return versioned;
 }
 

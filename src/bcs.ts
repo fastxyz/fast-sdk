@@ -6,7 +6,11 @@
 
 import { bcs } from '@mysten/bcs';
 import { keccak_256 } from '@noble/hashes/sha3';
-import { bytesToPrefixedHex, stripHexPrefix } from './bytes.js';
+import {
+  bytesToPrefixedHex,
+  hexToBytes as decodeHexToBytes,
+  stripHexPrefix,
+} from './bytes.js';
 
 // ---------------------------------------------------------------------------
 // BCS Type Definitions
@@ -105,11 +109,20 @@ export const TransactionBcs = bcs.struct('Transaction', {
   archival: bcs.bool(),
 });
 
+/**
+ * Versioned transaction envelope for parsing/decoding.
+ * Use for decoding certificates received from the network.
+ */
+export const VersionedTransactionBcs = bcs.enum('VersionedTransaction', {
+  Release20260303: TransactionBcs,
+});
+
 // ---------------------------------------------------------------------------
 // Transaction type — inferred from TransactionBcs struct
 // ---------------------------------------------------------------------------
 
 export type FastTransaction = Parameters<typeof TransactionBcs.serialize>[0];
+export type VersionedTransaction = Parameters<typeof VersionedTransactionBcs.serialize>[0];
 
 /** BCS variant index for Release20260303 inside the VersionedTransaction enum */
 const RELEASE_20260303_VARIANT_INDEX = 1;
@@ -134,6 +147,144 @@ export function hashTransaction(transaction: FastTransaction): string {
   const serialized = serializeVersionedTransaction(transaction);
   const hash = keccak_256(serialized);
   return bytesToPrefixedHex(hash);
+}
+
+// ---------------------------------------------------------------------------
+// Decoding helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Decoded transaction details (simplified for verification)
+ */
+export interface DecodedTransaction {
+  sender: Uint8Array;
+  recipient: Uint8Array;
+  nonce: bigint;
+  timestamp_nanos: bigint;
+  claim: {
+    TokenTransfer?: {
+      token_id: Uint8Array;
+      amount: string;
+      user_data: Uint8Array | null;
+    };
+    [key: string]: unknown;
+  };
+  archival: boolean;
+}
+
+/**
+ * Convert bytes to hex string (with 0x prefix)
+ */
+export function bytesToHex(bytes: Uint8Array | number[]): string {
+  return bytesToPrefixedHex(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+}
+
+/**
+ * Convert hex string to bytes
+ */
+export function hexToBytes(hex: string): Uint8Array {
+  return decodeHexToBytes(stripHexPrefix(hex));
+}
+
+/**
+ * Decode a Fast transaction envelope.
+ *
+ * Supports both versioned (Release20260303) and legacy formats.
+ *
+ * @param envelope - Hex string, number array, or Uint8Array
+ * @returns Decoded transaction details
+ */
+export function decodeTransactionEnvelope(
+  envelope: string | number[] | Uint8Array
+): DecodedTransaction {
+  let bytes: Uint8Array;
+
+  if (typeof envelope === 'string') {
+    bytes = hexToBytes(envelope);
+  } else if (Array.isArray(envelope)) {
+    bytes = new Uint8Array(envelope);
+  } else if (envelope instanceof Uint8Array) {
+    bytes = envelope;
+  } else {
+    throw new Error(`Invalid envelope type: ${typeof envelope}`);
+  }
+
+  // Try versioned first, fall back to legacy
+  let decoded: FastTransaction;
+  try {
+    const versioned = VersionedTransactionBcs.parse(bytes);
+    if (versioned && typeof versioned === 'object' && 'Release20260303' in versioned) {
+      decoded = (versioned as { Release20260303: FastTransaction }).Release20260303;
+    } else {
+      throw new Error('Unknown versioned format');
+    }
+  } catch {
+    // Fall back to legacy unversioned format
+    decoded = TransactionBcs.parse(bytes);
+  }
+
+  // Extract claim details
+  const claim: DecodedTransaction['claim'] = {};
+
+  if (decoded.claim && typeof decoded.claim === 'object') {
+    const claimObj = decoded.claim as Record<string, unknown>;
+
+    if ('TokenTransfer' in claimObj) {
+      const tt = claimObj.TokenTransfer as {
+        token_id: Iterable<number>;
+        amount: string;
+        user_data: Iterable<number> | null;
+      };
+      claim.TokenTransfer = {
+        token_id: new Uint8Array(tt.token_id),
+        amount: tt.amount,
+        user_data: tt.user_data ? new Uint8Array(tt.user_data) : null,
+      };
+    }
+
+    // Copy other claim types as-is
+    for (const [key, value] of Object.entries(claimObj)) {
+      if (key !== 'TokenTransfer') {
+        claim[key] = value;
+      }
+    }
+  }
+
+  return {
+    sender: new Uint8Array(decoded.sender as Iterable<number>),
+    recipient: new Uint8Array(decoded.recipient as Iterable<number>),
+    nonce: BigInt(decoded.nonce),
+    timestamp_nanos: BigInt(decoded.timestamp_nanos),
+    claim,
+    archival: decoded.archival,
+  };
+}
+
+/**
+ * Extract transfer details from a decoded transaction
+ *
+ * @param tx - Decoded transaction
+ * @returns Transfer details or null if not a TokenTransfer
+ */
+export function getTransferDetails(tx: DecodedTransaction): {
+  sender: string;
+  recipient: string;
+  amount: bigint;
+  tokenId: string;
+} | null {
+  if (!tx.claim.TokenTransfer) {
+    return null;
+  }
+
+  const tt = tx.claim.TokenTransfer;
+  const amount = BigInt(tt.amount);
+
+  return {
+    sender: bytesToHex(tx.sender),
+    recipient: bytesToHex(tx.recipient),
+    amount,
+    tokenId: bytesToHex(tt.token_id),
+  };
 }
 
 // ---------------------------------------------------------------------------

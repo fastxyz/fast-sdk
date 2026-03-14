@@ -45,4 +45,8 @@ export type {
   SubmitResult,
   ExportedKeys,
 } from './types.js';
-export type { FastTransaction } from './bcs.js';
+export type {
+  FastTransaction,
+  VersionedTransaction,
+  DecodedTransaction,
+} from './bcs.js';

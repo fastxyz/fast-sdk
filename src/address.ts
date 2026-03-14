@@ -7,9 +7,9 @@
 
 import { bech32m } from 'bech32';
 
-/** Convert a hex-encoded public key to a fast1... bech32m address */
-export function pubkeyToAddress(publicKeyHex: string): string {
-  const pubBytes = Buffer.from(publicKeyHex, 'hex');
+/** Convert a hex-encoded public key or raw bytes to a fast1... bech32m address */
+export function pubkeyToAddress(publicKey: string | Uint8Array): string {
+  const pubBytes = typeof publicKey === 'string' ? Buffer.from(publicKey, 'hex') : publicKey;
   const words = bech32m.toWords(pubBytes);
   return bech32m.encode('fast', words, 90);
 }

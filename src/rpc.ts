@@ -36,6 +36,8 @@ function toJSON(data: unknown): string {
   return serialized;
 }
 
+const debugRpc = process.env.DEBUG?.split(',').some((s) => s.trim() === 'fast-sdk' || s.trim() === 'fast-sdk:rpc') ?? false;
+
 /** Call a JSON-RPC method on the Fast network proxy */
 export async function rpcCall(
   url: string,
@@ -45,17 +47,20 @@ export async function rpcCall(
 ): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const body = toJSON({ jsonrpc: '2.0', id: 1, method, params });
+  if (debugRpc) console.error(`[fast-sdk:rpc] --> ${method} ${url}\n`, body);
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: toJSON({ jsonrpc: '2.0', id: 1, method, params }),
+      body,
       signal: controller.signal,
     });
     const json = (await res.json()) as {
       result?: unknown;
       error?: { message: string; code?: number };
     };
+    if (debugRpc) console.error(`[fast-sdk:rpc] <-- ${method}\n`, JSON.stringify(json));
     if (json.error) throw new Error(`RPC error: ${JSON.stringify(json.error)}`);
     return json.result;
   } finally {

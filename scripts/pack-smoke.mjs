@@ -54,7 +54,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      'import { FastProvider, FastWallet, FastError } from "@fastxyz/sdk"; if (typeof FastProvider !== "function") throw new Error("FastProvider export missing"); if (typeof FastWallet !== "function") throw new Error("FastWallet export missing"); if (typeof FastError !== "function") throw new Error("FastError export missing");',
+      'const root = await import("@fastxyz/sdk"); const browser = await import("@fastxyz/sdk/browser"); if (typeof root.FastProvider !== "function") throw new Error("FastProvider export missing"); if (typeof root.FastWallet !== "function") throw new Error("FastWallet export missing"); if (typeof root.FastError !== "function") throw new Error("FastError export missing"); if ("FastBrowserWallet" in root) throw new Error("Root entrypoint should not expose FastBrowserWallet"); if ("FAST_TOKEN_ID" in root) throw new Error("Root entrypoint should not expose browser-safe helper values"); if (typeof browser.FastProvider !== "function") throw new Error("Browser FastProvider export missing"); if ("FastBrowserWallet" in browser) throw new Error("Browser entrypoint should stay low-level"); if (!(browser.FAST_TOKEN_ID instanceof Uint8Array)) throw new Error("Browser FAST_TOKEN_ID export missing");',
     ],
     {
       cwd: tempDir,

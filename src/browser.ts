@@ -1,20 +1,27 @@
 /**
- * @fastxyz/sdk — Fast SDK
- *
- * Primary API:
- * - FastProvider: Read-only connection to the Fast network
- * - FastWallet: Wallet for signing transactions
+ * @fastxyz/sdk/browser — Browser-safe Fast SDK entrypoint
  */
 
-// Primary API
-export { FastProvider } from './provider.js';
-export { FastWallet } from './wallet.js';
+export { FastProvider } from './provider.browser.js';
 
-// Errors
 export { FastError } from './errors.js';
 export type { FastErrorCode } from './errors.js';
 
-// Config accessors
+export { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from './address.js';
+export {
+  FAST_DECIMALS,
+  FAST_TOKEN_ID,
+  EXPLORER_BASE,
+  hexToTokenId,
+  tokenIdEquals,
+  hashTransaction,
+  serializeVersionedTransaction,
+} from './bcs.js';
+export {
+  getCertificateTransaction,
+  getCertificateHash,
+  getCertificateTokenTransfer,
+} from './certificate.js';
 export {
   getNetworkInfo,
   getAllNetworks,
@@ -23,15 +30,13 @@ export {
   getDefaultRpcUrl,
   getExplorerUrl,
   clearDefaultsCache,
-} from './defaults.js';
+} from './defaults.browser.js';
 
-// Types
 export type {
   KnownFastToken,
   NetworkInfo,
   NetworkType,
   ProviderOptions,
-  WalletKeyfileOptions,
   TokenInfo,
   TokenBalance,
   FastAccountInfo,
@@ -43,10 +48,5 @@ export type {
   SendResult,
   SignResult,
   SubmitResult,
-  ExportedKeys,
 } from './types.js';
-export type {
-  FastTransaction,
-  VersionedTransaction,
-  DecodedTransaction,
-} from './bcs.js';
+export type { FastTransaction } from './bcs.js';

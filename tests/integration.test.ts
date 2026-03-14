@@ -28,6 +28,7 @@ import { FastProvider, FastTransaction, VersionedTransaction, FastWallet, FAST_T
 import { clearDefaultsCache } from '../src/defaults.js';
 import { generateEd25519Key, keypairFromPrivateKey } from '../src/keys.js';
 import { rpcCall } from '../src/rpc.js';
+import { pubkeyToAddress } from '../src/address.js';
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
@@ -61,17 +62,29 @@ before(async () => {
   sender = new Uint8Array(Buffer.from(sender_keypair.publicKey, 'hex'));
   recipient = new Uint8Array(Buffer.from(recipient_keypair.publicKey, 'hex'));
 
-  tx = {
-    sender, recipient, nonce: 0, timestamp_nanos: 0n, archival: false,
-    claim: { TokenTransfer: { token_id: FAST_TOKEN_ID, amount: 'de0b6b3a7640000', user_data: null } },
-  };
+  const acct_info = await provider.getAccountInfo(pubkeyToAddress(sender));
+  const nonce = acct_info?.next_nonce;
+  assert(nonce != null);
 
   tx_token_transfer = {
-    sender, recipient, nonce: 0, timestamp_nanos: 0n, archival: false,
-    claim: { TokenTransfer: { token_id: FAST_TOKEN_ID, amount: '0', user_data: null } },
+    sender, recipient, nonce: nonce + 0, timestamp_nanos: 0n, archival: false,
+    claim: { TokenTransfer: { token_id: FAST_TOKEN_ID, amount: '1', user_data: null } },
+  };
+  tx_burn = {
+    sender, recipient, nonce: nonce + 1, timestamp_nanos: 0n, archival: false,
+    claim: { Burn: { token_id: FAST_TOKEN_ID, amount: '1' } },
+  };
+  tx_external_claim = {
+    sender, recipient, nonce: nonce + 2, timestamp_nanos: 0n, archival: false,
+    claim: {
+      ExternalClaim: {
+        claim: { verifier_committee: [], verifier_quorum: 0n, claim_data: [] },
+        signatures: [],
+      },
+    },
   };
   tx_token_creation = {
-    sender, recipient, nonce: 0, timestamp_nanos: 0n, archival: false,
+    sender, recipient, nonce: nonce + 3, timestamp_nanos: 0n, archival: false,
     claim: {
       TokenCreation: {
         token_name: 'TestToken',
@@ -83,7 +96,7 @@ before(async () => {
     },
   };
   tx_token_management = {
-    sender, recipient, nonce: 0, timestamp_nanos: 0n, archival: false,
+    sender, recipient, nonce: nonce + 4, timestamp_nanos: 0n, archival: false,
     claim: {
       TokenManagement: {
         token_id: FAST_TOKEN_ID,
@@ -95,21 +108,8 @@ before(async () => {
     },
   };
   tx_mint = {
-    sender, recipient, nonce: 0, timestamp_nanos: 0n, archival: false,
+    sender, recipient, nonce: nonce + 5, timestamp_nanos: 0n, archival: false,
     claim: { Mint: { token_id: FAST_TOKEN_ID, amount: 'de0b6b3a7640000' } },
-  };
-  tx_burn = {
-    sender, recipient, nonce: 0, timestamp_nanos: 0n, archival: false,
-    claim: { Burn: { token_id: FAST_TOKEN_ID, amount: 'de0b6b3a7640000' } },
-  };
-  tx_external_claim = {
-    sender, recipient, nonce: 0, timestamp_nanos: 0n, archival: false,
-    claim: {
-      ExternalClaim: {
-        claim: { verifier_committee: [], verifier_quorum: 0n, claim_data: [] },
-        signatures: [],
-      },
-    },
   };
 });
 
@@ -264,19 +264,15 @@ describe('proxy_submitTransaction', () => {
   it('TokenTransfer — RPC connects and server parses the transaction', async () => {
     await submitAndExpectParsed(tx_token_transfer);
   });
-  it('TokenCreation — RPC connects and server parses the transaction', async () => {
-    await submitAndExpectParsed(tx_token_creation);
-  });
-  it('TokenManagement — RPC connects and server parses the transaction', async () => {
-    await submitAndExpectParsed(tx_token_management);
-  });
-  it('Mint — RPC connects and server parses the transaction', async () => {
-    await submitAndExpectParsed(tx_mint);
-  });
   it('Burn — RPC connects and server parses the transaction', async () => {
     await submitAndExpectParsed(tx_burn);
   });
   it('ExternalClaim — RPC connects and server parses the transaction', async () => {
     await submitAndExpectParsed(tx_external_claim);
+  });
+  it('TokenCreation,Management,Mint — RPC connects and server parses the transaction', async () => {
+    await submitAndExpectParsed(tx_token_creation);
+    await submitAndExpectParsed(tx_token_management);
+    await submitAndExpectParsed(tx_mint);
   });
 });

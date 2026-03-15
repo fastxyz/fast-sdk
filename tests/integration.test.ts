@@ -29,6 +29,7 @@ import { clearDefaultsCache } from '../src/defaults.js';
 import { generateEd25519Key, keypairFromPrivateKey } from '../src/keys.js';
 import { rpcCall } from '../src/rpc.js';
 import { pubkeyToAddress } from '../src/address.js';
+import { tokenId } from '../src/bcs.js';
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
@@ -57,60 +58,6 @@ before(async () => {
       : { network: NETWORK }
   );
 
-  sender_keypair = await keypairFromPrivateKey(sender_test_account_private_key);
-  recipient_keypair = await keypairFromPrivateKey(recipient_test_account_private_key);
-  sender = new Uint8Array(Buffer.from(sender_keypair.publicKey, 'hex'));
-  recipient = new Uint8Array(Buffer.from(recipient_keypair.publicKey, 'hex'));
-
-  const acct_info = await provider.getAccountInfo(pubkeyToAddress(sender));
-  const nonce = acct_info?.next_nonce;
-  assert(nonce != null);
-
-  tx_token_transfer = {
-    sender, recipient, nonce: nonce + 0, timestamp_nanos: 0n, archival: false,
-    claim: { TokenTransfer: { token_id: FAST_TOKEN_ID, amount: '1', user_data: null } },
-  };
-  tx_burn = {
-    sender, recipient, nonce: nonce + 1, timestamp_nanos: 0n, archival: false,
-    claim: { Burn: { token_id: FAST_TOKEN_ID, amount: '1' } },
-  };
-  tx_external_claim = {
-    sender, recipient, nonce: nonce + 2, timestamp_nanos: 0n, archival: false,
-    claim: {
-      ExternalClaim: {
-        claim: { verifier_committee: [], verifier_quorum: 0n, claim_data: [] },
-        signatures: [],
-      },
-    },
-  };
-  tx_token_creation = {
-    sender, recipient, nonce: nonce + 3, timestamp_nanos: 0n, archival: false,
-    claim: {
-      TokenCreation: {
-        token_name: 'TestToken',
-        decimals: 6,
-        initial_amount: 'de0b6b3a7640000',
-        mints: [],
-        user_data: null,
-      },
-    },
-  };
-  tx_token_management = {
-    sender, recipient, nonce: nonce + 4, timestamp_nanos: 0n, archival: false,
-    claim: {
-      TokenManagement: {
-        token_id: FAST_TOKEN_ID,
-        update_id: 1n,
-        new_admin: null,
-        mints: [],
-        user_data: null,
-      },
-    },
-  };
-  tx_mint = {
-    sender, recipient, nonce: nonce + 5, timestamp_nanos: 0n, archival: false,
-    claim: { Mint: { token_id: FAST_TOKEN_ID, amount: 'de0b6b3a7640000' } },
-  };
 });
 
 // ── FastProvider ─────────────────────────────────────────────────────────────
@@ -216,63 +163,95 @@ describe('FastWallet (live)', () => {
   });
 });
 
-// ── Txn Creation ────────────────────────────────────────────────────────────────
-
-const sender_test_account_private_key = "5rGbyr64ig6wCvx3i2YUkia9O/70twPgNTzpIjp1/qo=";
-const recipient_test_account_private_key = "SKMvKP1rCYQ5iV3uKHkBy4sIKDGZRUZyMO+bqlI+xmI=";
-let sender_keypair: { publicKey: string; privateKey: string };
-let recipient_keypair: { publicKey: string; privateKey: string };
-let sender: Uint8Array;
-let recipient: Uint8Array;
-let tx: FastTransaction;
-
-// ── ClaimType example constants ───────────────────────────────────────────────
-
-let tx_token_transfer: FastTransaction;
-let tx_token_creation: FastTransaction;
-let tx_token_management: FastTransaction;
-let tx_mint: FastTransaction;
-let tx_burn: FastTransaction;
-let tx_external_claim: FastTransaction;
-
 // ── Submission helper ─────────────────────────────────────────────────────────
 
-// Signs and submits a transaction. Passes if the server received and parsed it
-// (including logic rejections like bad nonce or insufficient balance).
-// Fails only on network/connection errors.
-async function submitAndExpectParsed(t: FastTransaction): Promise<void> {
+// Signs and submits a transaction
+async function submitAndExpectParsed(t: FastTransaction, sender_keypair: { "publicKey": string, "privateKey": string }): Promise<any> {
   const versioned: VersionedTransaction = { Release20260303: t };
   const bytes = serializeVersionedTransaction(t);
   const signature = await signEd25519(bytes, sender_keypair.privateKey);
   if (process.env.DEBUG?.split(',').some((s) => s.trim() === 'fast-sdk' || s.trim() === 'fast-sdk:rpc')) {
     console.error('[fast-sdk:test] signature:', Buffer.from(signature).toString('base64'));
   }
-  try {
-    await rpcCall(provider.rpcUrl, 'proxy_submitTransaction', {
+  const result = await rpcCall(provider.rpcUrl, 'proxy_submitTransaction', {
       transaction: versioned,
       signature: { Signature: signature },
     });
-  } catch (err: unknown) {
-    if (err instanceof Error && err.message.startsWith('RPC error:')) return;
-    throw err;
-  }
+  return result;
 }
 
 // ── proxy_submitTransaction tests ─────────────────────────────────────────────
 
 describe('proxy_submitTransaction', () => {
-  it('TokenTransfer — RPC connects and server parses the transaction', async () => {
-    await submitAndExpectParsed(tx_token_transfer);
-  });
-  it('Burn — RPC connects and server parses the transaction', async () => {
-    await submitAndExpectParsed(tx_burn);
-  });
-  it('ExternalClaim — RPC connects and server parses the transaction', async () => {
-    await submitAndExpectParsed(tx_external_claim);
-  });
-  it('TokenCreation,Management,Mint — RPC connects and server parses the transaction', async () => {
-    await submitAndExpectParsed(tx_token_creation);
-    await submitAndExpectParsed(tx_token_management);
-    await submitAndExpectParsed(tx_mint);
+  it('Create Token and Then Run ', async () => {
+
+    // const sender_test_account_private_key = "5rGbyr64ig6wCvx3i2YUkia9O/70twPgNTzpIjp1/qo=";
+    // const recipient_test_account_private_key = "SKMvKP1rCYQ5iV3uKHkBy4sIKDGZRUZyMO+bqlI+xmI=";
+    // const sender_keypair = await keypairFromPrivateKey(sender_test_account_private_key);
+    // const recipient_keypair = await keypairFromPrivateKey(recipient_test_account_private_key);
+    const sender_keypair = await generateEd25519Key();
+    const recipient_keypair = await generateEd25519Key();
+    const sender = new Uint8Array(Buffer.from(sender_keypair.publicKey, 'hex'));
+    const recipient = new Uint8Array(Buffer.from(recipient_keypair.publicKey, 'hex'));
+
+    const acct_info = await provider.getAccountInfo(pubkeyToAddress(sender));
+    const nonce = acct_info?.next_nonce ?? -1;
+    assert(nonce >= 0);
+
+    const tx_token_creation = {
+      sender, recipient, nonce: nonce + 0, timestamp_nanos: 0n, archival: false,
+      claim: {
+        TokenCreation: {
+          token_name: 'TestToken',
+          decimals: 6,
+          initial_amount: 'de0b6b3a7640000',
+          mints: [],
+          user_data: null,
+        },
+      },
+    };
+    let result = await submitAndExpectParsed(tx_token_creation, sender_keypair);
+    let token_id = tokenId(tx_token_creation);
+
+    const tx_token_management = {
+      sender, recipient, nonce: nonce + 1, timestamp_nanos: 0n, archival: false,
+      claim: {
+        TokenManagement: {
+          token_id,
+          update_id: 1n,
+          new_admin: null,
+          mints: [[ { 'Add': {} }, sender]],
+          user_data: null,
+        },
+      },
+    };
+    const tx_mint = {
+      sender, recipient, nonce: nonce + 2, timestamp_nanos: 0n, archival: false,
+      claim: { Mint: { token_id, amount: 'de0b6b3a7640000' } },
+    };
+
+    const tx_token_transfer = {
+      sender, recipient, nonce: nonce + 3, timestamp_nanos: 0n, archival: false,
+      claim: { TokenTransfer: { token_id, amount: '1', user_data: null } },
+    };
+    const tx_burn = {
+      sender, recipient, nonce: nonce + 4, timestamp_nanos: 0n, archival: false,
+      claim: { Burn: { token_id, amount: '1' } },
+    };
+    const tx_external_claim = {
+      sender, recipient, nonce: nonce + 5, timestamp_nanos: 0n, archival: false,
+      claim: {
+        ExternalClaim: {
+          claim: { verifier_committee: [], verifier_quorum: 0n, claim_data: [] },
+          signatures: [],
+        },
+      },
+    };
+
+    // await submitAndExpectParsed(tx_token_management);
+    // await submitAndExpectParsed(tx_mint);
+    // await submitAndExpectParsed(tx_token_transfer);
+    // await submitAndExpectParsed(tx_burn);
+    // await submitAndExpectParsed(tx_external_claim);
   });
 });

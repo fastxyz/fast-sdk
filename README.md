@@ -85,6 +85,17 @@ npm run build
 npm test
 ```
 
+For a funded live smoke check against an upgraded Fast endpoint:
+
+```bash
+FAST_RPC_URL=https://testnet.api.fast.xyz/proxy \
+FAST_SENDER_PRIVATE_KEY=... \
+FAST_RECIPIENT_ADDRESS=fast1... \
+npm run live:smoke
+```
+
+Use `FAST_SENDER_KEYFILE` or `FAST_SENDER_KEY_NAME` instead of `FAST_SENDER_PRIVATE_KEY` if you prefer a local keyfile. `FAST_RECIPIENT_ADDRESS` is optional; the script generates one when omitted. Set `FAST_TOKEN` and `FAST_TOKEN_AMOUNT` to add a non-native token transfer check.
+
 ## Releasing
 
 See [RELEASING.md](./RELEASING.md) for the npm release workflow.

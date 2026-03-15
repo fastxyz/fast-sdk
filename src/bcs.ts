@@ -149,6 +149,39 @@ export function hashTransaction(transaction: FastTransaction): string {
   return `0x${Buffer.from(hash).toString('hex')}`;
 }
 
+/**
+ * Take a create token transaction and produce a token id
+ */
+export function tokenId(transaction: FastTransaction | VersionedTransaction, index: number = 0): Uint8Array {
+  if (!Number.isInteger(index) || index < 0 || index > Number.MAX_SAFE_INTEGER) {
+    throw new TypeError('index must be a non-negative safe integer');
+  }
+
+  const tx: FastTransaction = 'Release20260303' in transaction
+    ? (transaction as { Release20260303: FastTransaction }).Release20260303
+    : transaction as FastTransaction;
+
+  const sender = tx.sender instanceof Uint8Array
+    ? tx.sender
+    : new Uint8Array(tx.sender as Iterable<number>);
+  if (sender.length !== 32) {
+    throw new TypeError('transaction sender must be 32 bytes');
+  }
+
+  const nonce = BigInt(tx.nonce as number | bigint | string);
+  if (nonce < 0n || nonce > 0xFFFFFFFFFFFFFFFFn) {
+    throw new TypeError('nonce must be an unsigned 64-bit integer');
+  }
+
+  // sender (32 bytes) || nonce (u64 LE, 8 bytes) || index (u64 LE, 8 bytes)
+  const buf = new Uint8Array(48);
+  buf.set(sender, 0);
+  new DataView(buf.buffer).setBigUint64(32, nonce, /* little-endian */ true);
+  new DataView(buf.buffer).setBigUint64(40, BigInt(index), /* little-endian */ true);
+
+  return keccak_256(buf);
+}
+
 // ---------------------------------------------------------------------------
 // Decoding helpers
 // ---------------------------------------------------------------------------

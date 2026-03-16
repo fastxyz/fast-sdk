@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { bech32m } from 'bech32';
 
 import { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from '../src/address.js';
 
@@ -22,6 +23,13 @@ describe('address', () => {
       const hex = 'aa'.repeat(32);
       const address = pubkeyToAddress(hex);
       assert.ok(typeof address === 'string' && address.length > 0);
+    });
+
+    it('throws on non-32-byte public keys', () => {
+      assert.throws(
+        () => pubkeyToAddress('aa'),
+        /32 bytes/,
+      );
     });
   });
 
@@ -66,6 +74,24 @@ describe('address', () => {
     it('should throw on an empty string', () => {
       assert.throws(() => addressToPubkey(''));
     });
+
+    it('should reject non-fast bech32m prefixes', () => {
+      const words = bech32m.toWords(new Uint8Array(32).fill(1));
+      const otherAddress = bech32m.encode('evil', words, 90);
+      assert.throws(
+        () => addressToPubkey(otherAddress),
+        /Invalid Fast address prefix/,
+      );
+    });
+
+    it('should reject addresses that do not encode 32-byte public keys', () => {
+      const words = bech32m.toWords(new Uint8Array([1]));
+      const shortAddress = bech32m.encode('fast', words, 90);
+      assert.throws(
+        () => addressToPubkey(shortAddress),
+        /32 bytes/,
+      );
+    });
   });
 
   describe('normalizeFastAddress', () => {
@@ -73,6 +99,15 @@ describe('address', () => {
       const hex = 'aa'.repeat(32);
       const address = pubkeyToAddress(hex).toUpperCase();
       assert.equal(normalizeFastAddress(address), pubkeyToAddress(hex));
+    });
+
+    it('rejects non-fast addresses instead of canonicalizing them', () => {
+      const words = bech32m.toWords(new Uint8Array(32).fill(1));
+      const otherAddress = bech32m.encode('evil', words, 90);
+      assert.throws(
+        () => normalizeFastAddress(otherAddress),
+        /Invalid Fast address prefix/,
+      );
     });
   });
 });

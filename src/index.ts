@@ -37,15 +37,32 @@ export type {
   FastAccountInfo,
   FastTokenMetadata,
   FastVersionedTransaction,
-    FastTransactionEnvelope,
-    FastTransactionCertificate,
-    FastSubmitTransactionResult,
-    FastTokenTransferSummary,
-    SendResult,
-    SignResult,
+  FastTransactionEnvelope,
+  FastTransactionCertificate,
+  FastSubmitTransactionResult,
+  FastTokenTransferSummary,
+  SendResult,
+  SignResult,
   SubmitResult,
   ExportedKeys,
 } from './types.js';
+
+// BCS schemas and utilities
+export {
+  TransactionBcs,
+  VersionedTransactionBcs,
+  decodeTransactionEnvelope,
+  getTransferDetails,
+  hashTransaction,
+  serializeVersionedTransaction,
+  bytesToHex,
+  hexToBytes,
+  hexToTokenId,
+  tokenIdEquals,
+  FAST_TOKEN_ID,
+  FAST_DECIMALS,
+} from './bcs.js';
+
 export type {
   FastTransaction,
   VersionedTransaction,

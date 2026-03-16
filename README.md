@@ -75,7 +75,7 @@ If your browser app uses an injected wallet such as `window.fastset`, keep that 
 
 ## Public Helpers
 
-Browser-safe protocol helpers are exported from `@fastxyz/sdk/browser`:
+The Node entrypoint keeps the existing BCS helpers from `@fastxyz/sdk`, and the browser entrypoint exports the browser-safe helper set from `@fastxyz/sdk/browser`:
 
 - `pubkeyToAddress`, `addressToPubkey`, `normalizeFastAddress`
 - `FAST_TOKEN_ID`, `FAST_DECIMALS`

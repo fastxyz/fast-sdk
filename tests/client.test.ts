@@ -687,6 +687,36 @@ describe('FastWallet', () => {
       const result = await provider.getCertificateByNonce(VALID_FAST_ADDRESS, 7);
       assert.deepEqual(result, certificate);
     });
+
+    it('returns null when the range query skips past the requested nonce', async () => {
+      const certificate = sampleCertificate(8);
+
+      globalThis.fetch = async () => rpcResult([certificate]);
+
+      const provider = new FastProvider();
+      const result = await provider.getCertificateByNonce(VALID_FAST_ADDRESS, 7);
+      assert.equal(result, null);
+    });
+
+    it('does not mask RPC failures as missing certificates', async () => {
+      globalThis.fetch = async () => new Response(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          error: { code: -32000, message: 'proxy unavailable' },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getCertificateByNonce(VALID_FAST_ADDRESS, 7),
+        /proxy unavailable/,
+      );
+    });
   });
 
   describe('exportKeys', () => {

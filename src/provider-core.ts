@@ -1,4 +1,4 @@
-import { FAST_DECIMALS, FAST_TOKEN_ID, hexToTokenId, tokenIdEquals } from './bcs.js';
+import { FAST_DECIMALS, FAST_TOKEN_ID, hexToTokenId, tokenIdEquals, type FastTransaction } from './bcs.js';
 import { bytesToPrefixedHex, bytesToHex, stripHexPrefix } from './bytes.js';
 import { addressToPubkey } from './address.js';
 import { FastError } from './errors.js';
@@ -9,7 +9,6 @@ import type {
   FastAccountInfo,
   FastSubmitTransactionResult,
   FastNonceRange,
-  FastTransaction,
   FastTransactionEnvelope,
   FastTokenMetadata,
   FastTransactionCertificate,
@@ -47,6 +46,11 @@ function toRpcVersionedTransaction(
   }
 
   return { Release20260303: transaction as FastTransaction };
+}
+
+function getTransactionNonce(transaction: FastVersionedTransaction): bigint {
+  const inner = 'Release20260303' in transaction ? transaction.Release20260303 : transaction;
+  return BigInt(inner.nonce);
 }
 
 function isTransactionCertificate(value: unknown): value is FastTransactionCertificate {
@@ -335,15 +339,15 @@ export class BaseFastProvider {
   ): Promise<FastTransactionCertificate | null> {
     await this.init();
 
-    try {
-      const certificates = await this.getTransactionCertificates(address, nonce, 1);
-      return certificates[0] ?? null;
-    } catch (error) {
-      if (error instanceof FastError && error.code === 'INVALID_ADDRESS') {
-        return null;
-      }
+    const certificates = await this.getTransactionCertificates(address, nonce, 1);
+    const certificate = certificates[0];
+    if (!certificate) {
       return null;
     }
+
+    return getTransactionNonce(certificate.envelope.transaction) === BigInt(nonce)
+      ? certificate
+      : null;
   }
 
   private async fetchAccountInfo(

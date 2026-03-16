@@ -10,7 +10,8 @@ describe('entrypoints', () => {
     assert.equal(typeof rootEntrypoint.FastWallet, 'function');
     assert.equal(typeof rootEntrypoint.FastError, 'function');
     assert.equal('FastBrowserWallet' in rootEntrypoint, false);
-    assert.equal('FAST_TOKEN_ID' in rootEntrypoint, false);
+    assert.ok(rootEntrypoint.FAST_TOKEN_ID instanceof Uint8Array);
+    assert.equal(typeof rootEntrypoint.hashTransaction, 'function');
     assert.equal('getCertificateHash' in rootEntrypoint, false);
   });
 

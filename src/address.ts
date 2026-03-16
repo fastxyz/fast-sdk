@@ -6,38 +6,43 @@
  */
 
 import { bech32m } from 'bech32';
-import { hexToBytes, bytesToHex } from './bytes.js';
+import type { DecodedFastAddress } from './types.js';
 
 const FAST_ADDRESS_HRP = 'fast';
 const FAST_PUBLIC_KEY_LENGTH = 32;
+const FAST_ADDRESS_LIMIT = 90;
 
-function assertFastPublicKeyLength(publicKey: Uint8Array): void {
-  if (publicKey.length !== FAST_PUBLIC_KEY_LENGTH) {
-    throw new Error(`Fast public keys must be ${FAST_PUBLIC_KEY_LENGTH} bytes`);
+function assertFastAddressLength(bytes: Uint8Array): void {
+  if (bytes.length !== FAST_PUBLIC_KEY_LENGTH) {
+    throw new Error(`Fast address bytes must be ${FAST_PUBLIC_KEY_LENGTH} bytes`);
   }
 }
 
-/** Convert a hex-encoded public key to a fast1... bech32m address */
-export function pubkeyToAddress(publicKeyHex: string): string {
-  const pubBytes = hexToBytes(publicKeyHex);
-  assertFastPublicKeyLength(pubBytes);
-  const words = bech32m.toWords(pubBytes);
-  return bech32m.encode(FAST_ADDRESS_HRP, words, 90);
+/** Encode raw 32-byte Fast address bytes to a canonical fast1... bech32m string. */
+export function encodeFastAddress(bytes: Uint8Array): string {
+  assertFastAddressLength(bytes);
+  const words = bech32m.toWords(bytes);
+  return bech32m.encode(FAST_ADDRESS_HRP, words, FAST_ADDRESS_LIMIT);
 }
 
-/** Decode a fast1... bech32m address to raw 32-byte public key */
-export function addressToPubkey(address: string): Uint8Array {
-  const { prefix, words } = bech32m.decode(address, 90);
-  if (prefix.toLowerCase() !== FAST_ADDRESS_HRP) {
+/** Decode, validate, and canonicalize a Fast address. */
+export function decodeFastAddress(address: string): DecodedFastAddress {
+  const normalizedAddress = address.toLowerCase();
+  const { prefix, words } = bech32m.decode(normalizedAddress, FAST_ADDRESS_LIMIT);
+  if (prefix !== FAST_ADDRESS_HRP) {
     throw new Error(`Invalid Fast address prefix: expected "${FAST_ADDRESS_HRP}"`);
   }
 
-  const pubkey = new Uint8Array(bech32m.fromWords(words));
-  assertFastPublicKeyLength(pubkey);
-  return pubkey;
+  const bytes = new Uint8Array(bech32m.fromWords(words));
+  assertFastAddressLength(bytes);
+
+  return {
+    address: encodeFastAddress(bytes),
+    bytes,
+  };
 }
 
-/** Decode and re-encode an address to its canonical fast1... representation. */
-export function normalizeFastAddress(address: string): string {
-  return pubkeyToAddress(bytesToHex(addressToPubkey(address)));
+/** Decode a Fast address to its raw 32-byte representation. */
+export function fastAddressToBytes(address: string): Uint8Array {
+  return decodeFastAddress(address).bytes;
 }

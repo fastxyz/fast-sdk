@@ -146,6 +146,8 @@ Browser bundle boundaries:
 - Use bundled defaults or constructor-injected `networks` / `tokens`
 - No injected wallet wrapper in this package
 
+For Fast-native address codec work in browser-safe code, use `encodeFastAddress(bytes)`, `fastAddressToBytes(address)`, or `decodeFastAddress(address)`.
+
 ---
 
 ## FastWallet Setup

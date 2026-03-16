@@ -7,7 +7,11 @@ export { FastProvider } from './provider.browser.js';
 export { FastError } from './errors.js';
 export type { FastErrorCode } from './errors.js';
 
-export { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from './address.js';
+export {
+  encodeFastAddress,
+  fastAddressToBytes,
+  decodeFastAddress,
+} from './address.js';
 export {
   FAST_DECIMALS,
   FAST_TOKEN_ID,
@@ -33,6 +37,7 @@ export {
 } from './defaults.browser.js';
 
 export type {
+  DecodedFastAddress,
   KnownFastToken,
   NetworkInfo,
   NetworkType,

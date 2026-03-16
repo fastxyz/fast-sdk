@@ -666,6 +666,27 @@ describe('FastWallet', () => {
       });
       assert.equal(verified.valid, false);
     });
+
+    it('verify throws INVALID_ADDRESS for malformed signer addresses', async () => {
+      const provider = new FastProvider();
+      const keyfilePath = path.join(tmpDir, 'keys', 'sign-test-3.json');
+      const wallet = await FastWallet.fromKeyfile(keyfilePath, provider);
+
+      const signed = await wallet.sign({ message: 'original' });
+
+      await assert.rejects(
+        () => wallet.verify({
+          message: 'original',
+          signature: signed.signature,
+          address: 'invalid',
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_ADDRESS');
+          return true;
+        },
+      );
+    });
   });
 
   describe('getCertificateByNonce', () => {

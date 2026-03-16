@@ -19,6 +19,11 @@ export interface KnownFastToken {
   decimals: number;
 }
 
+export interface DecodedFastAddress {
+  address: string;
+  bytes: Uint8Array;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
  * Provider Types
  * ───────────────────────────────────────────────────────────────────────────── */

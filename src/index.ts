@@ -25,8 +25,15 @@ export {
   clearDefaultsCache,
 } from './defaults.js';
 
+export {
+  encodeFastAddress,
+  fastAddressToBytes,
+  decodeFastAddress,
+} from './address.js';
+
 // Types
 export type {
+  DecodedFastAddress,
   KnownFastToken,
   NetworkInfo,
   NetworkType,

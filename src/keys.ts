@@ -11,7 +11,8 @@ import { open, readFile, mkdir, copyFile, chmod } from 'node:fs/promises';
 import { dirname, basename, join } from 'node:path';
 import { constants } from 'node:fs';
 import { expandHome } from './utils.js';
-import { pubkeyToAddress } from './address.js';
+import { encodeFastAddress } from './address.js';
+import { hexToBytes } from './bytes.js';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 
@@ -153,7 +154,7 @@ export async function saveKeyfile(
   const resolved = expandHome(keyPath);
   const dir = dirname(resolved);
   await mkdir(dir, { recursive: true, mode: 0o700 });
-  const address = pubkeyToAddress(keypair.publicKey);
+  const address = encodeFastAddress(hexToBytes(keypair.publicKey));
   const json = JSON.stringify({ privateKey: keypair.privateKey, address }, null, 2);
 
   // O_EXCL: fail if file exists — never overwrite a keyfile

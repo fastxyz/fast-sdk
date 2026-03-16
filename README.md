@@ -60,7 +60,7 @@ if (certificate) {
 
 - provider reads and low-level proxy methods
 - token and network config from bundled defaults or constructor overrides
-- address helpers
+- canonical Fast address codec helpers
 - transaction hashing and certificate helpers
 
 If your browser app uses an injected wallet such as `window.fastset`, keep that wrapper in app code or a separate client package.
@@ -75,11 +75,14 @@ If your browser app uses an injected wallet such as `window.fastset`, keep that 
 
 ## Public Helpers
 
-The Node entrypoint keeps the existing BCS helpers from `@fastxyz/sdk`, and the browser entrypoint exports the browser-safe helper set from `@fastxyz/sdk/browser`:
+Both entrypoints export the canonical Fast address codec helpers and shared protocol helpers:
 
-- `pubkeyToAddress`, `addressToPubkey`, `normalizeFastAddress`
+- `encodeFastAddress`, `fastAddressToBytes`, `decodeFastAddress`
 - `FAST_TOKEN_ID`, `FAST_DECIMALS`
 - `hashTransaction`, `serializeVersionedTransaction`
+
+The browser entrypoint also exports:
+
 - `getCertificateTransaction`, `getCertificateHash`, `getCertificateTokenTransfer`
 
 ## Configuration

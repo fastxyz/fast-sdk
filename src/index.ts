@@ -2,7 +2,7 @@
  * @fastxyz/sdk — Fast SDK
  *
  * Primary API:
- * - FastProvider: Read-only connection to the Fast network
+ * - FastProvider: Low-level connection to the Fast proxy API
  * - FastWallet: Wallet for signing transactions
  */
 
@@ -14,20 +14,40 @@ export { FastWallet } from './wallet.js';
 export { FastError } from './errors.js';
 export type { FastErrorCode } from './errors.js';
 
+// Config accessors
+export {
+  getNetworkInfo,
+  getAllNetworks,
+  resolveKnownFastToken,
+  getAllTokens,
+  getDefaultRpcUrl,
+  getExplorerUrl,
+  clearDefaultsCache,
+} from './defaults.js';
+
 // Types
 export type {
+  KnownFastToken,
+  NetworkInfo,
   NetworkType,
   ProviderOptions,
   WalletKeyfileOptions,
   TokenInfo,
   TokenBalance,
+  FastAccountInfo,
+  FastTokenMetadata,
+  FastVersionedTransaction,
+  FastTransactionEnvelope,
+  FastTransactionCertificate,
+  FastSubmitTransactionResult,
+  FastTokenTransferSummary,
   SendResult,
   SignResult,
   SubmitResult,
   ExportedKeys,
 } from './types.js';
 
-// BCS schemas and utilities (for advanced use cases like payment verification)
+// BCS schemas and utilities
 export {
   TransactionBcs,
   VersionedTransactionBcs,

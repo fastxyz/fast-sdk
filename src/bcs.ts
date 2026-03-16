@@ -6,6 +6,11 @@
 
 import { bcs } from '@mysten/bcs';
 import { keccak_256 } from '@noble/hashes/sha3';
+import {
+  bytesToPrefixedHex,
+  hexToBytes as decodeHexToBytes,
+  stripHexPrefix,
+} from './bytes.js';
 
 // ---------------------------------------------------------------------------
 // BCS Type Definitions
@@ -141,7 +146,7 @@ export function serializeVersionedTransaction(transaction: FastTransaction): Uin
 export function hashTransaction(transaction: FastTransaction): string {
   const serialized = serializeVersionedTransaction(transaction);
   const hash = keccak_256(serialized);
-  return `0x${Buffer.from(hash).toString('hex')}`;
+  return bytesToPrefixedHex(hash);
 }
 
 // ---------------------------------------------------------------------------
@@ -171,16 +176,14 @@ export interface DecodedTransaction {
  * Convert bytes to hex string (with 0x prefix)
  */
 export function bytesToHex(bytes: Uint8Array | number[]): string {
-  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  return '0x' + Buffer.from(arr).toString('hex');
+  return bytesToPrefixedHex(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
 }
 
 /**
  * Convert hex string to bytes
  */
 export function hexToBytes(hex: string): Uint8Array {
-  const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
-  return new Uint8Array(Buffer.from(clean, 'hex'));
+  return decodeHexToBytes(stripHexPrefix(hex));
 }
 
 /**
@@ -311,7 +314,7 @@ export function tokenIdEquals(a: number[] | Uint8Array, b: Uint8Array): boolean 
 
 /** Parse a hex string (with or without 0x prefix) into a 32-byte token ID */
 export function hexToTokenId(hex: string): Uint8Array {
-  const clean = hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
+  const clean = stripHexPrefix(hex);
   const padded = clean.padEnd(64, '0').slice(0, 64);
   const bytes = new Uint8Array(32);
   for (let i = 0; i < 32; i++) {

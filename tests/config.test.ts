@@ -104,7 +104,7 @@ describe('defaults', () => {
       const fast = await resolveKnownFastToken('FAST');
       assert.ok(fast);
       assert.equal(fast.symbol, 'FAST');
-      assert.equal(fast.decimals, 9);
+      assert.equal(fast.decimals, 18);
 
       const fastLower = await resolveKnownFastToken('fast');
       assert.deepEqual(fastLower, fast);

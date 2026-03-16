@@ -17,7 +17,6 @@ import {
   signEd25519,
   verifyEd25519,
 } from './keys.js';
-import { rpcCall } from './rpc.js';
 import {
   TransactionBcs,
   serializeVersionedTransaction,
@@ -426,18 +425,25 @@ export class FastWallet {
 
     // Submit
     try {
-      const submitResult = await rpcCall(this._provider.rpcUrl, 'proxy_submitTransaction', {
-        transaction: { Release20260303: transaction },
-        signature: { Signature: signature },
+      const submitResult = await this._provider.submitTransaction({
+        transaction,
+        signature: { Signature: Array.from(signature) },
       });
 
-      const certificate = (
-        (submitResult as { Success?: SubmitResult['certificate'] })?.Success ?? submitResult
-      ) as SubmitResult['certificate'];
+      if ('IncompleteVerifierSigs' in submitResult) {
+        throw new FastError('TX_FAILED', 'Transaction submission is incomplete: missing verifier signatures', {
+          note: 'Provide all required verifier signatures before submitting this transaction.',
+        });
+      }
+      if ('IncompleteMultiSig' in submitResult) {
+        throw new FastError('TX_FAILED', 'Transaction submission is incomplete: missing multisig signatures', {
+          note: 'Provide the required multisig signatures before submitting this transaction.',
+        });
+      }
 
       return {
         txHash,
-        certificate,
+        certificate: submitResult.Success,
       };
     } catch (err: unknown) {
       throw mapSubmissionError(err, {

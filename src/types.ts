@@ -102,6 +102,11 @@ export interface FastTransactionCertificate {
   signatures: Array<[number[], number[]]>;
 }
 
+export type FastSubmitTransactionResult =
+  | { Success: FastTransactionCertificate }
+  | { IncompleteVerifierSigs: unknown[] }
+  | { IncompleteMultiSig: unknown[] };
+
 export type FastAccountInfo = {
   balance?: string;
   token_balance?: Array<[number[], string]>;

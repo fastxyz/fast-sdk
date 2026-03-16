@@ -29,6 +29,31 @@ function rpcResult(result: unknown): Response {
   );
 }
 
+function sampleCertificate(nonce = 7): FastTransactionCertificate {
+  return {
+    envelope: {
+      transaction: {
+        Release20260303: {
+          sender: new Array(32).fill(0),
+          recipient: new Array(32).fill(1),
+          nonce,
+          timestamp_nanos: 1,
+          claim: {
+            TokenTransfer: {
+              token_id: new Array(32).fill(0),
+              amount: '1',
+              user_data: null,
+            },
+          },
+          archival: false,
+        },
+      },
+      signature: { Signature: [] },
+    },
+    signatures: [],
+  } as FastTransactionCertificate;
+}
+
 before(async () => {
   originalConfigDir = process.env.FAST_CONFIG_DIR;
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fast-client-test-'));
@@ -73,6 +98,84 @@ describe('FastProvider', () => {
     it('creates provider with custom RPC URL', () => {
       const provider = new FastProvider({ rpcUrl: 'https://custom.rpc.com' });
       assert.equal(provider.rpcUrl, 'https://custom.rpc.com');
+    });
+  });
+
+  describe('low-level proxy methods', () => {
+    it('submits a transaction through proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as {
+          method: string;
+          params: {
+            transaction?: { Release20260303?: { nonce?: number } };
+            signature?: { Signature?: number[] };
+          };
+        };
+        assert.equal(body.method, 'proxy_submitTransaction');
+        assert.equal(body.params.transaction?.Release20260303?.nonce, 9);
+        assert.deepEqual(body.params.signature, { Signature: [7, 7, 7] });
+        return rpcResult(certificate);
+      };
+
+      const provider = new FastProvider();
+      const result = await provider.submitTransaction({
+        transaction: {
+          sender: new Uint8Array(32).fill(2),
+          recipient: new Uint8Array(32).fill(3),
+          nonce: 9,
+          timestamp_nanos: 10n,
+          claim: {
+            TokenTransfer: {
+              token_id: FAST_TOKEN_ID,
+              amount: '1',
+              user_data: null,
+            },
+          },
+          archival: false,
+        },
+        signature: { Signature: [7, 7, 7] },
+      });
+
+      assert.deepEqual(result, { Success: certificate });
+    });
+
+    it('calls proxy_faucetDrip with a resolved token id', async () => {
+      globalThis.fetch = async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as {
+          method: string;
+          params: { amount?: string; token_id?: number[] | null };
+        };
+        assert.equal(body.method, 'proxy_faucetDrip');
+        assert.equal(body.params.amount, 'f4240');
+        assert.deepEqual(body.params.token_id, [...FAST_USDC_TOKEN_ID]);
+        return rpcResult(null);
+      };
+
+      const provider = new FastProvider();
+      await provider.faucetDrip({
+        recipient: VALID_FAST_ADDRESS,
+        amount: '0xf4240',
+        token: 'testUSDC',
+      });
+    });
+
+    it('fetches transaction certificates through the dedicated proxy method', async () => {
+      const certificate = sampleCertificate(7);
+      globalThis.fetch = async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as {
+          method: string;
+          params: { from_nonce?: number; limit?: number };
+        };
+        assert.equal(body.method, 'proxy_getTransactionCertificates');
+        assert.equal(body.params.from_nonce, 7);
+        assert.equal(body.params.limit, 2);
+        return rpcResult([certificate]);
+      };
+
+      const provider = new FastProvider();
+      const result = await provider.getTransactionCertificates(VALID_FAST_ADDRESS, 7, 2);
+      assert.deepEqual(result, [certificate]);
     });
   });
 
@@ -567,37 +670,17 @@ describe('FastWallet', () => {
 
   describe('getCertificateByNonce', () => {
     it('returns the requested certificate for a nonce', async () => {
-      const certificate = {
-        envelope: {
-          transaction: {
-            Release20260303: {
-              sender: new Array(32).fill(0),
-              recipient: new Array(32).fill(0),
-              nonce: 7,
-              timestamp_nanos: 1,
-              claim: {
-                TokenTransfer: {
-                  token_id: new Array(32).fill(0),
-                  amount: '1',
-                  user_data: null,
-                },
-              },
-              archival: false,
-            },
-          },
-          signature: { Signature: [] },
-        },
-        signatures: [],
-      } as FastTransactionCertificate;
+      const certificate = sampleCertificate(7);
 
       globalThis.fetch = async (_input, init) => {
         const body = JSON.parse(String(init?.body)) as {
           method: string;
-          params: { certificate_by_nonce?: { start: number; end: number } | null };
+          params: { from_nonce?: number; limit?: number };
         };
-        assert.equal(body.method, 'proxy_getAccountInfo');
-        assert.deepEqual(body.params.certificate_by_nonce, { start: 7, end: 7 });
-        return rpcResult({ requested_certificates: [certificate] });
+        assert.equal(body.method, 'proxy_getTransactionCertificates');
+        assert.equal(body.params.from_nonce, 7);
+        assert.equal(body.params.limit, 1);
+        return rpcResult([certificate]);
       };
 
       const provider = new FastProvider();

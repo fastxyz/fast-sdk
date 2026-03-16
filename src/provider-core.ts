@@ -7,9 +7,13 @@ import { rpcCall } from './rpc.js';
 import type { ConfigSource } from './config-source.js';
 import type {
   FastAccountInfo,
+  FastSubmitTransactionResult,
   FastNonceRange,
+  FastTransaction,
+  FastTransactionEnvelope,
   FastTokenMetadata,
   FastTransactionCertificate,
+  FastVersionedTransaction,
   KnownFastToken,
   NetworkType,
   ProviderOptions,
@@ -33,6 +37,25 @@ function isNativeFastTokenId(token: string): boolean {
 
 function tokenIdToHex(tokenId: number[] | Uint8Array): string {
   return bytesToHex(tokenId);
+}
+
+function toRpcVersionedTransaction(
+  transaction: FastVersionedTransaction,
+): { Release20260303: FastTransaction } {
+  if (transaction && typeof transaction === 'object' && 'Release20260303' in transaction) {
+    return transaction as { Release20260303: FastTransaction };
+  }
+
+  return { Release20260303: transaction as FastTransaction };
+}
+
+function isTransactionCertificate(value: unknown): value is FastTransactionCertificate {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && 'envelope' in value
+    && 'signatures' in value,
+  );
 }
 
 export class BaseFastProvider {
@@ -96,6 +119,47 @@ export class BaseFastProvider {
 
   async getKnownNetworks(): Promise<Record<string, { rpc: string; explorer?: string }>> {
     return this._configSource.getAllNetworks();
+  }
+
+  async submitTransaction(
+    envelope: FastTransactionEnvelope,
+  ): Promise<FastSubmitTransactionResult> {
+    await this.init();
+
+    const result = await rpcCall(this._rpcUrl, 'proxy_submitTransaction', {
+      transaction: toRpcVersionedTransaction(envelope.transaction),
+      signature: envelope.signature,
+    });
+
+    if (isTransactionCertificate(result)) {
+      return { Success: result };
+    }
+
+    if (result && typeof result === 'object') {
+      if ('Success' in result || 'IncompleteVerifierSigs' in result || 'IncompleteMultiSig' in result) {
+        return result as FastSubmitTransactionResult;
+      }
+    }
+
+    throw new FastError('TX_FAILED', 'Unexpected proxy_submitTransaction result', {
+      note: 'The proxy returned a result that does not match the documented submitTransaction variants.',
+    });
+  }
+
+  async faucetDrip(params: {
+    recipient: string;
+    amount: string;
+    token?: string;
+  }): Promise<void> {
+    await this.init();
+
+    const recipient = this.requireAddress(params.recipient);
+    const tokenId = await this.resolveRpcTokenId(params.token);
+    await rpcCall(this._rpcUrl, 'proxy_faucetDrip', {
+      recipient,
+      amount: stripHexPrefix(params.amount),
+      token_id: tokenId,
+    });
   }
 
   async getBalance(address: string, token: string = 'FAST'): Promise<{ amount: string; token: string }> {
@@ -239,23 +303,47 @@ export class BaseFastProvider {
     return this.fetchAccountInfo(pubkey);
   }
 
+  async getTransactionCertificates(
+    address: string,
+    fromNonce: number,
+    limit: number,
+  ): Promise<FastTransactionCertificate[]> {
+    await this.init();
+
+    if (!Number.isInteger(fromNonce) || fromNonce < 0) {
+      throw new FastError('INVALID_PARAMS', `Invalid nonce: ${fromNonce}`, {
+        note: 'Pass a non-negative integer nonce.',
+      });
+    }
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+      throw new FastError('INVALID_PARAMS', `Invalid certificate limit: ${limit}`, {
+        note: 'Pass an integer limit between 1 and 200.',
+      });
+    }
+
+    const pubkey = this.requireAddress(address);
+    return (await rpcCall(this._rpcUrl, 'proxy_getTransactionCertificates', {
+      address: pubkey,
+      from_nonce: fromNonce,
+      limit,
+    })) as FastTransactionCertificate[];
+  }
+
   async getCertificateByNonce(
     address: string,
     nonce: number,
   ): Promise<FastTransactionCertificate | null> {
     await this.init();
 
-    let pubkey: Uint8Array;
     try {
-      pubkey = addressToPubkey(address);
-    } catch {
+      const certificates = await this.getTransactionCertificates(address, nonce, 1);
+      return certificates[0] ?? null;
+    } catch (error) {
+      if (error instanceof FastError && error.code === 'INVALID_ADDRESS') {
+        return null;
+      }
       return null;
     }
-
-    const result = await this.fetchAccountInfo(pubkey, {
-      certificateByNonce: { start: nonce, end: nonce },
-    });
-    return result?.requested_certificates?.[0] ?? null;
   }
 
   private async fetchAccountInfo(
@@ -299,5 +387,38 @@ export class BaseFastProvider {
     if (!this._initialized) {
       throw new FastError('UNSUPPORTED_OPERATION', 'Provider is not initialized');
     }
+  }
+
+  private requireAddress(address: string): Uint8Array {
+    try {
+      return addressToPubkey(address);
+    } catch {
+      throw new FastError('INVALID_ADDRESS', `Invalid Fast address: "${address}"`, {
+        note: 'Pass a valid fast1... bech32m address.',
+      });
+    }
+  }
+
+  private async resolveRpcTokenId(token?: string): Promise<Uint8Array | null> {
+    if (!token || isNativeFastToken(token) || isNativeFastTokenId(token)) {
+      return null;
+    }
+
+    if (HEX_TOKEN_PATTERN.test(token)) {
+      return hexToTokenId(token);
+    }
+
+    const known = await this.resolveKnownToken(token);
+    if (!known) {
+      throw new FastError('TOKEN_NOT_FOUND', `Token "${token}" not found`, {
+        note: 'Use a known token symbol or pass a valid hex token ID.',
+      });
+    }
+
+    if (known.tokenId === 'native') {
+      return null;
+    }
+
+    return hexToTokenId(known.tokenId);
   }
 }

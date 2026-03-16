@@ -33,7 +33,7 @@ The SDK uses **Provider/Wallet separation**:
 
 | Component | Purpose | Private Key? |
 |-----------|---------|--------------|
-| **FastProvider** | Read-only connection to Fast network | ❌ Not needed |
+| **FastProvider** | Low-level Fast proxy client | ❌ Not needed |
 | **FastWallet** | Node.js keyfile or private-key wallet | ✅ Required |
 
 **Rule:** Always create a Provider first, then create a Wallet with that Provider.
@@ -392,6 +392,9 @@ for (const token of tokens) {
 | `getTokens(address)` | List all token balances | `TokenBalance[]` |
 | `getTokenInfo(token)` | Get token metadata | `TokenInfo \| null` |
 | `getAccountInfo(address)` | Raw account info from RPC | `object \| null` |
+| `submitTransaction(envelope)` | Raw `proxy_submitTransaction` | `FastSubmitTransactionResult` |
+| `faucetDrip({ recipient, amount, token? })` | Raw `proxy_faucetDrip` | `void` |
+| `getTransactionCertificates(address, fromNonce, limit)` | Raw certificate listing | `FastTransactionCertificate[]` |
 | `getCertificateByNonce(address, nonce)` | Fetch one certificate by nonce | `FastTransactionCertificate \| null` |
 | `getExplorerUrl(txHash?)` | Get explorer URL | `string \| null` |
 

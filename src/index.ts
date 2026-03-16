@@ -2,7 +2,7 @@
  * @fastxyz/sdk — Fast SDK
  *
  * Primary API:
- * - FastProvider: Read-only connection to the Fast network
+ * - FastProvider: Low-level connection to the Fast proxy API
  * - FastWallet: Wallet for signing transactions
  */
 
@@ -37,11 +37,12 @@ export type {
   FastAccountInfo,
   FastTokenMetadata,
   FastVersionedTransaction,
-  FastTransactionEnvelope,
-  FastTransactionCertificate,
-  FastTokenTransferSummary,
-  SendResult,
-  SignResult,
+    FastTransactionEnvelope,
+    FastTransactionCertificate,
+    FastSubmitTransactionResult,
+    FastTokenTransferSummary,
+    SendResult,
+    SignResult,
   SubmitResult,
   ExportedKeys,
 } from './types.js';

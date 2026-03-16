@@ -52,13 +52,13 @@ if (certificate) {
 
 ## Architecture
 
-- `FastProvider` is read-only and available from both entrypoints.
+- `FastProvider` is the low-level Fast proxy client and is available from both entrypoints.
 - `FastWallet` is Node-only and supports keyfiles, generated wallets, and private-key imports.
 - `@fastxyz/sdk/browser` stays low-level and does not bundle an injected-wallet wrapper.
 
 ### Supported in `@fastxyz/sdk/browser`
 
-- provider reads
+- provider reads and low-level proxy methods
 - token and network config from bundled defaults or constructor overrides
 - address helpers
 - transaction hashing and certificate helpers
@@ -122,6 +122,9 @@ Browser entrypoint config precedence:
 
 - `wallet.send()` returns `{ txHash, certificate, explorerUrl }` on the Node `FastWallet`
 - `wallet.sign()` returns `{ signature, address, messageBytes }` on the Node `FastWallet`
+- `provider.submitTransaction(envelope)` exposes raw `proxy_submitTransaction`
+- `provider.faucetDrip({ recipient, amount, token? })` exposes raw `proxy_faucetDrip`
+- `provider.getTransactionCertificates(address, fromNonce, limit)` exposes raw `proxy_getTransactionCertificates`
 - `provider.getCertificateByNonce(address, nonce)` fetches a certificate directly from RPC
 
 ## Development

@@ -44,6 +44,7 @@ export type {
   FastVersionedTransaction,
   FastTransactionEnvelope,
   FastTransactionCertificate,
+  FastSubmitTransactionResult,
   FastTokenTransferSummary,
   SendResult,
   SignResult,

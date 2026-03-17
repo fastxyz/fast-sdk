@@ -10,6 +10,9 @@ export * from '../core/index.js';
 // Browser-specific provider (static config only)
 export { FastProvider } from './provider.js';
 
+// Browser-specific wallet (no keyfile support, exposes privateKey)
+export { FastWallet } from './wallet.js';
+
 // Config accessors (no file loading)
 export {
   getNetworkInfo,

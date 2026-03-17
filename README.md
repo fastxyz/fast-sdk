@@ -40,6 +40,51 @@ console.log(signed.messageBytes);
 
 ## Browser Quick Start
 
+### Create and Use a Wallet
+
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk/browser';
+
+const provider = new FastProvider({ network: 'testnet' });
+
+// Generate a new wallet
+const wallet = await FastWallet.generate(provider);
+console.log(wallet.address);     // fast1...
+console.log(wallet.privateKey);  // Save this securely!
+
+// Or restore from a saved private key
+const wallet = await FastWallet.fromPrivateKey('abc123...', provider);
+
+// Send tokens
+const tx = await wallet.send({
+  to: 'fast1recipient...',
+  amount: '10',
+  token: 'testUSDC',
+});
+console.log(tx.txHash);
+
+// Sign a message
+const signed = await wallet.sign({ message: 'Hello, Fast!' });
+console.log(signed.signature);
+```
+
+### Persist Wallet in Browser
+
+The browser wallet doesn't have file system access, so you must persist the private key yourself:
+
+```ts
+// Save (example using localStorage - use secure storage in production!)
+localStorage.setItem('fast-wallet-key', wallet.privateKey);
+
+// Restore
+const savedKey = localStorage.getItem('fast-wallet-key');
+if (savedKey) {
+  const wallet = await FastWallet.fromPrivateKey(savedKey, provider);
+}
+```
+
+### Read-only Provider Usage
+
 ```ts
 import { FastProvider, getCertificateHash } from '@fastxyz/sdk/browser';
 
@@ -100,9 +145,21 @@ src/
 | Certificate helpers | ✅ | ✅ | ✅ |
 | FastError | ✅ | ✅ | ✅ |
 | FastProvider | ❌ | ✅ | ✅ |
-| FastWallet | ❌ | ❌ | ✅ |
+| FastWallet | ❌ | ✅ (no keyfiles) | ✅ (with keyfiles) |
+| `privateKey` getter | ❌ | ✅ | ❌ |
 | Key utilities | ❌ | ❌ | ✅ |
 | File config | ❌ | ❌ | ✅ |
+
+### Browser vs Node FastWallet
+
+| Feature | Browser | Node |
+|---------|---------|------|
+| `fromPrivateKey()` | ✅ | ✅ |
+| `generate()` | ✅ | ✅ |
+| `fromKeyfile()` | ❌ | ✅ |
+| `saveToKeyfile()` | ❌ | ✅ |
+| `privateKey` getter | ✅ | ❌ |
+| `send()` / `sign()` / `submit()` | ✅ | ✅ |
 
 ### Node-only Features
 

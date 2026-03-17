@@ -2,10 +2,13 @@
 
 Official TypeScript SDK for the Fast network.
 
-The package now has two entrypoints:
+## Package Entrypoints
 
-- `@fastxyz/sdk` for Node.js apps, keyfiles, and `~/.fast/*` config overrides
-- `@fastxyz/sdk/browser` for browser-safe provider, config, and protocol helpers with no `node:*` dependency chain
+| Entrypoint | Use Case |
+|------------|----------|
+| `@fastxyz/sdk` | Node.js apps with keyfiles and `~/.fast/*` config |
+| `@fastxyz/sdk/browser` | Browser apps with no Node dependencies |
+| `@fastxyz/sdk/core` | Pure utilities only (address, BCS, certificates) |
 
 ## Install
 
@@ -50,37 +53,74 @@ if (certificate) {
 }
 ```
 
+## Core Utilities Only
+
+For pure helper functions without provider or wallet:
+
+```ts
+import { 
+  pubkeyToAddress, 
+  addressToPubkey,
+  hashTransaction,
+  getCertificateHash,
+} from '@fastxyz/sdk/core';
+```
+
 ## Architecture
 
-- `FastProvider` is the low-level Fast proxy client and is available from both entrypoints.
-- `FastWallet` is Node-only and supports keyfiles, generated wallets, and private-key imports.
-- `@fastxyz/sdk/browser` stays low-level and does not bundle an injected-wallet wrapper.
+### Directory Structure
 
-### Supported in `@fastxyz/sdk/browser`
+```
+src/
+├── core/           # Pure, browser-safe utilities
+│   ├── address.ts  # Fast address encoding/decoding
+│   ├── bcs.ts      # BCS serialization
+│   ├── bytes.ts    # Byte manipulation
+│   └── ...
+├── config/         # Configuration system
+│   ├── source.ts   # ConfigSource interface (browser-safe)
+│   ├── browser.ts  # Static config accessors
+│   └── file-loader.ts  # File-based config (Node-only)
+├── browser/        # Browser-specific implementations
+│   ├── provider.ts # Browser FastProvider
+│   └── index.ts    # Browser entrypoint
+└── node/           # Node-specific implementations
+    ├── provider.ts # Node FastProvider
+    ├── wallet.ts   # FastWallet with keyfiles
+    ├── keys.ts     # Ed25519 key management
+    └── index.ts    # Node entrypoint
+```
 
-- provider reads and low-level proxy methods
-- token and network config from bundled defaults or constructor overrides
-- address helpers
-- transaction hashing and certificate helpers
+### What's in Each Entrypoint
 
-If your browser app uses an injected wallet such as `window.fastset`, keep that wrapper in app code or a separate client package.
+| Export | `/core` | `/browser` | `.` (Node) |
+|--------|---------|------------|------------|
+| Address utils | ✅ | ✅ | ✅ |
+| BCS/bytes | ✅ | ✅ | ✅ |
+| Certificate helpers | ✅ | ✅ | ✅ |
+| FastError | ✅ | ✅ | ✅ |
+| FastProvider | ❌ | ✅ | ✅ |
+| FastWallet | ❌ | ❌ | ✅ |
+| Key utilities | ❌ | ❌ | ✅ |
+| File config | ❌ | ❌ | ✅ |
 
-### Node-only
+### Node-only Features
 
-- `FastWallet`
-- keyfile storage and `saveToKeyfile()`
-- `~/.fast/networks.json` and `~/.fast/tokens.json`
-- `FAST_CONFIG_DIR`
-- env-seeded keyfile behavior
+- `FastWallet` with keyfile support
+- `saveToKeyfile()` for wallet persistence
+- `~/.fast/networks.json` and `~/.fast/tokens.json` config overrides
+- `FAST_CONFIG_DIR` environment variable
+- Ed25519 key generation and management
 
 ## Public Helpers
 
-The Node entrypoint keeps the existing BCS helpers from `@fastxyz/sdk`, and the browser entrypoint exports the browser-safe helper set from `@fastxyz/sdk/browser`:
+Available from all entrypoints:
 
 - `pubkeyToAddress`, `addressToPubkey`, `normalizeFastAddress`
 - `FAST_TOKEN_ID`, `FAST_DECIMALS`
 - `hashTransaction`, `serializeVersionedTransaction`
 - `getCertificateTransaction`, `getCertificateHash`, `getCertificateTokenTransfer`
+- `bytesToHex`, `hexToBytes`, `bytesToPrefixedHex`
 
 ## Configuration
 
@@ -105,18 +145,18 @@ const provider = new FastProvider({
 });
 ```
 
-Node entrypoint config precedence:
+**Node entrypoint config precedence:**
 
-1. constructor overrides
+1. Constructor overrides
 2. `~/.fast/networks.json` and `~/.fast/tokens.json`
-3. bundled defaults
-4. hardcoded fallbacks
+3. Bundled defaults
+4. Hardcoded fallbacks
 
-Browser entrypoint config precedence:
+**Browser entrypoint config precedence:**
 
-1. constructor overrides
-2. bundled defaults
-3. hardcoded fallbacks
+1. Constructor overrides
+2. Bundled defaults
+3. Hardcoded fallbacks
 
 ## API Notes
 

@@ -34,6 +34,7 @@ export {
   generateEd25519Key,
   saveKeyfile,
   loadKeyfile,
+  withKey,
   signEd25519,
   verifyEd25519,
 } from './keys.js';

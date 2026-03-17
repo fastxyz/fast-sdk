@@ -4,12 +4,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { FastProvider, FastWallet } from '../src/index.js';
-import { FastError } from '../src/errors.js';
-import { clearDefaultsCache } from '../src/defaults.js';
+import { FastProvider, FastWallet, FastError, clearDefaultsCache, FAST_TOKEN_ID, bytesToPrefixedHex } from '../src/index.js';
 import type { FastTransactionCertificate } from '../src/index.js';
-import { FAST_TOKEN_ID } from '../src/bcs.js';
-import { bytesToPrefixedHex } from '../src/bytes.js';
 
 let tmpDir: string;
 let originalConfigDir: string | undefined;

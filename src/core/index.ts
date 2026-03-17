@@ -11,7 +11,7 @@ export { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from './addres
 export { toHex, toRaw, toHuman, fromHex, compareDecimalStrings } from './amounts.js';
 
 // Byte utilities
-export { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from './bytes.js';
+export { bytesToHex, bytesToPrefixedHex, hexToBytes, stripHexPrefix, utf8ToBytes } from './bytes.js';
 
 // BCS serialization
 export {

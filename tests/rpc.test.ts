@@ -1,7 +1,7 @@
 import { afterEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { rpcCall } from '../src/rpc.js';
+import { rpcCall } from '../src/core/rpc.js';
 
 const originalFetch = globalThis.fetch;
 

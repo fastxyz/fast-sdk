@@ -12,7 +12,8 @@ describe('entrypoints', () => {
     assert.equal('FastBrowserWallet' in rootEntrypoint, false);
     assert.ok(rootEntrypoint.FAST_TOKEN_ID instanceof Uint8Array);
     assert.equal(typeof rootEntrypoint.hashTransaction, 'function');
-    assert.equal('getCertificateHash' in rootEntrypoint, false);
+    // Root now includes all core utilities (browser-safe)
+    assert.equal(typeof rootEntrypoint.getCertificateHash, 'function');
   });
 
   it('exposes browser-safe values from the browser entrypoint', () => {

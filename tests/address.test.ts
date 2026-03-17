@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { bech32m } from 'bech32';
 
-import { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from '../src/address.js';
+import { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from '../src/core/address.js';
 
 describe('address', () => {
   describe('pubkeyToAddress', () => {

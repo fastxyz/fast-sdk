@@ -10,7 +10,7 @@ import {
   compareDecimalStrings,
   expandHome,
   resolveHomeDir,
-} from '../src/utils.js';
+} from '../src/node/utils.js';
 
 describe('utils', () => {
   describe('toRaw', () => {

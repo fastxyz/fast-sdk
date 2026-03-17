@@ -11,7 +11,7 @@ import { open, readFile, mkdir, copyFile, chmod } from 'node:fs/promises';
 import { dirname, basename, join } from 'node:path';
 import { constants } from 'node:fs';
 import { expandHome } from './utils.js';
-import { pubkeyToAddress } from './address.js';
+import { pubkeyToAddress } from '../core/address.js';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 

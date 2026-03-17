@@ -1,6 +1,6 @@
-import { createBrowserConfigSource } from './defaults.browser.js';
-import { BaseFastProvider } from './provider-core.js';
-import type { ProviderOptions } from './types.js';
+import { createBrowserConfigSource } from '../config/browser.js';
+import { BaseFastProvider } from '../core/provider-base.js';
+import type { ProviderOptions } from '../core/types.js';
 
 export class FastProvider extends BaseFastProvider {
   constructor(opts?: ProviderOptions) {

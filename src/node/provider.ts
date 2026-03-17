@@ -1,6 +1,6 @@
-import { createNodeConfigSource } from './defaults.js';
-import { BaseFastProvider } from './provider-core.js';
-import type { ProviderOptions } from './types.js';
+import { createNodeConfigSource } from '../config/file-loader.js';
+import { BaseFastProvider } from '../core/provider-base.js';
+import type { ProviderOptions } from '../core/types.js';
 
 /**
  * FastProvider — Node-oriented read-only connection to the Fast network.

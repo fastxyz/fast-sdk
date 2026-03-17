@@ -1,10 +1,10 @@
 import { FAST_DECIMALS, FAST_TOKEN_ID, hexToTokenId, tokenIdEquals, type FastTransaction } from './bcs.js';
 import { bytesToPrefixedHex, bytesToHex, stripHexPrefix } from './bytes.js';
-import { addressToPubkey } from './address.js';
+import { fastAddressToBytes } from './address.js';
 import { FastError } from './errors.js';
 import { fromHex } from './amounts.js';
 import { rpcCall } from './rpc.js';
-import type { ConfigSource } from './config-source.js';
+import type { ConfigSource } from '../config/source.js';
 import type {
   FastAccountInfo,
   FastSubmitTransactionResult,
@@ -171,7 +171,7 @@ export class BaseFastProvider {
 
     let pubkey: Uint8Array;
     try {
-      pubkey = addressToPubkey(address);
+      pubkey = fastAddressToBytes(address);
     } catch {
       return { amount: '0', token };
     }
@@ -213,7 +213,7 @@ export class BaseFastProvider {
 
     let pubkey: Uint8Array;
     try {
-      pubkey = addressToPubkey(address);
+      pubkey = fastAddressToBytes(address);
     } catch {
       return [];
     }
@@ -299,7 +299,7 @@ export class BaseFastProvider {
 
     let pubkey: Uint8Array;
     try {
-      pubkey = addressToPubkey(address);
+      pubkey = fastAddressToBytes(address);
     } catch {
       return null;
     }
@@ -395,7 +395,7 @@ export class BaseFastProvider {
 
   private requireAddress(address: string): Uint8Array {
     try {
-      return addressToPubkey(address);
+      return fastAddressToBytes(address);
     } catch {
       throw new FastError('INVALID_ADDRESS', `Invalid Fast address: "${address}"`, {
         note: 'Pass a valid fast1... bech32m address.',

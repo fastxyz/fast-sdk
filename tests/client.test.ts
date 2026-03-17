@@ -5,11 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { FastProvider, FastWallet } from '../src/index.js';
-import { FastError } from '../src/errors.js';
-import { clearDefaultsCache } from '../src/defaults.js';
+import { FastError } from '../src/core/errors.js';
+import { clearDefaultsCache } from '../src/config/file-loader.js';
 import type { FastTransactionCertificate } from '../src/index.js';
-import { FAST_TOKEN_ID } from '../src/bcs.js';
-import { bytesToPrefixedHex } from '../src/bytes.js';
+import { FAST_TOKEN_ID } from '../src/core/bcs.js';
+import { bytesToPrefixedHex } from '../src/core/bytes.js';
 
 let tmpDir: string;
 let originalConfigDir: string | undefined;
@@ -665,6 +665,27 @@ describe('FastWallet', () => {
         address: wallet.address,
       });
       assert.equal(verified.valid, false);
+    });
+
+    it('verify throws INVALID_ADDRESS for malformed signer addresses', async () => {
+      const provider = new FastProvider();
+      const keyfilePath = path.join(tmpDir, 'keys', 'sign-test-3.json');
+      const wallet = await FastWallet.fromKeyfile(keyfilePath, provider);
+
+      const signed = await wallet.sign({ message: 'original' });
+
+      await assert.rejects(
+        () => wallet.verify({
+          message: 'original',
+          signature: signed.signature,
+          address: 'invalid',
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_ADDRESS');
+          return true;
+        },
+      );
     });
   });
 

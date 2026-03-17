@@ -2,10 +2,11 @@
 
 Official TypeScript SDK for the Fast network.
 
-The package now has two entrypoints:
+The package now has three entrypoints:
 
 - `@fastxyz/sdk` for Node.js apps, keyfiles, and `~/.fast/*` config overrides
 - `@fastxyz/sdk/browser` for browser-safe provider, config, and protocol helpers with no `node:*` dependency chain
+- `@fastxyz/sdk/core` for pure Fast helpers with no provider or wallet surface
 
 ## Install
 
@@ -50,20 +51,33 @@ if (certificate) {
 }
 ```
 
+## Core Quick Start
+
+```ts
+import {
+  encodeFastAddress,
+  decodeFastAddress,
+  getCertificateHash,
+} from '@fastxyz/sdk/core';
+```
+
 ## Architecture
 
 - `FastProvider` is the low-level Fast proxy client and is available from both entrypoints.
 - `FastWallet` is Node-only and supports keyfiles, generated wallets, and private-key imports.
-- `@fastxyz/sdk/browser` stays low-level and does not bundle an injected-wallet wrapper.
+- `@fastxyz/sdk/browser` stays low-level and does not bundle browser wallet lifecycle or injected-wallet wrappers.
+- `@fastxyz/sdk/core` is the pure helper surface for browser-safe protocol utilities.
 
 ### Supported in `@fastxyz/sdk/browser`
 
 - provider reads and low-level proxy methods
 - token and network config from bundled defaults or constructor overrides
-- address helpers
+- canonical Fast address codec helpers
 - transaction hashing and certificate helpers
 
 If your browser app uses an injected wallet such as `window.fastset`, keep that wrapper in app code or a separate client package.
+
+If you are building a dapp-facing browser integration layer, keep that in `fast-connector` and build it on top of `@fastxyz/sdk/browser`.
 
 ### Node-only
 
@@ -75,12 +89,24 @@ If your browser app uses an injected wallet such as `window.fastset`, keep that 
 
 ## Public Helpers
 
-The Node entrypoint keeps the existing BCS helpers from `@fastxyz/sdk`, and the browser entrypoint exports the browser-safe helper set from `@fastxyz/sdk/browser`:
+`@fastxyz/sdk` and `@fastxyz/sdk/browser` both export the canonical Fast address codec helpers and the shared protocol helpers they need:
 
-- `pubkeyToAddress`, `addressToPubkey`, `normalizeFastAddress`
+- `encodeFastAddress`, `fastAddressToBytes`, `decodeFastAddress`
 - `FAST_TOKEN_ID`, `FAST_DECIMALS`
 - `hashTransaction`, `serializeVersionedTransaction`
+
+`@fastxyz/sdk/browser` also exports:
+
 - `getCertificateTransaction`, `getCertificateHash`, `getCertificateTokenTransfer`
+- compatibility aliases for existing browser consumers:
+  `pubkeyToAddress`, `addressToPubkey`, `normalizeFastAddress`
+
+`@fastxyz/sdk/core` exports the pure helper set only:
+
+- canonical address codec helpers
+- amount helpers like `toHex()` and `fromHex()`
+- BCS, byte, and certificate helpers
+- shared Fast types and `FastError`
 
 ## Configuration
 

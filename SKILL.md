@@ -1,21 +1,21 @@
 ---
 name: fast-sdk
 description: >
-  Fast SDK for AI agents, Node.js apps, and browser apps. Use @fastxyz/sdk for Node keyfile wallets
-  and @fastxyz/sdk/browser for browser-safe provider and protocol helpers. The SDK can create or
-  load a Fast wallet, check balances, send FAST tokens, sign or verify messages, list held tokens,
-  look up token metadata, fetch certificates, and export wallet info.
+  Fast SDK for AI agents, Node.js apps, and browser apps. Use @fastxyz/sdk for Node keyfile wallets,
+  @fastxyz/sdk/browser for browser-safe provider and protocol helpers, and @fastxyz/sdk/core for
+  pure Fast helpers. The SDK can create or load a Fast wallet, check balances, send FAST tokens,
+  sign or verify messages, list held tokens, look up token metadata, fetch certificates, and export wallet info.
   Trigger this skill when a user wants to integrate Fast payments or wallet actions in code,
   or when asked to send funds, inspect balances, sign or verify data, or query Fast token holdings.
   Do NOT use for swaps, bridges, AllSet flows, lending, staking, or generic EVM SDK work.
 metadata:
-  short-description: Use @fastxyz/sdk or @fastxyz/sdk/browser for Fast wallet, balance, transfer, token, signing, and browser-safe provider workflows.
-  compatibility: Node.js 20+ for @fastxyz/sdk; modern browsers for @fastxyz/sdk/browser; network access for Fast RPC; filesystem access only for Node keyfile workflows.
+  short-description: Use @fastxyz/sdk, @fastxyz/sdk/browser, or @fastxyz/sdk/core for Fast wallet, balance, transfer, token, signing, and pure helper workflows.
+  compatibility: Node.js 20+ for @fastxyz/sdk; modern browsers for @fastxyz/sdk/browser and @fastxyz/sdk/core; network access for Fast RPC; filesystem access only for Node keyfile workflows.
 ---
 
 # Fast SDK
 
-Use `@fastxyz/sdk` for Node.js keyfile wallets and `@fastxyz/sdk/browser` for browser-safe provider and protocol helpers.
+Use `@fastxyz/sdk` for Node.js keyfile wallets, `@fastxyz/sdk/browser` for browser-safe provider and protocol helpers, and `@fastxyz/sdk/core` for pure Fast helpers.
 
 ## Install
 
@@ -37,6 +37,13 @@ The SDK uses **Provider/Wallet separation**:
 | **FastWallet** | Node.js keyfile or private-key wallet | ✅ Required |
 
 **Rule:** Always create a Provider first, then create a Wallet with that Provider.
+
+Package boundaries:
+
+- `@fastxyz/sdk` is the main Node runtime entrypoint
+- `@fastxyz/sdk/browser` stays low-level and browser-safe
+- `@fastxyz/sdk/core` is the pure helper surface
+- app-facing browser wallet integration belongs in `fast-connector`, not here
 
 ---
 
@@ -65,11 +72,11 @@ The SDK loads network configuration from JSON files in this priority order:
 
 ```
 1. ~/.fast/networks.json        ← User overrides (highest priority)
-2. src/data/networks.json       ← Bundled defaults (ships with package)
+2. src/config/data/networks.json ← Bundled defaults (ships with package)
 3. Hardcoded fallbacks          ← Last resort if JSON fails to load
 ```
 
-**Bundled defaults** (`src/data/networks.json`):
+**Bundled defaults** (`src/config/data/networks.json`):
 ```json
 {
   "testnet": {
@@ -145,6 +152,12 @@ Browser bundle boundaries:
 - No keyfile storage
 - Use bundled defaults or constructor-injected `networks` / `tokens`
 - No injected wallet wrapper in this package
+
+For pure protocol work with no provider dependency, use `@fastxyz/sdk/core`.
+
+For Fast-native address codec work in browser-safe code, use `encodeFastAddress(bytes)`, `fastAddressToBytes(address)`, or `decodeFastAddress(address)`.
+
+`@fastxyz/sdk/browser` also keeps the legacy browser address helper names `pubkeyToAddress()`, `addressToPubkey()`, and `normalizeFastAddress()` for compatibility.
 
 ---
 

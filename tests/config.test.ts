@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { getConfigDir, getKeysDir } from '../src/config.js';
+import { getConfigDir, getKeysDir } from '../src/config/paths.js';
 import {
   getNetworkInfo,
   getAllNetworks,
@@ -13,7 +13,7 @@ import {
   getDefaultRpcUrl,
   getExplorerUrl,
   clearDefaultsCache,
-} from '../src/defaults.js';
+} from '../src/config/file-loader.js';
 
 describe('config', () => {
   let tmpDir: string;

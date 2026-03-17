@@ -1,7 +1,7 @@
 /**
- * utils.ts — Shared utilities for money SDK
+ * utils.ts — Node utilities for Fast SDK
  *
- * Decimal/amount conversion and path helpers.
+ * Home-directory and path helpers for Node-only workflows.
  */
 
 import os from 'node:os';
@@ -13,7 +13,7 @@ function isWritableDirectory(dir: string): boolean {
     const stats = fs.statSync(dir);
     if (!stats.isDirectory()) return false;
     fs.accessSync(dir, fs.constants.W_OK);
-    const probeName = `.money-write-probe-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const probeName = `.fast-write-probe-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const probePath = path.join(dir, probeName);
     fs.writeFileSync(probePath, 'ok', { encoding: 'utf-8', flag: 'wx', mode: 0o600 });
     fs.rmSync(probePath, { force: true });
@@ -69,12 +69,12 @@ export function resolveHomeDir(): string {
     }
   }
 
-  const tmpFallback = path.join(os.tmpdir(), '.money-home');
+  const tmpFallback = path.join(os.tmpdir(), '.fast-home');
   if (ensureWritableDirectory(tmpFallback)) {
     return tmpFallback;
   }
 
-  const cwdFallback = path.resolve('.money-home');
+  const cwdFallback = path.resolve('.fast-home');
   ensureWritableDirectory(cwdFallback);
   return cwdFallback;
 }

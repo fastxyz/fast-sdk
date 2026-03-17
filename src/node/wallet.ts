@@ -6,9 +6,9 @@
  */
 
 import path from 'node:path';
-import { FastError } from './errors.js';
+import { FastError } from '../core/errors.js';
 import { FastProvider } from './provider.js';
-import { getKeysDir } from './config.js';
+import { getKeysDir } from '../config/paths.js';
 import {
   generateEd25519Key,
   saveKeyfile,
@@ -24,10 +24,10 @@ import {
   FAST_DECIMALS,
   FAST_TOKEN_ID,
   hexToTokenId,
-} from './bcs.js';
-import { pubkeyToAddress, addressToPubkey } from './address.js';
-import { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from './bytes.js';
-import { toHex } from './amounts.js';
+} from '../core/bcs.js';
+import { encodeFastAddress, fastAddressToBytes } from '../core/address.js';
+import { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from '../core/bytes.js';
+import { toHex } from '../core/amounts.js';
 import { expandHome } from './utils.js';
 import type {
   WalletKeyfileOptions,
@@ -36,7 +36,7 @@ import type {
   SubmitResult,
   ExportedKeys,
   TokenBalance,
-} from './types.js';
+} from '../core/types.js';
 
 const DEFAULT_TOKEN = 'FAST';
 const HEX_TOKEN_PATTERN = /^(0x)?[0-9a-fA-F]+$/;
@@ -110,7 +110,7 @@ function mapSubmissionError(
 
 function decodeFastAddressOrThrow(address: string): Uint8Array {
   try {
-    return addressToPubkey(address);
+    return fastAddressToBytes(address);
   } catch {
     throw new FastError('INVALID_ADDRESS', `Invalid Fast address: "${address}"`, {
       note: 'Pass a valid fast1... bech32m address.',
@@ -165,7 +165,7 @@ export class FastWallet {
     const privKeyBytes = hexToBytes(cleanKey);
     const pubKeyBytes = await getPublicKey(privKeyBytes);
     const publicKey = bytesToHex(pubKeyBytes);
-    const address = pubkeyToAddress(publicKey);
+    const address = encodeFastAddress(pubKeyBytes);
 
     // Create wallet with in-memory keypair
     return new FastWallet(provider, '', address, { publicKey, privateKey: cleanKey });
@@ -201,7 +201,7 @@ export class FastWallet {
 
     try {
       const existing = await loadKeyfile(keyfilePath);
-      address = pubkeyToAddress(existing.publicKey);
+      address = encodeFastAddress(hexToBytes(existing.publicKey));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       if (!message.includes('ENOENT')) {
@@ -215,7 +215,7 @@ export class FastWallet {
       // Generate new key
       const keypair = await generateEd25519Key();
       await saveKeyfile(keyfilePath, keypair);
-      address = pubkeyToAddress(keypair.publicKey);
+      address = encodeFastAddress(hexToBytes(keypair.publicKey));
     }
 
     return new FastWallet(provider, keyfilePath, address);
@@ -229,7 +229,7 @@ export class FastWallet {
    */
   static async generate(provider: FastProvider): Promise<FastWallet> {
     const keypair = await generateEd25519Key();
-    const address = pubkeyToAddress(keypair.publicKey);
+    const address = encodeFastAddress(hexToBytes(keypair.publicKey));
 
     // Create wallet with in-memory keypair
     return new FastWallet(provider, '', address, keypair);
@@ -370,7 +370,7 @@ export class FastWallet {
         : params.message;
 
     const sigBytes = hexToBytes(params.signature);
-    const pubkey = addressToPubkey(params.address);
+    const pubkey = decodeFastAddressOrThrow(params.address);
     const pubkeyHex = bytesToHex(pubkey);
 
     // verifyEd25519 signature order: (signature, message, publicKey)

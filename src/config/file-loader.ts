@@ -1,5 +1,5 @@
 /**
- * defaults.ts — Default Fast configuration
+ * file-loader.ts — Node-backed Fast configuration
  *
  * Priority order (highest to lowest):
  * 1. Constructor overrides
@@ -9,9 +9,9 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createStaticConfigSource, mergeNetworkMaps, normalizeNetworkMap, normalizeTokenMap, type ConfigSource } from './config-source.js';
-import type { KnownFastToken, NetworkInfo, NetworkType } from './types.js';
-import { getConfigDir } from './config.js';
+import { createStaticConfigSource, mergeNetworkMaps, normalizeNetworkMap, normalizeTokenMap, type ConfigSource } from './source.js';
+import type { KnownFastToken, NetworkInfo, NetworkType } from '../core/types.js';
+import { getConfigDir } from './paths.js';
 
 export type { KnownFastToken, NetworkInfo };
 

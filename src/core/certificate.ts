@@ -1,7 +1,7 @@
 import { fromHex } from './amounts.js';
-import { pubkeyToAddress } from './address.js';
+import { encodeFastAddress } from './address.js';
 import { FAST_DECIMALS, FAST_TOKEN_ID, hashTransaction, tokenIdEquals, type FastTransaction } from './bcs.js';
-import { bytesToPrefixedHex, bytesToHex } from './bytes.js';
+import { bytesToPrefixedHex } from './bytes.js';
 import type {
   FastTokenTransferSummary,
   FastTransactionCertificate,
@@ -34,8 +34,8 @@ export function getCertificateTokenTransfer(
   const decimals = native ? FAST_DECIMALS : undefined;
 
   return {
-    sender: pubkeyToAddress(bytesToHex(new Uint8Array(Array.from(transaction.sender)))),
-    recipient: pubkeyToAddress(bytesToHex(new Uint8Array(Array.from(transaction.recipient)))),
+    sender: encodeFastAddress(new Uint8Array(transaction.sender)),
+    recipient: encodeFastAddress(new Uint8Array(transaction.recipient)),
     tokenId: native ? 'native' : bytesToPrefixedHex(tokenIdBytes),
     amountHex: `0x${transfer.amount}`,
     amount: decimals === undefined ? undefined : fromHex(transfer.amount, decimals),

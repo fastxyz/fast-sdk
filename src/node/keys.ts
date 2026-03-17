@@ -1,5 +1,5 @@
 /**
- * keys.ts — Key management for money SDK
+ * keys.ts — Key management for Fast SDK
  *
  * SECURITY INVARIANT: Private keys MUST NEVER appear in any return value,
  * log, error message, or console output (except the internal generate/load
@@ -11,8 +11,8 @@ import { open, readFile, mkdir, copyFile, chmod } from 'node:fs/promises';
 import { dirname, basename, join } from 'node:path';
 import { constants } from 'node:fs';
 import { expandHome } from './utils.js';
-import { encodeFastAddress } from './address.js';
-import { hexToBytes } from './bytes.js';
+import { encodeFastAddress } from '../core/address.js';
+import { hexToBytes } from '../core/bytes.js';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 
@@ -26,7 +26,7 @@ const PRIVATE_KEY_HEX_PATTERN = /^(0x)?[0-9a-fA-F]{64}$/;
 function normalizeEnvPrivateKey(value: string): string {
   const trimmed = value.trim();
   if (!PRIVATE_KEY_HEX_PATTERN.test(trimmed)) {
-    throw new Error('MONEY_FAST_PRIVATE_KEY must be a 32-byte hex string');
+        throw new Error('MONEY_FAST_PRIVATE_KEY must be a 32-byte hex string');
   }
   return trimmed.startsWith('0x') || trimmed.startsWith('0X')
     ? trimmed.slice(2).toLowerCase()

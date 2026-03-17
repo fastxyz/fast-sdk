@@ -4,7 +4,7 @@ import { fastAddressToBytes } from './address.js';
 import { FastError } from './errors.js';
 import { fromHex } from './amounts.js';
 import { rpcCall } from './rpc.js';
-import type { ConfigSource } from './config-source.js';
+import type { ConfigSource } from '../config/source.js';
 import type {
   FastAccountInfo,
   FastSubmitTransactionResult,

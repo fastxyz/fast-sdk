@@ -8,9 +8,11 @@ import {
   toHex,
   fromHex,
   compareDecimalStrings,
+} from '../src/core/index.js';
+import {
   expandHome,
   resolveHomeDir,
-} from '../src/utils.js';
+} from '../src/node/utils.js';
 
 describe('utils', () => {
   describe('toRaw', () => {

@@ -6,9 +6,9 @@
  */
 
 import path from 'node:path';
-import { FastError } from './errors.js';
+import { FastError } from '../core/errors.js';
 import { FastProvider } from './provider.js';
-import { getKeysDir } from './config.js';
+import { getKeysDir } from '../config/paths.js';
 import {
   generateEd25519Key,
   saveKeyfile,
@@ -24,10 +24,10 @@ import {
   FAST_DECIMALS,
   FAST_TOKEN_ID,
   hexToTokenId,
-} from './bcs.js';
-import { encodeFastAddress, fastAddressToBytes } from './address.js';
-import { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from './bytes.js';
-import { toHex } from './amounts.js';
+} from '../core/bcs.js';
+import { encodeFastAddress, fastAddressToBytes } from '../core/address.js';
+import { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from '../core/bytes.js';
+import { toHex } from '../core/amounts.js';
 import { expandHome } from './utils.js';
 import type {
   WalletKeyfileOptions,
@@ -36,7 +36,7 @@ import type {
   SubmitResult,
   ExportedKeys,
   TokenBalance,
-} from './types.js';
+} from '../core/types.js';
 
 const DEFAULT_TOKEN = 'FAST';
 const HEX_TOKEN_PATTERN = /^(0x)?[0-9a-fA-F]+$/;

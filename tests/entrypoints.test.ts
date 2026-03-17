@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import * as rootEntrypoint from '../src/index.js';
 import * as browserEntrypoint from '../src/browser.js';
+import * as coreEntrypoint from '../src/core/index.js';
 
 describe('entrypoints', () => {
   it('keeps the root entrypoint Node-oriented while exporting the canonical codec helpers', () => {
@@ -32,5 +33,15 @@ describe('entrypoints', () => {
     assert.equal('pubkeyToAddress' in browserEntrypoint, false);
     assert.equal('addressToPubkey' in browserEntrypoint, false);
     assert.equal('normalizeFastAddress' in browserEntrypoint, false);
+  });
+
+  it('exposes pure helpers from the core entrypoint', () => {
+    assert.equal(typeof coreEntrypoint.encodeFastAddress, 'function');
+    assert.equal(typeof coreEntrypoint.fastAddressToBytes, 'function');
+    assert.equal(typeof coreEntrypoint.decodeFastAddress, 'function');
+    assert.equal(typeof coreEntrypoint.getCertificateHash, 'function');
+    assert.equal(typeof coreEntrypoint.toHex, 'function');
+    assert.equal('FastProvider' in coreEntrypoint, false);
+    assert.equal('FastWallet' in coreEntrypoint, false);
   });
 });

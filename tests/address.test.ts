@@ -6,8 +6,8 @@ import {
   encodeFastAddress,
   fastAddressToBytes,
   decodeFastAddress,
-} from '../src/address.js';
-import { bytesToHex } from '../src/bytes.js';
+} from '../src/core/address.js';
+import { bytesToHex } from '../src/core/bytes.js';
 
 describe('address', () => {
   describe('encodeFastAddress', () => {

@@ -11,7 +11,7 @@ import {
   serializeVersionedTransaction,
   TransactionBcs,
   type FastTransaction,
-} from '../src/bcs.js';
+} from '../src/core/bcs.js';
 
 describe('bcs', () => {
   const CLAIM_VARIANT_OFFSET = 88;

@@ -11,7 +11,7 @@ import {
   signEd25519,
   verifyEd25519,
   withKey,
-} from '../src/keys.js';
+} from '../src/node/keys.js';
 
 describe('keys', () => {
   let tmpDir: string;

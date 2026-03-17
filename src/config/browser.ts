@@ -1,5 +1,5 @@
-import { createStaticConfigSource, type ConfigSource } from './config-source.js';
-import type { KnownFastToken, NetworkInfo, NetworkType } from './types.js';
+import { createStaticConfigSource, type ConfigSource } from './source.js';
+import type { KnownFastToken, NetworkInfo, NetworkType } from '../core/types.js';
 
 let _browserConfigSource: ConfigSource | null = null;
 

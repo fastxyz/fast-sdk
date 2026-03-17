@@ -1,8 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { FastError } from '../src/errors.js';
-import type { FastErrorCode } from '../src/errors.js';
+import { FastError } from '../src/core/errors.js';
+import type { FastErrorCode } from '../src/core/errors.js';
 
 describe('FastError', () => {
   describe('constructor — all fields', () => {

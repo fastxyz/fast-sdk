@@ -45,6 +45,8 @@ Package boundaries:
 - `@fastxyz/sdk/core` is the pure helper surface
 - app-facing browser wallet integration belongs in `fast-connector`, not here
 
+> **Provider vs Wallet:** Use Provider methods (`provider.getBalance()`, `provider.getTokens()`) when you have an address but no wallet. Use Wallet convenience methods (`wallet.balance()`, `wallet.tokens()`) when you already have a wallet instance — they just call the Provider methods with `this.address`.
+
 ---
 
 ## FastProvider Setup
@@ -76,21 +78,7 @@ The SDK loads network configuration from JSON files in this priority order:
 3. Hardcoded fallbacks          ← Last resort if JSON fails to load
 ```
 
-**Bundled defaults** (`src/config/data/networks.json`):
-```json
-{
-  "testnet": {
-    "rpc": "https://staging.proxy.fastset.xyz",
-    "explorer": "https://explorer.fast.xyz"
-  },
-  "mainnet": {
-    "rpc": "https://api.fast.xyz/proxy",
-    "explorer": "https://explorer.fast.xyz"
-  }
-}
-```
-
-If you need to override these, create `~/.fast/networks.json` with your values — they will take precedence.
+To override the bundled network defaults, create `~/.fast/networks.json` with your values — they will take precedence.
 
 ### Option 3: Custom RPC URL
 
@@ -267,6 +255,7 @@ import { FastProvider } from '@fastxyz/sdk';
 
 const provider = new FastProvider({ network: 'testnet' });
 const balance = await provider.getBalance('fast1abc123...', 'FAST');
+// balance = { amount: "123.456", token: "FAST" }
 console.log(`Balance: ${balance.amount} ${balance.token}`);
 ```
 
@@ -281,13 +270,14 @@ const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provide
 const result = await wallet.send({
   to: 'fast1recipient...',
   amount: '10.5',
-  token: 'fastUSDC'
+  token: 'fastUSDC'  // Omit to default to 'FAST'
 });
+// result = { txHash: "0xabc...", certificate: {...}, explorerUrl: "https://explorer.fast.xyz/tx/0xabc..." }
 
 console.log('TX Hash:', result.txHash);
 console.log('Certificate:', result.certificate);
 if (result.explorerUrl) {
-  console.log('Explorer:', result.explorerUrl);
+  console.log('Explorer:', result.explorerUrl);  // Auto-included from wallet.send()
 }
 ```
 
@@ -329,34 +319,7 @@ When using hex token ID:
 - SDK queries the network for token decimals via RPC
 - Works for any token deployed on the Fast network
 
-**Bundled defaults** (`src/data/tokens.json`):
-```json
-{
-  "FAST": {
-    "symbol": "FAST",
-    "tokenId": "native",
-    "decimals": 9
-  },
-  "fastUSDC": {
-    "symbol": "fastUSDC",
-    "tokenId": "0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5",
-    "decimals": 6
-  }
-}
-```
-
-**To add custom token symbols**, create `~/.fast/tokens.json`:
-```json
-{
-  "MYTOKEN": {
-    "symbol": "MYTOKEN",
-    "tokenId": "0x1234567890abcdef...",
-    "decimals": 18
-  }
-}
-```
-
-This lets you use `token: 'MYTOKEN'` instead of the full hex ID.
+To add custom token symbols, create `~/.fast/tokens.json` with your token definitions. This lets you use `token: 'MYTOKEN'` instead of the full hex ID.
 
 ### Example 3: Sign and verify message
 
@@ -390,10 +353,74 @@ const provider = new FastProvider({ network: 'testnet' });
 const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
 
 const tokens = await wallet.tokens();
+// tokens = [{ symbol: "FAST", balance: "100.5", decimals: 9, tokenId: "native" }, ...]
 for (const token of tokens) {
   console.log(`${token.symbol}: ${token.balance} (${token.decimals} decimals)`);
 }
 ```
+
+### Example 5: Get tokens for any address (Provider method)
+
+```ts
+import { FastProvider } from '@fastxyz/sdk';
+
+const provider = new FastProvider({ network: 'testnet' });
+const tokens = await provider.getTokens('fast1abc123...');
+// tokens = [{ symbol: "FAST", balance: "50.0", decimals: 9, tokenId: "native" }, { symbol: "fastUSDC", balance: "1000.0", decimals: 6, tokenId: "0xb4cf..." }]
+for (const token of tokens) {
+  console.log(`${token.symbol}: ${token.balance}`);
+}
+```
+
+### Example 6: Get token metadata
+
+```ts
+import { FastProvider } from '@fastxyz/sdk';
+
+const provider = new FastProvider({ network: 'testnet' });
+const info = await provider.getTokenInfo('fastUSDC');
+// info = { symbol: "fastUSDC", tokenId: "0xb4cf...", decimals: 6 } | null if not found
+if (info) {
+  console.log(`${info.symbol} has ${info.decimals} decimals`);
+}
+```
+
+### Example 7: Get wallet balance (Wallet convenience method)
+
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+
+const provider = new FastProvider({ network: 'testnet' });
+const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+// wallet.balance() is equivalent to provider.getBalance(wallet.address, token)
+const balance = await wallet.balance('fastUSDC');
+// balance = { amount: "500.25", token: "fastUSDC" }
+console.log(`Wallet has ${balance.amount} ${balance.token}`);
+```
+
+### Example 8: Get explorer URL
+
+```ts
+import { FastProvider } from '@fastxyz/sdk';
+
+const provider = new FastProvider({ network: 'testnet' });
+
+// Get explorer URL for a transaction hash
+const url = await provider.getExplorerUrl('0xabc123...');
+// url = "https://explorer.fast.xyz/tx/0xabc123..." | null if no explorer configured
+if (url) {
+  console.log('View transaction:', url);
+}
+
+// Note: wallet.send() already includes explorerUrl in its result — use that instead of calling getExplorerUrl() separately
+```
+
+---
+
+## Best Practices
+
+> **Tip:** Only call the methods you need. For example, `getBalance()` already returns the token symbol — don't also call `getTokenInfo()` unless you need decimals or the token ID. Similarly, `wallet.send()` returns `explorerUrl` automatically — no need to call `getExplorerUrl()` separately.
 
 ---
 
@@ -491,22 +518,22 @@ export FAST_CONFIG_DIR=/custom/path
 
 ### Custom networks.json
 
+Create `~/.fast/networks.json` to override network configuration:
+
 ```json
 {
   "devnet": {
     "rpc": "http://localhost:8080/proxy",
     "explorer": "http://localhost:3000"
-  },
-  "private-net": {
-    "rpc": "https://private.rpc.example.com/proxy"
   }
 }
 ```
 
 Note: `explorer` is optional. If omitted, `getExplorerUrl()` returns `null`.
-Use these with `new FastProvider({ network: 'devnet' })` or any other key you define.
 
 ### Custom tokens.json
+
+Create `~/.fast/tokens.json` to add custom token symbols:
 
 ```json
 {

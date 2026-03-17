@@ -8,7 +8,7 @@
 export { pubkeyToAddress, addressToPubkey, normalizeFastAddress } from './address.js';
 
 // Amount formatting
-export { toHex, toDecimal, formatAmount, parseAmount } from './amounts.js';
+export { toHex, toRaw, toHuman, fromHex, compareDecimalStrings } from './amounts.js';
 
 // Byte utilities
 export { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from './bytes.js';

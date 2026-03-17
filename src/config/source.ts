@@ -1,4 +1,4 @@
-import type { KnownFastToken, NetworkInfo, NetworkType } from './types.js';
+import type { KnownFastToken, NetworkInfo, NetworkType } from '../core/types.js';
 
 import bundledNetworks from './data/networks.json' with { type: 'json' };
 import bundledTokens from './data/tokens.json' with { type: 'json' };

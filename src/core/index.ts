@@ -42,6 +42,10 @@ export type { FastErrorCode } from './errors.js';
 // RPC helpers
 export { rpcCall } from './rpc.js';
 
+// Base wallet (for extending)
+export { BaseWallet, validatePrivateKey } from './wallet-base.js';
+export type { WalletSigner } from './wallet-base.js';
+
 // Types
 export type {
   KnownFastToken,

@@ -1,12 +1,20 @@
 /**
- * wallet.ts — FastWallet class
+ * wallet.ts — Node FastWallet class
  *
  * Wallet for signing transactions on the Fast network.
- * Requires a FastProvider for broadcasting transactions.
+ * Supports keyfile storage and management.
  */
 
 import path from 'node:path';
 import { FastError } from '../core/errors.js';
+import {
+  BaseWallet,
+  validatePrivateKey,
+  pubkeyToAddress,
+  bytesToHex,
+  hexToBytes,
+  type WalletSigner,
+} from '../core/wallet-base.js';
 import { FastProvider } from './provider.js';
 import { getKeysDir } from '../config/paths.js';
 import {
@@ -17,109 +25,49 @@ import {
   signEd25519,
   verifyEd25519,
 } from './keys.js';
-import {
-  TransactionBcs,
-  serializeVersionedTransaction,
-  hashTransaction,
-  FAST_DECIMALS,
-  FAST_TOKEN_ID,
-  hexToTokenId,
-} from '../core/bcs.js';
-import { pubkeyToAddress, addressToPubkey } from '../core/address.js';
-import { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from '../core/bytes.js';
-import { toHex } from '../core/amounts.js';
 import { expandHome } from './utils.js';
-import type {
-  WalletKeyfileOptions,
-  SendResult,
-  SignResult,
-  SubmitResult,
-  ExportedKeys,
-  TokenBalance,
-} from '../core/types.js';
+import type { WalletKeyfileOptions } from '../core/types.js';
 
-const DEFAULT_TOKEN = 'FAST';
-const HEX_TOKEN_PATTERN = /^(0x)?[0-9a-fA-F]+$/;
+// ─── Node Signers ─────────────────────────────────────────────────────────────
 
-type RpcErrorPayload = {
-  message?: string;
-  code?: number;
-};
+/**
+ * Signer that uses an in-memory keypair
+ */
+class InMemorySigner implements WalletSigner {
+  constructor(private privateKey: string) {}
 
-function isNativeFastToken(token: string): boolean {
-  const upper = token.toUpperCase();
-  return upper === 'FAST';
-}
-
-function parseRpcErrorPayload(rawMessage: string): RpcErrorPayload | null {
-  const prefix = 'RPC error:';
-  if (!rawMessage.startsWith(prefix)) {
-    return null;
+  async sign(message: Uint8Array): Promise<Uint8Array> {
+    return signEd25519(message, this.privateKey);
   }
-  const jsonPart = rawMessage.slice(prefix.length).trim();
-  if (!jsonPart) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(jsonPart) as RpcErrorPayload;
-    if (parsed && typeof parsed === 'object') {
-      return parsed;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
 
-function sanitizeProxyErrorMessage(rawMessage: string, fallback: string): string {
-  const rpcError = parseRpcErrorPayload(rawMessage);
-  let message = (rpcError?.message ?? rawMessage).replace(/\s+/g, ' ').trim();
-  const idx = message.indexOf('file:///');
-  if (idx !== -1) {
-    message = message.slice(0, idx).trim();
-    if (message.endsWith(' at')) {
-      message = message.slice(0, -3).trim();
-    }
-  }
-  if (!message || message.length < 5) {
-    return fallback;
-  }
-  return message;
-}
-
-function mapSubmissionError(
-  err: unknown,
-  opts: { insufficientNote: string; txFailedNote: string; txFailedFallbackMessage: string }
-): FastError {
-  if (err instanceof FastError) return err;
-  const message = err instanceof Error ? err.message : String(err);
-  const lower = message.toLowerCase();
-
-  if (lower.includes('insufficient')) {
-    return new FastError('INSUFFICIENT_BALANCE', message, { note: opts.insufficientNote });
-  }
-  if (lower.includes('nonce')) {
-    return new FastError('TX_FAILED', `Nonce conflict: ${message}`, { note: opts.txFailedNote });
-  }
-  return new FastError(
-    'TX_FAILED',
-    sanitizeProxyErrorMessage(message, opts.txFailedFallbackMessage),
-    { note: opts.txFailedNote }
-  );
-}
-
-function decodeFastAddressOrThrow(address: string): Uint8Array {
-  try {
-    return addressToPubkey(address);
-  } catch {
-    throw new FastError('INVALID_ADDRESS', `Invalid Fast address: "${address}"`, {
-      note: 'Pass a valid fast1... bech32m address.',
-    });
+  async verify(signature: Uint8Array, message: Uint8Array, publicKey: string): Promise<boolean> {
+    return verifyEd25519(signature, message, publicKey);
   }
 }
 
 /**
+ * Signer that loads the key from a keyfile for each operation
+ */
+class KeyfileSigner implements WalletSigner {
+  constructor(private keyfilePath: string) {}
+
+  async sign(message: Uint8Array): Promise<Uint8Array> {
+    return withKey(this.keyfilePath, async (keypair) => {
+      return signEd25519(message, keypair.privateKey);
+    });
+  }
+
+  async verify(signature: Uint8Array, message: Uint8Array, publicKey: string): Promise<boolean> {
+    return verifyEd25519(signature, message, publicKey);
+  }
+}
+
+// ─── Node FastWallet ──────────────────────────────────────────────────────────
+
+/**
  * FastWallet — Wallet for signing transactions on the Fast network.
+ *
+ * Supports keyfile storage for persistent wallet management.
  *
  * @example
  * ```ts
@@ -128,21 +76,20 @@ function decodeFastAddressOrThrow(address: string): Uint8Array {
  * await wallet.send({ to: 'fast1...', amount: '10', token: 'fastUSDC' });
  * ```
  */
-export class FastWallet {
-  private _provider: FastProvider;
+export class FastWallet extends BaseWallet {
   private _keyfilePath: string;
-  private _address: string;
   private _inMemoryKeypair?: { publicKey: string; privateKey: string };
 
   private constructor(
     provider: FastProvider,
-    keyfilePath: string,
     address: string,
+    publicKey: string,
+    signer: WalletSigner,
+    keyfilePath: string,
     inMemoryKeypair?: { publicKey: string; privateKey: string }
   ) {
-    this._provider = provider;
+    super(provider, address, publicKey, signer);
     this._keyfilePath = keyfilePath;
-    this._address = address;
     this._inMemoryKeypair = inMemoryKeypair;
   }
 
@@ -153,12 +100,7 @@ export class FastWallet {
    * @param provider - FastProvider instance
    */
   static async fromPrivateKey(privateKey: string, provider: FastProvider): Promise<FastWallet> {
-    const cleanKey = stripHexPrefix(privateKey);
-    if (cleanKey.length !== 64) {
-      throw new FastError('INVALID_PARAMS', 'Private key must be 32 bytes (64 hex characters)', {
-        note: 'Provide a valid Ed25519 private key.',
-      });
-    }
+    const cleanKey = validatePrivateKey(privateKey);
 
     // Derive public key and address from private key
     const { getPublicKey } = await import('@noble/ed25519');
@@ -167,8 +109,15 @@ export class FastWallet {
     const publicKey = bytesToHex(pubKeyBytes);
     const address = pubkeyToAddress(publicKey);
 
-    // Create wallet with in-memory keypair
-    return new FastWallet(provider, '', address, { publicKey, privateKey: cleanKey });
+    const keypair = { publicKey, privateKey: cleanKey };
+    return new FastWallet(
+      provider,
+      address,
+      publicKey,
+      new InMemorySigner(cleanKey),
+      '',
+      keypair
+    );
   }
 
   /**
@@ -197,11 +146,11 @@ export class FastWallet {
       }
     }
 
-    let address: string;
+    let publicKey: string;
 
     try {
       const existing = await loadKeyfile(keyfilePath);
-      address = pubkeyToAddress(existing.publicKey);
+      publicKey = existing.publicKey;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       if (!message.includes('ENOENT')) {
@@ -215,10 +164,17 @@ export class FastWallet {
       // Generate new key
       const keypair = await generateEd25519Key();
       await saveKeyfile(keyfilePath, keypair);
-      address = pubkeyToAddress(keypair.publicKey);
+      publicKey = keypair.publicKey;
     }
 
-    return new FastWallet(provider, keyfilePath, address);
+    const address = pubkeyToAddress(publicKey);
+    return new FastWallet(
+      provider,
+      address,
+      publicKey,
+      new KeyfileSigner(keyfilePath),
+      keyfilePath
+    );
   }
 
   /**
@@ -231,245 +187,14 @@ export class FastWallet {
     const keypair = await generateEd25519Key();
     const address = pubkeyToAddress(keypair.publicKey);
 
-    // Create wallet with in-memory keypair
-    return new FastWallet(provider, '', address, keypair);
-  }
-
-  /** The wallet's Fast address */
-  get address(): string {
-    return this._address;
-  }
-
-  /** The provider this wallet is connected to */
-  get provider(): FastProvider {
-    return this._provider;
-  }
-
-  /**
-   * Get balance for this wallet.
-   *
-   * @param token - Token symbol or hex ID (default: 'FAST')
-   */
-  async balance(token: string = 'FAST'): Promise<{ amount: string; token: string }> {
-    return this._provider.getBalance(this._address, token);
-  }
-
-  /**
-   * Get all token balances for this wallet.
-   */
-  async tokens(): Promise<TokenBalance[]> {
-    return this._provider.getTokens(this._address);
-  }
-
-  /**
-   * Send tokens to an address.
-   *
-   * @param params.to - Recipient Fast address
-   * @param params.amount - Amount to send (decimal string)
-   * @param params.token - Token symbol or hex ID (default: 'FAST')
-   */
-  async send(params: { to: string; amount: string; token?: string }): Promise<SendResult> {
-    const tok = params.token ?? DEFAULT_TOKEN;
-    const recipientPubkey = decodeFastAddressOrThrow(params.to);
-
-    // Resolve token ID and decimals
-    let tokenId: Uint8Array;
-    let decimals: number;
-
-    if (isNativeFastToken(tok)) {
-      tokenId = FAST_TOKEN_ID;
-      decimals = FAST_DECIMALS;
-    } else if (HEX_TOKEN_PATTERN.test(tok)) {
-      tokenId = hexToTokenId(tok);
-      const info = await this._provider.getTokenInfo(tok);
-      decimals = info?.decimals ?? FAST_DECIMALS;
-    } else {
-      const known = await this._provider.resolveKnownToken(tok);
-      if (known && known.tokenId !== 'native') {
-        const info = await this._provider.getTokenInfo(known.tokenId);
-        if (!info || info.tokenId === 'native') {
-          throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found on ${this._provider.network}`, {
-            note: 'Use a token symbol configured for the selected network or pass a valid hex token ID.',
-          });
-        }
-        tokenId = hexToTokenId(info.tokenId);
-        decimals = info.decimals;
-      } else {
-        throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found`, {
-          note: 'Use a known token symbol (FAST, fastUSDC) or a hex token ID.',
-        });
-      }
-    }
-
-    // Convert amount to hex
-    const hexAmount = toHex(params.amount, decimals);
-
-    // Build and submit transaction
-    const result = await this.submit({
-      recipient: params.to,
-      claim: {
-        TokenTransfer: {
-          token_id: tokenId,
-          amount: hexAmount,
-          user_data: null,
-        },
-      },
-    });
-
-    const explorerUrl = await this._provider.getExplorerUrl(result.txHash);
-    return {
-      txHash: result.txHash,
-      certificate: result.certificate,
-      explorerUrl,
-    };
-  }
-
-  /**
-   * Sign a message with the wallet's Ed25519 key.
-   *
-   * @param params.message - Message to sign (string or bytes)
-   */
-  async sign(params: { message: string | Uint8Array }): Promise<SignResult> {
-    const messageBytes =
-      typeof params.message === 'string'
-        ? utf8ToBytes(params.message)
-        : params.message;
-
-    let signature: Uint8Array;
-
-    if (this._inMemoryKeypair) {
-      signature = await signEd25519(messageBytes, this._inMemoryKeypair.privateKey);
-    } else {
-      signature = await withKey(this._keyfilePath, async (keypair) => {
-        return signEd25519(messageBytes, keypair.privateKey);
-      });
-    }
-
-    return {
-      signature: bytesToHex(signature),
-      address: this._address,
-      messageBytes: bytesToHex(messageBytes),
-    };
-  }
-
-  /**
-   * Verify an Ed25519 signature against a Fast address.
-   *
-   * @param params.message - Original message
-   * @param params.signature - Hex signature
-   * @param params.address - Fast address that signed
-   */
-  async verify(params: {
-    message: string | Uint8Array;
-    signature: string;
-    address: string;
-  }): Promise<{ valid: boolean }> {
-    const messageBytes =
-      typeof params.message === 'string'
-        ? utf8ToBytes(params.message)
-        : params.message;
-
-    const sigBytes = hexToBytes(params.signature);
-    const pubkey = addressToPubkey(params.address);
-    const pubkeyHex = bytesToHex(pubkey);
-
-    // verifyEd25519 signature order: (signature, message, publicKey)
-    const valid = await verifyEd25519(sigBytes, messageBytes, pubkeyHex);
-    return { valid };
-  }
-
-  /**
-   * Submit a low-level claim to the Fast network.
-   *
-   * @param params.recipient - Recipient Fast address
-   * @param params.claim - Claim object (e.g., { TokenTransfer: { ... } })
-   */
-  async submit(params: { recipient: string; claim: Record<string, unknown> }): Promise<SubmitResult> {
-    const senderPubkey = decodeFastAddressOrThrow(this._address);
-    const recipientPubkey = decodeFastAddressOrThrow(params.recipient);
-
-    // Get nonce
-    const accountInfo = await this._provider.getAccountInfo(this._address);
-    const nonce = (accountInfo as { next_nonce?: number } | null)?.next_nonce ?? 0;
-
-    // Build transaction
-    const transaction = {
-      sender: senderPubkey,
-      recipient: recipientPubkey,
-      nonce,
-      timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
-      claim: params.claim as Parameters<typeof TransactionBcs.serialize>[0]['claim'],
-      archival: false,
-    };
-
-    // Serialize as VersionedTransaction and create signing message
-    const msgHead = new TextEncoder().encode('VersionedTransaction::');
-    const msgBody = serializeVersionedTransaction(transaction);
-    const msg = new Uint8Array(msgHead.length + msgBody.length);
-    msg.set(msgHead, 0);
-    msg.set(msgBody, msgHead.length);
-
-    // Sign
-    let signature: Uint8Array;
-
-    if (this._inMemoryKeypair) {
-      signature = await signEd25519(msg, this._inMemoryKeypair.privateKey);
-    } else {
-      signature = await withKey(this._keyfilePath, async (keypair) => {
-        return signEd25519(msg, keypair.privateKey);
-      });
-    }
-
-    // Hash for txHash
-    const txHash = hashTransaction(transaction);
-
-    // Submit
-    try {
-      const submitResult = await this._provider.submitTransaction({
-        transaction,
-        signature: { Signature: Array.from(signature) },
-      });
-
-      if ('IncompleteVerifierSigs' in submitResult) {
-        throw new FastError('TX_FAILED', 'Transaction submission is incomplete: missing verifier signatures', {
-          note: 'Provide all required verifier signatures before submitting this transaction.',
-        });
-      }
-      if ('IncompleteMultiSig' in submitResult) {
-        throw new FastError('TX_FAILED', 'Transaction submission is incomplete: missing multisig signatures', {
-          note: 'Provide the required multisig signatures before submitting this transaction.',
-        });
-      }
-
-      return {
-        txHash,
-        certificate: submitResult.Success,
-      };
-    } catch (err: unknown) {
-      throw mapSubmissionError(err, {
-        insufficientNote: 'Fund your Fast wallet with FAST or fastUSDC, then retry.',
-        txFailedNote: 'Wait 5 seconds, then retry.',
-        txFailedFallbackMessage: 'Transaction submission failed.',
-      });
-    }
-  }
-
-  /**
-   * Export public key and address (never exposes private key).
-   */
-  async exportKeys(): Promise<ExportedKeys> {
-    if (this._inMemoryKeypair) {
-      return {
-        publicKey: this._inMemoryKeypair.publicKey,
-        address: this._address,
-      };
-    }
-
-    const keypair = await loadKeyfile(this._keyfilePath);
-    return {
-      publicKey: keypair.publicKey,
-      address: this._address,
-    };
+    return new FastWallet(
+      provider,
+      address,
+      keypair.publicKey,
+      new InMemorySigner(keypair.privateKey),
+      '',
+      keypair
+    );
   }
 
   /**

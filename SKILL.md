@@ -157,6 +157,8 @@ For pure protocol work with no provider dependency, use `@fastxyz/sdk/core`.
 
 For Fast-native address codec work in browser-safe code, use `encodeFastAddress(bytes)`, `fastAddressToBytes(address)`, or `decodeFastAddress(address)`.
 
+`@fastxyz/sdk/browser` also keeps the legacy browser address helper names `pubkeyToAddress()`, `addressToPubkey()`, and `normalizeFastAddress()` for compatibility.
+
 ---
 
 ## FastWallet Setup

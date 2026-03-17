@@ -30,9 +30,9 @@ describe('entrypoints', () => {
     assert.equal(typeof browserEntrypoint.encodeFastAddress, 'function');
     assert.equal(typeof browserEntrypoint.fastAddressToBytes, 'function');
     assert.equal(typeof browserEntrypoint.decodeFastAddress, 'function');
-    assert.equal('pubkeyToAddress' in browserEntrypoint, false);
-    assert.equal('addressToPubkey' in browserEntrypoint, false);
-    assert.equal('normalizeFastAddress' in browserEntrypoint, false);
+    assert.equal(typeof browserEntrypoint.pubkeyToAddress, 'function');
+    assert.equal(typeof browserEntrypoint.addressToPubkey, 'function');
+    assert.equal(typeof browserEntrypoint.normalizeFastAddress, 'function');
   });
 
   it('exposes pure helpers from the core entrypoint', () => {

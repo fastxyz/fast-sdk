@@ -98,6 +98,8 @@ If you are building a dapp-facing browser integration layer, keep that in `fast-
 `@fastxyz/sdk/browser` also exports:
 
 - `getCertificateTransaction`, `getCertificateHash`, `getCertificateTokenTransfer`
+- compatibility aliases for existing browser consumers:
+  `pubkeyToAddress`, `addressToPubkey`, `normalizeFastAddress`
 
 `@fastxyz/sdk/core` exports the pure helper set only:
 

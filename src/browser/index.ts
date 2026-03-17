@@ -1,13 +1,28 @@
+import {
+  encodeFastAddress,
+  fastAddressToBytes,
+  decodeFastAddress,
+} from '../core/address.js';
+import { hexToBytes } from '../core/bcs.js';
+
 export { FastProvider } from './provider.js';
 
 export { FastError } from '../core/errors.js';
 export type { FastErrorCode } from '../core/errors.js';
 
-export {
-  encodeFastAddress,
-  fastAddressToBytes,
-  decodeFastAddress,
-} from '../core/address.js';
+export { encodeFastAddress, fastAddressToBytes, decodeFastAddress };
+
+export function pubkeyToAddress(publicKeyHex: string): string {
+  return encodeFastAddress(hexToBytes(publicKeyHex));
+}
+
+export function addressToPubkey(address: string): Uint8Array {
+  return fastAddressToBytes(address);
+}
+
+export function normalizeFastAddress(address: string): string {
+  return decodeFastAddress(address).address;
+}
 
 export {
   FAST_DECIMALS,

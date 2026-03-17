@@ -49,7 +49,6 @@ export type {
   NetworkInfo,
   NetworkType,
   ProviderOptions,
-  WalletKeyfileOptions,
   TokenInfo,
   TokenBalance,
   FastAccountInfo,
@@ -62,7 +61,6 @@ export type {
   SendResult,
   SignResult,
   SubmitResult,
-  ExportedKeys,
 } from './types.js';
 
 export type {

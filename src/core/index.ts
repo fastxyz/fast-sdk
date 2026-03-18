@@ -25,6 +25,7 @@ export {
   tokenIdEquals,
   FAST_TOKEN_ID,
   FAST_DECIMALS,
+  FAST_NETWORK_IDS,
   EXPLORER_BASE,
 } from './bcs.js';
 
@@ -45,6 +46,7 @@ export type { FastErrorCode } from './errors.js';
 
 export type {
   DecodedFastAddress,
+  FastNetworkId,
   KnownFastToken,
   NetworkInfo,
   NetworkType,

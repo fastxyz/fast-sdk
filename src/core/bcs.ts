@@ -11,6 +11,7 @@ import {
   hexToBytes as decodeHexToBytes,
   stripHexPrefix,
 } from './bytes.js';
+import type { FastNetworkId } from './types.js';
 
 // ---------------------------------------------------------------------------
 // BCS Type Definitions
@@ -20,8 +21,16 @@ const AmountBcs = bcs.u256().transform({
   input: (val: string) => BigInt(`0x${val}`).toString(),
 });
 
+export const FAST_NETWORK_IDS = {
+  LOCALNET: 'fast:localnet',
+  DEVNET: 'fast:devnet',
+  TESTNET: 'fast:testnet',
+  MAINNET: 'fast:mainnet',
+} as const satisfies Record<string, FastNetworkId>;
+
 const TokenTransferBcs = bcs.struct('TokenTransfer', {
   token_id: bcs.bytes(32),
+  recipient: bcs.bytes(32),
   amount: AmountBcs,
   user_data: bcs.option(bcs.bytes(32)),
 });
@@ -49,6 +58,7 @@ const TokenManagementBcs = bcs.struct('TokenManagement', {
 
 const MintBcs = bcs.struct('Mint', {
   token_id: bcs.bytes(32),
+  recipient: bcs.bytes(32),
   amount: AmountBcs,
 });
 
@@ -83,30 +93,22 @@ const ClaimTypeBcs = bcs.enum('ClaimType', {
   ChangeCommittee: bcs.struct('ChangeCommittee', { dummy: bcs.u8() }),
   Batch: bcs.vector(
     bcs.enum('Operation', {
-      TokenTransfer: bcs.struct('TokenTransferOperation', {
-        token_id: bcs.bytes(32),
-        recipient: bcs.bytes(32),
-        amount: AmountBcs,
-        user_data: bcs.option(bcs.bytes(32)),
-      }),
+      TokenTransfer: TokenTransferBcs,
       TokenCreation: TokenCreationBcs,
       TokenManagement: TokenManagementBcs,
-      Mint: bcs.struct('MintOperation', {
-        token_id: bcs.bytes(32),
-        recipient: bcs.bytes(32),
-        amount: AmountBcs,
-      }),
+      Mint: MintBcs,
     }),
   ),
 });
 
 export const TransactionBcs = bcs.struct('Transaction', {
+  network_id: bcs.string(),
   sender: bcs.bytes(32),
-  recipient: bcs.bytes(32),
   nonce: bcs.u64(),
   timestamp_nanos: bcs.u128(),
   claim: ClaimTypeBcs,
   archival: bcs.bool(),
+  fee_token: bcs.option(bcs.bytes(32)),
 });
 
 /**
@@ -114,7 +116,7 @@ export const TransactionBcs = bcs.struct('Transaction', {
  * Use for decoding certificates received from the network.
  */
 export const VersionedTransactionBcs = bcs.enum('VersionedTransaction', {
-  Release20260303: TransactionBcs,
+  Release20260319: TransactionBcs,
 });
 
 // ---------------------------------------------------------------------------
@@ -124,23 +126,15 @@ export const VersionedTransactionBcs = bcs.enum('VersionedTransaction', {
 export type FastTransaction = Parameters<typeof TransactionBcs.serialize>[0];
 export type VersionedTransaction = Parameters<typeof VersionedTransactionBcs.serialize>[0];
 
-/** BCS variant index for Release20260303 inside the VersionedTransaction enum */
-const RELEASE_20260303_VARIANT_INDEX = 1;
-
 /**
- * Serialize a transaction as VersionedTransaction::Release20260303.
- * Prepends the BCS enum variant index (ULEB128-encoded 1) before the inner transaction bytes.
+ * Serialize a transaction as VersionedTransaction::Release20260319.
  */
 export function serializeVersionedTransaction(transaction: FastTransaction): Uint8Array {
-  const innerBytes = TransactionBcs.serialize(transaction).toBytes();
-  const versioned = new Uint8Array(1 + innerBytes.length);
-  versioned[0] = RELEASE_20260303_VARIANT_INDEX;
-  versioned.set(innerBytes, 1);
-  return versioned;
+  return VersionedTransactionBcs.serialize({ Release20260319: transaction }).toBytes();
 }
 
 // ---------------------------------------------------------------------------
-// Transaction hashing: keccak256(BCS(VersionedTransaction::Release20260303(tx)))
+// Transaction hashing: keccak256(BCS(VersionedTransaction::Release20260319(tx)))
 // ---------------------------------------------------------------------------
 
 export function hashTransaction(transaction: FastTransaction): string {
@@ -157,19 +151,21 @@ export function hashTransaction(transaction: FastTransaction): string {
  * Decoded transaction details (simplified for verification)
  */
 export interface DecodedTransaction {
+  network_id: FastNetworkId;
   sender: Uint8Array;
-  recipient: Uint8Array;
   nonce: bigint;
   timestamp_nanos: bigint;
   claim: {
     TokenTransfer?: {
       token_id: Uint8Array;
+      recipient: Uint8Array;
       amount: string;
       user_data: Uint8Array | null;
     };
     [key: string]: unknown;
   };
   archival: boolean;
+  fee_token: Uint8Array | null;
 }
 
 /**
@@ -189,7 +185,7 @@ export function hexToBytes(hex: string): Uint8Array {
 /**
  * Decode a Fast transaction envelope.
  *
- * Supports both versioned (Release20260303) and legacy formats.
+ * Supports both versioned Release20260319 bytes and bare current transaction bytes.
  *
  * @param envelope - Hex string, number array, or Uint8Array
  * @returns Decoded transaction details
@@ -209,17 +205,16 @@ export function decodeTransactionEnvelope(
     throw new Error(`Invalid envelope type: ${typeof envelope}`);
   }
 
-  // Try versioned first, fall back to legacy
+  // Try versioned first, then fall back to a bare current transaction encoding.
   let decoded: FastTransaction;
   try {
     const versioned = VersionedTransactionBcs.parse(bytes);
-    if (versioned && typeof versioned === 'object' && 'Release20260303' in versioned) {
-      decoded = (versioned as { Release20260303: FastTransaction }).Release20260303;
+    if (versioned && typeof versioned === 'object' && 'Release20260319' in versioned) {
+      decoded = (versioned as { Release20260319: FastTransaction }).Release20260319;
     } else {
       throw new Error('Unknown versioned format');
     }
   } catch {
-    // Fall back to legacy unversioned format
     decoded = TransactionBcs.parse(bytes);
   }
 
@@ -232,11 +227,13 @@ export function decodeTransactionEnvelope(
     if ('TokenTransfer' in claimObj) {
       const tt = claimObj.TokenTransfer as {
         token_id: Iterable<number>;
+        recipient: Iterable<number>;
         amount: string;
         user_data: Iterable<number> | null;
       };
       claim.TokenTransfer = {
         token_id: new Uint8Array(tt.token_id),
+        recipient: new Uint8Array(tt.recipient),
         amount: tt.amount,
         user_data: tt.user_data ? new Uint8Array(tt.user_data) : null,
       };
@@ -251,12 +248,13 @@ export function decodeTransactionEnvelope(
   }
 
   return {
+    network_id: decoded.network_id as FastNetworkId,
     sender: new Uint8Array(decoded.sender as Iterable<number>),
-    recipient: new Uint8Array(decoded.recipient as Iterable<number>),
     nonce: BigInt(decoded.nonce),
     timestamp_nanos: BigInt(decoded.timestamp_nanos),
     claim,
     archival: decoded.archival,
+    fee_token: decoded.fee_token ? new Uint8Array(decoded.fee_token as Iterable<number>) : null,
   };
 }
 
@@ -281,7 +279,7 @@ export function getTransferDetails(tx: DecodedTransaction): {
 
   return {
     sender: bytesToHex(tx.sender),
-    recipient: bytesToHex(tx.recipient),
+    recipient: bytesToHex(tt.recipient),
     amount,
     tokenId: bytesToHex(tt.token_id),
   };

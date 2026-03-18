@@ -27,6 +27,7 @@ export function normalizeFastAddress(address: string): string {
 export {
   FAST_DECIMALS,
   FAST_TOKEN_ID,
+  FAST_NETWORK_IDS,
   EXPLORER_BASE,
   hexToTokenId,
   tokenIdEquals,
@@ -52,6 +53,7 @@ export {
 
 export type {
   DecodedFastAddress,
+  FastNetworkId,
   KnownFastToken,
   NetworkInfo,
   NetworkType,

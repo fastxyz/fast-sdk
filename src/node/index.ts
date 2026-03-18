@@ -33,10 +33,12 @@ export {
   tokenIdEquals,
   FAST_TOKEN_ID,
   FAST_DECIMALS,
+  FAST_NETWORK_IDS,
 } from '../core/bcs.js';
 
 export type {
   DecodedFastAddress,
+  FastNetworkId,
   KnownFastToken,
   NetworkInfo,
   NetworkType,

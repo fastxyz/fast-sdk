@@ -16,10 +16,12 @@ export const FALLBACK_NETWORKS: Record<NetworkType, NetworkInfo> = {
   testnet: {
     rpc: 'https://testnet.api.fast.xyz/proxy',
     explorer: 'https://explorer.fast.xyz',
+    networkId: 'fast:testnet',
   },
   mainnet: {
     rpc: 'https://api.fast.xyz/proxy',
     explorer: 'https://explorer.fast.xyz',
+    networkId: 'fast:mainnet',
   },
 };
 

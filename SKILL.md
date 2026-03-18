@@ -420,11 +420,11 @@ for (const token of tokens) {
 | `send({ to, amount, token? })` | Send tokens | `{ txHash, certificate, explorerUrl }` |
 | `sign({ message })` | Sign a message | `{ signature, address, messageBytes }` |
 | `verify({ message, signature, address })` | Verify signature | `{ valid }` |
-| `submit({ recipient, claim })` | Low-level claim submission | `{ txHash, certificate }` |
+| `submit({ claim })` | Low-level claim submission | `{ txHash, certificate }` |
 | `exportKeys()` | Export public key + address | `{ publicKey, address }` |
 | `saveToKeyfile(path)` | Save in-memory wallet to disk | `void` |
 
-`submit()` automatically signs and submits the current FastSet `VersionedTransaction::Release20260303` envelope, including the matching BCS transaction hash.
+`submit()` automatically signs and submits the current FastSet `VersionedTransaction::Release20260319` envelope, including the matching BCS transaction hash. Claims that need a recipient, such as `TokenTransfer`, must now include it inside the claim payload. Transactions also require a Fast CAIP-2 `network_id`, so custom network aliases must define `networkId` or pass it explicitly when constructing `FastProvider`.
 
 ## FastWallet Properties
 

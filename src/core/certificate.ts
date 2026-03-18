@@ -9,7 +9,7 @@ import type {
 } from './types.js';
 
 function unwrapTransaction(transaction: FastVersionedTransaction): FastTransaction {
-  return 'Release20260303' in transaction ? transaction.Release20260303 : transaction;
+  return 'Release20260319' in transaction ? transaction.Release20260319 : transaction;
 }
 
 export function getCertificateTransaction(certificate: FastTransactionCertificate): FastTransaction {
@@ -35,7 +35,7 @@ export function getCertificateTokenTransfer(
 
   return {
     sender: encodeFastAddress(new Uint8Array(transaction.sender)),
-    recipient: encodeFastAddress(new Uint8Array(transaction.recipient)),
+    recipient: encodeFastAddress(new Uint8Array(transfer.recipient)),
     tokenId: native ? 'native' : bytesToPrefixedHex(tokenIdBytes),
     amountHex: `0x${transfer.amount}`,
     amount: decimals === undefined ? undefined : fromHex(transfer.amount, decimals),

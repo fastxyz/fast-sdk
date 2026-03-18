@@ -4,11 +4,11 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { FastProvider, FastWallet } from '../src/index.js';
+import { FastProvider, FastWallet, fastAddressToBytes } from '../src/index.js';
 import { FastError } from '../src/core/errors.js';
 import { clearDefaultsCache } from '../src/config/file-loader.js';
 import type { FastTransactionCertificate } from '../src/index.js';
-import { FAST_TOKEN_ID } from '../src/core/bcs.js';
+import { FAST_NETWORK_IDS, FAST_TOKEN_ID } from '../src/core/bcs.js';
 import { bytesToPrefixedHex } from '../src/core/bytes.js';
 
 let tmpDir: string;
@@ -33,19 +33,21 @@ function sampleCertificate(nonce = 7): FastTransactionCertificate {
   return {
     envelope: {
       transaction: {
-        Release20260303: {
+        Release20260319: {
+          network_id: FAST_NETWORK_IDS.TESTNET,
           sender: new Array(32).fill(0),
-          recipient: new Array(32).fill(1),
           nonce,
           timestamp_nanos: 1,
           claim: {
             TokenTransfer: {
               token_id: new Array(32).fill(0),
+              recipient: new Array(32).fill(1),
               amount: '1',
               user_data: null,
             },
           },
           archival: false,
+          fee_token: null,
         },
       },
       signature: { Signature: [] },
@@ -108,12 +110,18 @@ describe('FastProvider', () => {
         const body = JSON.parse(String(init?.body)) as {
           method: string;
           params: {
-            transaction?: { Release20260303?: { nonce?: number } };
+            transaction?: {
+              Release20260319?: {
+                network_id?: string;
+                nonce?: number;
+              };
+            };
             signature?: { Signature?: number[] };
           };
         };
         assert.equal(body.method, 'proxy_submitTransaction');
-        assert.equal(body.params.transaction?.Release20260303?.nonce, 9);
+        assert.equal(body.params.transaction?.Release20260319?.network_id, FAST_NETWORK_IDS.TESTNET);
+        assert.equal(body.params.transaction?.Release20260319?.nonce, 9);
         assert.deepEqual(body.params.signature, { Signature: [7, 7, 7] });
         return rpcResult(certificate);
       };
@@ -121,18 +129,20 @@ describe('FastProvider', () => {
       const provider = new FastProvider();
       const result = await provider.submitTransaction({
         transaction: {
+          network_id: FAST_NETWORK_IDS.TESTNET,
           sender: new Uint8Array(32).fill(2),
-          recipient: new Uint8Array(32).fill(3),
           nonce: 9,
           timestamp_nanos: 10n,
           claim: {
             TokenTransfer: {
               token_id: FAST_TOKEN_ID,
+              recipient: new Uint8Array(32).fill(3),
               amount: '1',
               user_data: null,
             },
           },
           archival: false,
+          fee_token: null,
         },
         signature: { Signature: [7, 7, 7] },
       });
@@ -545,9 +555,11 @@ describe('FastWallet', () => {
           method: string;
           params: {
             transaction?: {
-              Release20260303?: {
+              Release20260319?: {
+                network_id?: string;
                 claim?: {
                   TokenTransfer?: {
+                    recipient?: number[];
                     amount?: string;
                   };
                 };
@@ -570,7 +582,12 @@ describe('FastWallet', () => {
         }
 
         if (body.method === 'proxy_submitTransaction') {
-          assert.equal(body.params.transaction?.Release20260303?.claim?.TokenTransfer?.amount, 'f4240');
+          assert.equal(body.params.transaction?.Release20260319?.network_id, FAST_NETWORK_IDS.TESTNET);
+          assert.deepEqual(
+            body.params.transaction?.Release20260319?.claim?.TokenTransfer?.recipient,
+            Array.from(fastAddressToBytes(VALID_FAST_ADDRESS)),
+          );
+          assert.equal(body.params.transaction?.Release20260319?.claim?.TokenTransfer?.amount, 'f4240');
           return rpcResult({ Success: { certificate: 'ok' } });
         }
 
@@ -599,7 +616,8 @@ describe('FastWallet', () => {
             method: string;
             params: {
               transaction?: {
-                Release20260303?: {
+                Release20260319?: {
+                  network_id?: string;
                   timestamp_nanos?: number;
                 };
               };
@@ -611,11 +629,8 @@ describe('FastWallet', () => {
           }
 
           if (body.method === 'proxy_submitTransaction') {
+            assert.equal(body.params.transaction?.Release20260319?.network_id, FAST_NETWORK_IDS.TESTNET);
             assert.match(rawBody, new RegExp(`"timestamp_nanos":${expectedTimestamp}`));
-            assert.equal(
-              body.params.transaction?.Release20260303?.timestamp_nanos?.toString(),
-              expectedTimestamp,
-            );
             return rpcResult({ Success: { certificate: 'ok' } });
           }
 

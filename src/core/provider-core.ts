@@ -1,4 +1,11 @@
-import { FAST_DECIMALS, FAST_TOKEN_ID, hexToTokenId, tokenIdEquals, type FastTransaction } from './bcs.js';
+import {
+  FAST_DECIMALS,
+  FAST_NETWORK_IDS,
+  FAST_TOKEN_ID,
+  hexToTokenId,
+  tokenIdEquals,
+  type FastTransaction,
+} from './bcs.js';
 import { bytesToPrefixedHex, bytesToHex, stripHexPrefix } from './bytes.js';
 import { fastAddressToBytes } from './address.js';
 import { FastError } from './errors.js';
@@ -9,6 +16,7 @@ import type {
   FastAccountInfo,
   FastSubmitTransactionResult,
   FastNonceRange,
+  FastNetworkId,
   FastTransactionEnvelope,
   FastTokenMetadata,
   FastTransactionCertificate,
@@ -40,17 +48,32 @@ function tokenIdToHex(tokenId: number[] | Uint8Array): string {
 
 function toRpcVersionedTransaction(
   transaction: FastVersionedTransaction,
-): { Release20260303: FastTransaction } {
-  if (transaction && typeof transaction === 'object' && 'Release20260303' in transaction) {
-    return transaction as { Release20260303: FastTransaction };
+): { Release20260319: FastTransaction } {
+  if (transaction && typeof transaction === 'object' && 'Release20260319' in transaction) {
+    return transaction as { Release20260319: FastTransaction };
   }
 
-  return { Release20260303: transaction as FastTransaction };
+  return { Release20260319: transaction as FastTransaction };
 }
 
 function getTransactionNonce(transaction: FastVersionedTransaction): bigint {
-  const inner = 'Release20260303' in transaction ? transaction.Release20260303 : transaction;
+  const inner = 'Release20260319' in transaction ? transaction.Release20260319 : transaction;
   return BigInt(inner.nonce);
+}
+
+function inferFastNetworkId(network: string): FastNetworkId | null {
+  switch (network) {
+    case 'localnet':
+      return FAST_NETWORK_IDS.LOCALNET;
+    case 'devnet':
+      return FAST_NETWORK_IDS.DEVNET;
+    case 'testnet':
+      return FAST_NETWORK_IDS.TESTNET;
+    case 'mainnet':
+      return FAST_NETWORK_IDS.MAINNET;
+    default:
+      return null;
+  }
 }
 
 function isTransactionCertificate(value: unknown): value is FastTransactionCertificate {
@@ -66,6 +89,7 @@ export class BaseFastProvider {
   private _rpcUrl: string;
   private _network: NetworkType;
   private _explorerUrl: string | null = null;
+  private _networkId: FastNetworkId | null;
   private _explicitExplorerUrl = false;
   private _initialized = false;
   private _configSource: ConfigSource;
@@ -74,6 +98,7 @@ export class BaseFastProvider {
     this._configSource = configSource;
     this._network = opts?.network ?? 'testnet';
     this._rpcUrl = opts?.rpcUrl ?? 'https://staging.proxy.fastset.xyz';
+    this._networkId = opts?.networkId ?? inferFastNetworkId(this._network);
 
     if (opts?.explorerUrl !== undefined) {
       this._explorerUrl = opts.explorerUrl;
@@ -90,6 +115,9 @@ export class BaseFastProvider {
     if (this._initialized) return;
 
     const networkInfo = await this._configSource.getNetworkInfo(this._network);
+    if (!this._networkId) {
+      this._networkId = networkInfo?.networkId ?? inferFastNetworkId(this._network);
+    }
     if (networkInfo?.rpc) {
       this._rpcUrl = networkInfo.rpc;
     }
@@ -107,6 +135,20 @@ export class BaseFastProvider {
     return this._network;
   }
 
+  async getNetworkId(): Promise<FastNetworkId> {
+    await this.init();
+    if (!this._networkId) {
+      throw new FastError(
+        'INVALID_PARAMS',
+        `Cannot infer Fast network id for network "${this._network}".`,
+        {
+          note: 'Pass ProviderOptions.networkId or configure networkId for this network alias in ~/.fast/networks.json.',
+        },
+      );
+    }
+    return this._networkId;
+  }
+
   async getExplorerUrl(txHash?: string): Promise<string | null> {
     await this.init();
     if (!this._explorerUrl) return null;
@@ -121,7 +163,7 @@ export class BaseFastProvider {
     return this._configSource.getAllTokens(this._network);
   }
 
-  async getKnownNetworks(): Promise<Record<string, { rpc: string; explorer?: string }>> {
+  async getKnownNetworks(): Promise<Record<string, { rpc: string; explorer?: string; networkId?: FastNetworkId }>> {
     return this._configSource.getAllNetworks();
   }
 

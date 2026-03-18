@@ -7,10 +7,16 @@ import type { FastTransaction } from './bcs.js';
 /** Network names. Built-in networks are `testnet` and `mainnet`, but custom names are allowed. */
 type BuiltinNetworkType = 'testnet' | 'mainnet';
 export type NetworkType = BuiltinNetworkType | (string & {});
+export type FastNetworkId =
+  | 'fast:localnet'
+  | 'fast:devnet'
+  | 'fast:testnet'
+  | 'fast:mainnet';
 
 export interface NetworkInfo {
   rpc: string;
   explorer?: string;
+  networkId?: FastNetworkId;
 }
 
 export interface KnownFastToken {
@@ -32,6 +38,8 @@ export interface DecodedFastAddress {
 export interface ProviderOptions {
   /** Network to connect to (default: 'testnet'). Can be a custom name from ~/.fast/networks.json. */
   network?: NetworkType;
+  /** Explicit CAIP-2 Fast network id to sign transactions against. */
+  networkId?: FastNetworkId;
   /** Custom RPC URL (overrides network default) */
   rpcUrl?: string;
   /** Custom explorer URL (overrides network default) */
@@ -77,7 +85,7 @@ export interface FastTokenMetadata {
 
 export type FastVersionedTransaction =
   | FastTransaction
-  | { Release20260303: FastTransaction };
+  | { Release20260319: FastTransaction };
 
 export interface FastMultiSigConfig {
   authorized_signers: number[][];

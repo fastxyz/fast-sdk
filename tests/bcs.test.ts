@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   FAST_DECIMALS,
+  FAST_NETWORK_IDS,
   FAST_TOKEN_ID,
   EXPLORER_BASE,
   tokenIdEquals,
@@ -10,11 +11,14 @@ import {
   hashTransaction,
   serializeVersionedTransaction,
   TransactionBcs,
+  VersionedTransactionBcs,
   type FastTransaction,
 } from '../src/core/bcs.js';
 
 describe('bcs', () => {
-  const CLAIM_VARIANT_OFFSET = 88;
+  const NETWORK_ID = FAST_NETWORK_IDS.TESTNET;
+  const CLAIM_VARIANT_OFFSET =
+    1 + new TextEncoder().encode(NETWORK_ID).length + 32 + 8 + 16;
 
   describe('constants', () => {
     it('FAST_DECIMALS should equal 18', () => {
@@ -113,18 +117,20 @@ describe('bcs', () => {
 
   describe('hashTransaction', () => {
     const tx: FastTransaction = {
+      network_id: NETWORK_ID,
       sender: new Uint8Array(32),
-      recipient: new Uint8Array(32),
       nonce: 0,
       timestamp_nanos: 0n,
       claim: {
         TokenTransfer: {
           token_id: FAST_TOKEN_ID,
+          recipient: new Uint8Array(32),
           amount: 'de0b6b3a7640000',
           user_data: null,
         },
       },
       archival: false,
+      fee_token: null,
     };
 
     it('result should start with 0x', () => {
@@ -147,23 +153,43 @@ describe('bcs', () => {
 
   describe('serializeVersionedTransaction', () => {
     const tx: FastTransaction = {
+      network_id: NETWORK_ID,
       sender: new Uint8Array(32),
-      recipient: new Uint8Array(32),
       nonce: 0,
       timestamp_nanos: 0n,
       claim: {
         TokenTransfer: {
           token_id: FAST_TOKEN_ID,
+          recipient: new Uint8Array(32),
           amount: 'de0b6b3a7640000',
           user_data: null,
         },
       },
       archival: false,
+      fee_token: null,
     };
 
-    it('should prepend Release20260303 variant index byte 0x01', () => {
+    it('encodes the Release20260319 versioned envelope', () => {
       const bytes = serializeVersionedTransaction(tx);
-      assert.equal(bytes[0], 1, 'First byte should be Release20260303 variant index (1)');
+      const parsed = VersionedTransactionBcs.parse(bytes) as {
+        Release20260319: {
+          network_id: string;
+          nonce: string;
+          timestamp_nanos: string;
+          claim: {
+            TokenTransfer: {
+              amount: string;
+            };
+          };
+        };
+      };
+      assert.equal(parsed.Release20260319.network_id, NETWORK_ID);
+      assert.equal(parsed.Release20260319.nonce, '0');
+      assert.equal(parsed.Release20260319.timestamp_nanos, '0');
+      assert.equal(
+        parsed.Release20260319.claim.TokenTransfer.amount,
+        '1000000000000000000',
+      );
     });
 
     it('result length should be 1 + inner BCS length', () => {
@@ -181,8 +207,8 @@ describe('bcs', () => {
   describe('claim variant ordering', () => {
     it('serializes Burn at claim variant index 4', () => {
       const tx: FastTransaction = {
+        network_id: NETWORK_ID,
         sender: new Uint8Array(32),
-        recipient: new Uint8Array(32),
         nonce: 0,
         timestamp_nanos: 0n,
         claim: {
@@ -192,6 +218,7 @@ describe('bcs', () => {
           },
         },
         archival: false,
+        fee_token: null,
       };
 
       const bytes = TransactionBcs.serialize(tx).toBytes();
@@ -200,8 +227,8 @@ describe('bcs', () => {
 
     it('serializes ExternalClaim at claim variant index 7', () => {
       const tx: FastTransaction = {
+        network_id: NETWORK_ID,
         sender: new Uint8Array(32),
-        recipient: new Uint8Array(32),
         nonce: 0,
         timestamp_nanos: 0n,
         claim: {
@@ -215,6 +242,7 @@ describe('bcs', () => {
           },
         },
         archival: false,
+        fee_token: null,
       };
 
       const bytes = TransactionBcs.serialize(tx).toBytes();

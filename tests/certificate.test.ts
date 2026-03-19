@@ -10,29 +10,32 @@ import {
   type FastTransaction,
   type FastTransactionCertificate,
 } from '../src/browser.js';
+import { FAST_NETWORK_IDS } from '../src/core/bcs.js';
 
 const SENDER = new Uint8Array(32).fill(1);
 const RECIPIENT = new Uint8Array(32).fill(2);
 
 function createTransferCertificate(): FastTransactionCertificate {
   const transaction: FastTransaction = {
+    network_id: FAST_NETWORK_IDS.TESTNET,
     sender: SENDER,
-    recipient: RECIPIENT,
     nonce: 7,
     timestamp_nanos: 123n,
     claim: {
       TokenTransfer: {
         token_id: FAST_TOKEN_ID,
+        recipient: RECIPIENT,
         amount: 'de0b6b3a7640000',
         user_data: null,
       },
     },
     archival: false,
+    fee_token: null,
   };
 
   return {
     envelope: {
-      transaction: { Release20260303: transaction },
+      transaction: { Release20260319: transaction },
       signature: { Signature: Array.from(new Uint8Array(64).fill(9)) },
     },
     signatures: [],

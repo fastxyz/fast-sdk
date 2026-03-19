@@ -125,7 +125,7 @@ function decodeFastAddressOrThrow(address: string): Uint8Array {
  * ```ts
  * const provider = new FastProvider({ network: 'testnet' });
  * const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
- * await wallet.send({ to: 'fast1...', amount: '10', token: 'fastUSDC' });
+ * await wallet.send({ to: 'fast1...', amount: '10', token: 'testUSDC' });
  * ```
  */
 export class FastWallet {
@@ -296,7 +296,7 @@ export class FastWallet {
         decimals = info.decimals;
       } else {
         throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found`, {
-          note: 'Use a known token symbol (FAST, fastUSDC) or a hex token ID.',
+          note: 'Use a token symbol configured for the selected network or pass a valid hex token ID.',
         });
       }
     }
@@ -306,10 +306,10 @@ export class FastWallet {
 
     // Build and submit transaction
     const result = await this.submit({
-      recipient: params.to,
       claim: {
         TokenTransfer: {
           token_id: tokenId,
+          recipient: recipientPubkey,
           amount: hexAmount,
           user_data: null,
         },
@@ -381,12 +381,12 @@ export class FastWallet {
   /**
    * Submit a low-level claim to the Fast network.
    *
-   * @param params.recipient - Recipient Fast address
-   * @param params.claim - Claim object (e.g., { TokenTransfer: { ... } })
+   * Claims that require a recipient must include it inside the claim payload
+   * (for example `TokenTransfer.recipient`).
    */
-  async submit(params: { recipient: string; claim: Record<string, unknown> }): Promise<SubmitResult> {
+  async submit(params: { claim: Record<string, unknown> }): Promise<SubmitResult> {
     const senderPubkey = decodeFastAddressOrThrow(this._address);
-    const recipientPubkey = decodeFastAddressOrThrow(params.recipient);
+    const networkId = await this._provider.getNetworkId();
 
     // Get nonce
     const accountInfo = await this._provider.getAccountInfo(this._address);
@@ -394,12 +394,13 @@ export class FastWallet {
 
     // Build transaction
     const transaction = {
+      network_id: networkId,
       sender: senderPubkey,
-      recipient: recipientPubkey,
       nonce,
       timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
       claim: params.claim as Parameters<typeof TransactionBcs.serialize>[0]['claim'],
       archival: false,
+      fee_token: null,
     };
 
     // Serialize as VersionedTransaction and create signing message
@@ -447,7 +448,7 @@ export class FastWallet {
       };
     } catch (err: unknown) {
       throw mapSubmissionError(err, {
-        insufficientNote: 'Fund your Fast wallet with FAST or fastUSDC, then retry.',
+        insufficientNote: 'Fund your Fast wallet with FAST or the token you are sending, then retry.',
         txFailedNote: 'Wait 5 seconds, then retry.',
         txFailedFallbackMessage: 'Transaction submission failed.',
       });

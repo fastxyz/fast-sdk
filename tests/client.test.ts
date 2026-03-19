@@ -16,8 +16,8 @@ let originalConfigDir: string | undefined;
 const originalFetch = globalThis.fetch;
 const VALID_FAST_ADDRESS = 'fast1424242424242424242424242424242424242424242424242424qlc29x9';
 const NATIVE_FAST_TOKEN_ID = bytesToPrefixedHex(FAST_TOKEN_ID);
-// testUSDC token ID on staging
-const FAST_USDC_TOKEN_ID = [156, 82, 254, 148, 101, 245, 123, 197, 38, 193, 26, 160, 192, 72, 253, 135, 9, 170, 70, 171, 192, 109, 21, 200, 12, 190, 217, 38, 61, 77, 77, 248] as const;
+// testUSDC token ID on fast:testnet
+const TEST_USDC_TOKEN_ID = [215, 58, 6, 121, 162, 190, 70, 152, 30, 42, 138, 237, 236, 217, 81, 200, 182, 105, 14, 125, 95, 133, 2, 179, 78, 211, 255, 76, 194, 22, 59, 70] as const;
 
 function rpcResult(result: unknown): Response {
   return new Response(
@@ -158,7 +158,7 @@ describe('FastProvider', () => {
         };
         assert.equal(body.method, 'proxy_faucetDrip');
         assert.equal(body.params.amount, 'f4240');
-        assert.deepEqual(body.params.token_id, [...FAST_USDC_TOKEN_ID]);
+        assert.deepEqual(body.params.token_id, [...TEST_USDC_TOKEN_ID]);
         return rpcResult(null);
       };
 
@@ -212,10 +212,10 @@ describe('FastProvider', () => {
     it('returns testUSDC balance by symbol', async () => {
       globalThis.fetch = async () => rpcResult({
         balance: '0x0',
-        token_balance: [
-          [FAST_USDC_TOKEN_ID, '0xf4240'], // 1.0 USDC (1_000_000 with 6 decimals)
-        ],
-      });
+          token_balance: [
+            [TEST_USDC_TOKEN_ID, '0xf4240'], // 1.0 USDC (1_000_000 with 6 decimals)
+          ],
+        });
 
       const provider = new FastProvider();
       const balance = await provider.getBalance(
@@ -241,7 +241,7 @@ describe('FastProvider', () => {
     it('uses live token decimals for symbol balances when config is stale', async () => {
       await fs.writeFile(
         path.join(tmpDir, 'tokens.json'),
-        JSON.stringify({ testnet: { TESTUSDC: { symbol: 'testUSDC', tokenId: '0x9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8', decimals: 18 } } })
+        JSON.stringify({ testnet: { TESTUSDC: { symbol: 'testUSDC', tokenId: '0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46', decimals: 18 } } })
       );
       clearDefaultsCache();
 
@@ -250,13 +250,13 @@ describe('FastProvider', () => {
         if (body.method === 'proxy_getAccountInfo') {
           return rpcResult({
             balance: '0x0',
-            token_balance: [[FAST_USDC_TOKEN_ID, '0xf4240']],
+            token_balance: [[TEST_USDC_TOKEN_ID, '0xf4240']],
           });
         }
         if (body.method === 'proxy_getTokenInfo') {
           return rpcResult({
             requested_token_metadata: [
-              [FAST_USDC_TOKEN_ID, { token_name: 'testUSDC', decimals: 6 }],
+              [TEST_USDC_TOKEN_ID, { token_name: 'testUSDC', decimals: 6 }],
             ],
           });
         }
@@ -279,14 +279,14 @@ describe('FastProvider', () => {
           return rpcResult({
             balance: '0xde0b6b3a7640000', // 1 FAST
             token_balance: [
-              [FAST_USDC_TOKEN_ID, '0xf4240'], // 1.0 USDC
+              [TEST_USDC_TOKEN_ID, '0xf4240'], // 1.0 USDC
             ],
           });
         }
         // Token info
         return rpcResult({
           requested_token_metadata: [
-            [FAST_USDC_TOKEN_ID, { token_name: 'testUSDC', decimals: 6 }],
+            [TEST_USDC_TOKEN_ID, { token_name: 'testUSDC', decimals: 6 }],
           ],
         });
       };
@@ -348,7 +348,7 @@ describe('FastProvider', () => {
         return rpcResult({
           requested_token_metadata: [
             [
-              FAST_USDC_TOKEN_ID,
+              TEST_USDC_TOKEN_ID,
               {
                 token_name: 'testUSDC',
                 decimals: 6,
@@ -362,7 +362,7 @@ describe('FastProvider', () => {
       };
 
       const provider = new FastProvider();
-      const info = await provider.getTokenInfo('0x9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8');
+      const info = await provider.getTokenInfo('0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46');
       assert.ok(info);
       assert.equal(info.admin, '0x01020304');
       assert.deepEqual(info.minters, ['0x05060708', '0x090a0b0c']);
@@ -555,7 +555,7 @@ describe('FastWallet', () => {
     it('uses live token decimals for symbol sends when config is stale', async () => {
       await fs.writeFile(
         path.join(tmpDir, 'tokens.json'),
-        JSON.stringify({ testnet: { TESTUSDC: { symbol: 'testUSDC', tokenId: '0x9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8', decimals: 18 } } })
+        JSON.stringify({ testnet: { TESTUSDC: { symbol: 'testUSDC', tokenId: '0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46', decimals: 18 } } })
       );
       clearDefaultsCache();
 
@@ -585,7 +585,7 @@ describe('FastWallet', () => {
           sawTokenInfo = true;
           return rpcResult({
             requested_token_metadata: [
-              [FAST_USDC_TOKEN_ID, { token_name: 'testUSDC', decimals: 6 }],
+              [TEST_USDC_TOKEN_ID, { token_name: 'testUSDC', decimals: 6 }],
             ],
           });
         }

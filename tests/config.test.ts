@@ -114,6 +114,7 @@ describe('defaults', () => {
       const usdc = await resolveKnownFastToken('testUSDC');
       assert.ok(usdc);
       assert.equal(usdc.symbol, 'testUSDC');
+      assert.equal(usdc.tokenId, '0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46');
       assert.equal(usdc.decimals, 6);
       assert.ok(usdc.tokenId.startsWith('0x'));
 

@@ -144,6 +144,13 @@ Browser entrypoint config precedence:
 2. bundled defaults
 3. hardcoded fallbacks
 
+Token symbols are network-specific. Bundled defaults currently resolve:
+
+- `testnet`: `FAST`, `testUSDC`
+- `mainnet`: `FAST`, `fastUSDC`
+
+If you use `~/.fast/tokens.json`, keep it keyed by network name so the same symbol cannot silently point at different token IDs on different networks.
+
 ## API Notes
 
 - `wallet.send()` returns `{ txHash, certificate, explorerUrl }` on the Node `FastWallet`

@@ -125,7 +125,7 @@ function decodeFastAddressOrThrow(address: string): Uint8Array {
  * ```ts
  * const provider = new FastProvider({ network: 'testnet' });
  * const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
- * await wallet.send({ to: 'fast1...', amount: '10', token: 'fastUSDC' });
+ * await wallet.send({ to: 'fast1...', amount: '10', token: 'testUSDC' });
  * ```
  */
 export class FastWallet {
@@ -296,7 +296,7 @@ export class FastWallet {
         decimals = info.decimals;
       } else {
         throw new FastError('TOKEN_NOT_FOUND', `Token "${tok}" not found`, {
-          note: 'Use a known token symbol (FAST, fastUSDC) or a hex token ID.',
+          note: 'Use a token symbol configured for the selected network or pass a valid hex token ID.',
         });
       }
     }
@@ -448,7 +448,7 @@ export class FastWallet {
       };
     } catch (err: unknown) {
       throw mapSubmissionError(err, {
-        insufficientNote: 'Fund your Fast wallet with FAST or fastUSDC, then retry.',
+        insufficientNote: 'Fund your Fast wallet with FAST or the token you are sending, then retry.',
         txFailedNote: 'Wait 5 seconds, then retry.',
         txFailedFallbackMessage: 'Transaction submission failed.',
       });

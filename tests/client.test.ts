@@ -318,6 +318,19 @@ describe('FastProvider', () => {
       assert.equal(info.decimals, 18);
     });
 
+    it('does not resolve token symbols from another network', async () => {
+      let rpcCalled = false;
+      globalThis.fetch = async () => {
+        rpcCalled = true;
+        throw new Error('RPC should not be called for symbols missing from the selected network');
+      };
+
+      const provider = new FastProvider({ network: 'testnet' });
+      const info = await provider.getTokenInfo('fastUSDC');
+      assert.equal(info, null);
+      assert.equal(rpcCalled, false);
+    });
+
     it('returns null for unknown token', async () => {
       globalThis.fetch = async () => rpcResult({
         requested_token_metadata: [],
@@ -598,6 +611,28 @@ describe('FastWallet', () => {
       assert.ok(sawTokenInfo);
       assert.ok(tx.txHash);
       assert.deepEqual(tx.certificate, { certificate: 'ok' } as unknown as FastTransactionCertificate);
+    });
+
+    it('rejects token symbols that are not configured for the selected network', async () => {
+      let rpcCalled = false;
+      globalThis.fetch = async () => {
+        rpcCalled = true;
+        throw new Error('RPC should not be called for symbols missing from the selected network');
+      };
+
+      const provider = new FastProvider({ network: 'testnet' });
+      const wallet = await FastWallet.generate(provider);
+
+      await assert.rejects(
+        () => wallet.send({ to: VALID_FAST_ADDRESS, amount: '1', token: 'fastUSDC' }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TOKEN_NOT_FOUND');
+          return true;
+        },
+      );
+
+      assert.equal(rpcCalled, false);
     });
 
     it('serializes timestamp_nanos with the exact digits sent for signing', async () => {

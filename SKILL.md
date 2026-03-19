@@ -281,7 +281,7 @@ const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provide
 const result = await wallet.send({
   to: 'fast1recipient...',
   amount: '10.5',
-  token: 'fastUSDC'
+  token: 'testUSDC'
 });
 
 console.log('TX Hash:', result.txHash);
@@ -304,13 +304,18 @@ The SDK checks the `token` value in this order:
 **Option A: Use token symbol** (convenient for known tokens)
 
 ```ts
-await wallet.send({ to, amount: '10', token: 'fastUSDC' });
+await wallet.send({ to, amount: '10', token: 'testUSDC' });
 ```
+
+Token symbols are resolved for the selected network only. Bundled defaults are:
+
+- `testnet`: `FAST`, `testUSDC`
+- `mainnet`: `FAST`, `fastUSDC`
 
 Symbols are resolved from tokens.json in this priority:
 ```
 1. ~/.fast/tokens.json          ← User overrides (highest priority)
-2. src/data/tokens.json         ← Bundled defaults (ships with package)
+2. src/config/data/tokens.json  ← Bundled defaults (ships with package)
 3. Hardcoded fallbacks          ← Last resort
 ```
 
@@ -320,7 +325,7 @@ Symbols are resolved from tokens.json in this priority:
 await wallet.send({ 
   to, 
   amount: '10', 
-  token: '0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5' 
+  token: '0x9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8' 
 });
 ```
 
@@ -329,18 +334,32 @@ When using hex token ID:
 - SDK queries the network for token decimals via RPC
 - Works for any token deployed on the Fast network
 
-**Bundled defaults** (`src/data/tokens.json`):
+**Bundled defaults** (`src/config/data/tokens.json`):
 ```json
 {
-  "FAST": {
-    "symbol": "FAST",
-    "tokenId": "native",
-    "decimals": 9
+  "testnet": {
+    "FAST": {
+      "symbol": "FAST",
+      "tokenId": "native",
+      "decimals": 18
+    },
+    "testUSDC": {
+      "symbol": "testUSDC",
+      "tokenId": "0x9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8",
+      "decimals": 6
+    }
   },
-  "fastUSDC": {
-    "symbol": "fastUSDC",
-    "tokenId": "0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5",
-    "decimals": 6
+  "mainnet": {
+    "FAST": {
+      "symbol": "FAST",
+      "tokenId": "native",
+      "decimals": 18
+    },
+    "fastUSDC": {
+      "symbol": "fastUSDC",
+      "tokenId": "0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5",
+      "decimals": 6
+    }
   }
 }
 ```
@@ -348,10 +367,12 @@ When using hex token ID:
 **To add custom token symbols**, create `~/.fast/tokens.json`:
 ```json
 {
-  "MYTOKEN": {
-    "symbol": "MYTOKEN",
-    "tokenId": "0x1234567890abcdef...",
-    "decimals": 18
+  "testnet": {
+    "MYTOKEN": {
+      "symbol": "MYTOKEN",
+      "tokenId": "0x1234567890abcdef...",
+      "decimals": 18
+    }
   }
 }
 ```
@@ -510,10 +531,12 @@ Use these with `new FastProvider({ network: 'devnet' })` or any other key you de
 
 ```json
 {
-  "MYTOKEN": {
-    "symbol": "MYTOKEN",
-    "tokenId": "0x1234567890abcdef...",
-    "decimals": 18
+  "testnet": {
+    "MYTOKEN": {
+      "symbol": "MYTOKEN",
+      "tokenId": "0x1234567890abcdef...",
+      "decimals": 18
+    }
   }
 }
 ```

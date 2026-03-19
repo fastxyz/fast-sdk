@@ -325,7 +325,7 @@ Symbols are resolved from tokens.json in this priority:
 await wallet.send({ 
   to, 
   amount: '10', 
-  token: '0x9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8' 
+  token: '0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46' 
 });
 ```
 
@@ -345,7 +345,7 @@ When using hex token ID:
     },
     "testUSDC": {
       "symbol": "testUSDC",
-      "tokenId": "0x9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8",
+      "tokenId": "0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46",
       "decimals": 6
     }
   },

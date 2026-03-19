@@ -166,9 +166,12 @@ If you use `~/.fast/tokens.json`, keep it keyed by network name so the same symb
 npm install
 npm run build
 npm test
+npm run live:smoke -- --live
 npm run pack:dry-run
 npm run pack:smoke
 ```
+
+`live:smoke` performs real writes against the configured Fast network. It creates a disposable token, transfers its full initial supply to a second disposable wallet, and verifies balances plus certificates. The script refuses to run unless you pass `--live` or set `FAST_LIVE_SMOKE=1`.
 
 ## Releasing
 

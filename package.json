@@ -32,6 +32,7 @@
     "build": "npm run clean && tsc",
     "clean": "rm -rf dist",
     "test": "node --import tsx --test tests/*.test.ts",
+    "live:smoke": "node --import tsx ./scripts/live-smoke.ts",
     "pack:dry-run": "node ./scripts/pack-dry-run.mjs",
     "pack:smoke": "node ./scripts/pack-smoke.mjs",
     "release:verify-tag": "node ./scripts/verify-tag-version.mjs",

@@ -97,7 +97,7 @@ export class BaseFastProvider {
   constructor(opts: ProviderOptions | undefined, configSource: ConfigSource) {
     this._configSource = configSource;
     this._network = opts?.network ?? 'testnet';
-    this._rpcUrl = opts?.rpcUrl ?? 'https://staging.proxy.fastset.xyz';
+    this._rpcUrl = opts?.rpcUrl ?? 'https://testnet.api.fast.xyz/proxy';
     this._networkId = opts?.networkId ?? inferFastNetworkId(this._network);
 
     if (opts?.explorerUrl !== undefined) {

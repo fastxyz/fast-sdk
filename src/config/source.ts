@@ -15,7 +15,7 @@ export interface ConfigSource {
 export const FALLBACK_NETWORKS: Record<NetworkType, NetworkInfo> = {
   testnet: {
     rpc: 'https://testnet.api.fast.xyz/proxy',
-    explorer: 'https://explorer.fast.xyz',
+    explorer: 'https://testnet.explorer.fast.xyz',
     networkId: 'fast:testnet',
   },
   mainnet: {

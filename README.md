@@ -95,6 +95,13 @@ If you are building a dapp-facing browser integration layer, keep that in `fast-
 - `FAST_TOKEN_ID`, `FAST_DECIMALS`
 - `hashTransaction`, `serializeVersionedTransaction`
 
+`@fastxyz/sdk` and `@fastxyz/sdk/browser` also export network-aware config helpers:
+
+- `getNetworkInfo`, `getAllNetworks`
+- `getDefaultRpcUrl`, `getExplorerUrl`
+
+Use `getExplorerUrl(network)` for a base explorer URL and `provider.getExplorerUrl(txHash)` for a transaction URL. Explorer hosts are network-specific and can be overridden by config, so avoid hardcoded explorer constants.
+
 `@fastxyz/sdk/browser` also exports:
 
 - `getCertificateTransaction`, `getCertificateHash`, `getCertificateTokenTransfer`
@@ -159,6 +166,7 @@ If you use `~/.fast/tokens.json`, keep it keyed by network name so the same symb
 - `provider.faucetDrip({ recipient, amount, token? })` exposes raw `proxy_faucetDrip`
 - `provider.getTransactionCertificates(address, fromNonce, limit)` exposes raw `proxy_getTransactionCertificates`
 - `provider.getCertificateByNonce(address, nonce)` fetches a certificate directly from RPC
+- `provider.getExplorerUrl(txHash?)` returns the configured explorer URL for the provider network
 
 ## Development
 

@@ -171,9 +171,14 @@ describe('defaults', () => {
   });
 
   describe('getExplorerUrl', () => {
-    it('returns explorer URL', async () => {
+    it('returns the testnet explorer URL by default', async () => {
       const url = await getExplorerUrl();
-      assert.ok(url.includes('fast.xyz') || url.includes('explorer'));
+      assert.equal(url, 'https://testnet.explorer.fast.xyz');
+    });
+
+    it('returns the mainnet explorer URL when specified', async () => {
+      const url = await getExplorerUrl('mainnet');
+      assert.equal(url, 'https://explorer.fast.xyz');
     });
   });
 

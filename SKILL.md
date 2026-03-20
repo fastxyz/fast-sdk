@@ -92,6 +92,8 @@ The SDK loads network configuration from JSON files in this priority order:
 
 If you need to override these, create `~/.fast/networks.json` with your values — they will take precedence.
 
+For explorer links, use `getExplorerUrl(network)` to read the configured base URL or `provider.getExplorerUrl(txHash)` to build a transaction URL. Do not hardcode explorer hosts in app code because they are network-specific and may be overridden.
+
 ### Option 3: Custom RPC URL
 
 ```ts
@@ -158,6 +160,8 @@ For pure protocol work with no provider dependency, use `@fastxyz/sdk/core`.
 For Fast-native address codec work in browser-safe code, use `encodeFastAddress(bytes)`, `fastAddressToBytes(address)`, or `decodeFastAddress(address)`.
 
 `@fastxyz/sdk/browser` also keeps the legacy browser address helper names `pubkeyToAddress()`, `addressToPubkey()`, and `normalizeFastAddress()` for compatibility.
+
+`@fastxyz/sdk` and `@fastxyz/sdk/browser` both export `getExplorerUrl(network)` and `getDefaultRpcUrl(network)` from the config layer.
 
 ---
 

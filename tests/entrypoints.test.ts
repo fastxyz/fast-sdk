@@ -10,6 +10,7 @@ describe('entrypoints', () => {
     assert.equal(typeof rootEntrypoint.FastProvider, 'function');
     assert.equal(typeof rootEntrypoint.FastWallet, 'function');
     assert.equal(typeof rootEntrypoint.FastError, 'function');
+    assert.equal(typeof rootEntrypoint.getExplorerUrl, 'function');
     assert.equal('FastBrowserWallet' in rootEntrypoint, false);
     assert.ok(rootEntrypoint.FAST_TOKEN_ID instanceof Uint8Array);
     assert.equal(typeof rootEntrypoint.hashTransaction, 'function');
@@ -20,10 +21,12 @@ describe('entrypoints', () => {
     assert.equal('addressToPubkey' in rootEntrypoint, false);
     assert.equal('normalizeFastAddress' in rootEntrypoint, false);
     assert.equal('getCertificateHash' in rootEntrypoint, false);
+    assert.equal('EXPLORER_BASE' in rootEntrypoint, false);
   });
 
   it('exposes browser-safe values and the canonical codec helpers from the browser entrypoint', () => {
     assert.equal(typeof browserEntrypoint.FastProvider, 'function');
+    assert.equal(typeof browserEntrypoint.getExplorerUrl, 'function');
     assert.equal('FastBrowserWallet' in browserEntrypoint, false);
     assert.ok(browserEntrypoint.FAST_TOKEN_ID instanceof Uint8Array);
     assert.equal(typeof browserEntrypoint.getCertificateHash, 'function');
@@ -33,6 +36,7 @@ describe('entrypoints', () => {
     assert.equal(typeof browserEntrypoint.pubkeyToAddress, 'function');
     assert.equal(typeof browserEntrypoint.addressToPubkey, 'function');
     assert.equal(typeof browserEntrypoint.normalizeFastAddress, 'function');
+    assert.equal('EXPLORER_BASE' in browserEntrypoint, false);
   });
 
   it('exposes pure helpers from the core entrypoint', () => {
@@ -43,5 +47,6 @@ describe('entrypoints', () => {
     assert.equal(typeof coreEntrypoint.toHex, 'function');
     assert.equal('FastProvider' in coreEntrypoint, false);
     assert.equal('FastWallet' in coreEntrypoint, false);
+    assert.equal('EXPLORER_BASE' in coreEntrypoint, false);
   });
 });

@@ -28,7 +28,6 @@ export {
   FAST_DECIMALS,
   FAST_TOKEN_ID,
   FAST_NETWORK_IDS,
-  EXPLORER_BASE,
   hexToTokenId,
   tokenIdEquals,
   hashTransaction,

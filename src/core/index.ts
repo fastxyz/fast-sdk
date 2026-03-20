@@ -26,7 +26,6 @@ export {
   FAST_TOKEN_ID,
   FAST_DECIMALS,
   FAST_NETWORK_IDS,
-  EXPLORER_BASE,
 } from './bcs.js';
 
 export {

@@ -295,8 +295,6 @@ export const FAST_DECIMALS = 18;
 export const FAST_TOKEN_ID = new Uint8Array(32);
 FAST_TOKEN_ID.set([0xfa, 0x57, 0x5e, 0x70], 0);
 
-export const EXPLORER_BASE = 'https://testnet.explorer.fast.xyz/txs';
-
 // ---------------------------------------------------------------------------
 // Token ID helpers
 // ---------------------------------------------------------------------------

@@ -5,7 +5,6 @@ import {
   FAST_DECIMALS,
   FAST_NETWORK_IDS,
   FAST_TOKEN_ID,
-  EXPLORER_BASE,
   tokenIdEquals,
   hexToTokenId,
   hashTransaction,
@@ -54,10 +53,6 @@ describe('bcs', () => {
         FAST_TOKEN_ID.slice(4).every((b) => b === 0),
         'Expected bytes 4-31 to all be 0',
       );
-    });
-
-    it('EXPLORER_BASE should equal the expected URL', () => {
-      assert.equal(EXPLORER_BASE, 'https://testnet.explorer.fast.xyz/txs');
     });
   });
 

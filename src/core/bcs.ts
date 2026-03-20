@@ -297,6 +297,13 @@ FAST_TOKEN_ID.set([0xfa, 0x57, 0x5e, 0x70], 0);
 
 export const EXPLORER_BASE = 'https://explorer.fast.xyz/txs';
 
+/**
+ * Transaction fee in USDC (6 decimals).
+ * Currently 0.000001 USDC per transaction.
+ */
+export const TRANSACTION_FEE_USDC = '0.000001';
+export const TRANSACTION_FEE_RAW = 1n; // 1 unit = 0.000001 USDC (6 decimals)
+
 // ---------------------------------------------------------------------------
 // Token ID helpers
 // ---------------------------------------------------------------------------

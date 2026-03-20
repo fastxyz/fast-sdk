@@ -27,6 +27,8 @@ export {
   FAST_DECIMALS,
   FAST_NETWORK_IDS,
   EXPLORER_BASE,
+  TRANSACTION_FEE_USDC,
+  TRANSACTION_FEE_RAW,
 } from './bcs.js';
 
 export {

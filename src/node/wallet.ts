@@ -24,6 +24,7 @@ import {
   FAST_DECIMALS,
   FAST_TOKEN_ID,
   hexToTokenId,
+  TRANSACTION_FEE_USDC,
 } from '../core/bcs.js';
 import { encodeFastAddress, fastAddressToBytes } from '../core/address.js';
 import { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from '../core/bytes.js';
@@ -321,6 +322,7 @@ export class FastWallet {
       txHash: result.txHash,
       certificate: result.certificate,
       explorerUrl,
+      fee: TRANSACTION_FEE_USDC,
     };
   }
 

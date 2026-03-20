@@ -30,6 +30,7 @@ const tx = await wallet.send({
 console.log(tx.txHash);
 console.log(tx.certificate);
 console.log(tx.explorerUrl);
+console.log(tx.fee);  // "0.000001" USDC
 
 const signed = await wallet.sign({ message: 'Hello, Fast!' });
 console.log(signed.signature);
@@ -153,7 +154,7 @@ If you use `~/.fast/tokens.json`, keep it keyed by network name so the same symb
 
 ## API Notes
 
-- `wallet.send()` returns `{ txHash, certificate, explorerUrl }` on the Node `FastWallet`
+- `wallet.send()` returns `{ txHash, certificate, explorerUrl, fee }` on the Node `FastWallet`
 - `wallet.sign()` returns `{ signature, address, messageBytes }` on the Node `FastWallet`
 - `provider.submitTransaction(envelope)` exposes raw `proxy_submitTransaction`
 - `provider.faucetDrip({ recipient, amount, token? })` exposes raw `proxy_faucetDrip`

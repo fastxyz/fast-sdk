@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/sdk",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Fast SDK — wallet management, payments, and RPC",
   "keywords": [
     "fast",

@@ -80,8 +80,8 @@ The SDK loads network configuration from JSON files in this priority order:
 ```json
 {
   "testnet": {
-    "rpc": "https://staging.proxy.fastset.xyz",
-    "explorer": "https://explorer.fast.xyz"
+    "rpc": "https://testnet.api.fast.xyz/proxy",
+    "explorer": "https://testnet.explorer.fast.xyz"
   },
   "mainnet": {
     "rpc": "https://api.fast.xyz/proxy",

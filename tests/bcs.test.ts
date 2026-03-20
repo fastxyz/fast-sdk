@@ -57,7 +57,7 @@ describe('bcs', () => {
     });
 
     it('EXPLORER_BASE should equal the expected URL', () => {
-      assert.equal(EXPLORER_BASE, 'https://explorer.fastset.xyz/txs');
+      assert.equal(EXPLORER_BASE, 'https://testnet.explorer.fast.xyz/txs');
     });
   });
 

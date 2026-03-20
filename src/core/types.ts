@@ -155,8 +155,6 @@ export interface SendResult {
   txHash: string;
   certificate: FastTransactionCertificate;
   explorerUrl: string | null;
-  /** Transaction fee in USDC (e.g. "0.000001") */
-  fee: string;
 }
 
 /** Result of a sign operation */

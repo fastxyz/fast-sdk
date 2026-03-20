@@ -29,8 +29,6 @@ export {
   FAST_TOKEN_ID,
   FAST_NETWORK_IDS,
   EXPLORER_BASE,
-  TRANSACTION_FEE_USDC,
-  TRANSACTION_FEE_RAW,
   hexToTokenId,
   tokenIdEquals,
   hashTransaction,

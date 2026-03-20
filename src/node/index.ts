@@ -34,8 +34,6 @@ export {
   FAST_TOKEN_ID,
   FAST_DECIMALS,
   FAST_NETWORK_IDS,
-  TRANSACTION_FEE_USDC,
-  TRANSACTION_FEE_RAW,
 } from '../core/bcs.js';
 
 export type {

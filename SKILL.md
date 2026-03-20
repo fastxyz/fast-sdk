@@ -286,7 +286,6 @@ const result = await wallet.send({
 
 console.log('TX Hash:', result.txHash);
 console.log('Certificate:', result.certificate);
-console.log('Fee:', result.fee);  // "0.000001" USDC
 if (result.explorerUrl) {
   console.log('Explorer:', result.explorerUrl);
 }
@@ -439,7 +438,7 @@ for (const token of tokens) {
 |--------|-------------|---------|
 | `balance(token?)` | Get wallet balance | `{ amount, token }` |
 | `tokens()` | List all token balances | `TokenBalance[]` |
-| `send({ to, amount, token? })` | Send tokens | `{ txHash, certificate, explorerUrl, fee }` |
+| `send({ to, amount, token? })` | Send tokens | `{ txHash, certificate, explorerUrl }` |
 | `sign({ message })` | Sign a message | `{ signature, address, messageBytes }` |
 | `verify({ message, signature, address })` | Verify signature | `{ valid }` |
 | `submit({ claim })` | Low-level claim submission | `{ txHash, certificate }` |
@@ -454,26 +453,6 @@ for (const token of tokens) {
 |----------|-------------|
 | `address` | The wallet's Fast address (fast1...) |
 | `provider` | The FastProvider this wallet uses |
-
----
-
-## Transaction Fees
-
-Every transaction on the Fast network incurs a small fee of **0.000001 USDC** (1 micro-USDC).
-
-```ts
-import { TRANSACTION_FEE_USDC, TRANSACTION_FEE_RAW } from '@fastxyz/sdk';
-
-console.log(TRANSACTION_FEE_USDC);  // "0.000001"
-console.log(TRANSACTION_FEE_RAW);   // 1n (bigint, raw units)
-
-// The fee is included in SendResult
-const result = await wallet.send({ to, amount: '10', token: 'testUSDC' });
-console.log('Fee paid:', result.fee);  // "0.000001"
-```
-
-> **Note:** When sending tokens, ensure your balance covers both the amount AND the fee.
-> For example, to send 1.0 USDC, you need at least 1.000001 USDC.
 
 ---
 

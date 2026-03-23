@@ -20,11 +20,11 @@ import {
 import {
   TransactionBcs,
   serializeVersionedTransaction,
-  hashTransaction,
   FAST_DECIMALS,
   FAST_TOKEN_ID,
   hexToTokenId,
 } from '../core/bcs.js';
+import { getCertificateHash } from '../core/certificate.js';
 import { encodeFastAddress, fastAddressToBytes } from '../core/address.js';
 import { bytesToHex, hexToBytes, stripHexPrefix, utf8ToBytes } from '../core/bytes.js';
 import { toHex } from '../core/amounts.js';
@@ -421,9 +421,6 @@ export class FastWallet {
       });
     }
 
-    // Hash for txHash
-    const txHash = hashTransaction(transaction);
-
     // Submit
     try {
       const submitResult = await this._provider.submitTransaction({
@@ -442,9 +439,14 @@ export class FastWallet {
         });
       }
 
+      // Compute txHash from the certificate to ensure consistency
+      // (the certificate contains the canonical transaction as certified by the network)
+      const certificate = submitResult.Success;
+      const txHash = getCertificateHash(certificate);
+
       return {
         txHash,
-        certificate: submitResult.Success,
+        certificate,
       };
     } catch (err: unknown) {
       throw mapSubmissionError(err, {

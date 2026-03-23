@@ -421,33 +421,12 @@ export class FastWallet {
       });
     }
 
-    // Submit
+    let submitResult: Awaited<ReturnType<FastProvider['submitTransaction']>>;
     try {
-      const submitResult = await this._provider.submitTransaction({
+      submitResult = await this._provider.submitTransaction({
         transaction,
         signature: { Signature: Array.from(signature) },
       });
-
-      if ('IncompleteVerifierSigs' in submitResult) {
-        throw new FastError('TX_FAILED', 'Transaction submission is incomplete: missing verifier signatures', {
-          note: 'Provide all required verifier signatures before submitting this transaction.',
-        });
-      }
-      if ('IncompleteMultiSig' in submitResult) {
-        throw new FastError('TX_FAILED', 'Transaction submission is incomplete: missing multisig signatures', {
-          note: 'Provide the required multisig signatures before submitting this transaction.',
-        });
-      }
-
-      // Compute txHash from the certificate to ensure consistency
-      // (the certificate contains the canonical transaction as certified by the network)
-      const certificate = submitResult.Success;
-      const txHash = getCertificateHash(certificate);
-
-      return {
-        txHash,
-        certificate,
-      };
     } catch (err: unknown) {
       throw mapSubmissionError(err, {
         insufficientNote: 'Fund your Fast wallet with FAST or the token you are sending, then retry.',
@@ -455,6 +434,38 @@ export class FastWallet {
         txFailedFallbackMessage: 'Transaction submission failed.',
       });
     }
+
+    if ('IncompleteVerifierSigs' in submitResult) {
+      throw new FastError('TX_FAILED', 'Transaction submission is incomplete: missing verifier signatures', {
+        note: 'Provide all required verifier signatures before submitting this transaction.',
+      });
+    }
+    if ('IncompleteMultiSig' in submitResult) {
+      throw new FastError('TX_FAILED', 'Transaction submission is incomplete: missing multisig signatures', {
+        note: 'Provide the required multisig signatures before submitting this transaction.',
+      });
+    }
+
+    const certificate = submitResult.Success;
+    let txHash: string;
+    try {
+      // Compute txHash from the certificate to ensure consistency
+      // (the certificate contains the canonical transaction as certified by the network)
+      txHash = getCertificateHash(certificate);
+    } catch {
+      throw new FastError(
+        'TX_FAILED',
+        'Transaction was submitted, but the returned certificate could not be decoded.',
+        {
+          note: 'The network may have accepted this transaction. Inspect the returned certificate or upgrade the SDK if the network uses a newer certificate format.',
+        },
+      );
+    }
+
+    return {
+      txHash,
+      certificate,
+    };
   }
 
   /**

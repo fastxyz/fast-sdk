@@ -162,6 +162,7 @@ If you use `~/.fast/tokens.json`, keep it keyed by network name so the same symb
 
 - `wallet.send()` returns `{ txHash, certificate, explorerUrl }` on the Node `FastWallet`
 - `wallet.sign()` returns `{ signature, address, messageBytes }` on the Node `FastWallet`
+- `provider.getAccountInfo(address)` exposes raw `proxy_getAccountInfo` as `FastAccountInfo | null`
 - `provider.submitTransaction(envelope)` exposes raw `proxy_submitTransaction`
 - `provider.faucetDrip({ recipient, amount, token? })` exposes raw `proxy_faucetDrip`
 - `provider.getTransactionCertificates(address, fromNonce, limit)` exposes raw `proxy_getTransactionCertificates`

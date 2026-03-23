@@ -3,6 +3,7 @@ import {
   FAST_NETWORK_IDS,
   FAST_TOKEN_ID,
   hexToTokenId,
+  serializeVersionedTransaction,
   tokenIdEquals,
   type FastTransaction,
 } from './bcs.js';
@@ -29,6 +30,8 @@ import type {
 } from './types.js';
 
 const HEX_TOKEN_PATTERN = /^(0x)?[0-9a-fA-F]+$/;
+const FAST_ID_BYTES = 32;
+const ED25519_SIGNATURE_BYTES = 64;
 
 type FastTokenInfoResponse = {
   requested_token_metadata?: Array<[number[], FastTokenMetadata | null]>;
@@ -76,13 +79,294 @@ function inferFastNetworkId(network: string): FastNetworkId | null {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function isHexAmountString(value: unknown): value is string {
+  return typeof value === 'string' && /^(0x)?[0-9a-fA-F]*$/.test(value);
+}
+
+function isByteArrayLike(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((item) => (
+    typeof item === 'number'
+    && Number.isInteger(item)
+    && item >= 0
+    && item <= 255
+  ));
+}
+
+function isByteMatrix(value: unknown): value is number[][] {
+  return Array.isArray(value) && value.every((entry) => isByteArrayLike(entry));
+}
+
+function isFixedLengthByteArray(value: unknown, length: number): value is number[] {
+  return isByteArrayLike(value) && value.length === length;
+}
+
+function isFixedLengthByteMatrix(value: unknown, length: number): value is number[][] {
+  return Array.isArray(value) && value.every((entry) => isFixedLengthByteArray(entry, length));
+}
+
+function isTokenIdLike(value: unknown): value is number[] {
+  return isFixedLengthByteArray(value, FAST_ID_BYTES);
+}
+
+function isAddressLike(value: unknown): value is number[] {
+  return isFixedLengthByteArray(value, FAST_ID_BYTES);
+}
+
+function isAddressMatrix(value: unknown): value is number[][] {
+  return isFixedLengthByteMatrix(value, FAST_ID_BYTES);
+}
+
+function isSignatureLike(value: unknown): value is number[] {
+  return isFixedLengthByteArray(value, ED25519_SIGNATURE_BYTES);
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 0;
+}
+
+function isNonNegativeIntegerLike(value: unknown): boolean {
+  return (typeof value === 'number' && isNonNegativeSafeInteger(value))
+    || (typeof value === 'bigint' && value >= 0n);
+}
+
+function hasExactTransactionScalars(value: unknown): boolean {
+  if (value === null) return true;
+  if (typeof value === 'string' || typeof value === 'boolean') return true;
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return isNonNegativeIntegerLike(value);
+  }
+  if (Array.isArray(value)) {
+    if (value.every((entry) => typeof entry === 'number')) {
+      return isByteArrayLike(value);
+    }
+    return value.every((entry) => hasExactTransactionScalars(entry));
+  }
+  if (isRecord(value)) {
+    return Object.values(value).every((entry) => hasExactTransactionScalars(entry));
+  }
+  return false;
+}
+
+function isFastTransactionShape(value: unknown): value is FastTransaction {
+  if (!isRecord(value)) return false;
+  if (!hasExactTransactionScalars(value)) return false;
+
+  try {
+    serializeVersionedTransaction(value as FastTransaction);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isVersionedTransactionShape(value: unknown): value is FastVersionedTransaction {
+  if (!isRecord(value)) return false;
+  if ('Release20260319' in value) {
+    return isFastTransactionShape(value.Release20260319);
+  }
+  return isFastTransactionShape(value);
+}
+
+function isMultiSigShape(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (!('config' in value) || !isRecord(value.config)) return false;
+
+  const config = value.config;
+  if (!('authorized_signers' in config) || !isAddressMatrix(config.authorized_signers)) {
+    return false;
+  }
+  if (!('quorum' in config) || !isNonNegativeSafeInteger(config.quorum)) {
+    return false;
+  }
+  if (!('nonce' in config) || !isNonNegativeSafeInteger(config.nonce)) {
+    return false;
+  }
+  if (!('signatures' in value) || !isSignaturePairs(value.signatures)) {
+    return false;
+  }
+
+  return true;
+}
+
+function isEnvelopeSignatureShape(value: unknown): boolean {
+  if (isSignatureLike(value)) return true;
+  if (!isRecord(value)) return false;
+
+  const hasValidSignature = 'Signature' in value
+    && value.Signature !== undefined
+    && isSignatureLike(value.Signature);
+  const hasValidMultiSig = 'MultiSig' in value
+    && value.MultiSig !== undefined
+    && isMultiSigShape(value.MultiSig);
+
+  return hasValidSignature || hasValidMultiSig;
+}
+
+function isSignaturePairs(value: unknown): value is Array<[number[], number[]]> {
+  return Array.isArray(value)
+    && value.every((pair) => (
+      Array.isArray(pair)
+      && pair.length === 2
+      && isAddressLike(pair[0])
+      && isSignatureLike(pair[1])
+    ));
+}
+
 function isTransactionCertificate(value: unknown): value is FastTransactionCertificate {
-  return Boolean(
-    value
-    && typeof value === 'object'
-    && 'envelope' in value
-    && 'signatures' in value,
+  if (!isRecord(value) || !('envelope' in value) || !('signatures' in value)) {
+    return false;
+  }
+
+  const envelope = value.envelope;
+  if (!isRecord(envelope)) return false;
+
+  return (
+    'transaction' in envelope
+    && isVersionedTransactionShape(envelope.transaction)
+    && 'signature' in envelope
+    && isEnvelopeSignatureShape(envelope.signature)
+    && isSignaturePairs(value.signatures)
   );
+}
+
+function isFastTokenMetadataShape(value: unknown): value is FastTokenMetadata {
+  if (!isRecord(value)) return false;
+
+  if ('update_id' in value && value.update_id !== undefined && !isNonNegativeSafeInteger(value.update_id)) {
+    return false;
+  }
+  if ('admin' in value && value.admin !== undefined && !isAddressLike(value.admin)) {
+    return false;
+  }
+  if ('token_name' in value && value.token_name !== undefined && typeof value.token_name !== 'string') {
+    return false;
+  }
+  if ('decimals' in value && value.decimals !== undefined) {
+    if (!isNonNegativeSafeInteger(value.decimals) || value.decimals > 255) {
+      return false;
+    }
+  }
+  if ('total_supply' in value && value.total_supply !== undefined && typeof value.total_supply !== 'string') {
+    return false;
+  }
+  if ('mints' in value && value.mints !== undefined && !isAddressMatrix(value.mints)) {
+    return false;
+  }
+
+  return true;
+}
+
+function isTokenInfoResponseShape(value: unknown): value is FastTokenInfoResponse {
+  if (value === null) return true;
+  if (!isRecord(value)) return false;
+
+  if ('requested_token_metadata' in value && value.requested_token_metadata !== undefined) {
+    if (!Array.isArray(value.requested_token_metadata)) {
+      return false;
+    }
+
+    const validRequestedMetadata = value.requested_token_metadata.every((entry) => (
+      Array.isArray(entry)
+      && entry.length === 2
+      && isTokenIdLike(entry[0])
+      && (entry[1] === null || isFastTokenMetadataShape(entry[1]))
+    ));
+    if (!validRequestedMetadata) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function isAccountInfoShape(value: unknown): value is FastAccountInfo {
+  if (value === null) return true;
+  if (!isRecord(value)) return false;
+
+  if ('balance' in value && value.balance !== undefined && !isHexAmountString(value.balance)) {
+    return false;
+  }
+
+  if ('token_balance' in value && value.token_balance !== undefined) {
+    if (!Array.isArray(value.token_balance)) {
+      return false;
+    }
+
+    const validTokenBalances = value.token_balance.every((entry) => (
+      Array.isArray(entry)
+      && entry.length === 2
+      && isTokenIdLike(entry[0])
+      && isHexAmountString(entry[1])
+    ));
+    if (!validTokenBalances) {
+      return false;
+    }
+  }
+
+  if ('next_nonce' in value && value.next_nonce !== undefined) {
+    if (!isNonNegativeSafeInteger(value.next_nonce)) {
+      return false;
+    }
+  }
+
+  if ('requested_certificates' in value && value.requested_certificates !== undefined) {
+    if (!Array.isArray(value.requested_certificates)) {
+      return false;
+    }
+
+    const validRequestedCertificates = value.requested_certificates.every((certificate) => (
+      isTransactionCertificate(certificate)
+    ));
+    if (!validRequestedCertificates) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function invalidSubmitCertificateError(): FastError {
+  return new FastError(
+    'TX_FAILED',
+    'Transaction was submitted, but the returned certificate could not be decoded.',
+    {
+      note: 'The network may have accepted this transaction. Inspect the returned certificate or upgrade the SDK if the network uses a newer certificate format.',
+    },
+  );
+}
+
+function invalidListedCertificateError(): FastError {
+  return new FastError(
+    'TX_FAILED',
+    'The proxy returned a transaction certificate that could not be decoded.',
+    {
+      note: 'Upgrade the SDK if the network uses a newer certificate format, or inspect the raw RPC response for certificate shape changes.',
+    },
+  );
+}
+
+function invalidTokenMetadataError(): FastError {
+  return new FastError(
+    'TX_FAILED',
+    'The proxy returned token metadata that could not be decoded.',
+    {
+      note: 'Upgrade the SDK if the network uses a newer token-metadata format, or inspect the raw RPC response for shape changes.',
+    },
+  );
+}
+
+function assertNonceParam(name: string, value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new FastError('INVALID_PARAMS', `Invalid ${name}: ${value}`, {
+      note: `Pass a non-negative safe integer ${name}.`,
+    });
+  }
 }
 
 export class BaseFastProvider {
@@ -181,9 +465,21 @@ export class BaseFastProvider {
       return { Success: result };
     }
 
-    if (result && typeof result === 'object') {
-      if ('Success' in result || 'IncompleteVerifierSigs' in result || 'IncompleteMultiSig' in result) {
-        return result as FastSubmitTransactionResult;
+    if (isRecord(result)) {
+      if ('Success' in result) {
+        if (isTransactionCertificate(result.Success)) {
+          return { Success: result.Success };
+        }
+        throw invalidSubmitCertificateError();
+      }
+      if ('IncompleteVerifierSigs' in result && Array.isArray(result.IncompleteVerifierSigs)) {
+        return { IncompleteVerifierSigs: result.IncompleteVerifierSigs as unknown[] };
+      }
+      if ('IncompleteMultiSig' in result && Array.isArray(result.IncompleteMultiSig)) {
+        return { IncompleteMultiSig: result.IncompleteMultiSig as unknown[] };
+      }
+      if ('envelope' in result || 'signatures' in result) {
+        throw invalidSubmitCertificateError();
       }
     }
 
@@ -356,11 +652,7 @@ export class BaseFastProvider {
   ): Promise<FastTransactionCertificate[]> {
     await this.init();
 
-    if (!Number.isInteger(fromNonce) || fromNonce < 0) {
-      throw new FastError('INVALID_PARAMS', `Invalid nonce: ${fromNonce}`, {
-        note: 'Pass a non-negative integer nonce.',
-      });
-    }
+    assertNonceParam('nonce', fromNonce);
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
       throw new FastError('INVALID_PARAMS', `Invalid certificate limit: ${limit}`, {
         note: 'Pass an integer limit between 1 and 200.',
@@ -368,11 +660,23 @@ export class BaseFastProvider {
     }
 
     const pubkey = this.requireAddress(address);
-    return (await rpcCall(this._rpcUrl, 'proxy_getTransactionCertificates', {
+    const result = await rpcCall(this._rpcUrl, 'proxy_getTransactionCertificates', {
       address: pubkey,
       from_nonce: fromNonce,
       limit,
-    })) as FastTransactionCertificate[];
+    });
+
+    if (!Array.isArray(result)) {
+      throw new FastError('TX_FAILED', 'Unexpected proxy_getTransactionCertificates result', {
+        note: 'The proxy returned a result that does not match the documented certificate list format.',
+      });
+    }
+
+    if (!result.every((certificate) => isTransactionCertificate(certificate))) {
+      throw invalidListedCertificateError();
+    }
+
+    return result;
   }
 
   async getCertificateByNonce(
@@ -380,6 +684,7 @@ export class BaseFastProvider {
     nonce: number,
   ): Promise<FastTransactionCertificate | null> {
     await this.init();
+    assertNonceParam('nonce', nonce);
 
     const certificates = await this.getTransactionCertificates(address, nonce, 1);
     const certificate = certificates[0];
@@ -396,12 +701,20 @@ export class BaseFastProvider {
     pubkey: Uint8Array,
     opts?: { certificateByNonce?: FastNonceRange | null },
   ): Promise<FastAccountInfo> {
-    return (await rpcCall(this._rpcUrl, 'proxy_getAccountInfo', {
+    const result = await rpcCall(this._rpcUrl, 'proxy_getAccountInfo', {
       address: pubkey,
       token_balances_filter: [],
       state_key_filter: null,
       certificate_by_nonce: opts?.certificateByNonce ?? null,
-    })) as FastAccountInfo;
+    });
+
+    if (!isAccountInfoShape(result)) {
+      throw new FastError('TX_FAILED', 'The proxy returned account info that could not be decoded.', {
+        note: 'Upgrade the SDK if the network uses a newer account-info format, or inspect the raw RPC response for shape changes.',
+      });
+    }
+
+    return result;
   }
 
   private async fetchTokenMetadata(tokenIds: Uint8Array[]): Promise<Map<string, FastTokenMetadata>> {
@@ -416,9 +729,13 @@ export class BaseFastProvider {
       return new Map();
     }
 
-    const result = (await rpcCall(this._rpcUrl, 'proxy_getTokenInfo', {
+    const result = await rpcCall(this._rpcUrl, 'proxy_getTokenInfo', {
       token_ids: [...uniq.values()],
-    })) as FastTokenInfoResponse;
+    });
+
+    if (!isTokenInfoResponseShape(result)) {
+      throw invalidTokenMetadataError();
+    }
 
     const metadata = new Map<string, FastTokenMetadata>();
     for (const [tokenId, meta] of result?.requested_token_metadata ?? []) {

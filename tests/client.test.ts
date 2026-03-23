@@ -50,7 +50,7 @@ function sampleCertificate(nonce = 7): FastTransactionCertificate {
           fee_token: null,
         },
       },
-      signature: { Signature: [] },
+      signature: { Signature: new Array(64).fill(7) },
     },
     signatures: [],
   } as FastTransactionCertificate;
@@ -150,6 +150,417 @@ describe('FastProvider', () => {
       assert.deepEqual(result, { Success: certificate });
     });
 
+    it('rejects malformed direct certificate results from proxy_submitTransaction', async () => {
+      globalThis.fetch = async () => rpcResult({
+        envelope: {},
+        signatures: [],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: [7, 7, 7] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          assert.match(error.note, /may have accepted this transaction/i);
+          return true;
+        },
+      );
+    });
+
+    it('rejects malformed wrapped success results from proxy_submitTransaction', async () => {
+      globalThis.fetch = async () => rpcResult({
+        Success: {
+          envelope: {},
+          signatures: [],
+        },
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: [7, 7, 7] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          assert.match(error.note, /may have accepted this transaction/i);
+          return true;
+        },
+      );
+    });
+
+    it('rejects malformed wrapped success multisig certificates from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        Success: {
+          ...certificate,
+          envelope: {
+            ...certificate.envelope,
+            signature: { MultiSig: {} },
+          },
+        },
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: [7, 7, 7] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects certificates with short envelope signatures from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        Success: {
+          ...certificate,
+          envelope: {
+            ...certificate.envelope,
+            signature: { Signature: [7] },
+          },
+        },
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: [7, 7, 7] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects certificates with short verifier signature pairs from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        Success: {
+          ...certificate,
+          signatures: [
+            [[1], [2]],
+          ],
+        },
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: [7, 7, 7] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects multisig certificates with short authorized signer ids from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        Success: {
+          ...certificate,
+          envelope: {
+            ...certificate.envelope,
+            signature: {
+              MultiSig: {
+                config: {
+                  authorized_signers: [[1]],
+                  quorum: 1,
+                  nonce: 0,
+                },
+                signatures: [
+                  [new Array(32).fill(1), new Array(64).fill(2)],
+                ],
+              },
+            },
+          },
+        },
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: [7, 7, 7] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects multisig certificates with short signature pairs from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        Success: {
+          ...certificate,
+          envelope: {
+            ...certificate.envelope,
+            signature: {
+              MultiSig: {
+                config: {
+                  authorized_signers: [new Array(32).fill(1)],
+                  quorum: 1,
+                  nonce: 0,
+                },
+                signatures: [
+                  [[1], [2]],
+                ],
+              },
+            },
+          },
+        },
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: [7, 7, 7] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects malformed incomplete verifier signature results from proxy_submitTransaction', async () => {
+      globalThis.fetch = async () => rpcResult({
+        IncompleteVerifierSigs: 'oops',
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: [7, 7, 7] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.match(error.message, /Unexpected proxy_submitTransaction result/);
+          return true;
+        },
+      );
+    });
+
+    it('rejects certificates with unsafe transaction numbers from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        ...certificate,
+        envelope: {
+          ...certificate.envelope,
+          transaction: {
+            Release20260319: {
+              ...certificate.envelope.transaction.Release20260319,
+              nonce: 9007199254740992,
+            },
+          },
+        },
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: [7, 7, 7] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
     it('calls proxy_faucetDrip with a resolved token id', async () => {
       globalThis.fetch = async (_input, init) => {
         const body = JSON.parse(String(init?.body)) as {
@@ -186,6 +597,27 @@ describe('FastProvider', () => {
       const provider = new FastProvider();
       const result = await provider.getTransactionCertificates(VALID_FAST_ADDRESS, 7, 2);
       assert.deepEqual(result, [certificate]);
+    });
+
+    it('rejects unsafe nonce inputs when fetching transaction certificates', async () => {
+      let rpcCalled = false;
+      globalThis.fetch = async () => {
+        rpcCalled = true;
+        throw new Error('RPC should not be called for invalid nonce inputs');
+      };
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getTransactionCertificates(VALID_FAST_ADDRESS, 9007199254740992, 1),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_PARAMS');
+          assert.match(error.message, /Invalid nonce/);
+          assert.match(error.note, /safe integer nonce/i);
+          return true;
+        },
+      );
+      assert.equal(rpcCalled, false);
     });
   });
 
@@ -269,6 +701,183 @@ describe('FastProvider', () => {
     });
   });
 
+  describe('getAccountInfo (mocked)', () => {
+    it('rejects array payloads in account info responses', async () => {
+      globalThis.fetch = async () => rpcResult([]);
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getAccountInfo(VALID_FAST_ADDRESS),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned account info that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects malformed requested_certificates in account info responses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        balance: '0x0',
+        requested_certificates: [
+          {
+            envelope: {},
+            signatures: [],
+          },
+        ],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getAccountInfo(VALID_FAST_ADDRESS),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned account info that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects malformed token_balance entries in account info responses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        balance: '0x0',
+        token_balance: [
+          ['not-bytes', '0xf4240'],
+        ],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getAccountInfo(VALID_FAST_ADDRESS),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned account info that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects token_balance entries with invalid byte values in account info responses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        balance: '0x0',
+        token_balance: [
+          [[256], '0xf4240'],
+        ],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getAccountInfo(VALID_FAST_ADDRESS),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned account info that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects token_balance entries with short token ids in account info responses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        balance: '0x0',
+        token_balance: [
+          [[1], '0xf4240'],
+        ],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getAccountInfo(VALID_FAST_ADDRESS),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned account info that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects malformed next_nonce values in account info responses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        balance: '0x0',
+        next_nonce: '7',
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getAccountInfo(VALID_FAST_ADDRESS),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned account info that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects unsafe next_nonce values in account info responses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        balance: '0x0',
+        next_nonce: 9007199254740992,
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getAccountInfo(VALID_FAST_ADDRESS),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned account info that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects malformed balance hex strings in account info responses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        balance: 'not-hex',
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getAccountInfo(VALID_FAST_ADDRESS),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned account info that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+  });
+
   describe('getTokens (mocked)', () => {
     it('returns all tokens for an address', async () => {
       let callCount = 0;
@@ -342,6 +951,10 @@ describe('FastProvider', () => {
     });
 
     it('returns full admin and minter metadata', async () => {
+      const admin = [1, 2, 3, 4, ...new Array(28).fill(0)];
+      const minterA = [5, 6, 7, 8, ...new Array(28).fill(0)];
+      const minterB = [9, 10, 11, 12, ...new Array(28).fill(0)];
+
       globalThis.fetch = async (_input, init) => {
         const body = JSON.parse(String(init?.body)) as { method: string };
         assert.equal(body.method, 'proxy_getTokenInfo');
@@ -353,8 +966,8 @@ describe('FastProvider', () => {
                 token_name: 'testUSDC',
                 decimals: 6,
                 total_supply: '1000000',
-                admin: [1, 2, 3, 4],
-                mints: [[5, 6, 7, 8], [9, 10, 11, 12]],
+                admin,
+                mints: [minterA, minterB],
               },
             ],
           ],
@@ -364,8 +977,119 @@ describe('FastProvider', () => {
       const provider = new FastProvider();
       const info = await provider.getTokenInfo('0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46');
       assert.ok(info);
-      assert.equal(info.admin, '0x01020304');
-      assert.deepEqual(info.minters, ['0x05060708', '0x090a0b0c']);
+      assert.equal(info.admin, `0x${'01020304'}${'00'.repeat(28)}`);
+      assert.deepEqual(info.minters, [
+        `0x${'05060708'}${'00'.repeat(28)}`,
+        `0x${'090a0b0c'}${'00'.repeat(28)}`,
+      ]);
+    });
+
+    it('rejects malformed token metadata responses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        requested_token_metadata: 'oops',
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getTokenInfo('0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46'),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned token metadata that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects array metadata entries in token metadata responses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        requested_token_metadata: [
+          [TEST_USDC_TOKEN_ID, []],
+        ],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getTokenInfo('0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46'),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned token metadata that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects token metadata responses with short token ids', async () => {
+      globalThis.fetch = async () => rpcResult({
+        requested_token_metadata: [
+          [[1], { token_name: 'bad', decimals: 6 }],
+        ],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getTokenInfo('0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46'),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned token metadata that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects token metadata responses with short admin addresses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        requested_token_metadata: [
+          [TEST_USDC_TOKEN_ID, { token_name: 'bad', decimals: 6, admin: [1] }],
+        ],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getTokenInfo('0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46'),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned token metadata that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects token metadata responses with short minter addresses', async () => {
+      globalThis.fetch = async () => rpcResult({
+        requested_token_metadata: [
+          [TEST_USDC_TOKEN_ID, { token_name: 'bad', decimals: 6, mints: [[2]] }],
+        ],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getTokenInfo('0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46'),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned token metadata that could not be decoded.',
+          );
+          return true;
+        },
+      );
     });
   });
 
@@ -679,6 +1403,44 @@ describe('FastWallet', () => {
         Date.now = originalDateNow;
       }
     });
+
+    it('does not mislabel malformed success certificates as submission failures', async () => {
+      const provider = new FastProvider();
+      const wallet = await FastWallet.generate(provider);
+
+      globalThis.fetch = async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { method: string };
+
+        if (body.method === 'proxy_getAccountInfo') {
+          return rpcResult({ next_nonce: 7 });
+        }
+
+        if (body.method === 'proxy_submitTransaction') {
+          return rpcResult({
+            Success: {
+              envelope: {},
+              signatures: [],
+            },
+          });
+        }
+
+        throw new Error(`Unexpected RPC method: ${body.method}`);
+      };
+
+      await assert.rejects(
+        () => wallet.send({ to: VALID_FAST_ADDRESS, amount: '1' }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          assert.match(error.note, /may have accepted this transaction/i);
+          return true;
+        },
+      );
+    });
   });
 
   describe('sign/verify', () => {
@@ -787,6 +1549,50 @@ describe('FastWallet', () => {
         () => provider.getCertificateByNonce(VALID_FAST_ADDRESS, 7),
         /proxy unavailable/,
       );
+    });
+
+    it('rejects malformed certificates returned by the certificate listing RPC', async () => {
+      globalThis.fetch = async () => rpcResult([
+        {
+          envelope: {},
+          signatures: [],
+        },
+      ]);
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getCertificateByNonce(VALID_FAST_ADDRESS, 7),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'The proxy returned a transaction certificate that could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects unsafe nonce inputs before querying certificates by nonce', async () => {
+      let rpcCalled = false;
+      globalThis.fetch = async () => {
+        rpcCalled = true;
+        throw new Error('RPC should not be called for invalid nonce inputs');
+      };
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.getCertificateByNonce(VALID_FAST_ADDRESS, 9007199254740992),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_PARAMS');
+          assert.match(error.message, /Invalid nonce/);
+          assert.match(error.note, /safe integer nonce/i);
+          return true;
+        },
+      );
+      assert.equal(rpcCalled, false);
     });
   });
 

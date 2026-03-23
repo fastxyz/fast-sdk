@@ -429,7 +429,7 @@ for (const token of tokens) {
 | `getBalance(address, token?)` | Get balance for any address | `{ amount, token }` |
 | `getTokens(address)` | List all token balances | `TokenBalance[]` |
 | `getTokenInfo(token)` | Get token metadata | `TokenInfo \| null` |
-| `getAccountInfo(address)` | Raw account info from RPC | `object \| null` |
+| `getAccountInfo(address)` | Raw account info from RPC | `FastAccountInfo \| null` |
 | `submitTransaction(envelope)` | Raw `proxy_submitTransaction` | `FastSubmitTransactionResult` |
 | `faucetDrip({ recipient, amount, token? })` | Raw `proxy_faucetDrip` | `void` |
 | `getTransactionCertificates(address, fromNonce, limit)` | Raw certificate listing | `FastTransactionCertificate[]` |

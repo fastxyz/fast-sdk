@@ -601,7 +601,7 @@ describe('FastWallet', () => {
             Array.from(fastAddressToBytes(VALID_FAST_ADDRESS)),
           );
           assert.equal(body.params.transaction?.Release20260319?.claim?.TokenTransfer?.amount, 'f4240');
-          return rpcResult({ Success: { certificate: 'ok' } });
+          return rpcResult(sampleCertificate(7));
         }
 
         throw new Error(`Unexpected RPC method: ${body.method}`);
@@ -610,7 +610,7 @@ describe('FastWallet', () => {
       const tx = await wallet.send({ to: VALID_FAST_ADDRESS, amount: '1', token: 'testUSDC' });
       assert.ok(sawTokenInfo);
       assert.ok(tx.txHash);
-      assert.deepEqual(tx.certificate, { certificate: 'ok' } as unknown as FastTransactionCertificate);
+      assert.ok(tx.certificate.envelope);
     });
 
     it('rejects token symbols that are not configured for the selected network', async () => {
@@ -666,7 +666,7 @@ describe('FastWallet', () => {
           if (body.method === 'proxy_submitTransaction') {
             assert.equal(body.params.transaction?.Release20260319?.network_id, FAST_NETWORK_IDS.TESTNET);
             assert.match(rawBody, new RegExp(`"timestamp_nanos":${expectedTimestamp}`));
-            return rpcResult({ Success: { certificate: 'ok' } });
+            return rpcResult(sampleCertificate(7));
           }
 
           throw new Error(`Unexpected RPC method: ${body.method}`);
@@ -674,7 +674,7 @@ describe('FastWallet', () => {
 
         const tx = await wallet.send({ to: VALID_FAST_ADDRESS, amount: '1' });
         assert.ok(tx.txHash);
-        assert.deepEqual(tx.certificate, { certificate: 'ok' } as unknown as FastTransactionCertificate);
+        assert.ok(tx.certificate.envelope);
       } finally {
         Date.now = originalDateNow;
       }

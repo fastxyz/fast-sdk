@@ -302,33 +302,6 @@ Is this a Node.js app or agent?
 
 ---
 
-### 8. Create and Save New Wallet
-
-**When:** User wants to create a fresh Fast wallet.
-
-**Prerequisites:** Provider.
-
-**Steps:**
-
-1. Generate wallet:
-   ```ts
-   const wallet = await FastWallet.generate(provider);
-   ```
-
-2. Show address to user:
-   ```ts
-   console.log('New address:', wallet.address);
-   ```
-
-3. Save to keyfile:
-   ```ts
-   await wallet.saveToKeyfile('~/.fast/keys/new-wallet.json');
-   ```
-
-4. Confirm save location to user.
-
-**Security note:** Never log or return the private key. Use `exportKeys()` for public info only.
-
 ---
 
 ## Token Resolution Rules

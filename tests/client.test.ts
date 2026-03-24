@@ -16,6 +16,7 @@ let originalConfigDir: string | undefined;
 const originalFetch = globalThis.fetch;
 const VALID_FAST_ADDRESS = 'fast1424242424242424242424242424242424242424242424242424qlc29x9';
 const NATIVE_FAST_TOKEN_ID = bytesToPrefixedHex(FAST_TOKEN_ID);
+const VALID_RPC_SIGNATURE = new Array(64).fill(7);
 // testUSDC token ID on fast:testnet
 const TEST_USDC_TOKEN_ID = [215, 58, 6, 121, 162, 190, 70, 152, 30, 42, 138, 237, 236, 217, 81, 200, 182, 105, 14, 125, 95, 133, 2, 179, 78, 211, 255, 76, 194, 22, 59, 70] as const;
 
@@ -50,7 +51,7 @@ function sampleCertificate(nonce = 7): FastTransactionCertificate {
           fee_token: null,
         },
       },
-      signature: { Signature: new Array(64).fill(7) },
+      signature: { Signature: VALID_RPC_SIGNATURE },
     },
     signatures: [],
   } as FastTransactionCertificate;
@@ -122,7 +123,7 @@ describe('FastProvider', () => {
         assert.equal(body.method, 'proxy_submitTransaction');
         assert.equal(body.params.transaction?.Release20260319?.network_id, FAST_NETWORK_IDS.TESTNET);
         assert.equal(body.params.transaction?.Release20260319?.nonce, 9);
-        assert.deepEqual(body.params.signature, { Signature: [7, 7, 7] });
+        assert.deepEqual(body.params.signature, { Signature: VALID_RPC_SIGNATURE });
         return rpcResult(certificate);
       };
 
@@ -144,10 +145,392 @@ describe('FastProvider', () => {
           archival: false,
           fee_token: null,
         },
-        signature: { Signature: [7, 7, 7] },
+        signature: { Signature: VALID_RPC_SIGNATURE },
       });
 
       assert.deepEqual(result, { Success: certificate });
+    });
+
+    it('rejects mixed wrapped and bare transaction variants in submitTransaction input', async () => {
+      let fetchCalled = false;
+      globalThis.fetch = async () => {
+        fetchCalled = true;
+        return rpcResult({ IncompleteVerifierSigs: [] });
+      };
+
+      const provider = new FastProvider();
+      provider.init = async () => {};
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            Release20260319: {
+              network_id: FAST_NETWORK_IDS.TESTNET,
+              sender: new Uint8Array(32).fill(2),
+              nonce: 9,
+              timestamp_nanos: 10n,
+              claim: {
+                TokenTransfer: {
+                  token_id: FAST_TOKEN_ID,
+                  recipient: new Uint8Array(32).fill(3),
+                  amount: '1',
+                  user_data: null,
+                },
+              },
+              archival: false,
+              fee_token: null,
+            },
+            network_id: FAST_NETWORK_IDS.MAINNET,
+            sender: new Uint8Array(32).fill(9),
+            nonce: 999,
+            timestamp_nanos: 2n,
+            claim: {
+              TokenTransfer: {
+                token_id: new Uint8Array(32).fill(9),
+                recipient: new Uint8Array(32).fill(9),
+                amount: '9',
+                user_data: null,
+              },
+            },
+            archival: true,
+            fee_token: null,
+          } as unknown as {
+            Release20260319: {
+              network_id: string;
+              sender: Uint8Array;
+              nonce: number;
+              timestamp_nanos: bigint;
+              claim: {
+                TokenTransfer: {
+                  token_id: Uint8Array;
+                  recipient: Uint8Array;
+                  amount: string;
+                  user_data: null;
+                };
+              };
+              archival: boolean;
+              fee_token: null;
+            };
+          },
+          signature: { Signature: VALID_RPC_SIGNATURE },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_PARAMS');
+          assert.match(error.message, /Invalid transaction envelope\.transaction shape/);
+          return true;
+        },
+      );
+      assert.equal(fetchCalled, false);
+    });
+
+    it('rejects wrapped transaction inputs with extra inner fields', async () => {
+      let fetchCalled = false;
+      globalThis.fetch = async () => {
+        fetchCalled = true;
+        return rpcResult({ IncompleteVerifierSigs: [] });
+      };
+
+      const provider = new FastProvider();
+      provider.init = async () => {};
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            Release20260319: {
+              network_id: FAST_NETWORK_IDS.TESTNET,
+              sender: new Uint8Array(32).fill(2),
+              nonce: 9,
+              timestamp_nanos: 10n,
+              claim: {
+                TokenTransfer: {
+                  token_id: FAST_TOKEN_ID,
+                  recipient: new Uint8Array(32).fill(3),
+                  amount: '1',
+                  user_data: null,
+                },
+              },
+              archival: false,
+              fee_token: null,
+              extra_field: true,
+            },
+          } as unknown as {
+            Release20260319: {
+              network_id: string;
+              sender: Uint8Array;
+              nonce: number;
+              timestamp_nanos: bigint;
+              claim: {
+                TokenTransfer: {
+                  token_id: Uint8Array;
+                  recipient: Uint8Array;
+                  amount: string;
+                  user_data: null;
+                };
+              };
+              archival: boolean;
+              fee_token: null;
+            };
+          },
+          signature: { Signature: VALID_RPC_SIGNATURE },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_PARAMS');
+          assert.match(error.message, /Invalid transaction envelope\.transaction shape/);
+          return true;
+        },
+      );
+      assert.equal(fetchCalled, false);
+    });
+
+    it('rejects transaction inputs with mixed claim variants', async () => {
+      let fetchCalled = false;
+      globalThis.fetch = async () => {
+        fetchCalled = true;
+        return rpcResult({ IncompleteVerifierSigs: [] });
+      };
+
+      const provider = new FastProvider();
+      provider.init = async () => {};
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+              Mint: {
+                token_id: new Uint8Array(32).fill(4),
+                recipient: new Uint8Array(32).fill(5),
+                amount: '2',
+              },
+            },
+            archival: false,
+            fee_token: null,
+          } as unknown as {
+            network_id: string;
+            sender: Uint8Array;
+            nonce: number;
+            timestamp_nanos: bigint;
+            claim: {
+              TokenTransfer: {
+                token_id: Uint8Array;
+                recipient: Uint8Array;
+                amount: string;
+                user_data: null;
+              };
+            };
+            archival: boolean;
+            fee_token: null;
+          },
+          signature: { Signature: VALID_RPC_SIGNATURE },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_PARAMS');
+          assert.match(error.message, /Invalid transaction envelope\.transaction shape/);
+          return true;
+        },
+      );
+      assert.equal(fetchCalled, false);
+    });
+
+    it('rejects mixed signature variants in submitTransaction input', async () => {
+      let fetchCalled = false;
+      globalThis.fetch = async () => {
+        fetchCalled = true;
+        return rpcResult({ IncompleteVerifierSigs: [] });
+      };
+
+      const provider = new FastProvider();
+      provider.init = async () => {};
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: {
+            Signature: VALID_RPC_SIGNATURE,
+            MultiSig: {
+              config: {
+                authorized_signers: [new Array(32).fill(1)],
+                quorum: 1,
+                nonce: 0,
+              },
+              signatures: [
+                [new Array(32).fill(1), new Array(64).fill(2)],
+              ],
+            },
+          } as unknown as { Signature: number[] },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_PARAMS');
+          assert.match(error.message, /Invalid transaction envelope\.signature shape/);
+          return true;
+        },
+      );
+      assert.equal(fetchCalled, false);
+    });
+
+    it('rejects short bare signature bytes in submitTransaction input', async () => {
+      let fetchCalled = false;
+      globalThis.fetch = async () => {
+        fetchCalled = true;
+        return rpcResult({ IncompleteVerifierSigs: [] });
+      };
+
+      const provider = new FastProvider();
+      provider.init = async () => {};
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: [7, 7, 7],
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_PARAMS');
+          assert.match(error.message, /Invalid transaction envelope\.signature shape/);
+          return true;
+        },
+      );
+      assert.equal(fetchCalled, false);
+    });
+
+    it('rejects multisig signature inputs with extra nested fields', async () => {
+      let fetchCalled = false;
+      globalThis.fetch = async () => {
+        fetchCalled = true;
+        return rpcResult({ IncompleteVerifierSigs: [] });
+      };
+
+      const provider = new FastProvider();
+      provider.init = async () => {};
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: {
+            MultiSig: {
+              config: {
+                authorized_signers: [new Array(32).fill(1)],
+                quorum: 1,
+                nonce: 0,
+                extra: true,
+              },
+              signatures: [
+                [new Array(32).fill(1), new Array(64).fill(2)],
+              ],
+              extra: true,
+            },
+          } as unknown as { MultiSig: { config: { authorized_signers: number[][]; quorum: number; nonce: number }; signatures: Array<[number[], number[]]> } },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_PARAMS');
+          assert.match(error.message, /Invalid transaction envelope\.signature shape/);
+          return true;
+        },
+      );
+      assert.equal(fetchCalled, false);
+    });
+
+    it('rejects multisig signature inputs with malformed signer material', async () => {
+      let fetchCalled = false;
+      globalThis.fetch = async () => {
+        fetchCalled = true;
+        return rpcResult({ IncompleteVerifierSigs: [] });
+      };
+
+      const provider = new FastProvider();
+      provider.init = async () => {};
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: {
+            MultiSig: {
+              config: {
+                authorized_signers: [[1]],
+                quorum: 1,
+                nonce: 0,
+              },
+              signatures: [
+                [[1], [2]],
+              ],
+            },
+          } as unknown as { MultiSig: { config: { authorized_signers: number[][]; quorum: number; nonce: number }; signatures: Array<[number[], number[]]> } },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'INVALID_PARAMS');
+          assert.match(error.message, /Invalid transaction envelope\.signature shape/);
+          return true;
+        },
+      );
+      assert.equal(fetchCalled, false);
     });
 
     it('rejects malformed direct certificate results from proxy_submitTransaction', async () => {
@@ -175,7 +558,7 @@ describe('FastProvider', () => {
             archival: false,
             fee_token: null,
           },
-          signature: { Signature: [7, 7, 7] },
+          signature: { Signature: VALID_RPC_SIGNATURE },
         }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
@@ -217,7 +600,7 @@ describe('FastProvider', () => {
             archival: false,
             fee_token: null,
           },
-          signature: { Signature: [7, 7, 7] },
+          signature: { Signature: VALID_RPC_SIGNATURE },
         }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
@@ -227,6 +610,80 @@ describe('FastProvider', () => {
             'Transaction was submitted, but the returned certificate could not be decoded.',
           );
           assert.match(error.note, /may have accepted this transaction/i);
+          return true;
+        },
+      );
+    });
+
+    it('rejects mixed wrapped submit variants from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        Success: certificate,
+        IncompleteVerifierSigs: [1],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: VALID_RPC_SIGNATURE },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.match(error.message, /Unexpected proxy_submitTransaction result/);
+          return true;
+        },
+      );
+    });
+
+    it('rejects direct certificates mixed with submit variants from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        ...certificate,
+        IncompleteMultiSig: [2],
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: VALID_RPC_SIGNATURE },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.match(error.message, /Unexpected proxy_submitTransaction result/);
           return true;
         },
       );
@@ -263,7 +720,64 @@ describe('FastProvider', () => {
             archival: false,
             fee_token: null,
           },
-          signature: { Signature: [7, 7, 7] },
+          signature: { Signature: VALID_RPC_SIGNATURE },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects certificates with mixed envelope signature variants from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        Success: {
+          ...certificate,
+          envelope: {
+            ...certificate.envelope,
+            signature: {
+              Signature: new Array(64).fill(7),
+              MultiSig: {
+                config: {
+                  authorized_signers: [new Array(32).fill(1)],
+                  quorum: 1,
+                  nonce: 0,
+                },
+                signatures: [
+                  [new Array(32).fill(1), new Array(64).fill(2)],
+                ],
+              },
+            },
+          },
+        },
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: VALID_RPC_SIGNATURE },
         }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
@@ -308,7 +822,7 @@ describe('FastProvider', () => {
             archival: false,
             fee_token: null,
           },
-          signature: { Signature: [7, 7, 7] },
+          signature: { Signature: VALID_RPC_SIGNATURE },
         }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
@@ -352,7 +866,7 @@ describe('FastProvider', () => {
             archival: false,
             fee_token: null,
           },
-          signature: { Signature: [7, 7, 7] },
+          signature: { Signature: VALID_RPC_SIGNATURE },
         }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
@@ -408,7 +922,7 @@ describe('FastProvider', () => {
             archival: false,
             fee_token: null,
           },
-          signature: { Signature: [7, 7, 7] },
+          signature: { Signature: VALID_RPC_SIGNATURE },
         }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
@@ -464,7 +978,7 @@ describe('FastProvider', () => {
             archival: false,
             fee_token: null,
           },
-          signature: { Signature: [7, 7, 7] },
+          signature: { Signature: VALID_RPC_SIGNATURE },
         }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
@@ -502,7 +1016,7 @@ describe('FastProvider', () => {
             archival: false,
             fee_token: null,
           },
-          signature: { Signature: [7, 7, 7] },
+          signature: { Signature: VALID_RPC_SIGNATURE },
         }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
@@ -547,7 +1061,66 @@ describe('FastProvider', () => {
             archival: false,
             fee_token: null,
           },
-          signature: { Signature: [7, 7, 7] },
+          signature: { Signature: VALID_RPC_SIGNATURE },
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof FastError);
+          assert.equal(error.code, 'TX_FAILED');
+          assert.equal(
+            error.message,
+            'Transaction was submitted, but the returned certificate could not be decoded.',
+          );
+          return true;
+        },
+      );
+    });
+
+    it('rejects certificates with mixed wrapped and bare transaction variants from proxy_submitTransaction', async () => {
+      const certificate = sampleCertificate(9);
+      globalThis.fetch = async () => rpcResult({
+        ...certificate,
+        envelope: {
+          ...certificate.envelope,
+          transaction: {
+            ...certificate.envelope.transaction,
+            network_id: FAST_NETWORK_IDS.MAINNET,
+            sender: new Array(32).fill(9),
+            nonce: 999,
+            timestamp_nanos: 2,
+            claim: {
+              TokenTransfer: {
+                token_id: new Array(32).fill(9),
+                recipient: new Array(32).fill(9),
+                amount: '9',
+                user_data: null,
+              },
+            },
+            archival: true,
+            fee_token: null,
+          },
+        },
+      });
+
+      const provider = new FastProvider();
+      await assert.rejects(
+        () => provider.submitTransaction({
+          transaction: {
+            network_id: FAST_NETWORK_IDS.TESTNET,
+            sender: new Uint8Array(32).fill(2),
+            nonce: 9,
+            timestamp_nanos: 10n,
+            claim: {
+              TokenTransfer: {
+                token_id: FAST_TOKEN_ID,
+                recipient: new Uint8Array(32).fill(3),
+                amount: '1',
+                user_data: null,
+              },
+            },
+            archival: false,
+            fee_token: null,
+          },
+          signature: { Signature: VALID_RPC_SIGNATURE },
         }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
@@ -642,12 +1215,23 @@ describe('FastProvider', () => {
     });
 
     it('returns testUSDC balance by symbol', async () => {
-      globalThis.fetch = async () => rpcResult({
-        balance: '0x0',
+      globalThis.fetch = async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { method?: string };
+        if (body.method === 'proxy_getTokenInfo') {
+          return rpcResult({
+            requested_token_metadata: [
+              [TEST_USDC_TOKEN_ID, { token_name: 'testUSDC', decimals: 6 }],
+            ],
+          });
+        }
+
+        return rpcResult({
+          balance: '0x0',
           token_balance: [
             [TEST_USDC_TOKEN_ID, '0xf4240'], // 1.0 USDC (1_000_000 with 6 decimals)
           ],
         });
+      };
 
       const provider = new FastProvider();
       const balance = await provider.getBalance(

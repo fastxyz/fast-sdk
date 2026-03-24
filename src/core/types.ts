@@ -100,10 +100,8 @@ export interface FastMultiSig {
 
 export type FastEnvelopeSignature =
   | number[]
-  | {
-      Signature?: number[];
-      MultiSig?: FastMultiSig;
-    };
+  | { Signature: number[] }
+  | { MultiSig: FastMultiSig };
 
 export interface FastTransactionEnvelope {
   transaction: FastVersionedTransaction;

@@ -32,6 +32,24 @@ import type {
 const HEX_TOKEN_PATTERN = /^(0x)?[0-9a-fA-F]+$/;
 const FAST_ID_BYTES = 32;
 const ED25519_SIGNATURE_BYTES = 64;
+const FAST_TRANSACTION_KEYS = [
+  'network_id',
+  'sender',
+  'nonce',
+  'timestamp_nanos',
+  'claim',
+  'archival',
+  'fee_token',
+] as const;
+const VERSIONED_TRANSACTION_KEYS = ['Release20260319'] as const;
+const ENVELOPE_KEYS = ['transaction', 'signature'] as const;
+const CERTIFICATE_KEYS = ['envelope', 'signatures'] as const;
+const MULTISIG_KEYS = ['config', 'signatures'] as const;
+const MULTISIG_CONFIG_KEYS = ['authorized_signers', 'quorum', 'nonce'] as const;
+const SIGNATURE_OBJECT_KEYS = ['Signature', 'MultiSig'] as const;
+const TOKEN_METADATA_KEYS = ['update_id', 'admin', 'token_name', 'decimals', 'total_supply', 'mints'] as const;
+const TOKEN_INFO_RESPONSE_KEYS = ['requested_token_metadata'] as const;
+const ACCOUNT_INFO_KEYS = ['balance', 'token_balance', 'next_nonce', 'requested_certificates'] as const;
 
 type FastTokenInfoResponse = {
   requested_token_metadata?: Array<[number[], FastTokenMetadata | null]>;
@@ -49,14 +67,105 @@ function tokenIdToHex(tokenId: number[] | Uint8Array): string {
   return bytesToHex(tokenId);
 }
 
+function assertSerializableTransactionInput(transaction: FastTransaction): void {
+  try {
+    serializeVersionedTransaction(transaction);
+  } catch {
+    throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.transaction shape', {
+      note: 'Pass a Release20260319 transaction that matches the documented Fast claim schema.',
+    });
+  }
+}
+
 function toRpcVersionedTransaction(
   transaction: FastVersionedTransaction,
 ): { Release20260319: FastTransaction } {
-  if (transaction && typeof transaction === 'object' && 'Release20260319' in transaction) {
-    return transaction as { Release20260319: FastTransaction };
+  if (!isRecord(transaction)) {
+    throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.transaction shape', {
+      note: 'Pass a bare transaction object or { Release20260319: transaction }.',
+    });
   }
 
+  if ('Release20260319' in transaction) {
+    if (!hasExactKeys(transaction, VERSIONED_TRANSACTION_KEYS)) {
+      throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.transaction shape', {
+        note: 'Pass either a bare transaction object or { Release20260319: transaction }, but not both.',
+      });
+    }
+    if (!isRecord(transaction.Release20260319) || !hasExactKeys(transaction.Release20260319, FAST_TRANSACTION_KEYS)) {
+      throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.transaction shape', {
+        note: 'Pass a wrapped Release20260319 transaction with only the documented Fast transaction fields.',
+      });
+    }
+    assertSerializableTransactionInput(transaction.Release20260319 as FastTransaction);
+    return { Release20260319: transaction.Release20260319 as FastTransaction };
+  }
+
+  if (!hasExactKeys(transaction, FAST_TRANSACTION_KEYS)) {
+    throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.transaction shape', {
+      note: 'Pass a bare transaction object with only the documented Fast transaction fields.',
+    });
+  }
+  assertSerializableTransactionInput(transaction as FastTransaction);
+
   return { Release20260319: transaction as FastTransaction };
+}
+
+function isRpcMultiSigInputShape(value: unknown): boolean {
+  if (!isRecord(value) || !hasExactKeys(value, MULTISIG_KEYS) || !('config' in value) || !isRecord(value.config)) {
+    return false;
+  }
+
+  return hasExactKeys(value.config, MULTISIG_CONFIG_KEYS)
+    && isAddressMatrix(value.config.authorized_signers)
+    && isNonNegativeSafeInteger(value.config.quorum)
+    && isNonNegativeSafeInteger(value.config.nonce)
+    && isSignaturePairs(value.signatures);
+}
+
+function toRpcEnvelopeSignature(signature: FastTransactionEnvelope['signature']): FastTransactionEnvelope['signature'] {
+  if (Array.isArray(signature)) {
+    if (!isSignatureLike(signature)) {
+      throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.signature shape', {
+        note: 'Pass a 64-byte signature, { Signature }, or { MultiSig }.',
+      });
+    }
+    return signature;
+  }
+  if (!isRecord(signature)) {
+    throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.signature shape', {
+      note: 'Pass a 64-byte signature, { Signature }, or { MultiSig }.',
+    });
+  }
+
+  const hasSignature = 'Signature' in signature && signature.Signature !== undefined;
+  const hasMultiSig = 'MultiSig' in signature && signature.MultiSig !== undefined;
+  if (!hasOnlyKnownKeys(signature, SIGNATURE_OBJECT_KEYS) || (hasSignature ? 1 : 0) + (hasMultiSig ? 1 : 0) !== 1) {
+    throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.signature shape', {
+      note: 'Pass signature bytes, { Signature }, or { MultiSig }, but not mixed signature variants.',
+    });
+  }
+
+  if (hasSignature) {
+    if (!isSignatureLike(signature.Signature)) {
+      throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.signature shape', {
+        note: 'Pass a 64-byte signature, { Signature }, or { MultiSig }.',
+      });
+    }
+    return { Signature: signature.Signature as number[] };
+  }
+  if ('MultiSig' in signature) {
+    if (!isRpcMultiSigInputShape(signature.MultiSig)) {
+      throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.signature shape', {
+        note: 'Pass a multisig signature object with valid signer ids, safe integer config values, and fixed-width signatures.',
+      });
+    }
+    return { MultiSig: signature.MultiSig } as FastTransactionEnvelope['signature'];
+  }
+
+  throw new FastError('INVALID_PARAMS', 'Invalid transaction envelope.signature shape', {
+    note: 'Pass a 64-byte signature, { Signature }, or { MultiSig }.',
+  });
 }
 
 function getTransactionNonce(transaction: FastVersionedTransaction): bigint {
@@ -135,6 +244,16 @@ function isNonNegativeIntegerLike(value: unknown): boolean {
     || (typeof value === 'bigint' && value >= 0n);
 }
 
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actualKeys = Object.keys(value);
+  return actualKeys.length === keys.length
+    && actualKeys.every((key) => keys.includes(key));
+}
+
+function hasOnlyKnownKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+
 function hasExactTransactionScalars(value: unknown): boolean {
   if (value === null) return true;
   if (typeof value === 'string' || typeof value === 'boolean') return true;
@@ -155,6 +274,7 @@ function hasExactTransactionScalars(value: unknown): boolean {
 
 function isFastTransactionShape(value: unknown): value is FastTransaction {
   if (!isRecord(value)) return false;
+  if (!hasExactKeys(value, FAST_TRANSACTION_KEYS)) return false;
   if (!hasExactTransactionScalars(value)) return false;
 
   try {
@@ -168,16 +288,20 @@ function isFastTransactionShape(value: unknown): value is FastTransaction {
 function isVersionedTransactionShape(value: unknown): value is FastVersionedTransaction {
   if (!isRecord(value)) return false;
   if ('Release20260319' in value) {
-    return isFastTransactionShape(value.Release20260319);
+    return hasExactKeys(value, ['Release20260319'])
+      && isFastTransactionShape(value.Release20260319);
   }
   return isFastTransactionShape(value);
 }
 
 function isMultiSigShape(value: unknown): boolean {
   if (!isRecord(value)) return false;
-  if (!('config' in value) || !isRecord(value.config)) return false;
+  if (!hasExactKeys(value, MULTISIG_KEYS) || !('config' in value) || !isRecord(value.config)) return false;
 
   const config = value.config;
+  if (!hasExactKeys(config, MULTISIG_CONFIG_KEYS)) {
+    return false;
+  }
   if (!('authorized_signers' in config) || !isAddressMatrix(config.authorized_signers)) {
     return false;
   }
@@ -197,15 +321,18 @@ function isMultiSigShape(value: unknown): boolean {
 function isEnvelopeSignatureShape(value: unknown): boolean {
   if (isSignatureLike(value)) return true;
   if (!isRecord(value)) return false;
+  if (!hasOnlyKnownKeys(value, SIGNATURE_OBJECT_KEYS)) return false;
 
-  const hasValidSignature = 'Signature' in value
-    && value.Signature !== undefined
-    && isSignatureLike(value.Signature);
-  const hasValidMultiSig = 'MultiSig' in value
-    && value.MultiSig !== undefined
-    && isMultiSigShape(value.MultiSig);
+  const hasSignature = 'Signature' in value && value.Signature !== undefined;
+  const hasMultiSig = 'MultiSig' in value && value.MultiSig !== undefined;
+  if ((hasSignature ? 1 : 0) + (hasMultiSig ? 1 : 0) !== 1) {
+    return false;
+  }
 
-  return hasValidSignature || hasValidMultiSig;
+  if (hasSignature) {
+    return isSignatureLike(value.Signature);
+  }
+  return isMultiSigShape(value.MultiSig);
 }
 
 function isSignaturePairs(value: unknown): value is Array<[number[], number[]]> {
@@ -219,12 +346,12 @@ function isSignaturePairs(value: unknown): value is Array<[number[], number[]]> 
 }
 
 function isTransactionCertificate(value: unknown): value is FastTransactionCertificate {
-  if (!isRecord(value) || !('envelope' in value) || !('signatures' in value)) {
+  if (!isRecord(value) || !hasExactKeys(value, CERTIFICATE_KEYS) || !('envelope' in value) || !('signatures' in value)) {
     return false;
   }
 
   const envelope = value.envelope;
-  if (!isRecord(envelope)) return false;
+  if (!isRecord(envelope) || !hasExactKeys(envelope, ENVELOPE_KEYS)) return false;
 
   return (
     'transaction' in envelope
@@ -237,6 +364,7 @@ function isTransactionCertificate(value: unknown): value is FastTransactionCerti
 
 function isFastTokenMetadataShape(value: unknown): value is FastTokenMetadata {
   if (!isRecord(value)) return false;
+  if (!hasOnlyKnownKeys(value, TOKEN_METADATA_KEYS)) return false;
 
   if ('update_id' in value && value.update_id !== undefined && !isNonNegativeSafeInteger(value.update_id)) {
     return false;
@@ -265,6 +393,7 @@ function isFastTokenMetadataShape(value: unknown): value is FastTokenMetadata {
 function isTokenInfoResponseShape(value: unknown): value is FastTokenInfoResponse {
   if (value === null) return true;
   if (!isRecord(value)) return false;
+  if (!hasOnlyKnownKeys(value, TOKEN_INFO_RESPONSE_KEYS)) return false;
 
   if ('requested_token_metadata' in value && value.requested_token_metadata !== undefined) {
     if (!Array.isArray(value.requested_token_metadata)) {
@@ -288,6 +417,7 @@ function isTokenInfoResponseShape(value: unknown): value is FastTokenInfoRespons
 function isAccountInfoShape(value: unknown): value is FastAccountInfo {
   if (value === null) return true;
   if (!isRecord(value)) return false;
+  if (!hasOnlyKnownKeys(value, ACCOUNT_INFO_KEYS)) return false;
 
   if ('balance' in value && value.balance !== undefined && !isHexAmountString(value.balance)) {
     return false;
@@ -367,6 +497,14 @@ function assertNonceParam(name: string, value: number): void {
       note: `Pass a non-negative safe integer ${name}.`,
     });
   }
+}
+
+function getSubmitResultVariantCount(value: Record<string, unknown>): number {
+  let count = 0;
+  if ('Success' in value) count += 1;
+  if ('IncompleteVerifierSigs' in value) count += 1;
+  if ('IncompleteMultiSig' in value) count += 1;
+  return count;
 }
 
 export class BaseFastProvider {
@@ -458,27 +596,50 @@ export class BaseFastProvider {
 
     const result = await rpcCall(this._rpcUrl, 'proxy_submitTransaction', {
       transaction: toRpcVersionedTransaction(envelope.transaction),
-      signature: envelope.signature,
+      signature: toRpcEnvelopeSignature(envelope.signature),
     });
 
-    if (isTransactionCertificate(result)) {
-      return { Success: result };
-    }
-
     if (isRecord(result)) {
+      const submitResultVariantCount = getSubmitResultVariantCount(result);
+      const hasDirectCertificateKeys = 'envelope' in result || 'signatures' in result;
+      if (submitResultVariantCount > 1 || (submitResultVariantCount === 1 && hasDirectCertificateKeys)) {
+        throw new FastError('TX_FAILED', 'Unexpected proxy_submitTransaction result', {
+          note: 'The proxy returned a result that does not match the documented submitTransaction variants.',
+        });
+      }
+
+      if (submitResultVariantCount === 0 && isTransactionCertificate(result)) {
+        return { Success: result };
+      }
+
       if ('Success' in result) {
+        if (Object.keys(result).length !== 1) {
+          throw new FastError('TX_FAILED', 'Unexpected proxy_submitTransaction result', {
+            note: 'The proxy returned a result that does not match the documented submitTransaction variants.',
+          });
+        }
         if (isTransactionCertificate(result.Success)) {
           return { Success: result.Success };
         }
         throw invalidSubmitCertificateError();
       }
       if ('IncompleteVerifierSigs' in result && Array.isArray(result.IncompleteVerifierSigs)) {
+        if (Object.keys(result).length !== 1) {
+          throw new FastError('TX_FAILED', 'Unexpected proxy_submitTransaction result', {
+            note: 'The proxy returned a result that does not match the documented submitTransaction variants.',
+          });
+        }
         return { IncompleteVerifierSigs: result.IncompleteVerifierSigs as unknown[] };
       }
       if ('IncompleteMultiSig' in result && Array.isArray(result.IncompleteMultiSig)) {
+        if (Object.keys(result).length !== 1) {
+          throw new FastError('TX_FAILED', 'Unexpected proxy_submitTransaction result', {
+            note: 'The proxy returned a result that does not match the documented submitTransaction variants.',
+          });
+        }
         return { IncompleteMultiSig: result.IncompleteMultiSig as unknown[] };
       }
-      if ('envelope' in result || 'signatures' in result) {
+      if (hasDirectCertificateKeys) {
         throw invalidSubmitCertificateError();
       }
     }

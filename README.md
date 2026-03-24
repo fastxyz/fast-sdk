@@ -73,9 +73,14 @@ const provider = new FastProvider({
 ```ts
 interface ProviderOptions {
   network?: string;       // 'testnet' | 'mainnet' | custom name
+  networkId?: string;     // Explicit CAIP-2 id for custom networks
   rpcUrl?: string;        // Override network RPC
   explorerUrl?: string;   // Override network explorer
-  networks?: Record<string, { rpc: string; explorer?: string }>;
+  networks?: Record<string, {
+    rpc: string;
+    explorer?: string;
+    networkId?: string;
+  }>;
   tokens?: Record<string, { symbol: string; tokenId: string; decimals: number }>;
 }
 ```
@@ -206,7 +211,7 @@ for (const t of tokens) {
 ### Export Wallet Info
 
 ```ts
-const info = wallet.exportKeys();
+const info = await wallet.exportKeys();
 console.log('Address:', info.address);
 console.log('Public Key:', info.publicKey);
 // Note: privateKey is never exported
@@ -253,12 +258,16 @@ Create `~/.fast/networks.json`:
 {
   "devnet": {
     "rpc": "http://localhost:8080/proxy",
-    "explorer": "http://localhost:3000"
+    "explorer": "http://localhost:3000",
+    "networkId": "fast:devnet"
   }
 }
 ```
 
 Then use: `new FastProvider({ network: 'devnet' })`
+
+If you only read data from a custom RPC, `networkId` can be omitted. For signing or sending,
+set `networkId` here or pass `new FastProvider({ network: 'devnet', networkId: 'fast:devnet' })`.
 
 ### Custom Token
 
@@ -303,7 +312,7 @@ const balance = await provider.getBalance('fast1...', 'FAST');
 - Use constructor overrides for custom config
 
 **Available in browser:**
-- `FastProvider` (read-only operations)
+- `FastProvider` (provider APIs, including low-level transaction submission)
 - Address helpers: `encodeFastAddress`, `decodeFastAddress`, `fastAddressToBytes`
 - Certificate helpers: `getCertificateHash`, `getCertificateTransaction`
 - Config helpers: `getNetworkInfo`, `getDefaultRpcUrl`, `getExplorerUrl`
@@ -324,7 +333,7 @@ For wallet signing in browsers, use an injected wallet or build on `fast-connect
 | `getAccountInfo(address)` | Raw account info | `object \| null` |
 | `getCertificateByNonce(address, nonce)` | Fetch certificate | `Certificate \| null` |
 | `getExplorerUrl(txHash?)` | Explorer URL | `string \| null` |
-| `submitTransaction(envelope)` | Raw submit | `SubmitResult` |
+| `submitTransaction(envelope)` | Raw submit | `FastSubmitTransactionResult` |
 | `faucetDrip({ recipient, amount, token? })` | Testnet faucet | `void` |
 
 ### FastWallet Methods

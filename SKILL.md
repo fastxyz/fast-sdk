@@ -86,7 +86,7 @@ Is this a Node.js app or agent?
    });
    ```
 
-3. Provider is ready. Use for read-only operations or pass to wallet.
+3. Provider is ready. Use for provider operations directly, or pass it to a wallet for signing flows.
 
 **Network name resolution order:**
 1. Constructor `networks` override (highest priority)
@@ -444,5 +444,5 @@ const signed = await wallet.sign({ message: 'Hello' });
 const verified = await wallet.verify({ message, signature, address });
 
 // Info
-const info = wallet.exportKeys();  // { publicKey, address }
+const info = await wallet.exportKeys();  // { publicKey, address }
 ```

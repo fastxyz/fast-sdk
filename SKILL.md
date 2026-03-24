@@ -1,567 +1,462 @@
 ---
 name: fast-sdk
 description: >
-  Fast SDK for AI agents, Node.js apps, and browser apps. Use @fastxyz/sdk for Node keyfile wallets,
-  @fastxyz/sdk/browser for browser-safe provider and protocol helpers, and @fastxyz/sdk/core for
-  pure Fast helpers. The SDK can create or load a Fast wallet, check balances, send FAST tokens,
-  sign or verify messages, list held tokens, look up token metadata, fetch certificates, and export wallet info.
-  Trigger this skill when a user wants to integrate Fast payments or wallet actions in code,
-  or when asked to send funds, inspect balances, sign or verify data, or query Fast token holdings.
-  Do NOT use for swaps, bridges, AllSet flows, lending, staking, or generic EVM SDK work.
+  Fast SDK for AI agents, Node.js apps, and browser apps. Create wallets, check balances,
+  send tokens, sign messages, and query the Fast network. Use @fastxyz/sdk for Node.js,
+  @fastxyz/sdk/browser for browsers, @fastxyz/sdk/core for pure helpers.
 metadata:
-  short-description: Use @fastxyz/sdk, @fastxyz/sdk/browser, or @fastxyz/sdk/core for Fast wallet, balance, transfer, token, signing, and pure helper workflows.
-  compatibility: Node.js 20+ for @fastxyz/sdk; modern browsers for @fastxyz/sdk/browser and @fastxyz/sdk/core; network access for Fast RPC; filesystem access only for Node keyfile workflows.
+  short-description: Fast wallet, balance, transfer, and signing workflows.
+  compatibility: Node.js 20+ for @fastxyz/sdk; browsers for @fastxyz/sdk/browser.
 ---
 
-# Fast SDK
+# Fast SDK Skill
 
-Use `@fastxyz/sdk` for Node.js keyfile wallets, `@fastxyz/sdk/browser` for browser-safe provider and protocol helpers, and `@fastxyz/sdk/core` for pure Fast helpers.
+## When to Use This Skill
 
-## Install
+**USE this skill when the user wants to:**
+- Check Fast network balances
+- Send FAST or USDC tokens on Fast
+- Create or load a Fast wallet
+- Sign or verify messages with a Fast address
+- List tokens held by a Fast address
+- Query Fast certificates or transactions
 
-```bash
-npm install @fastxyz/sdk
-```
-
-If `npm install @fastxyz/sdk` fails due to a registry or auth issue, use the repo as the source of truth and wire it into the target project from a local checkout or git dependency.
-
----
-
-## Architecture
-
-The SDK uses **Provider/Wallet separation**:
-
-| Component | Purpose | Private Key? |
-|-----------|---------|--------------|
-| **FastProvider** | Low-level Fast proxy client | ❌ Not needed |
-| **FastWallet** | Node.js keyfile or private-key wallet | ✅ Required |
-
-**Rule:** Always create a Provider first, then create a Wallet with that Provider.
-
-Package boundaries:
-
-- `@fastxyz/sdk` is the main Node runtime entrypoint
-- `@fastxyz/sdk/browser` stays low-level and browser-safe
-- `@fastxyz/sdk/core` is the pure helper surface
-- app-facing browser wallet integration belongs in `fast-connector`, not here
+**DO NOT use this skill for:**
+- AllSet bridge flows (Fast ↔ EVM) → use allset-sdk
+- Token swaps or DEX operations
+- Staking, lending, or yield strategies
+- Generic EVM wallet operations
+- Cross-chain transactions
 
 ---
 
-## FastProvider Setup
-
-### Option 1: Default (testnet)
-
-```ts
-import { FastProvider } from '@fastxyz/sdk';
-
-const provider = new FastProvider();
-// Uses: network='testnet', RPC from networks.json, explorer from networks.json
-```
-
-### Option 2: Specify network
-
-```ts
-const provider = new FastProvider({ network: 'testnet' });
-// or
-const provider = new FastProvider({ network: 'mainnet' });
-```
-
-**Where do `testnet` and `mainnet` configs come from?**
-
-The SDK loads network configuration from JSON files in this priority order:
+## Decision Tree: Which Entrypoint?
 
 ```
-1. ~/.fast/networks.json        ← User overrides (highest priority)
-2. src/config/data/networks.json ← Bundled defaults (ships with package)
-3. Hardcoded fallbacks          ← Last resort if JSON fails to load
+Is this a Node.js app or agent?
+├── YES → Use @fastxyz/sdk
+│         (Full wallet support, keyfiles, filesystem config)
+│
+└── NO → Is this a browser app?
+         ├── YES → Use @fastxyz/sdk/browser
+         │         (Provider only, no wallet, no filesystem)
+         │
+         └── NO → Use @fastxyz/sdk/core
+                  (Pure helpers: address encoding, BCS, types)
 ```
 
-**Bundled defaults** (`src/config/data/networks.json`):
-```json
-{
-  "testnet": {
-    "rpc": "https://testnet.api.fast.xyz/proxy",
-    "explorer": "https://testnet.explorer.fast.xyz"
-  },
-  "mainnet": {
-    "rpc": "https://api.fast.xyz/proxy",
-    "explorer": "https://explorer.fast.xyz"
-  }
-}
-```
-
-If you need to override these, create `~/.fast/networks.json` with your values — they will take precedence.
-
-For explorer links, use `getExplorerUrl(network)` to read the configured base URL or `provider.getExplorerUrl(txHash)` to build a transaction URL. Do not hardcode explorer hosts in app code because they are network-specific and may be overridden.
-
-### Option 3: Custom RPC URL
-
-```ts
-const provider = new FastProvider({
-  rpcUrl: 'https://my-custom-rpc.example.com/proxy',
-  explorerUrl: 'https://my-custom-explorer.example.com'  // Optional
-});
-```
-
-**Notes:**
-- `explorerUrl` is optional. If not provided, `getExplorerUrl()` returns `null`.
-- If both `network` and `rpcUrl` are provided, `rpcUrl` takes effect (network config is ignored).
-
-```ts
-// Without explorerUrl - getExplorerUrl() returns null
-const provider = new FastProvider({
-  rpcUrl: 'https://my-custom-rpc.example.com/proxy'
-});
-const url = await provider.getExplorerUrl(txHash);  // → null
-```
-
-### All ProviderOptions
-
-```ts
-interface ProviderOptions {
-  network?: string;       // Default: 'testnet'; also accepts custom names from ~/.fast/networks.json
-  rpcUrl?: string;        // Overrides network RPC
-  explorerUrl?: string;   // Overrides network explorer (null if not set)
-  networks?: Record<string, { rpc: string; explorer?: string }>;
-  tokens?: Record<string, { symbol: string; tokenId: string; decimals: number }>;
-}
-```
-
-### Browser-safe provider and helpers
-
-Use the browser entrypoint when bundling for web apps or extensions:
-
-```ts
-import { FastProvider, getCertificateHash } from '@fastxyz/sdk/browser';
-
-const provider = new FastProvider({
-  network: 'testnet',
-});
-
-const balance = await provider.getBalance('fast1recipient...', 'FAST');
-console.log(balance.amount);
-
-const certificate = await provider.getCertificateByNonce('fast1recipient...', 1);
-if (certificate) {
-  console.log(getCertificateHash(certificate));
-}
-```
-
-Browser bundle boundaries:
-
-- No `node:*` dependency chain
-- No `~/.fast/*` config loading
-- No keyfile storage
-- Use bundled defaults or constructor-injected `networks` / `tokens`
-- No injected wallet wrapper in this package
-
-For pure protocol work with no provider dependency, use `@fastxyz/sdk/core`.
-
-For Fast-native address codec work in browser-safe code, use `encodeFastAddress(bytes)`, `fastAddressToBytes(address)`, or `decodeFastAddress(address)`.
-
-`@fastxyz/sdk/browser` also keeps the legacy browser address helper names `pubkeyToAddress()`, `addressToPubkey()`, and `normalizeFastAddress()` for compatibility.
-
-`@fastxyz/sdk` and `@fastxyz/sdk/browser` both export `getExplorerUrl(network)` and `getDefaultRpcUrl(network)` from the config layer.
+**Default choice:** `@fastxyz/sdk` (Node.js) — covers most agent use cases.
 
 ---
 
-## FastWallet Setup
+## Workflows
 
-**Important:** You must have a FastProvider before creating a FastWallet.
+### 1. Setup Provider
 
-### Option 1: From keyfile path
+**When:** Always. Provider is required for all operations.
 
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
+**Prerequisites:** None.
 
-const provider = new FastProvider({ network: 'testnet' });
+**Steps:**
 
-// Simple: pass path directly
-const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+1. Import FastProvider:
+   ```ts
+   import { FastProvider } from '@fastxyz/sdk';
+   ```
 
-// With options: use object form
-const wallet = await FastWallet.fromKeyfile({ 
-  keyFile: '~/.fast/keys/default.json',
-  createIfMissing: false  // Optional, default: true
-}, provider);
-```
+2. Choose network option:
 
-**Notes:**
-- If file doesn't exist and `createIfMissing: true` (default): generates new key, saves to file, returns wallet
-- If file doesn't exist and `createIfMissing: false`: throws `KEYFILE_NOT_FOUND` error
-- If file exists: loads key from file, returns wallet
+   **Option A: Default testnet**
+   ```ts
+   const provider = new FastProvider();
+   ```
 
-### Option 2: From keyfile with named key
+   **Option B: Specify network**
+   ```ts
+   const provider = new FastProvider({ network: 'testnet' });
+   // or
+   const provider = new FastProvider({ network: 'mainnet' });
+   ```
 
-```ts
-const provider = new FastProvider({ network: 'testnet' });
-const wallet = await FastWallet.fromKeyfile({ key: 'merchant' }, provider);
-// Resolves to: ~/.fast/keys/merchant.json
-// Auto-creates if missing (unless createIfMissing: false)
-```
+   **Option C: Custom RPC**
+   ```ts
+   const provider = new FastProvider({
+     rpcUrl: 'https://custom.rpc.example.com/proxy',
+     explorerUrl: 'https://custom.explorer.example.com'  // optional
+   });
+   ```
 
-### Option 3: From private key (hex string)
-
-```ts
-const provider = new FastProvider({ network: 'testnet' });
-const privateKey = 'a919e405ec3c4f8fdfcd892c434043ccf97742432e7cf686530e17fd842f74e3';
-const wallet = await FastWallet.fromPrivateKey(privateKey, provider);
-// Does NOT save to disk - wallet exists only in memory
-// Use saveToKeyfile() to persist if needed
-```
-
-### Option 4: Generate new random wallet
-
-```ts
-const provider = new FastProvider({ network: 'testnet' });
-const wallet = await FastWallet.generate(provider);
-console.log('New address:', wallet.address);
-// Does NOT save to disk - wallet exists only in memory
-
-// To persist:
-await wallet.saveToKeyfile('~/.fast/keys/new-wallet.json');
-```
-
-### All WalletKeyfileOptions
-
-```ts
-interface WalletKeyfileOptions {
-  keyFile?: string;          // Explicit path (expands ~)
-  key?: string;              // Named key → ~/.fast/keys/{key}.json
-  createIfMissing?: boolean; // Default: true. Set false to require existing file.
-}
-```
-
-### Wallet Creation Summary
-
-| Method | Source | Auto-save? | Use case |
-|--------|--------|------------|----------|
-| `fromKeyfile(path, provider)` | File or generate | ✅ Yes | Most common |
-| `fromKeyfile({ key: 'name' }, provider)` | Named file | ✅ Yes | Multiple wallets |
-| `fromKeyfile({ ..., createIfMissing: false }, provider)` | File only | N/A | Must exist |
-| `fromPrivateKey(hex, provider)` | Memory | ❌ No | Import existing key |
-| `generate(provider)` + `saveToKeyfile()` | Random | ❌ Manual | Create new wallet |
+3. Provider is ready. Use for read-only operations or pass to wallet.
 
 ---
 
-## Multiple Wallets, One Provider
+### 2. Setup Wallet
 
-```ts
-const provider = new FastProvider({ network: 'testnet' });
+**When:** Need to sign transactions or messages.
 
-// All wallets share the same RPC connection
-const merchant = await FastWallet.fromKeyfile({ key: 'merchant' }, provider);
-const buyer = await FastWallet.fromKeyfile({ key: 'buyer' }, provider);
-const treasury = await FastWallet.fromKeyfile({ key: 'treasury' }, provider);
+**Prerequisites:** Provider must exist.
 
-// Files created:
-// ~/.fast/keys/merchant.json
-// ~/.fast/keys/buyer.json
-// ~/.fast/keys/treasury.json
-```
+**Steps:**
+
+1. Decide which wallet method to use:
+
+   ```
+   Do you have a keyfile path?
+   ├── YES → Use fromKeyfile(path, provider)
+   │
+   └── NO → Do you have a private key string?
+            ├── YES → Use fromPrivateKey(key, provider)
+            │
+            └── NO → Do you need a new wallet?
+                     ├── YES → Use generate(provider)
+                     └── NO → Use fromKeyfile({ key: 'name' }, provider)
+   ```
+
+2. Create wallet:
+
+   **Option A: From keyfile (most common)**
+   ```ts
+   import { FastWallet } from '@fastxyz/sdk';
+   
+   const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+   // Creates file if missing, loads if exists
+   ```
+
+   **Option B: Named key**
+   ```ts
+   const wallet = await FastWallet.fromKeyfile({ key: 'merchant' }, provider);
+   // Uses ~/.fast/keys/merchant.json
+   ```
+
+   **Option C: From private key (in-memory)**
+   ```ts
+   const wallet = await FastWallet.fromPrivateKey(privateKeyHex, provider);
+   // Does NOT save to disk
+   ```
+
+   **Option D: Generate new**
+   ```ts
+   const wallet = await FastWallet.generate(provider);
+   // Save if needed:
+   await wallet.saveToKeyfile('~/.fast/keys/new.json');
+   ```
+
+3. Wallet is ready. Access address via `wallet.address`.
 
 ---
 
-## Complete Examples
+### 3. Check Balance
 
-### Example 1: Check balance (read-only, no wallet)
+**When:** User asks for balance of any Fast address.
 
-```ts
-import { FastProvider } from '@fastxyz/sdk';
+**Prerequisites:** Provider only (no wallet needed for other addresses).
 
-const provider = new FastProvider({ network: 'testnet' });
-const balance = await provider.getBalance('fast1abc123...', 'FAST');
-console.log(`Balance: ${balance.amount} ${balance.token}`);
+**Steps:**
+
+1. For any address (read-only):
+   ```ts
+   const balance = await provider.getBalance('fast1abc...', 'FAST');
+   // or with token symbol
+   const balance = await provider.getBalance('fast1abc...', 'testUSDC');
+   ```
+
+2. For wallet's own balance:
+   ```ts
+   const balance = await wallet.balance('FAST');
+   ```
+
+3. Return result:
+   ```ts
+   console.log(`${balance.amount} ${balance.token}`);
+   ```
+
+**Token parameter options:**
+- `'FAST'` → Native token
+- `'testUSDC'` / `'fastUSDC'` → USDC (network-dependent)
+- `'0x...'` → Any token by hex ID
+
+---
+
+### 4. Send Tokens
+
+**When:** User wants to transfer tokens to another Fast address.
+
+**Prerequisites:** Provider + Wallet.
+
+**Steps:**
+
+1. Ensure wallet is set up (see Workflow 2).
+
+2. Call send:
+   ```ts
+   const result = await wallet.send({
+     to: 'fast1recipient...',
+     amount: '10.5',           // Human-readable amount
+     token: 'testUSDC'         // Optional, defaults to 'FAST'
+   });
+   ```
+
+3. Return result to user:
+   ```ts
+   console.log('TX Hash:', result.txHash);
+   console.log('Explorer:', result.explorerUrl);
+   ```
+
+4. Handle errors:
+   ```ts
+   import { FastError } from '@fastxyz/sdk';
+   
+   try {
+     const result = await wallet.send({ to, amount, token });
+   } catch (err) {
+     if (err instanceof FastError) {
+       if (err.code === 'INSUFFICIENT_BALANCE') {
+         // Tell user they don't have enough funds
+       } else if (err.code === 'INVALID_ADDRESS') {
+         // Tell user the recipient address is invalid
+       }
+     }
+   }
+   ```
+
+---
+
+### 5. Sign Message
+
+**When:** User wants to sign arbitrary data with their Fast address.
+
+**Prerequisites:** Provider + Wallet.
+
+**Steps:**
+
+1. Call sign:
+   ```ts
+   const signed = await wallet.sign({ message: 'Hello, Fast!' });
+   ```
+
+2. Return result:
+   ```ts
+   console.log('Signature:', signed.signature);
+   console.log('Signer:', signed.address);
+   console.log('Message bytes:', signed.messageBytes);
+   ```
+
+---
+
+### 6. Verify Signature
+
+**When:** User wants to verify a signature was made by a specific Fast address.
+
+**Prerequisites:** Provider + Wallet (any wallet, verification uses public data).
+
+**Steps:**
+
+1. Call verify:
+   ```ts
+   const result = await wallet.verify({
+     message: 'Hello, Fast!',
+     signature: '0xabc123...',
+     address: 'fast1signer...'
+   });
+   ```
+
+2. Return result:
+   ```ts
+   console.log('Valid:', result.valid);  // true or false
+   ```
+
+---
+
+### 7. List All Tokens
+
+**When:** User wants to see all tokens held by a wallet.
+
+**Prerequisites:** Provider + Wallet.
+
+**Steps:**
+
+1. Call tokens:
+   ```ts
+   const tokens = await wallet.tokens();
+   ```
+
+2. Format and return:
+   ```ts
+   for (const t of tokens) {
+     console.log(`${t.symbol}: ${t.balance} (${t.decimals} decimals)`);
+   }
+   ```
+
+---
+
+### 8. Create and Save New Wallet
+
+**When:** User wants to create a fresh Fast wallet.
+
+**Prerequisites:** Provider.
+
+**Steps:**
+
+1. Generate wallet:
+   ```ts
+   const wallet = await FastWallet.generate(provider);
+   ```
+
+2. Show address to user:
+   ```ts
+   console.log('New address:', wallet.address);
+   ```
+
+3. Save to keyfile:
+   ```ts
+   await wallet.saveToKeyfile('~/.fast/keys/new-wallet.json');
+   ```
+
+4. Confirm save location to user.
+
+**Security note:** Never log or return the private key. Use `exportKeys()` for public info only.
+
+---
+
+## Token Resolution Rules
+
+When user specifies a token, resolve in this order:
+
+```
+Is token === 'FAST'?
+├── YES → Use native FAST token (decimals: 18)
+│
+└── NO → Does token start with '0x'?
+         ├── YES → Use as hex token ID, query network for decimals
+         │
+         └── NO → Look up symbol in tokens.json config
+                  ├── FOUND → Use configured tokenId and decimals
+                  └── NOT FOUND → Throw TOKEN_NOT_FOUND error
 ```
 
-### Example 2: Send tokens
-
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-
-const provider = new FastProvider({ network: 'testnet' });
-const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
-
-const result = await wallet.send({
-  to: 'fast1recipient...',
-  amount: '10.5',
-  token: 'testUSDC'
-});
-
-console.log('TX Hash:', result.txHash);
-console.log('Certificate:', result.certificate);
-if (result.explorerUrl) {
-  console.log('Explorer:', result.explorerUrl);
-}
-```
-
-**How does the SDK resolve the `token` parameter?**
-
-The SDK checks the `token` value in this order:
-
-```
-1. Is it 'FAST'?        → Use native FAST token (decimals: 18)
-2. Is it a hex (0x...)? → Use as token ID directly (query network for decimals)
-3. Is it a symbol?      → Look up in tokens.json config
-```
-
-**Option A: Use token symbol** (convenient for known tokens)
-
-```ts
-await wallet.send({ to, amount: '10', token: 'testUSDC' });
-```
-
-Token symbols are resolved for the selected network only. Bundled defaults are:
-
+**Bundled symbols by network:**
 - `testnet`: `FAST`, `testUSDC`
 - `mainnet`: `FAST`, `fastUSDC`
-
-Symbols are resolved from tokens.json in this priority:
-```
-1. ~/.fast/tokens.json          ← User overrides (highest priority)
-2. src/config/data/tokens.json  ← Bundled defaults (ships with package)
-3. Hardcoded fallbacks          ← Last resort
-```
-
-**Option B: Use hex token ID** (works for ANY token on the network)
-
-```ts
-await wallet.send({ 
-  to, 
-  amount: '10', 
-  token: '0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46' 
-});
-```
-
-When using hex token ID:
-- No tokens.json lookup needed
-- SDK queries the network for token decimals via RPC
-- Works for any token deployed on the Fast network
-
-**Bundled defaults** (`src/config/data/tokens.json`):
-```json
-{
-  "testnet": {
-    "FAST": {
-      "symbol": "FAST",
-      "tokenId": "native",
-      "decimals": 18
-    },
-    "testUSDC": {
-      "symbol": "testUSDC",
-      "tokenId": "0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46",
-      "decimals": 6
-    }
-  },
-  "mainnet": {
-    "FAST": {
-      "symbol": "FAST",
-      "tokenId": "native",
-      "decimals": 18
-    },
-    "fastUSDC": {
-      "symbol": "fastUSDC",
-      "tokenId": "0xb4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5",
-      "decimals": 6
-    }
-  }
-}
-```
-
-**To add custom token symbols**, create `~/.fast/tokens.json`:
-```json
-{
-  "testnet": {
-    "MYTOKEN": {
-      "symbol": "MYTOKEN",
-      "tokenId": "0x1234567890abcdef...",
-      "decimals": 18
-    }
-  }
-}
-```
-
-This lets you use `token: 'MYTOKEN'` instead of the full hex ID.
-
-### Example 3: Sign and verify message
-
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-
-const provider = new FastProvider({ network: 'testnet' });
-const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
-
-// Sign
-const signed = await wallet.sign({ message: 'Hello, Fast!' });
-console.log('Signature:', signed.signature);
-console.log('Signer:', signed.address);
-console.log('Message bytes:', signed.messageBytes);
-
-// Verify
-const verified = await wallet.verify({
-  message: 'Hello, Fast!',
-  signature: signed.signature,
-  address: signed.address
-});
-console.log('Valid:', verified.valid);
-```
-
-### Example 4: List all tokens
-
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-
-const provider = new FastProvider({ network: 'testnet' });
-const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
-
-const tokens = await wallet.tokens();
-for (const token of tokens) {
-  console.log(`${token.symbol}: ${token.balance} (${token.decimals} decimals)`);
-}
-```
-
----
-
-## FastProvider Methods Reference
-
-| Method | Description | Returns |
-|--------|-------------|---------|
-| `getBalance(address, token?)` | Get balance for any address | `{ amount, token }` |
-| `getTokens(address)` | List all token balances | `TokenBalance[]` |
-| `getTokenInfo(token)` | Get token metadata | `TokenInfo \| null` |
-| `getAccountInfo(address)` | Raw account info from RPC | `object \| null` |
-| `submitTransaction(envelope)` | Raw `proxy_submitTransaction` | `FastSubmitTransactionResult` |
-| `faucetDrip({ recipient, amount, token? })` | Raw `proxy_faucetDrip` | `void` |
-| `getTransactionCertificates(address, fromNonce, limit)` | Raw certificate listing | `FastTransactionCertificate[]` |
-| `getCertificateByNonce(address, nonce)` | Fetch one certificate by nonce | `FastTransactionCertificate \| null` |
-| `getExplorerUrl(txHash?)` | Get explorer URL | `string \| null` |
-
-## FastWallet Methods Reference
-
-| Method | Description | Returns |
-|--------|-------------|---------|
-| `balance(token?)` | Get wallet balance | `{ amount, token }` |
-| `tokens()` | List all token balances | `TokenBalance[]` |
-| `send({ to, amount, token? })` | Send tokens | `{ txHash, certificate, explorerUrl }` |
-| `sign({ message })` | Sign a message | `{ signature, address, messageBytes }` |
-| `verify({ message, signature, address })` | Verify signature | `{ valid }` |
-| `submit({ claim })` | Low-level claim submission | `{ txHash, certificate }` |
-| `exportKeys()` | Export public key + address | `{ publicKey, address }` |
-| `saveToKeyfile(path)` | Save in-memory wallet to disk | `void` |
-
-`submit()` automatically signs and submits the current FastSet `VersionedTransaction::Release20260319` envelope, including the matching BCS transaction hash. Claims that need a recipient, such as `TokenTransfer`, must now include it inside the claim payload. Transactions also require a Fast CAIP-2 `network_id`, so custom network aliases must define `networkId` or pass it explicitly when constructing `FastProvider`.
-
-## FastWallet Properties
-
-| Property | Description |
-|----------|-------------|
-| `address` | The wallet's Fast address (fast1...) |
-| `provider` | The FastProvider this wallet uses |
 
 ---
 
 ## Error Handling
 
+| Error Code | Meaning | Agent Response |
+|------------|---------|----------------|
+| `INSUFFICIENT_BALANCE` | Not enough funds | Tell user their balance is too low |
+| `INVALID_ADDRESS` | Bad fast1... format | Ask user to check the address |
+| `TOKEN_NOT_FOUND` | Unknown symbol | Ask user for hex token ID or check spelling |
+| `TX_FAILED` | Network rejected tx | Wait and retry, or report network issue |
+| `KEYFILE_NOT_FOUND` | File missing | Create wallet or check path |
+| `INVALID_PARAMS` | Wrong parameter type | Check parameter format |
+
+**Error handling pattern:**
 ```ts
-import { FastProvider, FastWallet, FastError } from '@fastxyz/sdk';
+import { FastError } from '@fastxyz/sdk';
 
 try {
-  const provider = new FastProvider({ network: 'testnet' });
-  const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
-  await wallet.send({ to: 'fast1...', amount: '100' });
+  // operation
 } catch (err) {
   if (err instanceof FastError) {
-    console.error('Error code:', err.code);
-    console.error('Message:', err.message);
-    console.error('Hint:', err.note);
+    // Use err.code, err.message, err.note
   } else {
-    throw err;
+    throw err;  // Re-throw unexpected errors
   }
 }
 ```
 
-### Error Codes
+---
 
-| Code | Meaning | Common Cause |
-|------|---------|--------------|
-| `INSUFFICIENT_BALANCE` | Not enough funds | Wallet balance too low |
-| `INVALID_ADDRESS` | Bad address format | Not a valid fast1... address |
-| `TOKEN_NOT_FOUND` | Unknown token | Token symbol not in config |
-| `TX_FAILED` | Transaction rejected | Network error, nonce conflict |
-| `KEYFILE_NOT_FOUND` | File doesn't exist | Used createIfMissing: false |
-| `INVALID_PARAMS` | Bad parameters | Wrong type or format |
-| `UNSUPPORTED_OPERATION` | Not supported | e.g., saveToKeyfile on loaded wallet |
+## Common Mistakes (DO NOT)
+
+1. **DO NOT** use this SDK for bridges — use `@fastxyz/allset-sdk`
+
+2. **DO NOT** hardcode explorer URLs — use `provider.getExplorerUrl(txHash)`
+
+3. **DO NOT** log private keys — use `wallet.exportKeys()` for public info only
+
+4. **DO NOT** create wallet before provider:
+   ```ts
+   // WRONG
+   const wallet = await FastWallet.fromKeyfile(path);  // Missing provider!
+   
+   // CORRECT
+   const provider = new FastProvider();
+   const wallet = await FastWallet.fromKeyfile(path, provider);
+   ```
+
+5. **DO NOT** use wrong token symbols for network:
+   ```ts
+   // WRONG (fastUSDC is mainnet only)
+   const provider = new FastProvider({ network: 'testnet' });
+   await wallet.send({ to, amount: '10', token: 'fastUSDC' });
+   
+   // CORRECT
+   await wallet.send({ to, amount: '10', token: 'testUSDC' });
+   ```
+
+6. **DO NOT** assume wallet methods exist on provider:
+   ```ts
+   // WRONG
+   await provider.send({ to, amount });  // send() is on wallet, not provider
+   
+   // CORRECT
+   await wallet.send({ to, amount });
+   ```
 
 ---
 
-## Configuration Files
+## Configuration Paths
 
-### Directory Structure
+| Path | Purpose |
+|------|---------|
+| `~/.fast/keys/` | Wallet keyfiles |
+| `~/.fast/keys/default.json` | Default wallet |
+| `~/.fast/keys/{name}.json` | Named wallets |
+| `~/.fast/networks.json` | Custom network configs |
+| `~/.fast/tokens.json` | Custom token symbols |
 
-```
-~/.fast/
-├── keys/
-│   ├── default.json      # Default wallet
-│   ├── merchant.json     # Named wallet
-│   └── buyer.json        # Named wallet
-├── networks.json         # Optional: custom networks
-└── tokens.json           # Optional: custom tokens
-```
-
-### Override config directory
-
+**Override base directory:**
 ```bash
 export FAST_CONFIG_DIR=/custom/path
 ```
 
-### Custom networks.json
-
-```json
-{
-  "devnet": {
-    "rpc": "http://localhost:8080/proxy",
-    "explorer": "http://localhost:3000"
-  },
-  "private-net": {
-    "rpc": "https://private.rpc.example.com/proxy"
-  }
-}
-```
-
-Note: `explorer` is optional. If omitted, `getExplorerUrl()` returns `null`.
-Use these with `new FastProvider({ network: 'devnet' })` or any other key you define.
-
-### Custom tokens.json
-
-```json
-{
-  "testnet": {
-    "MYTOKEN": {
-      "symbol": "MYTOKEN",
-      "tokenId": "0x1234567890abcdef...",
-      "decimals": 18
-    }
-  }
-}
-```
-
 ---
 
-## Security Rules
+## Quick Reference
 
-1. **Never log private keys** — Use `exportKeys()` which only returns public key + address
-2. **Don't delete keyfiles** — Use `trash` instead of `rm` if cleanup needed
-3. **Handle errors properly** — Catch `FastError` to avoid exposing sensitive details
-4. **Use named keys** — Easier to manage than hardcoded paths
+### Imports
 
----
+```ts
+// Node.js (full SDK)
+import { FastProvider, FastWallet, FastError } from '@fastxyz/sdk';
 
-## Not for This Skill
+// Browser (no wallet)
+import { FastProvider, getCertificateHash } from '@fastxyz/sdk/browser';
 
-Do NOT use this SDK for:
+// Pure helpers only
+import { encodeFastAddress, decodeFastAddress } from '@fastxyz/sdk/core';
+```
 
-- AllSet bridge flows (Fast ↔ EVM)
-- Token swaps or routing
-- Staking, lending, or yield strategies
-- Generic EVM wallet operations
-- Cross-chain transactions
+### Common Patterns
+
+```ts
+// Setup
+const provider = new FastProvider({ network: 'testnet' });
+const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+// Read
+const balance = await wallet.balance('FAST');
+const tokens = await wallet.tokens();
+
+// Write
+const tx = await wallet.send({ to: 'fast1...', amount: '1', token: 'testUSDC' });
+
+// Sign
+const signed = await wallet.sign({ message: 'Hello' });
+const verified = await wallet.verify({ message, signature, address });
+
+// Info
+const info = wallet.exportKeys();  // { publicKey, address }
+```

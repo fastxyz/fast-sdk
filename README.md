@@ -59,12 +59,6 @@ const provider = new FastProvider({ network: 'testnet' });
 const provider = new FastProvider({ network: 'mainnet' });
 ```
 
-**Network name resolution order:**
-1. Constructor `networks` override
-2. `~/.fast/networks.json` (user config)
-3. Bundled `src/config/data/networks.json`
-4. Hardcoded fallbacks (`testnet`, `mainnet`)
-
 ### Custom RPC
 
 ```ts
@@ -85,6 +79,13 @@ interface ProviderOptions {
   tokens?: Record<string, { symbol: string; tokenId: string; decimals: number }>;
 }
 ```
+
+### Network Name Resolution Order
+
+1. Constructor `networks` override (highest priority)
+2. `~/.fast/networks.json` (user config)
+3. Bundled `src/config/data/networks.json`
+4. Hardcoded fallbacks (`testnet`, `mainnet`)
 
 ---
 

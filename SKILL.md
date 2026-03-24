@@ -78,12 +78,6 @@ Is this a Node.js app or agent?
    const provider = new FastProvider({ network: 'mainnet' });
    ```
 
-   **Network name resolution order:**
-   1. Constructor `networks` override (highest priority)
-   2. `~/.fast/networks.json` (user config)
-   3. Bundled `src/config/data/networks.json`
-   4. Hardcoded fallbacks (`testnet`, `mainnet`)
-
    **Option C: Custom RPC**
    ```ts
    const provider = new FastProvider({
@@ -93,6 +87,12 @@ Is this a Node.js app or agent?
    ```
 
 3. Provider is ready. Use for read-only operations or pass to wallet.
+
+**Network name resolution order:**
+1. Constructor `networks` override (highest priority)
+2. `~/.fast/networks.json` (user config)
+3. Bundled `src/config/data/networks.json`
+4. Hardcoded fallbacks (`testnet`, `mainnet`)
 
 ---
 

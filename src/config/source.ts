@@ -44,9 +44,9 @@ export const FALLBACK_TOKENS: Record<NetworkType, Record<string, KnownFastToken>
       tokenId: 'native',
       decimals: 18,
     },
-    FASTUSDC: {
-      symbol: 'fastUSDC',
-      tokenId: '0xb4fdab846372740f747eb4b64ac0c22eaa159113f2d35b075027065fba419365',
+    USDC: {
+      symbol: 'USDC',
+      tokenId: '0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
       decimals: 6,
     },
   },

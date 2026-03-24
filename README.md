@@ -231,7 +231,7 @@ The `token` parameter resolves in this order:
 
 **Bundled token symbols:**
 - `testnet`: `FAST`, `testUSDC`
-- `mainnet`: `FAST`, `fastUSDC`
+- `mainnet`: `FAST`, `USDC`
 
 ### Config Files
 

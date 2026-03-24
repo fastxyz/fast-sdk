@@ -22,7 +22,7 @@ metadata:
 - Query Fast certificates or transactions
 
 **DO NOT use this skill for:**
-- AllSet bridge flows (Fast ↔ EVM) → use allset-sdk
+- AllSet bridge flows (Fast ↔ EVM) → use [`allset-sdk`](https://github.com/fastxyz/allset-sdk)
 - Token swaps or DEX operations
 - Staking, lending, or yield strategies
 - Generic EVM wallet operations
@@ -383,7 +383,7 @@ try {
 
 ## Common Mistakes (DO NOT)
 
-1. **DO NOT** use this SDK for bridges — use `@fastxyz/allset-sdk`
+1. **DO NOT** use this SDK for bridges — use [`@fastxyz/allset-sdk`](https://github.com/fastxyz/allset-sdk)
 
 2. **DO NOT** hardcode explorer URLs — use `provider.getExplorerUrl(txHash)`
 

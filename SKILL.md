@@ -185,7 +185,7 @@ Is this a Node.js app or agent?
 
 **Token parameter options:**
 - `'FAST'` → Native token
-- `'testUSDC'` / `'fastUSDC'` → USDC (network-dependent)
+- `'testUSDC'` (testnet) / `'USDC'` (mainnet) → USDC tokens
 - `'0x...'` → Any token by hex ID
 
 ---
@@ -322,7 +322,7 @@ Is token === 'FAST'?
 
 **Bundled symbols by network:**
 - `testnet`: `FAST`, `testUSDC`
-- `mainnet`: `FAST`, `fastUSDC`
+- `mainnet`: `FAST`, `USDC`
 
 ---
 
@@ -374,9 +374,9 @@ try {
 
 5. **DO NOT** use wrong token symbols for network:
    ```ts
-   // WRONG (fastUSDC is mainnet only)
+   // WRONG (USDC symbol is mainnet only, testnet uses testUSDC)
    const provider = new FastProvider({ network: 'testnet' });
-   await wallet.send({ to, amount: '10', token: 'fastUSDC' });
+   await wallet.send({ to, amount: '10', token: 'USDC' });
    
    // CORRECT
    await wallet.send({ to, amount: '10', token: 'testUSDC' });

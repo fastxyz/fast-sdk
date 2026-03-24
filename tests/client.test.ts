@@ -326,7 +326,7 @@ describe('FastProvider', () => {
       };
 
       const provider = new FastProvider({ network: 'testnet' });
-      const info = await provider.getTokenInfo('fastUSDC');
+      const info = await provider.getTokenInfo('USDC');
       assert.equal(info, null);
       assert.equal(rpcCalled, false);
     });
@@ -624,7 +624,7 @@ describe('FastWallet', () => {
       const wallet = await FastWallet.generate(provider);
 
       await assert.rejects(
-        () => wallet.send({ to: VALID_FAST_ADDRESS, amount: '1', token: 'fastUSDC' }),
+        () => wallet.send({ to: VALID_FAST_ADDRESS, amount: '1', token: 'USDC' }),
         (error: unknown) => {
           assert.ok(error instanceof FastError);
           assert.equal(error.code, 'TOKEN_NOT_FOUND');

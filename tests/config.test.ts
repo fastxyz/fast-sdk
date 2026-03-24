@@ -123,12 +123,12 @@ describe('defaults', () => {
     });
 
     it('keeps token aliases scoped to the selected network', async () => {
-      const mainnetUsdc = await resolveKnownFastToken('fastUSDC', 'mainnet');
+      const mainnetUsdc = await resolveKnownFastToken('USDC', 'mainnet');
       assert.ok(mainnetUsdc);
-      assert.equal(mainnetUsdc.symbol, 'fastUSDC');
+      assert.equal(mainnetUsdc.symbol, 'USDC');
 
-      const testnetFastUsdc = await resolveKnownFastToken('fastUSDC', 'testnet');
-      assert.equal(testnetFastUsdc, null);
+      const testnetUsdc = await resolveKnownFastToken('USDC', 'testnet');
+      assert.equal(testnetUsdc, null);
 
       const mainnetTestUsdc = await resolveKnownFastToken('testUSDC', 'mainnet');
       assert.equal(mainnetTestUsdc, null);
@@ -150,10 +150,10 @@ describe('defaults', () => {
     it('returns network-specific bundled token maps', async () => {
       const testnetTokens = await getAllTokens('testnet');
       assert.ok('TESTUSDC' in testnetTokens);
-      assert.ok(!('FASTUSDC' in testnetTokens));
+      assert.ok(!('USDC' in testnetTokens));
 
       const mainnetTokens = await getAllTokens('mainnet');
-      assert.ok('FASTUSDC' in mainnetTokens);
+      assert.ok('USDC' in mainnetTokens);
       assert.ok(!('TESTUSDC' in mainnetTokens));
     });
   });

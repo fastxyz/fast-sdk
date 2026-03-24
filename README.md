@@ -59,6 +59,12 @@ const provider = new FastProvider({ network: 'testnet' });
 const provider = new FastProvider({ network: 'mainnet' });
 ```
 
+**Network name resolution order:**
+1. Constructor `networks` override
+2. `~/.fast/networks.json` (user config)
+3. Bundled `src/config/data/networks.json`
+4. Hardcoded fallbacks (`testnet`, `mainnet`)
+
 ### Custom RPC
 
 ```ts
@@ -108,6 +114,13 @@ const wallet = await FastWallet.fromKeyfile({
 const wallet = await FastWallet.fromKeyfile({ key: 'merchant' }, provider);
 // Resolves to: ~/.fast/keys/merchant.json
 ```
+
+**Wallet keyfile resolution order:**
+1. Explicit `keyFile` path (if provided)
+2. Named key → `~/.fast/keys/{key}.json`
+3. Default → `~/.fast/keys/default.json`
+
+Base directory can be overridden with `FAST_CONFIG_DIR` env var.
 
 ### From Private Key
 

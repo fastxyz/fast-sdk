@@ -78,6 +78,12 @@ Is this a Node.js app or agent?
    const provider = new FastProvider({ network: 'mainnet' });
    ```
 
+   **Network name resolution order:**
+   1. Constructor `networks` override (highest priority)
+   2. `~/.fast/networks.json` (user config)
+   3. Bundled `src/config/data/networks.json`
+   4. Hardcoded fallbacks (`testnet`, `mainnet`)
+
    **Option C: Custom RPC**
    ```ts
    const provider = new FastProvider({
@@ -127,6 +133,13 @@ Is this a Node.js app or agent?
    const wallet = await FastWallet.fromKeyfile({ key: 'merchant' }, provider);
    // Uses ~/.fast/keys/merchant.json
    ```
+
+   **Wallet keyfile resolution order:**
+   1. Explicit `keyFile` path (if provided, highest priority)
+   2. Named `key` → `~/.fast/keys/{key}.json`
+   3. Default → `~/.fast/keys/default.json`
+   
+   Base directory: `~/.fast/` (override with `FAST_CONFIG_DIR` env var)
 
    **Option C: From private key (in-memory)**
    ```ts

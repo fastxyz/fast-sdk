@@ -2,6 +2,29 @@
  * rpc.ts — JSON-RPC helper for the Fast network proxy API
  */
 
+/**
+ * Parse JSON text with BigInt support for large integers.
+ * Standard JSON.parse loses precision for integers > MAX_SAFE_INTEGER.
+ * This parser detects large integer literals and converts them to BigInt.
+ */
+function parseJsonWithBigInt(text: string): unknown {
+  // Replace large integer literals (not in strings) with quoted versions
+  // Pattern: match numbers that are too large for safe integer representation
+  // We look for: standalone integers (not decimals) that exceed 15 digits
+  const processed = text.replace(
+    /([:\[,\s])(-?\d{16,})([,\]\}\s]|$)/g,
+    (_, prefix, num, suffix) => `${prefix}"${num}"${suffix}`
+  );
+  
+  return JSON.parse(processed, (key, value) => {
+    // Convert quoted large integers back to BigInt
+    if (typeof value === 'string' && /^-?\d{16,}$/.test(value)) {
+      return BigInt(value);
+    }
+    return value;
+  });
+}
+
 function serializeJsonValue(value: unknown): string | undefined {
   if (value === null) return 'null';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -52,7 +75,9 @@ export async function rpcCall(
       body: toJSON({ jsonrpc: '2.0', id: 1, method, params }),
       signal: controller.signal,
     });
-    const json = (await res.json()) as {
+    // Use custom JSON parser to preserve BigInt precision for large integers
+    const text = await res.text();
+    const json = parseJsonWithBigInt(text) as {
       result?: unknown;
       error?: { message: string; code?: number };
     };

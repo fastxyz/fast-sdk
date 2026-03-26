@@ -2,7 +2,7 @@
 
 Official TypeScript SDK for the Fast network.
 
-> **Work in progress** — This SDK is being actively refactored. The sections below cover the stable surface (`Address`, `Signer`). Provider, BCS, and other helper APIs are still being restructured.
+> **Work in progress** — This SDK is being actively refactored. The sections below cover the stable surface (`Address`, `Signer`, transaction encoding). Provider and other helper APIs are still being restructured.
 
 ## Packages
 
@@ -34,7 +34,7 @@ const bytes: Uint8Array = addr.bytes;
 const str: string = addr.toString();
 
 // As a plain number array
-const arr: number[] = addr.toArray();
+const arr: number[] = addr.bytesArray;
 ```
 
 Low-level encode/decode functions are also exported:
@@ -73,19 +73,64 @@ console.log(address.toString()); // fast...
 // Sign arbitrary bytes
 const sig: Uint8Array = await signer.signMessage(messageBytes);
 
-// Sign a FastTransaction (applies domain prefix automatically)
-const sig: Uint8Array = await signer.signTransaction(transaction);
+// Sign a VersionedTransaction — returns [txHash, signature]
 // message = "VersionedTransaction::" + BCS(VersionedTransaction::Release20260319(tx))
+const [hash, sig]: [string, Uint8Array] = await signer.signTransaction(tx);
 ```
 
 ### Verification
 
-`Signer.verify` accepts a public key, an `Address` instance, or a bech32m address string:
+`Signer.verify` verifies an arbitrary message. `Signer.verifyTransaction` verifies a signed transaction
+using the same domain prefix applied during signing. Both accept a public key (`Uint8Array`), an `Address`
+instance, or a bech32m address string.
 
 ```ts
+// Arbitrary message
 const valid = await Signer.verify(signature, message, pubkeyBytes);
-const valid = await Signer.verify(signature, message, address);         // Address instance
-const valid = await Signer.verify(signature, message, 'fast...');      // bech32m string
+const valid = await Signer.verify(signature, message, address);    // Address instance
+const valid = await Signer.verify(signature, message, 'fast...');  // bech32m string
+
+// Transaction
+const valid = await Signer.verifyTransaction(sig, tx, pubkeyBytes);
+const valid = await Signer.verifyTransaction(sig, tx, 'fast...');
+```
+
+## Transactions
+
+### Types
+
+Transaction types are exported directly from the SDK:
+
+```ts
+import type { VersionedTransaction, Transaction20260319, ClaimType } from '@fastxyz/sdk';
+```
+
+### Building a transaction
+
+```ts
+import type { VersionedTransaction } from '@fastxyz/sdk';
+import { TRANSACTION_VERSION_20260319 } from '@fastxyz/sdk';
+
+const tx: VersionedTransaction = {
+    [TRANSACTION_VERSION_20260319]: {
+        network_id: 'mainnet',
+        sender: pubkeyBytes,
+        nonce: 1n,
+        timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
+        claim: { ExternalClaim: { /* ... */ } },
+        archival: false,
+        fee_token: null,
+    },
+};
+```
+
+### Hashing & serialization
+
+```ts
+import { hashTransaction, serializeVersionedTransaction } from '@fastxyz/sdk';
+
+const hash: string      = hashTransaction(tx);            // 0x-prefixed keccak-256
+const bytes: Uint8Array = serializeVersionedTransaction(tx);
 ```
 
 ## CLI
@@ -111,4 +156,4 @@ pnpm test
 
 ---
 
-> The following APIs (`FastProvider`, BCS helpers, certificate helpers, amount utilities) are present in the codebase but are being refactored — documentation will be updated once the new design is stable.
+> The following APIs (`FastProvider`, certificate helpers, amount utilities) are present in the codebase but are being refactored — documentation will be updated once the new design is stable.

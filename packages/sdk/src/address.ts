@@ -1,14 +1,19 @@
 import { bech32m } from "bech32";
+import { type BytesLike } from "./types";
 
 export class Address {
   private addressBytes: Uint8Array;
 
-  constructor(addressBytes: Uint8Array) {
-    this.addressBytes = addressBytes;
+  constructor(addressBytes: BytesLike) {
+    this.addressBytes = addressBytes instanceof Uint8Array ? addressBytes : new Uint8Array(addressBytes);
   }
 
   get bytes(): Uint8Array {
     return this.addressBytes;
+  }
+
+  get bytesArray(): number[] {
+    return Array.from(this.addressBytes);
   }
 
   toString(): string {
@@ -19,15 +24,11 @@ export class Address {
     const addressBytes = decodeAddressFromBech32m(address);
     return new Address(addressBytes);
   }
-
-  toArray(): number[] {
-    return Array.from(this.addressBytes);
-  }
 }
 
-export function encodeAddressToBech32m(address: Uint8Array): string {
+export function encodeAddressToBech32m(address: BytesLike): string {
   const prefix = "fast";
-  const words = bech32m.toWords(address);
+  const words = bech32m.toWords(address instanceof Uint8Array ? address : new Uint8Array(address));
   return bech32m.encode(prefix, words);
 }
 

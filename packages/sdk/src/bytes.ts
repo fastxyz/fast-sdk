@@ -1,4 +1,4 @@
-import { bytesToHex as nobleBytesToHex, hexToBytes as nobleHexToBytes } from '@noble/hashes/utils';
+import { bytesToHex as nobleBytesToHex, hexToBytes as nobleHexToBytes, utf8ToBytes as nobleUtf8ToBytes } from '@noble/hashes/utils.js';
 
 export function stripHexPrefix(hex: string): string {
   return hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
@@ -22,7 +22,7 @@ export function hexToBytes(hex: string): Uint8Array {
 }
 
 export function utf8ToBytes(value: string): Uint8Array {
-  return new TextEncoder().encode(value);
+  return nobleUtf8ToBytes(value);
 }
 
 export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
@@ -34,12 +34,4 @@ export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
     offset += bytes.length;
   }
   return merged;
-}
-
-export function stringToBytes(str: string): Uint8Array {
-  const bytes = new Uint8Array(str.length);
-  for (let i = 0; i < str.length; i++) {
-    bytes[i] = str.charCodeAt(i);
-  }
-  return bytes;
 }

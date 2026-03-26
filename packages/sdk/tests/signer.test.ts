@@ -2,6 +2,24 @@ import { describe, it, expect } from 'vitest';
 import { Signer } from '../src/signer';
 import { Address } from '../src/address';
 
+
+const testTransaction = {
+  Release20260319: {
+    network_id: 'fast:testnet',
+    sender: new Array(32).fill(1),
+    nonce: '1',
+    timestamp_nanos: 10n,
+    claim: {
+      Burn: {
+        token_id: new Array(32).fill(0),
+        amount: '10',
+      },
+    },
+    archival: false,
+    fee_token: null,
+  },
+};
+
 describe('Signer', () => {
   it('creates a signer from a hex private key', () => {
     const privKey = '0x'.padEnd(66, '0'); // 32 bytes in hex
@@ -54,7 +72,7 @@ describe('Signer', () => {
     const message = new TextEncoder().encode('test message');
     const signature = await signer.signMessage(message);
     const pubKey = await signer.getPublicKey();
-    
+
     const isValid = await Signer.verify(signature, message, pubKey);
     expect(isValid).toBe(true);
   });
@@ -65,7 +83,7 @@ describe('Signer', () => {
     const message = new TextEncoder().encode('test message');
     const badSignature = new Uint8Array(64).fill(0);
     const pubKey = await signer.getPublicKey();
-    
+
     const isValid = await Signer.verify(badSignature, message, pubKey);
     expect(isValid).toBe(false);
   });
@@ -76,7 +94,7 @@ describe('Signer', () => {
     const message = new TextEncoder().encode('test message');
     const signature = await signer.signMessage(message);
     const address = await signer.getAddress();
-    
+
     const isValid = await Signer.verify(signature, message, address);
     expect(isValid).toBe(true);
   });
@@ -87,8 +105,35 @@ describe('Signer', () => {
     const message = new TextEncoder().encode('test message');
     const signature = await signer.signMessage(message);
     const addressStr = (await signer.getAddress()).toString();
-    
+
     const isValid = await Signer.verify(signature, message, addressStr);
     expect(isValid).toBe(true);
   });
+
+  it('verifies a signed transaction', async () => {
+    const privKey = '0x'.padEnd(66, '9');
+    const signer = new Signer(privKey);
+    const [, signature] = await signer.signTransaction(testTransaction);
+    const pubKey = await signer.getPublicKey();
+
+    const isValid = await Signer.verifyTransaction(signature, testTransaction, pubKey);
+    expect(isValid).toBe(true);
+  });
+
+  it('rejects transaction verification when payload changes', async () => {
+    const privKey = '0x'.padEnd(66, 'a');
+    const signer = new Signer(privKey);
+    const [, signature] = await signer.signTransaction(testTransaction);
+    const pubKey = await signer.getPublicKey();
+    const tamperedTransaction = {
+      Release20260319: {
+        ...testTransaction.Release20260319,
+        nonce: '2',
+      },
+    };
+
+    const isValid = await Signer.verifyTransaction(signature, tamperedTransaction, pubKey);
+    expect(isValid).toBe(false);
+  });
+
 });

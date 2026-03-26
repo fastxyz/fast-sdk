@@ -331,7 +331,7 @@ Is token === 'FAST'?
 | Error Code | Meaning | Agent Response |
 |------------|---------|----------------|
 | `INSUFFICIENT_BALANCE` | Not enough funds | Tell user their balance is too low |
-| `INVALID_ADDRESS` | Bad fast1... format | Ask user to check the address |
+| `INVALID_ADDRESS` | Bad fast... format | Ask user to check the address |
 | `TOKEN_NOT_FOUND` | Unknown symbol | Ask user for hex token ID or check spelling |
 | `TX_FAILED` | Network rejected tx | Wait and retry, or report network issue |
 | `KEYFILE_NOT_FOUND` | File missing | Create wallet or check path |
@@ -437,7 +437,7 @@ const balance = await wallet.balance('FAST');
 const tokens = await wallet.tokens();
 
 // Write
-const tx = await wallet.send({ to: 'fast1...', amount: '1', token: 'testUSDC' });
+const tx = await wallet.send({ to: 'fast...', amount: '1', token: 'testUSDC' });
 
 // Sign
 const signed = await wallet.sign({ message: 'Hello' });

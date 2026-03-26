@@ -1,12 +1,13 @@
 import { Command } from 'commander';
 import { Signer, bytesToPrefixedHex } from '@fastxyz/sdk';
+import { name, description, version } from '../package.json';
 
 const program = new Command();
 
 program
-    .name('fast')
-    .description('Fast CLI - Account and transaction utilities')
-    .version('0.0.1');
+    .name(name)
+    .description(description)
+    .version(version);
 
 program
     .command('generate')

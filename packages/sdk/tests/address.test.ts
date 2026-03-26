@@ -29,10 +29,10 @@ describe('Address', () => {
     expect(address.bytes).toEqual(bytes);
   });
 
-  it('Address.toArray converts bytes to number array', () => {
+  it('Address.bytesArray converts bytes to number array', () => {
     const bytes = new Uint8Array([1, 2, 3, 4]);
     const address = new Address(bytes);
-    expect(address.toArray()).toEqual([1, 2, 3, 4]);
+    expect(address.bytesArray).toEqual([1, 2, 3, 4]);
   });
 });
 

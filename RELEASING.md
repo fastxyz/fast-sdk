@@ -24,3 +24,19 @@ Trusted publishing is the expected path for this repo. Do not add a long-lived n
 - The git tag must match `package.json` exactly.
 - The publish workflow rebuilds, tests, runs package smoke checks, and publishes only on tag pushes.
 - Public scoped packages must publish with public access.
+
+## Minimal SDK migration checklist
+
+Use this checklist for releases that contract the public surface to the minimal SDK model.
+
+1. Confirm README documents only the current supported APIs.
+2. Confirm removed APIs are listed in a migration section.
+3. Confirm provider docs show strict RPC 1:1 mapping.
+4. Confirm examples use `FastProvider` + `Signer` flow (no wallet/keyfile helpers).
+5. Confirm `npm run build` and `npm test` pass on the release commit.
+
+## Entrypoint policy
+
+- Keep `@fastxyz/sdk` as the single public runtime entrypoint.
+- Keep `@fastxyz/sdk/core` for helper-only integrations.
+- Ensure docs and examples do not reference deprecated split entrypoints.

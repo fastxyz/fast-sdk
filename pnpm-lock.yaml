@@ -63,9 +63,6 @@ importers:
       bech32:
         specifier: ^2.0.0
         version: 2.0.0
-      utils:
-        specifier: link:@noble/hashes/utils
-        version: link:@noble/hashes/utils
 
 packages:
 

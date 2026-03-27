@@ -5,7 +5,6 @@ import { Address } from '../src/address';
 import { type VersionedTransaction as IVersionedTransaction } from '../src/encoding/types';
 import { VersionedTransaction } from '../src/encoding/schema';
 
-
 const testTransaction: IVersionedTransaction = {
   Release20260319: {
     network_id: 'fast:testnet',

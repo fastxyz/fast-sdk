@@ -21,7 +21,7 @@ export class Signer {
     constructor(privateKey: string | Uint8Array) {
         this._privateKey =
             typeof privateKey === 'string'
-                ? hexToBytes(privateKey.replace(/^0x/i, ''))
+                ? hexToBytes(privateKey)
                 : new Uint8Array(privateKey);
     }
 

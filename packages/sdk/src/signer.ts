@@ -1,10 +1,18 @@
 
+import { BcsType } from '@mysten/bcs';
 import * as ed from '@noble/ed25519';
-import { hexToBytes, bytesToPrefixedHex } from './bytes';
 import { Address } from './address';
-import { VersionedTransaction as IVersionedTransaction } from './encoding/types';
-import { serializeVersionedTransaction, hashTransaction, VersionedTransaction } from './encoding/schema';
+import { bytesToPrefixedHex, hexToBytes } from './bytes';
 import { type BytesLike } from './types';
+
+function buildTypedDataMessage<T>(type: BcsType<T>, data: T): Uint8Array {
+    const prefix = new TextEncoder().encode(type.name + '::');
+    const body = type.serialize(data).toBytes();
+    const msg = new Uint8Array(prefix.length + body.length);
+    msg.set(prefix, 0);
+    msg.set(body, prefix.length);
+    return msg;
+}
 
 export class Signer {
     private readonly _privateKey: Uint8Array;
@@ -37,14 +45,9 @@ export class Signer {
         return await ed.signAsync(message instanceof Uint8Array ? message : new Uint8Array(message), this._privateKey);
     }
 
-    async signTransaction(versionedTransaction: IVersionedTransaction): Promise<[string, Uint8Array]> {
-        const prefix = new TextEncoder().encode(VersionedTransaction.name + '::');
-        const body = serializeVersionedTransaction(versionedTransaction);
-        const msg = new Uint8Array(prefix.length + body.length);
-        msg.set(prefix, 0);
-        msg.set(body, prefix.length);
-        const signature = await this.signMessage(msg);
-        return [hashTransaction(versionedTransaction), signature];
+    async signTypedData<T>(type: BcsType<T>, data: T): Promise<Uint8Array> {
+        const signature = await this.signMessage(buildTypedDataMessage(type, data));
+        return signature;
     }
 
     static async verify(
@@ -63,16 +66,14 @@ export class Signer {
         }
     }
 
-    static async verifyTransaction(
+    static async verifyTypedData<T>(
         signature: BytesLike,
-        versionedTransaction: IVersionedTransaction,
+        type: BcsType<T>,
+        data: T,
         pubkeyOrAddress: BytesLike | string | Address,
     ): Promise<boolean> {
-        const prefix = new TextEncoder().encode(VersionedTransaction.name + '::');
-        const body = serializeVersionedTransaction(versionedTransaction);
-        const msg = new Uint8Array(prefix.length + body.length);
-        msg.set(prefix, 0);
-        msg.set(body, prefix.length);
-        return await Signer.verify(signature, msg, pubkeyOrAddress);
+        return await Signer.verify(signature, buildTypedDataMessage(type, data), pubkeyOrAddress);
     }
+
+
 }

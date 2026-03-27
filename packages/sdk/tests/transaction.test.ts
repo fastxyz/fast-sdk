@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { Signer } from '../src/signer';
-import type { VersionedTransaction } from '../src/encoding/types';
-import { hashTransaction } from '../src/encoding/schema';
+import type { VersionedTransaction as IVersionedTransaction } from '../src/encoding/types';
+import { VersionedTransaction } from '../src/encoding/schema';
+import { hashStruct } from '../src';
 
-const realTx: VersionedTransaction = {
+const realTx: IVersionedTransaction = {
   Release20260319: {
     network_id: 'fast:testnet',
     sender: new Uint8Array([
@@ -45,17 +46,17 @@ const signerAddress = 'fast1edsns2xrtna0uhk702yalchucyg6wwz4qpnxwqdgjujttlu0hfvs
 
 describe('Transaction (real data)', () => {
   it('computes the correct hash for a known ExternalClaim transaction', () => {
-    expect(hashTransaction(realTx)).toBe(
+    expect(hashStruct(VersionedTransaction, realTx)).toBe(
       '0x1112e671849b9f5287852017a18c3315a0e498a040f70fbae1f163f6ebff3c09',
     );
   });
 
   it('verifies a known valid signature against the signer address', async () => {
-    expect(await Signer.verifyTransaction(realSignature, realTx, signerAddress)).toBe(true);
+    expect(await Signer.verifyTypedData(realSignature, VersionedTransaction, realTx, signerAddress)).toBe(true);
   });
 
   it('rejects the signature for a different address', async () => {
     const wrongAddress = 'fast1edsns2xrtna0uhk702yalchucyg6wwz4qpnxwqdgjujttlu0hfvsjlnlxn';
-    expect(await Signer.verifyTransaction(realSignature, realTx, wrongAddress)).toBe(false);
+    expect(await Signer.verifyTypedData(realSignature, VersionedTransaction, realTx, wrongAddress)).toBe(false);
   });
 });

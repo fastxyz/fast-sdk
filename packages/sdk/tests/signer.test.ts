@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
+import { bcs } from '@mysten/bcs';
 import { Signer } from '../src/signer';
 import { Address } from '../src/address';
+import { type VersionedTransaction as IVersionedTransaction } from '../src/encoding/types';
+import { VersionedTransaction } from '../src/encoding/schema';
 
 
-const testTransaction = {
+const testTransaction: IVersionedTransaction = {
   Release20260319: {
     network_id: 'fast:testnet',
     sender: new Array(32).fill(1),
@@ -113,17 +116,17 @@ describe('Signer', () => {
   it('verifies a signed transaction', async () => {
     const privKey = '0x'.padEnd(66, '9');
     const signer = new Signer(privKey);
-    const [, signature] = await signer.signTransaction(testTransaction);
+    const signature = await signer.signTypedData(VersionedTransaction, testTransaction);
     const pubKey = await signer.getPublicKey();
 
-    const isValid = await Signer.verifyTransaction(signature, testTransaction, pubKey);
+    const isValid = await Signer.verifyTypedData(signature, VersionedTransaction, testTransaction, pubKey);
     expect(isValid).toBe(true);
   });
 
   it('rejects transaction verification when payload changes', async () => {
     const privKey = '0x'.padEnd(66, 'a');
     const signer = new Signer(privKey);
-    const [, signature] = await signer.signTransaction(testTransaction);
+    const signature = await signer.signTypedData(VersionedTransaction, testTransaction);
     const pubKey = await signer.getPublicKey();
     const tamperedTransaction = {
       Release20260319: {
@@ -132,7 +135,52 @@ describe('Signer', () => {
       },
     };
 
-    const isValid = await Signer.verifyTransaction(signature, tamperedTransaction, pubKey);
+    const isValid = await Signer.verifyTypedData(signature, VersionedTransaction, tamperedTransaction, pubKey);
+    expect(isValid).toBe(false);
+  });
+
+  it('verifies typed data signatures', async () => {
+    const ExampleType = bcs.struct('ExampleType', {
+      id: bcs.u64(),
+      owner: bcs.fixedArray(32, bcs.u8()),
+    });
+
+    const data = {
+      id: '42',
+      owner: new Array(32).fill(3),
+    };
+
+    const privKey = '0x'.padEnd(66, 'b');
+    const signer = new Signer(privKey);
+    const signature = await signer.signTypedData(ExampleType, data);
+    const pubKey = await signer.getPublicKey();
+
+    const isValid = await Signer.verifyTypedData(signature, ExampleType, data, pubKey);
+    expect(isValid).toBe(true);
+  });
+
+  it('rejects typed data verification when payload changes', async () => {
+    const ExampleType = bcs.struct('ExampleType', {
+      id: bcs.u64(),
+      owner: bcs.fixedArray(32, bcs.u8()),
+    });
+
+    const data = {
+      id: '42',
+      owner: new Array(32).fill(4),
+    };
+
+    const tamperedData = {
+      ...data,
+      id: '43',
+    };
+
+    const privKey = '0x'.padEnd(66, 'c');
+    const signer = new Signer(privKey);
+    const signature = await signer.signTypedData(ExampleType, data);
+    const address = (await signer.getAddress()).toString();
+
+    const isValid = await Signer.verifyTypedData(signature, ExampleType, tamperedData, address);
     expect(isValid).toBe(false);
   });
 

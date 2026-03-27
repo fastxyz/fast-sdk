@@ -1,4 +1,5 @@
 import type { InferBcsInput } from '@mysten/bcs';
+import type { FastNetworkId } from '../types';
 import * as schemas from './schema';
 
 export type PublicKeyBytes = InferBcsInput<typeof schemas.PublicKeyBytes>;
@@ -27,8 +28,18 @@ export type VerifierSig = InferBcsInput<typeof schemas.VerifierSig>;
 export type ExternalClaim = InferBcsInput<typeof schemas.ExternalClaim>;
 export type StateReset = InferBcsInput<typeof schemas.StateReset>;
 export type ClaimType = InferBcsInput<typeof schemas.ClaimType>;
-export type Transaction20260319 = InferBcsInput<typeof schemas.Transaction20260319>;
-export type VersionedTransaction = InferBcsInput<typeof schemas.VersionedTransaction>;
+
+type RawTransaction20260319 = InferBcsInput<typeof schemas.Transaction20260319>;
+export type Transaction20260319 = Omit<RawTransaction20260319, 'network_id'> & {
+	network_id: FastNetworkId;
+};
+
+type RawVersionedTransaction = InferBcsInput<typeof schemas.VersionedTransaction>;
+export type VersionedTransaction = {
+	[K in keyof RawVersionedTransaction]: RawVersionedTransaction[K] extends { network_id: unknown }
+		? Omit<RawVersionedTransaction[K], 'network_id'> & { network_id: FastNetworkId }
+		: RawVersionedTransaction[K];
+};
 
 
 

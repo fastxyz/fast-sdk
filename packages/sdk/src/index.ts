@@ -1,5 +1,8 @@
 export * from "./address";
 export * from "./signer";
 export * from "./bytes";
-export { serializeVersionedTransaction, hashTransaction } from "./encoding/schema";
+export * from "./provider";
+export * from "./errors";
+export { hashStruct } from "./encoding/utils";
+export type * from "./types";
 export type * from "./encoding/types";

@@ -1,7 +1,4 @@
 import { bcs } from '@mysten/bcs';
-import { keccak_256 } from '@noble/hashes/sha3.js';
-import { bytesToPrefixedHex } from '../bytes';
-import type { VersionedTransaction as IVersionedTransaction } from './types';
 
 export const PublicKeyBytes = bcs.fixedArray(32, bcs.u8());
 export const Nonce = bcs.u64();
@@ -98,6 +95,13 @@ export const ClaimType = bcs.enum('ClaimType', {
     StateReset: StateReset,
 });
 
+export const FAST_NETWORK_IDS = [
+    'fast:localnet',
+    'fast:devnet',
+    'fast:testnet',
+    'fast:mainnet',
+] as const;
+
 export const TRANSACTION_VERSION_20260319 = 'Release20260319' as const;
 
 export const Transaction20260319 = bcs.struct('Transaction', {
@@ -113,11 +117,3 @@ export const Transaction20260319 = bcs.struct('Transaction', {
 export const VersionedTransaction = bcs.enum('VersionedTransaction', {
     [TRANSACTION_VERSION_20260319]: Transaction20260319,
 });
-
-export function serializeVersionedTransaction(tx: IVersionedTransaction): Uint8Array {
-    return VersionedTransaction.serialize(tx).toBytes();
-}
-
-export function hashTransaction(tx: IVersionedTransaction): string {
-    return bytesToPrefixedHex(keccak_256(serializeVersionedTransaction(tx)));
-}

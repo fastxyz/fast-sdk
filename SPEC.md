@@ -248,12 +248,12 @@ fast info status             Health check for current network
 fast info balance            Show token balances for an address
 fast info tx                 Look up a transaction by hash
 fast info history            Show transaction history
-fast info bridge-tokens      List bridgeable tokens via AllSet
-fast info bridge-chains      List bridgeable EVM chains via AllSet
+fast info bridge-tokens      List tokens available for Fast-EVM transfers
+fast info bridge-chains      List chains available for Fast-EVM transfers
 
 fast fund                    Fund fast account from crypto or fiat; may need human intervention
-fast send                    Send tokens (Fast-to-Fast or bridge)
-fast pay                     Pay via x402 payment link
+fast send                    Send tokens between Fast and/or supported chains
+fast pay                     Pay via payment links/protocols (e.g., x402)
 ```
 
 ### 6.1 `fast account create`
@@ -876,13 +876,14 @@ Balances for fast1qw5...x9z
 **Synopsis**
 
 ```text
-fast info tx <hash> --source <source>
+fast info tx <hash> [--source <source>]
 ```
 
 **Description**
 
 Look up a single transaction by its hash. The `--source` flag specifies where
-to query. Returns the same transaction object shape as items in
+to query; if missing, then it uses the default Fast network. 
+Returns the same transaction object shape as items in
 `fast info history`.
 
 **Arguments**
@@ -942,8 +943,9 @@ the items in `fast info history`'s `transactions` array:
 **Synopsis**
 
 ```text
-fast info history [--from <name>] [--to <address>] [--source <chain>]
+fast info history [--from <name|address>] [--to <address>] [--source <chain>]
                   [--dest <chain>] [--token <value>] [--limit <n>]
+                  [--offset <n>]
 ```
 
 **Description**
@@ -955,12 +957,13 @@ operations. Results are ordered by timestamp descending.
 
 | Flag | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `--from` | string | no | all accounts | Filter by sender account alias. |
+| `--from` | string | no | all accounts | Filter by sender account name or address. |
 | `--to` | string | no | — | Filter by recipient (Fast or EVM address). |
 | `--source` | string | no | — | Filter by source network/chain. |
 | `--dest` | string | no | — | Filter by destination network/chain. |
 | `--token` | string | no | — | Filter by token. See [Token Resolution](#7-token-resolution-rules). |
 | `--limit` | integer | no | `20` | Max number of records to return. |
+| `--offset` | integer | no | `0` | Number of records to skip. Use with `--limit` for pagination. |
 
 **Output (`--json`)**
 
@@ -994,7 +997,7 @@ operations. Results are ordered by timestamp descending.
 | Condition | Exit | Code |
 |---|---|---|
 | Account alias not found (`--from`) | 3 | `ACCOUNT_NOT_FOUND` |
-| Invalid address format (`--to`) | 2 | `INVALID_ADDRESS` |
+| Invalid address format (`--from` and `--to`) | 2 | `INVALID_ADDRESS` |
 | Token not found (`--token`) | 2 | `TOKEN_NOT_FOUND` |
 | RPC unreachable | 5 | `NETWORK_ERROR` |
 
@@ -1095,6 +1098,10 @@ Supported bridge chains on mainnet:
 
 ### 6.18 `fast fund`
 
+Fund a Fast account via fiat on-ramp or crypto bridge.
+
+#### 6.18.1 `fast fund fiat`
+
 **Synopsis**
 
 ```text
@@ -1143,6 +1150,45 @@ Fund USDC to fast1qw5...x9z via Swapper:
 | Invalid address format | 2 | `INVALID_ADDRESS` |
 | Unsupported provider | 2 | `UNSUPPORTED_PROVIDER` |
 
+#### 6.18.2 `fast fund crypto`
+
+**Synopsis**
+
+```text
+fast fund crypto <amount> --chain <chain> [--token <value>]
+```
+
+**Description**
+
+Fund a Fast account by bridging tokens from an EVM chain. 
+The CLI checks the EVM balance of the account's derived EVM address 
+(same underlying key) on the specified chain.
+- f the EVM balance is sufficient: bridge the requested amount to Fast
+automatically.
+- If the EVM balance is insufficient: print the EVM address and the shortfall
+amount, then exit. The user (or a human) sends the required tokens to that
+address on the specified chain, then re-runs the same command.
+
+**Arguments**
+
+| Arg    | Type   | Required | Description                                   |
+| ------ | ------ | -------- | --------------------------------------------- |
+| amount | string | yes      | Human-readable amount to fund (e.g., 100.00). |
+
+
+**Flags**
+| Flag    | Type   | Required | Default         | Description                                                    |
+| ------- | ------ | -------- | --------------- | -------------------------------------------------------------- |
+| --chain | string | yes      | --               | EVM chain to bridge from. Values from fast info bridge-chains. |
+| --token | string | no       | USDC / testUSDC | Token to bridge. See Token Resolution.                         |
+
+**Behavior**
+1. Check the token balance on --chain for the (derived) EVM address.
+2. If balance >= amount: execute `fast send` and bridge tokens to Fast. 
+3. If balance < amount: print the shortfall and the EVM address. Exit with
+code 4 and error code FUNDING_REQUIRED.
+If balance >= amount, the above should not require any human intervention (like entering password).
+
 ### 6.19 `fast send`
 
 **Synopsis**
@@ -1164,13 +1210,16 @@ and chain flags.
 | `address` | string | yes | Recipient address (`fast1...` for Fast, `0x...` for EVM). |
 | `amount` | string | yes | Human-readable amount (e.g., `10.5`). Converted to smallest units using the token's decimals. |
 
+If the amount has more decimal places than the token supports, the CLI exits
+with code 2 (`INVALID_AMOUNT`): `"Amount has too many decimal places for <token-symbol> (max <decimal>])."`
+
 **Flags**
 
 | Flag | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `--from-chain` | string | no | — | Source EVM chain for bridge-in. Values: `base`, `arbitrum` (mainnet); `ethereum-sepolia`, `arbitrum-sepolia` (testnet). |
-| `--to-chain` | string | no | — | Destination EVM chain for bridge-out. Same values as `--from-chain`. |
-| `--token` | string | no | `USDC` / `testUSDC` | Token to send. See [Token Resolution](#7-token-resolution-rules). Default is `USDC` on mainnet, `testUSDC` on testnet. For Fast→Fast transfers, any token on the Fast network is supported (not limited to bridge tokens). For bridge operations, only tokens listed in `fast info bridge-tokens` are supported. |
+| `--from-chain` | string | no | — | Source chain for bridge-in. Must be a chain from `fast info bridge-chains`. |
+| `--to-chain` | string | no | — | Destination chain for bridge-out. Must be a chain from `fast info bridge-chains`. |
+| `--token` | string | no | `USDC` | Token to send. See [Token Resolution](#7-token-resolution-rules). Default is `USDC`. For Fast→Fast transfers, any token on the Fast network is supported (not limited to bridge tokens). For bridge operations, only tokens listed in `fast info bridge-tokens` are supported. |
 
 **Routing Rules**
 
@@ -1180,6 +1229,17 @@ and chain flags.
 | set | *(none)* | `fast1...` | EVM → Fast (bridge in) | `AllSetProvider.sendToFast()` |
 | *(none)* | set | `0x...` | Fast → EVM (bridge out) | `AllSetProvider.sendToExternal()` |
 | set | set | `0x...` | EVM → EVM (routed via Fast) | *Reserved — exit code 2 with `NOT_IMPLEMENTED`* |
+
+**Bridge-in source:** When `--from-chain` is set, the CLI uses the EVM address
+derived from the signing account's key (see section 3.2). The sender must have
+sufficient token balance at that address on the specified chain. Use
+`fast account info` to see the EVM address.
+
+**Bridge-in steps:** The CLI handles the full sequence: (1) check token
+allowance for the bridge contract, (2) submit an approval transaction if
+needed, (3) submit the bridge deposit. The user sees a single confirmation
+prompt; the CLI manages the underlying transactions.
+
 
 **Address validation rules:**
 
@@ -1199,7 +1259,8 @@ Send 10.50 USDC
   From:  my-account (fast1qw5...x9z)
   To:    fast1ab2...y3w
   Route: Fast → Fast
-  Token: USDC (0xc655a123...)
+  Token: USDC
+  Gas:   Requires ETH on base for transaction fees
 
 Confirm? [y/N]
 ```
@@ -1228,6 +1289,17 @@ The `route` field is one of: `"fast"`, `"bridge-in"`, `"bridge-out"`.
 `estimatedTime` is a human-readable duration string (e.g., `"~2 minutes"`) for
 bridge operations, `null` for Fast-to-Fast.
 
+For `"bridge-in"`, `txHash` is the EVM deposit transaction hash on the source
+chain. For `"bridge-out"`, `txHash` is the Fast-side transaction hash. In both
+cases, `explorerUrl` links to the appropriate explorer for that hash.
+
+**Completion semantics:** For Fast→Fast transfers, the command returns after
+the transaction is confirmed on Fast (typically <1 second). For bridge
+operations, the command returns after the initiating transaction is confirmed
+on the source chain — it does **not** wait for the destination side to settle.
+Use `fast info tx <hash> --source <chain>` to check bridge completion status.
+
+
 **Errors**
 
 | Condition | Exit | Code |
@@ -1235,6 +1307,9 @@ bridge operations, `null` for Fast-to-Fast.
 | Missing address or amount | 2 | `INVALID_USAGE` |
 | Address/flag mismatch (see rules above) | 2 | `INVALID_ADDRESS` |
 | Insufficient balance | 4 | `INSUFFICIENT_BALANCE` |
+| Insufficient gas on source chain (bridge-in) | 4 | `INSUFFICIENT_GAS` |
+| Amount exceeds token decimal precision | 2 | `INVALID_AMOUNT` |
+| Amount is zero or negative | 2 | `INVALID_AMOUNT` |
 | Unsupported chain value | 2 | `UNSUPPORTED_CHAIN` |
 | Token not found | 2 | `TOKEN_NOT_FOUND` |
 | Both chain flags set | 2 | `NOT_IMPLEMENTED` |
@@ -1249,28 +1324,56 @@ bridge operations, `null` for Fast-to-Fast.
 **Synopsis**
 
 ```text
-fast pay <payment-link> [--dry-run]
+fast pay <url> [--dry-run] [--method <method>] [--header <key: value>]...
+               [--body <data | @file>]
 ```
 
 **Description**
 
-Make a payment via an x402 payment link. The CLI fetches the payment requirement
-from the link, determines the payment type, and executes accordingly.
+Access a payment-protected resource. The CLI makes an HTTP request to the URL.
+If the server responds with HTTP 402, the CLI parses the payment requirements,
+executes the payment, and retries the request with proof of payment. The
+response body is returned as output.
+
+If the server does not return 402, the response is returned as-is (no payment
+needed).
+
+The CLI currently supports the x402 payment protocol. Payment type (Fast x402
+or chain x402) is selected automatically based on the server's accepted options
+and the account's available balances. Fast x402 is preferred when available. 
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `payment-link` | string | yes | URL that returns an x402 payment requirement. |
+| Arg | Type   | Required | Description                            |
+| --- | ------ | -------- | -------------------------------------- |
+| `url` | string | yes      | URL of the payment-protected resource. |
 
 **Flags**
 
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--dry-run` | boolean | no | `false` | Inspect the payment requirement without executing. Does not require a password or account — if an account is available, it is used for selection logic (e.g., checking balances to determine `selected`). |
+| Flag      | Type    | Required | Default | Description                                                                                                                                                      |
+| --------- | ------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--dry-run` | boolean | no       | `false`   | Inspect the payment requirement without executing. Shows the cost, accepted payment options, and which option the CLI would select. Does not require a password. |
+| `--method`  | string  | no       | `GET`     | HTTP method for the request.                                                                                                                                     |
+| `--header`  | string  | no       | —       | Custom header in key: value format. Repeatable for multiple headers.                                                                                             |
+| `--body`    | string  | no       | —       | Request body. Prefix with `@` to read from a file (e.g., `@request.json`).                                                                                           |
+
 
 The paying account is selected via the global `--account <name>` flag or the
 default account. Not required for `--dry-run`.
+
+**Why --method, --header, and --body?**
+
+The x402 protocol works by retrying the same HTTP request with payment proof
+attached. The CLI must reproduce the original request exactly — including
+method, headers, and body — on both the initial 402 probe and the paid retry.
+Without these flags, the CLI could only access GET endpoints. Since agents
+commonly pay for POST endpoints (e.g., AI inference APIs, data submission),
+these flags are also included.
+
+The @file convention on --body follows curl's established pattern. It
+avoids shell escaping issues with inline JSON and handles arbitrary payload
+sizes. Agents can write their request body to a temp file and pass the path —
+no quoting or escaping required.
 
 **Payment types**
 
@@ -1280,6 +1383,15 @@ default account. Not required for `--dry-run`.
   sufficient balance on the required chain. If not, auto-bridge from Fast via
   AllSet. Then sign EIP-3009 `transferWithAuthorization` and send to the
   merchant server for settlement.
+
+**Auto-bridge for chain x402:** When the payment requires an EVM chain payment
+and the account's EVM balance on that chain is insufficient, the CLI
+automatically bridges the shortfall from the Fast-side balance via AllSet. It
+then polls the EVM balance (up to 2 minutes) until the bridged amount arrives
+before signing the payment. If the Fast-side balance is also insufficient, the
+command exits with `INSUFFICIENT_BALANCE`. In interactive mode, the
+confirmation prompt shows when auto-bridging will occur.
+
 
 **Selection logic:** A 402 response may contain multiple accepted payment
 options (the `accepts` array). The CLI picks the first option it can fulfill,
@@ -1312,10 +1424,20 @@ Pay from my-account? [y/N]
     "tokenName": "USDC",
     "recipient": "fast1merchant...",
     "paymentType": "fast-x402",
-    "network": "fast-mainnet"
+    "network": "fast-mainnet",
+    "response": {
+      "statusCode": 200,
+      "body": {}
+    }
   }
 }
 ```
+
+The `response` field contains the HTTP status code and body returned by the
+merchant after successful payment. The `body` is the parsed JSON response, or
+a string if the response is not JSON. This is the content the agent is paying
+to access.
+
 
 **Output (`--json`, `--dry-run`)**
 
@@ -1378,8 +1500,8 @@ in order:
 ```text
 Input value
   │
-  ├─ Starts with "0x" and is 66 chars (32 bytes)?
-  │    → Treat as Fast token ID (hex). Use directly.
+  ├─ Is 64 hex chars, or starts with "0x" and is 66 chars (32 bytes)?
+  │    → Treat as Fast token ID. Normalize to 0x-prefixed.
   │
   ├─ Starts with "0x" and is 42 chars (20 bytes)?
   │    → Treat as EVM contract address. Look up in the current network's
@@ -1388,7 +1510,7 @@ Input value
   └─ Otherwise: treat as symbol.
        → Exact match against bundled token config for current network.
        → Case-insensitive fallback (e.g., "usdc" matches "USDC").
-       → Alias normalization: "testUSDC" → "USDC" on testnet.
+       → Alias normalization: "testUSDC" and "fastUSDC" → "USDC".
        → Not found? Exit code 2:
          "Unknown token '<value>'. Run `fast info bridge-tokens` to list supported tokens."
 ```
@@ -1399,7 +1521,7 @@ Input value
 
 1. If `--network` is provided, use that name.
 2. Otherwise, use the default from `~/.fast/networks.json`.
-3. If no `networks.json` exists, default is `mainnet`.
+3. If no `networks.json` exists, default is `testnet`.
 
 Each network name maps to a complete configuration bundle covering:
 
@@ -1437,4 +1559,10 @@ configuration. These are the canonical values accepted by `--from-chain`,
 
 | Token | Symbol (alias) | Fast Token ID | Decimals |
 |---|---|---|---|
-| Test USD Coin | `USDC` (`testUSDC`) | `0xd73a0679...` | 6 |
+| Test USD Coin | `USDC` (`testUSDC`, `fastUSDC`) | `0xd73a0679...` | 6 |
+
+**Note:** The x402 payment protocol (`fast pay`) may encounter payment
+requirements on chains not listed above (e.g., `base-sepolia`, `ethereum`).
+The CLI can fulfill chain x402 payments on any EVM chain where the account's
+derived EVM address has sufficient token balance. The tables above list only
+chains supported for bridging via `fast send` and `fast fund crypto`.

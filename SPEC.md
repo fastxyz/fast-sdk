@@ -107,7 +107,7 @@ CLI derives:
 
 - **Fast address**: Ed25519 public key encoded as bech32m with `fast` prefix
   (via `Signer` from `@fastxyz/sdk`).
-- **EVM address**: Derived via `createEvmWallet` from `@fastxyz/allset-sdk/node`
+- **EVM address**: Derived via `createEvmWallet` from `@fastxyz/allset-sdk`
   (needed for bridge deposits).
 
 Addresses are stored unencrypted in the keyfile for quick lookups (e.g.,

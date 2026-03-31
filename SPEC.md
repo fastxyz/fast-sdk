@@ -8,18 +8,19 @@ Date: 2026-03-31
 ## 1. Overview
 
 `fast` is a unified command-line interface that consolidates the Fast network SDK
-(`@fastxyz/sdk`) and the AllSet bridging SDK (`@fastxyz/allset-sdk`) into a single
-tool for managing accounts, moving tokens, and querying network state.
+(`@fastxyz/sdk`) and the AllSet portal SDK (`@fastxyz/allset-sdk`) into a single
+tool for managing accounts, moving assets, and querying network state.
 
-Design goals:
+### Design goals:
 
 - **Agent-friendly.** Every command supports `--json` for structured output and
   `--help` for self-documenting usage. An AI agent's workflow is:
-  read `SKILL.md` → run `fast <command> --help --json` → execute.
+  read `SKILL.md` → run `--help --json` → execute → parse JSON envelope → on error, branch on error code.
 - **Human-friendly.** Interactive mode by default with confirmation prompts,
   human-readable output, and sensible defaults.
 - **Single entry point.** No sub-skills, no separate binaries. One CLI covers
-  Fast-to-Fast transfers, EVM bridging, on-ramp funding, and x402 payments.
+  Fast-to-Fast transfers, EVM-Fast transfers, on-ramp funding, and payments via protocols such as x402.
+- **≤7 top-level command.** A thin surface is preferred by agents. 
 
 ## 2. Global Flags
 
@@ -27,13 +28,14 @@ Every command inherits these flags. They are parsed before command-specific flag
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--version` | — | — | Print current version of the CLI. |
 | `--help` | boolean | — | Print detailed usage with examples, then exit 0. When combined with `--json`, output help as structured JSON. |
-| `--debug` | boolean | `false` | Enable verbose logging to **stderr**. Never affects stdout or JSON output. |
-| `--json` | boolean | `false` | Emit machine-parseable JSON to stdout. Implies `--non-interactive`. |
-| `--network <name>` | string | *(default network)* | Override the network for this command. Must be a name from `fast network list`. |
-| `--non-interactive` | boolean | `false` | Skip all confirmation prompts. Fail with exit code 2 instead of prompting for missing required input. |
-| `--account <name>` | string | *(default account)* | Use the named account for signing operations. Errors with exit code 3 if not found. |
-| `--password <value>` | string | — | Keystore password for decrypting the account key. If omitted in interactive mode, the CLI prompts via masked stdin. Can also be set via `FAST_PASSWORD` env var. In `--non-interactive` mode, one of `--password` or `FAST_PASSWORD` is required for any signing operation. |
+| `--debug` | boolean | `false` | Enable verbose logging to **stderr**. Never affects stdout or JSON output. An agent never uses this flag. Instead, the JSON error output itself should be rich enough for agents to self-diagnose.|
+| `--json` | boolean | `false` | Emit machine-parseable JSON to stdout. JSON output follows a predefined schema to help agents parse it. Implies `--non-interactive`. |
+| `--network <name>` | string | `testnet` | Override the network for this command. Must be a name from `fast network list`. |
+| `--non-interactive` | boolean | `false` | Auto-confirms dangerous operations but fails with exit code 2 when required input is missing (e.g., amount not provided).  |
+| `--account <name>` | string | *first in the account list* | Use the named account for signing operations. Errors with exit code 3 if not found. |
+| `--password <value>` | string | — | Keystore password for decrypting the account key. If omitted in interactive mode, the CLI prompts via masked stdin. Can also be set via `FAST_PASSWORD` env var. In `--non-interactive` mode, one of `--password` or `FAST_PASSWORD` is required for any signing operation. When used, add a warning note: the password will be visible in shell history; prefer `FAST_PASSWORD` env var.|
 
 ### Hex Input Convention
 
@@ -50,7 +52,7 @@ with mode `0700`.
 ```text
 ~/.fast/
 ├── accounts.json          # Account registry
-├── networks.json          # Network registry (default, custom networks)
+├── networks.json          # Network registry (mainnet, testnet, custom networks)
 ├── keys/
 │   └── <name>.json        # Per-account keyfile (mode 0600)
 └── networks/
@@ -249,7 +251,7 @@ fast info history            Show transaction history
 fast info bridge-tokens      List bridgeable tokens via AllSet
 fast info bridge-chains      List bridgeable EVM chains via AllSet
 
-fast fund                    Get a funding/on-ramp URL
+fast fund                    Fund fast account from crypto or fiat; may need human intervention
 fast send                    Send tokens (Fast-to-Fast or bridge)
 fast pay                     Pay via x402 payment link
 ```

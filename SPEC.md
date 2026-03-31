@@ -248,7 +248,7 @@ fast info status             Health check for current network
 fast info balance            Show token balances for an address
 fast info tx                 Look up a transaction by hash
 fast info history            Show transaction history
-fast info bridge-tokens      List tokens available for Fast-EVM transfers
+fast info bridge-tokens      List tokens available for Fast-EVM transfers (only USDC for now)
 fast info bridge-chains      List chains available for Fast-EVM transfers
 
 fast fund                    Fund fast account from crypto or fiat; may need human intervention
@@ -1003,6 +1003,8 @@ operations. Results are ordered by timestamp descending.
 
 ### 6.16 `fast info bridge-tokens`
 
+_Note: We only suppose USDC for now._
+
 **Synopsis**
 
 ```text
@@ -1375,16 +1377,13 @@ avoids shell escaping issues with inline JSON and handles arbitrary payload
 sizes. Agents can write their request body to a temp file and pass the path —
 no quoting or escaping required.
 
-**Payment types**
+**Selection logic:** A 402 response may contain multiple accepted payment
+options (the accepts array). The CLI picks the first option it can fulfill,
+in priority order: Fast network first, then an EVM chain
+where the user has sufficient balance, then an EVM chain with auto-bridge from
+Fast. If no option can be fulfilled, exit with `INSUFFICIENT_BALANCE`.
 
-- **Fast x402:** Submit `TokenTransfer` on Fast, obtain certificate, send to
-  the merchant server for verification via x402 facilitator.
-- **Chain x402:** Check if the user's EVM wallet (derived from the same key) has
-  sufficient balance on the required chain. If not, auto-bridge from Fast via
-  AllSet. Then sign EIP-3009 `transferWithAuthorization` and send to the
-  merchant server for settlement.
-
-**Auto-bridge for chain x402:** When the payment requires an EVM chain payment
+**Auto-bridge for EVM x402:** When the payment requires an EVM chain payment
 and the account's EVM balance on that chain is insufficient, the CLI
 automatically bridges the shortfall from the Fast-side balance via AllSet. It
 then polls the EVM balance (up to 2 minutes) until the bridged amount arrives
@@ -1392,23 +1391,26 @@ before signing the payment. If the Fast-side balance is also insufficient, the
 command exits with `INSUFFICIENT_BALANCE`. In interactive mode, the
 confirmation prompt shows when auto-bridging will occur.
 
-
-**Selection logic:** A 402 response may contain multiple accepted payment
-options (the `accepts` array). The CLI picks the first option it can fulfill,
-in priority order: Fast x402 first (fastest, ~300ms), then chain x402 on a
-chain where the user has sufficient balance, then chain x402 with auto-bridge.
-If no option can be fulfilled, exit with `INSUFFICIENT_BALANCE`.
-
 **Behavior (interactive mode)**
 
 ```text
 Payment required:
   Merchant: api.example.com
   Amount:   5.00 USDC
-  Type:     Fast x402
-  Token:    USDC (0xc655a123...)
+  Network:  fast-mainnet
 
-Pay from my-account? [y/N]
+Pay from my-account? [Y/N]
+```
+
+With auto-bridge:
+```text
+Payment required:
+  Merchant: api.example.com
+  Amount:   5.00 USDC
+  Network:  base
+  Note:     Insufficient USDC on base. Will auto-bridge 3.50 USDC from Fast.
+
+Pay from my-account? [Y/N]
 ```
 
 **Output (`--json`, execution)**
@@ -1423,7 +1425,7 @@ Pay from my-account? [y/N]
     "formatted": "5.00",
     "tokenName": "USDC",
     "recipient": "fast1merchant...",
-    "paymentType": "fast-x402",
+    "paymentType": "x402",
     "network": "fast-mainnet",
     "response": {
       "statusCode": 200,
@@ -1451,23 +1453,23 @@ to access.
       "amount": "5000000",
       "formatted": "5.00",
       "tokenName": "USDC",
-      "paymentType": "fast-x402",
+      "paymentType": "x402",
       "network": "fast-mainnet",
       "recipient": "fast1merchant..."
     },
     "accepts": [
       {
-        "paymentType": "fast-x402",
+        "scheme": "exact",
         "network": "fast-mainnet",
-        "amount": "5000000",
-        "recipient": "fast1merchant...",
+        "maxAmountRequired": "5000000",
+        "payTo": "fast1merchant...",
         "asset": "0xc655a123..."
       },
       {
-        "paymentType": "chain-x402",
+        "scheme": "exact",
         "network": "base",
-        "amount": "5000000",
-        "recipient": "0x1131...4372",
+        "maxAmountRequired": "5000000",
+        "payTo": "0x1131...4372",
         "asset": "0x8335..."
       }
     ]
@@ -1477,7 +1479,6 @@ to access.
 
 The `selected` field shows which option the CLI would choose (see selection
 logic above). The `accepts` array shows all payment options from the merchant.
-`paymentType` is one of: `"fast-x402"`, `"chain-x402"`.
 
 **Errors**
 

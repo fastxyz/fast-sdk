@@ -1,0 +1,35 @@
+{
+    "name": "@fastxyz/fast-sdk",
+    "version": "0.2.5",
+    "main": "./dist/index.js",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        },
+        "./core": {
+            "import": "./dist/core/index.mjs",
+            "require": "./dist/core/index.js",
+            "types": "./dist/core/index.d.ts"
+        }
+    },
+    "scripts": {
+        "build": "tsup src/index.ts src/core/index.ts --format cjs,esm --dts",
+        "dev": "tsup src/index.ts src/core/index.ts --format cjs,esm --watch --dts"
+    },
+    "dependencies": {
+        "@fastxyz/fast-schema": "workspace:*",
+        "@mysten/bcs": "^2.0.3",
+        "@noble/ed25519": "^3.0.1",
+        "@noble/hashes": "^2.0.1",
+        "bech32": "^2.0.0",
+        "effect": "^3.21.0",
+        "json-with-bigint": "^3.5.8"
+    },
+    "devDependencies": {
+        "@types/node": "^25.5.0"
+    }
+}

@@ -3,5 +3,5 @@
     "composite": true
   },
   "files": [],
-  "references": [{ "path": "packages/sdk" }, { "path": "packages/cli" }]
+  "references": [{ "path": "packages/bcs" }, { "path": "packages/schemas" }, { "path": "packages/sdk" }, { "path": "packages/cli" }]
 }

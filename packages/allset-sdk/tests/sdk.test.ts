@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test, onTestFinished } from 'vitest';
 import { FastError } from '../src/errors.ts';
 import { encodeFunctionData } from 'viem';
+import { Signer, FastProvider } from '@fastxyz/fast-sdk';
 
 import {
   // address
@@ -23,6 +24,7 @@ import {
   evmSign,
   executeDeposit,
   executeIntent,
+  executeWithdraw,
 } from '../src/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
@@ -51,6 +53,7 @@ test('single entrypoint exposes all public API', () => {
   assert.equal(typeof createEvmWallet, 'function');
   assert.equal(typeof executeDeposit, 'function');
   assert.equal(typeof executeIntent, 'function');
+  assert.equal(typeof executeWithdraw, 'function');
   assert.equal(typeof evmSign, 'function');
 });
 
@@ -228,9 +231,16 @@ test('createEvmWallet derives account from private key string', () => {
 test('createEvmExecutor rejects unsupported chain ids', () => {
   const account = createEvmWallet(`0x${'11'.repeat(32)}`);
   assert.throws(
-    () => createEvmExecutor(account, 'http://localhost:8545', 1),
+    () => createEvmExecutor(account, 'http://localhost:8545', 999999),
     /Unsupported EVM chain ID/,
   );
+});
+
+test('createEvmExecutor supports ethereum mainnet (chainId 1)', () => {
+  const account = createEvmWallet(`0x${'11'.repeat(32)}`);
+  const clients = createEvmExecutor(account, 'https://mainnet.example.com', 1);
+  assert.ok(clients.walletClient);
+  assert.ok(clients.publicClient);
 });
 
 test('createEvmExecutor returns walletClient and publicClient', () => {
@@ -423,47 +433,68 @@ test('executeDeposit throws FastError on invalid receiver address', async () => 
 // executeIntent Tests
 // ---------------------------------------------------------------------------
 
+// Shared test signer/provider helpers
+const TEST_PRIVATE_KEY = `0x${'55'.repeat(32)}`;
+const testSigner = new Signer(TEST_PRIVATE_KEY);
+
+function makeMockProvider(opts: { submitError?: Error } = {}): FastProvider {
+  return {
+    getAccountInfo: async () => ({ nextNonce: 1n } as any),
+    submitTransaction: async (envelope: unknown) => {
+      if (opts.submitError) throw opts.submitError;
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+}
+
+const BASE_INTENT_PARAMS = {
+  fastBridgeAddress: FAST_BRIDGE_ADDRESS,
+  relayerUrl: RELAY_URL,
+  crossSignUrl: CROSS_SIGN_URL,
+  tokenEvmAddress: TOKEN_ADDRESS,
+  tokenFastTokenId: TOKEN_FAST_ID,
+  amount: '1000000',
+  networkId: 'fast:testnet',
+} as const;
+
 test('executeIntent performs 2 Fast submits + 2 cross-signs + 1 relayer call', async () => {
   const originalFetch = globalThis.fetch;
   const urls: string[] = [];
   const submitCalls: unknown[] = [];
 
-  globalThis.fetch = async (url, init) => {
+  globalThis.fetch = async (url) => {
     urls.push(String(url));
-    if (String(url).includes('/relay')) {
-      return Response.json({ ok: true });
-    }
+    if (String(url).includes('/relay')) return Response.json({ ok: true });
     return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
   };
   onTestFinished(() => { globalThis.fetch = originalFetch; });
 
+  const mockProvider = {
+    getAccountInfo: async () => ({ nextNonce: 1n } as any),
+    submitTransaction: async (envelope: unknown) => {
+      submitCalls.push(envelope);
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+
   const result = await executeIntent({
-    fastBridgeAddress: FAST_BRIDGE_ADDRESS,
-    relayerUrl: RELAY_URL,
-    crossSignUrl: CROSS_SIGN_URL,
-    tokenEvmAddress: TOKEN_ADDRESS,
-    tokenFastTokenId: TOKEN_FAST_ID,
-    amount: '1000000',
+    ...BASE_INTENT_PARAMS,
     intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
-    fastWallet: {
-      address: FAST_ADDRESS,
-      async submit(params) {
-        submitCalls.push(params);
-        return { txHash: TX_HASH, certificate: { ok: true } };
-      },
-    } as any,
+    signer: testSigner,
+    provider: mockProvider,
   });
 
   assert.equal(submitCalls.length, 2);
   assert.equal(urls.filter(u => u === CROSS_SIGN_URL).length, 2);
   assert.equal(urls.filter(u => u.includes('/relay')).length, 1);
+  // txHash is derived from cross-sign bytes[32:64] = MOCK_CROSS_SIGN_TX[32:64] = TX_HASH
   assert.equal(result.txHash, TX_HASH);
   assert.equal(result.orderId, TX_HASH);
 });
 
 test('executeIntent uses fastBridgeAddress as recipient in TokenTransfer', async () => {
   const originalFetch = globalThis.fetch;
-  const submitCalls: Array<{ claim: Record<string, unknown> }> = [];
+  const submitCalls: unknown[] = [];
 
   globalThis.fetch = async (url) => {
     if (String(url).includes('/relay')) return Response.json({ ok: true });
@@ -471,26 +502,28 @@ test('executeIntent uses fastBridgeAddress as recipient in TokenTransfer', async
   };
   onTestFinished(() => { globalThis.fetch = originalFetch; });
 
+  const mockProvider = {
+    getAccountInfo: async () => ({ nextNonce: 1n } as any),
+    submitTransaction: async (envelope: unknown) => {
+      submitCalls.push(envelope);
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+
   await executeIntent({
-    fastBridgeAddress: FAST_BRIDGE_ADDRESS,
-    relayerUrl: RELAY_URL,
-    crossSignUrl: CROSS_SIGN_URL,
-    tokenEvmAddress: TOKEN_ADDRESS,
-    tokenFastTokenId: TOKEN_FAST_ID,
-    amount: '1000000',
+    ...BASE_INTENT_PARAMS,
     intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
-    fastWallet: {
-      address: FAST_ADDRESS,
-      async submit(params) {
-        submitCalls.push(params as any);
-        return { txHash: TX_HASH, certificate: { ok: true } };
-      },
-    } as any,
+    signer: testSigner,
+    provider: mockProvider,
   });
 
+  // First submit is a TokenTransfer — verify the recipient in the signed envelope
+  const envelope = submitCalls[0] as any;
+  const tx = envelope.transaction.value; // VersionedTransaction.value = Transaction
+  const claim = tx.claim; // { type: 'TokenTransfer', value: { tokenId, recipient, ... } }
+  assert.equal(claim.type, 'TokenTransfer');
   const expectedRecipient = Array.from(fastAddressToBytes(FAST_BRIDGE_ADDRESS));
-  const tokenTransfer = (submitCalls[0].claim as any)?.TokenTransfer;
-  assert.deepEqual(Array.from(tokenTransfer?.recipient ?? []), expectedRecipient);
+  assert.deepEqual(Array.from(claim.value.recipient as Uint8Array), expectedRecipient);
 });
 
 test('executeIntent sends correct relayer payload', async () => {
@@ -507,20 +540,14 @@ test('executeIntent sends correct relayer payload', async () => {
   onTestFinished(() => { globalThis.fetch = originalFetch; });
 
   await executeIntent({
-    fastBridgeAddress: FAST_BRIDGE_ADDRESS,
-    relayerUrl: RELAY_URL,
-    crossSignUrl: CROSS_SIGN_URL,
-    tokenEvmAddress: TOKEN_ADDRESS,
-    tokenFastTokenId: TOKEN_FAST_ID,
-    amount: '1000000',
+    ...BASE_INTENT_PARAMS,
     intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
-    fastWallet: {
-      address: FAST_ADDRESS,
-      async submit() { return { txHash: TX_HASH, certificate: { ok: true } }; },
-    } as any,
+    signer: testSigner,
+    provider: makeMockProvider(),
   });
 
-  assert.equal(relayerBody?.fastset_address, FAST_ADDRESS);
+  const expectedFastAddress = await testSigner.getFastAddress();
+  assert.equal(relayerBody?.fastset_address, expectedFastAddress);
   assert.equal(relayerBody?.external_address, EVM_ADDRESS);
   assert.equal(relayerBody?.external_token_address, TOKEN_ADDRESS);
 });
@@ -540,17 +567,10 @@ test('executeIntent infers external_address from Execute intent target', async (
   onTestFinished(() => { globalThis.fetch = originalFetch; });
 
   await executeIntent({
-    fastBridgeAddress: FAST_BRIDGE_ADDRESS,
-    relayerUrl: RELAY_URL,
-    crossSignUrl: CROSS_SIGN_URL,
-    tokenEvmAddress: TOKEN_ADDRESS,
-    tokenFastTokenId: TOKEN_FAST_ID,
-    amount: '1000000',
+    ...BASE_INTENT_PARAMS,
     intents: [buildExecuteIntent(contractAddress, '0xabcdef')],
-    fastWallet: {
-      address: FAST_ADDRESS,
-      async submit() { return { txHash: TX_HASH, certificate: { ok: true } }; },
-    } as any,
+    signer: testSigner,
+    provider: makeMockProvider(),
   });
 
   assert.equal(relayerBody?.external_address, contractAddress);
@@ -564,17 +584,10 @@ test('executeIntent throws FastError when no external address can be resolved', 
 
   await assert.rejects(
     () => executeIntent({
-      fastBridgeAddress: FAST_BRIDGE_ADDRESS,
-      relayerUrl: RELAY_URL,
-      crossSignUrl: CROSS_SIGN_URL,
-      tokenEvmAddress: TOKEN_ADDRESS,
-      tokenFastTokenId: TOKEN_FAST_ID,
-      amount: '1000000',
+      ...BASE_INTENT_PARAMS,
       intents: [buildRevokeIntent()],
-      fastWallet: {
-        address: FAST_ADDRESS,
-        async submit() { return { txHash: TX_HASH, certificate: { ok: true } }; },
-      } as any,
+      signer: testSigner,
+      provider: makeMockProvider(),
     }),
     (error: unknown) => {
       assert.ok(error instanceof FastError);
@@ -587,17 +600,10 @@ test('executeIntent throws FastError when no external address can be resolved', 
 test('executeIntent throws FastError when intents array is empty', async () => {
   await assert.rejects(
     () => executeIntent({
-      fastBridgeAddress: FAST_BRIDGE_ADDRESS,
-      relayerUrl: RELAY_URL,
-      crossSignUrl: CROSS_SIGN_URL,
-      tokenEvmAddress: TOKEN_ADDRESS,
-      tokenFastTokenId: TOKEN_FAST_ID,
-      amount: '1000000',
+      ...BASE_INTENT_PARAMS,
       intents: [],
-      fastWallet: {
-        address: FAST_ADDRESS,
-        async submit() { return { txHash: TX_HASH, certificate: { ok: true } }; },
-      } as any,
+      signer: testSigner,
+      provider: makeMockProvider(),
     }),
     (error: unknown) => {
       assert.ok(error instanceof FastError);
@@ -607,22 +613,15 @@ test('executeIntent throws FastError when intents array is empty', async () => {
   );
 });
 
-test('executeIntent preserves upstream FastError from fastWallet.submit', async () => {
+test('executeIntent preserves upstream error from provider', async () => {
   const upstreamError = new FastError('TX_FAILED', 'upstream failure', { note: 'keep identity' });
 
   await assert.rejects(
     () => executeIntent({
-      fastBridgeAddress: FAST_BRIDGE_ADDRESS,
-      relayerUrl: RELAY_URL,
-      crossSignUrl: CROSS_SIGN_URL,
-      tokenEvmAddress: TOKEN_ADDRESS,
-      tokenFastTokenId: TOKEN_FAST_ID,
-      amount: '1000000',
+      ...BASE_INTENT_PARAMS,
       intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
-      fastWallet: {
-        address: FAST_ADDRESS,
-        async submit() { throw upstreamError; },
-      } as any,
+      signer: testSigner,
+      provider: makeMockProvider({ submitError: upstreamError }),
     }),
     (error: unknown) => {
       assert.equal(error, upstreamError);
@@ -634,26 +633,17 @@ test('executeIntent preserves upstream FastError from fastWallet.submit', async 
 test('executeIntent throws FastError on relayer failure', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
-    if (String(url).includes('/relay')) {
-      return new Response('internal error', { status: 500 });
-    }
+    if (String(url).includes('/relay')) return new Response('internal error', { status: 500 });
     return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
   };
   onTestFinished(() => { globalThis.fetch = originalFetch; });
 
   await assert.rejects(
     () => executeIntent({
-      fastBridgeAddress: FAST_BRIDGE_ADDRESS,
-      relayerUrl: RELAY_URL,
-      crossSignUrl: CROSS_SIGN_URL,
-      tokenEvmAddress: TOKEN_ADDRESS,
-      tokenFastTokenId: TOKEN_FAST_ID,
-      amount: '1000000',
+      ...BASE_INTENT_PARAMS,
       intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
-      fastWallet: {
-        address: FAST_ADDRESS,
-        async submit() { return { txHash: TX_HASH, certificate: { ok: true } }; },
-      } as any,
+      signer: testSigner,
+      provider: makeMockProvider(),
     }),
     (error: unknown) => {
       assert.ok(error instanceof FastError);
@@ -662,4 +652,34 @@ test('executeIntent throws FastError on relayer failure', async () => {
       return true;
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// executeWithdraw Tests
+// ---------------------------------------------------------------------------
+
+test('executeWithdraw calls executeIntent with a DynamicTransfer intent', async () => {
+  const originalFetch = globalThis.fetch;
+  let relayerBody: Record<string, unknown> | undefined;
+
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/relay')) {
+      relayerBody = JSON.parse(String(init?.body));
+      return Response.json({ ok: true });
+    }
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => { globalThis.fetch = originalFetch; });
+
+  const result = await executeWithdraw({
+    ...BASE_INTENT_PARAMS,
+    receiverEvmAddress: EVM_ADDRESS,
+    signer: testSigner,
+    provider: makeMockProvider(),
+  });
+
+  assert.equal(relayerBody?.external_address, EVM_ADDRESS);
+  assert.equal(relayerBody?.external_token_address, TOKEN_ADDRESS);
+  assert.equal(result.txHash, TX_HASH);
+  assert.equal(result.orderId, TX_HASH);
 });

@@ -1,10 +1,11 @@
 import { decodeAbiParameters, encodeAbiParameters } from 'viem';
+import { FastProvider, Signer, TransactionBuilder, toHex } from '@fastxyz/fast-sdk';
 import { FastError } from './errors.js';
 import { fastAddressToBytes } from './address.js';
 import { buildDepositTransaction } from './deposit.js';
-import { IntentAction, type Intent } from './intents.js';
+import { IntentAction, buildTransferIntent, type Intent } from './intents.js';
 import { ERC20_ABI, type EvmClients } from './evm-executor.js';
-import type { BridgeResult, ExecuteDepositParams, ExecuteIntentParams } from './types.js';
+import type { BridgeResult, ExecuteDepositParams, ExecuteIntentParams, ExecuteWithdrawParams } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -17,10 +18,6 @@ function hexToUint8Array(hex: string): Uint8Array {
     bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
   }
   return bytes;
-}
-
-function amountToHex(amount: string): string {
-  return BigInt(amount).toString(16);
 }
 
 function bigIntToNumber(obj: unknown): unknown {
@@ -259,7 +256,7 @@ export async function executeDeposit(params: ExecuteDepositParams): Promise<Brid
  * Execute intents on an EVM chain after transferring tokens from the Fast network.
  *
  * This is the core function for all Fast→EVM flows:
- * - Simple withdrawal: use buildTransferIntent + executeIntent
+ * - Simple withdrawal: use buildTransferIntent + executeIntent (or use executeWithdraw)
  * - Custom contract call: use buildExecuteIntent + executeIntent
  * - Deposit back to Fast: use buildDepositBackIntent + executeIntent
  *
@@ -267,7 +264,11 @@ export async function executeDeposit(params: ExecuteDepositParams): Promise<Brid
  *
  * @example
  * ```ts
- * // Simple withdrawal (Fast → EVM transfer)
+ * import { Signer, FastProvider } from '@fastxyz/fast-sdk';
+ *
+ * const signer = new Signer(privateKeyHex);
+ * const provider = new FastProvider({ rpcUrl: 'https://proxy.fast.xyz' });
+ *
  * const intent = buildTransferIntent(tokenEvmAddress, receiverEvmAddress);
  * const result = await executeIntent({
  *   fastBridgeAddress: 'fast1...',
@@ -277,7 +278,9 @@ export async function executeDeposit(params: ExecuteDepositParams): Promise<Brid
  *   tokenFastTokenId: 'abc123...',
  *   amount: '1000000',
  *   intents: [intent],
- *   fastWallet,
+ *   signer,
+ *   provider,
+ *   networkId: 'fast:testnet',
  * });
  * ```
  */
@@ -292,7 +295,9 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
     intents,
     externalAddress: externalAddressOverride,
     deadlineSeconds = 3600,
-    fastWallet,
+    signer,
+    provider,
+    networkId,
   } = params;
 
   if (!intents || intents.length === 0) {
@@ -308,22 +313,42 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
   }
 
   const tokenId = hexToUint8Array(tokenFastTokenId);
+  const publicKey = await signer.getPublicKey();
+  const fastAddress = await signer.getFastAddress();
 
   // Step 1: Transfer tokens to bridge address on Fast network
-  const transferResult = await fastWallet.submit({
-    claim: {
-      TokenTransfer: {
-        token_id: tokenId,
-        recipient: fastAddressToBytes(fastBridgeAddress),
-        amount: amountToHex(amount),
-        user_data: null,
-      },
-    },
+  const accountInfo1 = await provider.getAccountInfo({
+    address: publicKey,
+    tokenBalancesFilter: null,
+    stateKeyFilter: null,
+    certificateByNonce: null,
   });
 
+  const transferEnvelope = await new TransactionBuilder({
+    networkId: networkId as any,
+    signer,
+    nonce: accountInfo1.nextNonce,
+  })
+    .addTokenTransfer({
+      tokenId,
+      recipient: fastAddressToBytes(fastBridgeAddress),
+      amount: BigInt(amount),
+      userData: null,
+    })
+    .sign();
+
+  const transferResult = await provider.submitTransaction(transferEnvelope);
+  if (transferResult.type !== 'Success') {
+    throw new FastError('TX_FAILED', `Token transfer submission incomplete: ${transferResult.type}`, {
+      note: 'The transfer transaction was not fully confirmed. Try again.',
+    });
+  }
+
   // Step 2: Cross-sign the transfer certificate
-  const transferCrossSign = await evmSign(transferResult.certificate, crossSignUrl);
-  const transferFastTxId = transferResult.txHash as `0x${string}`;
+  const transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
+
+  // Derive the Fast tx ID from cross-sign bytes[32:64] — this is the canonical transaction hash
+  const transferFastTxId = toHex(new Uint8Array(transferCrossSign.transaction.slice(32, 64))) as `0x${string}`;
 
   // Step 3: Build and encode the intent claim
   const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
@@ -350,21 +375,38 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
   const intentBytes = hexToUint8Array(intentClaimEncoded);
 
   // Step 4: Submit intent claim on Fast network
-  const intentResult = await fastWallet.submit({
-    claim: {
-      ExternalClaim: {
-        claim: {
-          verifier_committee: [] as Uint8Array[],
-          verifier_quorum: 0,
-          claim_data: Array.from(intentBytes),
-        },
-        signatures: [] as Array<[Uint8Array, Uint8Array]>,
-      },
-    },
+  const accountInfo2 = await provider.getAccountInfo({
+    address: publicKey,
+    tokenBalancesFilter: null,
+    stateKeyFilter: null,
+    certificateByNonce: null,
   });
 
+  const intentEnvelope = await new TransactionBuilder({
+    networkId: networkId as any,
+    signer,
+    nonce: accountInfo2.nextNonce,
+  })
+    .addExternalClaim({
+      claim: {
+        verifierCommittee: [],
+        verifierQuorum: 0,
+        claimData: intentBytes,
+      },
+      signatures: [],
+    })
+    .sign();
+
+  const intentResult = await provider.submitTransaction(intentEnvelope);
+  if (intentResult.type !== 'Success') {
+    throw new FastError('TX_FAILED', `Intent claim submission incomplete: ${intentResult.type}`, {
+      note: 'The intent claim transaction was not fully confirmed. Try again.',
+    });
+  }
+
   // Step 5: Cross-sign the intent certificate
-  const intentCrossSign = await evmSign(intentResult.certificate, crossSignUrl);
+  const intentCrossSign = await evmSign(intentResult.value, crossSignUrl);
+  const intentFastTxId = toHex(new Uint8Array(intentCrossSign.transaction.slice(32, 64))) as `0x${string}`;
 
   // Step 6: Resolve external address and submit to relayer
   const externalAddress = resolveExternalAddress(intents, externalAddressOverride);
@@ -379,14 +421,14 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
   const relayerBody = {
     encoded_transfer_claim: Array.from(new Uint8Array(transferCrossSign.transaction.map(Number))),
     transfer_proof: transferCrossSign.signature,
-    transfer_fast_tx_id: transferResult.txHash,
-    transfer_claim_id: transferResult.txHash,
-    fastset_address: fastWallet.address,
+    transfer_fast_tx_id: transferFastTxId,
+    transfer_claim_id: transferFastTxId,
+    fastset_address: fastAddress,
     external_address: externalAddress,
     encoded_intent_claim: Array.from(new Uint8Array(intentCrossSign.transaction.map(Number))),
     intent_proof: intentCrossSign.signature,
-    intent_fast_tx_id: intentResult.txHash,
-    intent_claim_id: intentResult.txHash,
+    intent_fast_tx_id: intentFastTxId,
+    intent_claim_id: intentFastTxId,
     external_token_address: tokenEvmAddress,
   };
 
@@ -404,8 +446,45 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
   }
 
   return {
-    txHash: transferResult.txHash,
+    txHash: transferFastTxId,
     orderId: transferFastTxId,
     estimatedTime: '1-5 minutes',
   };
+}
+
+// ---------------------------------------------------------------------------
+// executeWithdraw (Fast → EVM simple withdrawal)
+// ---------------------------------------------------------------------------
+
+/**
+ * Withdraw tokens from the Fast network to an EVM address.
+ *
+ * This is a convenience wrapper around executeIntent that builds a
+ * DynamicTransfer intent automatically.
+ *
+ * @example
+ * ```ts
+ * import { Signer, FastProvider } from '@fastxyz/fast-sdk';
+ *
+ * const signer = new Signer(privateKeyHex);
+ * const provider = new FastProvider({ rpcUrl: 'https://proxy.fast.xyz' });
+ *
+ * const result = await executeWithdraw({
+ *   fastBridgeAddress: 'fast1...',
+ *   relayerUrl: 'https://...',
+ *   crossSignUrl: 'https://...',
+ *   tokenEvmAddress: '0x...',
+ *   tokenFastTokenId: 'abc123...',
+ *   amount: '1000000',
+ *   receiverEvmAddress: '0xRecipient...',
+ *   signer,
+ *   provider,
+ *   networkId: 'fast:testnet',
+ * });
+ * ```
+ */
+export async function executeWithdraw(params: ExecuteWithdrawParams): Promise<BridgeResult> {
+  const { receiverEvmAddress, tokenEvmAddress, ...rest } = params;
+  const intent = buildTransferIntent(tokenEvmAddress, receiverEvmAddress);
+  return executeIntent({ ...rest, tokenEvmAddress, intents: [intent] });
 }

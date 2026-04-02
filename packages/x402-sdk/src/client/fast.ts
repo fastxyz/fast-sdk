@@ -66,7 +66,7 @@ function serializeFastRpcJsonValue(value: unknown, quoteBigInt = false): string 
   return undefined;
 }
 
-function serializeX402Payload(data: unknown): string {
+export function stringifyPaymentPayload(data: unknown): string {
   const serialized = serializeFastRpcJsonValue(data, true);
   if (serialized === undefined) {
     throw new TypeError('x402 payload must be JSON-serializable');
@@ -210,7 +210,7 @@ export async function handleFastPayment(
     },
   };
 
-  const payloadBase64 = Buffer.from(serializeX402Payload(paymentPayload)).toString('base64');
+  const payloadBase64 = Buffer.from(stringifyPaymentPayload(paymentPayload)).toString('base64');
   log(`  Payload base64 length: ${payloadBase64.length}`);
 
   // Retry request with X-PAYMENT header

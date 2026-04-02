@@ -95,10 +95,8 @@ describe('x402-server utils', () => {
       expect(config.asset).toMatch(/^0x/);
     });
 
-    it('should return default config for unknown networks', () => {
-      const config = getNetworkConfig('unknown-network');
-      expect(config).toBeTruthy();
-      expect(config.decimals).toBe(6);
+    it('should throw for unknown networks', () => {
+      expect(() => getNetworkConfig('unknown-network')).toThrow('Unsupported payment network');
     });
   });
 

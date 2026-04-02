@@ -70,6 +70,10 @@ export function assertSupportedPaymentNetwork(network: string): void {
       'Unsupported Fast network alias "fast". Use "fast-testnet" or "fast-mainnet".'
     );
   }
+
+  if (!(network in NETWORK_CONFIGS)) {
+    throw new Error(`Unsupported payment network: ${network}`);
+  }
 }
 
 /**
@@ -98,15 +102,8 @@ export function parsePrice(price: string, decimals: number = 6): string {
  * Get network config, with fallback to generic USDC
  */
 export function getNetworkConfig(network: string): NetworkConfig {
-  if (network in NETWORK_CONFIGS) {
-    return NETWORK_CONFIGS[network];
-  }
-
-  // Default to generic USDC config for unknown networks
-  return {
-    asset: "0x0000000000000000000000000000000000000000",
-    decimals: 6,
-  };
+  assertSupportedPaymentNetwork(network);
+  return NETWORK_CONFIGS[network]!;
 }
 
 /**

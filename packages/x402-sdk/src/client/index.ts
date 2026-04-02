@@ -23,6 +23,7 @@ import type {
 
 import { handleFastPayment, FAST_NETWORKS } from './fast.js';
 import { handleEvmPayment, EVM_NETWORKS } from './evm.js';
+import { stringifyPaymentPayload } from './fast.js';
 
 export { FAST_NETWORKS, EVM_NETWORKS };
 
@@ -185,7 +186,7 @@ export async function parse402Response(response: Response): Promise<PaymentRequi
  * Build an X-PAYMENT header value (for manual payment flows).
  */
 export function buildPaymentHeader(payload: unknown): string {
-  return Buffer.from(JSON.stringify(payload)).toString('base64');
+  return Buffer.from(stringifyPaymentPayload(payload)).toString('base64');
 }
 
 /**

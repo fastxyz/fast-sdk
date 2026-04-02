@@ -74,6 +74,10 @@ function serializeX402Payload(data: unknown): string {
   return serialized;
 }
 
+export function stringifyPaymentPayload(data: unknown): string {
+  return serializeX402Payload(data);
+}
+
 /**
  * Resolve the Fast network ID used in signed transactions.
  */
@@ -210,7 +214,7 @@ export async function handleFastPayment(
     },
   };
 
-  const payloadBase64 = Buffer.from(serializeX402Payload(paymentPayload)).toString('base64');
+  const payloadBase64 = Buffer.from(stringifyPaymentPayload(paymentPayload)).toString('base64');
   log(`  Payload base64 length: ${payloadBase64.length}`);
 
   // Retry request with X-PAYMENT header

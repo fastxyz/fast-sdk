@@ -5,7 +5,7 @@
  */
 
 import { createPublicClient, http, erc20Abi, type Chain } from 'viem';
-import { sepolia, arbitrumSepolia, baseSepolia, arbitrum, base } from 'viem/chains';
+import { mainnet, sepolia, arbitrumSepolia, baseSepolia, arbitrum, base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { 
   EvmWallet, 
@@ -28,6 +28,7 @@ interface NetworkConfig {
 }
 
 const NETWORK_MAP: Record<string, NetworkConfig> = {
+  'ethereum': { chain: mainnet, network: 'mainnet', chainId: 1, rpcUrl: process.env.ETH_RPC_URL },
   'ethereum-sepolia': { chain: sepolia, network: 'testnet', chainId: 11155111, rpcUrl: process.env.ETH_SEPOLIA_RPC || 'https://ethereum-sepolia-rpc.publicnode.com' },
   'arbitrum-sepolia': { chain: arbitrumSepolia, network: 'testnet', chainId: 421614 },
   'arbitrum': { chain: arbitrum, network: 'mainnet', chainId: 42161 },

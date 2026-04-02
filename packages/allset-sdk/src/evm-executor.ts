@@ -77,25 +77,26 @@ export interface EvmClients {
  *
  * @param account - viem Account from createEvmWallet() or privateKeyToAccount()
  * @param rpcUrl - RPC endpoint URL
- * @param chainId - Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia, 8453 for Base)
+ * @param chainOrId - A viem Chain object, or a chain ID number (looked up in CHAIN_MAP).
  *
  * @example
  * ```ts
+ * import { arbitrumSepolia } from 'viem/chains';
+ *
  * const account = createEvmWallet('0xabc123...');
+ * // Pass a Chain object directly (preferred — no hardcoded map):
+ * const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, arbitrumSepolia);
+ * // Or pass a chain ID (uses built-in CHAIN_MAP):
  * const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, 421614);
  * ```
  */
 export function createEvmExecutor(
   account: Account,
   rpcUrl: string,
-  chainId: number,
+  chainOrId: Chain | number,
 ): EvmClients {
-  const chain = CHAIN_MAP[chainId];
-  if (!chain) {
-    throw new Error(
-      `Unsupported EVM chain ID: ${chainId}. Supported: ${Object.keys(CHAIN_MAP).join(', ')}`,
-    );
-  }
+  const chain =
+    typeof chainOrId === 'number' ? resolveChain(chainOrId) : chainOrId;
 
   const walletClient = createWalletClient({
     account,
@@ -109,4 +110,15 @@ export function createEvmExecutor(
   });
 
   return { walletClient, publicClient };
+}
+
+function resolveChain(chainId: number): Chain {
+  const chain = CHAIN_MAP[chainId];
+  if (!chain) {
+    throw new Error(
+      `Unsupported EVM chain ID: ${chainId}. Supported: ${Object.keys(CHAIN_MAP).join(', ')}. ` +
+        `Pass a viem Chain object directly to avoid this restriction.`,
+    );
+  }
+  return chain;
 }

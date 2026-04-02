@@ -8,7 +8,6 @@
 import {
   executeIntent,
   buildTransferIntent,
-  fastAddressToBytes,
   type FastWalletLike,
 } from '@fastxyz/allset-sdk';
 import { FastProvider, Signer, TransactionBuilder, hashHex, toFastAddress, toHex } from '@fastxyz/fast-sdk';

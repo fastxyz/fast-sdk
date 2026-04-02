@@ -1,20 +1,10 @@
+import type { Signer, FastProvider } from '@fastxyz/fast-sdk';
 import type { EvmClients } from './evm-executor.js';
 import type { Intent } from './intents.js';
 
 // ---------------------------------------------------------------------------
 // Shared types
 // ---------------------------------------------------------------------------
-
-export interface FastWalletLike {
-  /** Sender Fast address (fast1...) */
-  readonly address: string;
-  submit(params: {
-    claim: Record<string, unknown>;
-  }): Promise<{
-    txHash: string;
-    certificate: unknown;
-  }>;
-}
 
 export interface BridgeResult {
   txHash: string;
@@ -72,6 +62,39 @@ export interface ExecuteIntentParams {
   externalAddress?: string;
   /** Deadline in seconds from now (default: 3600) */
   deadlineSeconds?: number;
-  /** Fast wallet to sign transactions */
-  fastWallet: FastWalletLike;
+  /** Ed25519 signer from @fastxyz/fast-sdk */
+  signer: Signer;
+  /** Fast RPC provider from @fastxyz/fast-sdk */
+  provider: FastProvider;
+  /** Fast network ID (e.g. 'fast:testnet', 'fast:mainnet') */
+  networkId: string;
+}
+
+// ---------------------------------------------------------------------------
+// executeWithdraw params
+// ---------------------------------------------------------------------------
+
+export interface ExecuteWithdrawParams {
+  /** AllSet bridge address on the Fast network (fast1...) */
+  fastBridgeAddress: string;
+  /** AllSet relayer URL for the destination EVM chain */
+  relayerUrl: string;
+  /** AllSet cross-sign service URL */
+  crossSignUrl: string;
+  /** Token contract address on EVM */
+  tokenEvmAddress: string;
+  /** Token ID on the Fast network (hex string, without 0x) */
+  tokenFastTokenId: string;
+  /** Amount in smallest units (e.g., '1000000' for 1 USDC) */
+  amount: string;
+  /** EVM address to receive the withdrawn tokens */
+  receiverEvmAddress: string;
+  /** Deadline in seconds from now (default: 3600) */
+  deadlineSeconds?: number;
+  /** Ed25519 signer from @fastxyz/fast-sdk */
+  signer: Signer;
+  /** Fast RPC provider from @fastxyz/fast-sdk */
+  provider: FastProvider;
+  /** Fast network ID (e.g. 'fast:testnet', 'fast:mainnet') */
+  networkId: string;
 }

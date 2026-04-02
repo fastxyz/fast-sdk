@@ -9,7 +9,7 @@ import {
   type WalletClient,
 } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import { arbitrum, arbitrumSepolia, base, sepolia } from 'viem/chains';
+import { arbitrum, arbitrumSepolia, base, mainnet as ethereum, sepolia } from 'viem/chains';
 
 /**
  * Account-compatible wallet returned by createEvmWallet().
@@ -57,6 +57,7 @@ export const ERC20_ABI = parseAbi([
 
 /** Bundled supported chain mappings */
 export const CHAIN_MAP: Record<number, Chain> = {
+  1: ethereum,
   11155111: sepolia,
   421614: arbitrumSepolia,
   42161: arbitrum,

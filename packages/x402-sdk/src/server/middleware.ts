@@ -3,21 +3,20 @@
  * Framework-agnostic middleware for x402 payment verification
  */
 
-import type {
-  FacilitatorConfig,
-  RouteConfig,
-  RoutesConfig,
-  PaymentRequirement,
-  PayToConfig,
-  MiddlewareOptions,
-} from "./types.js";
 import {
   createPaymentRequired,
   createPaymentRequirement,
-  verifyPayment,
-  settlePayment,
   encodePaymentResponse,
+  settlePayment,
+  verifyPayment,
 } from "./payment.js";
+import type {
+  FacilitatorConfig,
+  MiddlewareOptions,
+  PayToConfig,
+  RouteConfig,
+  RoutesConfig
+} from "./types.js";
 import { assertSupportedPaymentNetwork } from "./utils.js";
 
 // Express types (minimal to avoid hard dependency)

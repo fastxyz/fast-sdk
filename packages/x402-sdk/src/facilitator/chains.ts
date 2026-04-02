@@ -13,7 +13,6 @@ import {
   mainnet,
   sepolia,
 } from "viem/chains";
-import type { Chain } from "viem";
 import type { EvmChainConfig } from "./types.js";
 
 /**

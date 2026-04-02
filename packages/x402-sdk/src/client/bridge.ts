@@ -15,84 +15,7 @@ import { FastProvider, Signer, TransactionBuilder, hashHex, toFastAddress, toHex
 import { bcsSchema } from '@fastxyz/fast-schema';
 import type { FastWallet as X402FastWallet } from './types.js';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-/** Fast RPC URLs */
-const FAST_RPC_URLS = {
-  testnet: 'https://testnet.api.fast.xyz/proxy',
-  mainnet: 'https://api.fast.xyz/proxy',
-} as const;
-
-/** USDC token ID on Fast mainnet */
-const MAINNET_USDC_TOKEN_ID = 'c655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130';
-
-/** testUSDC token ID on Fast testnet */
-const TESTNET_USDC_TOKEN_ID = 'd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46';
-
-// ─── Bridge Configurations (previously from AllSetProvider) ───────────────────
-
-interface AllSetChainConfig {
-  fastBridgeAddress: string;
-  relayerUrl: string;
-  crossSignUrl: string;
-  tokenEvmAddress: string;
-  tokenFastTokenId: string;
-}
-
-const ALLSET_CONFIGS: Record<string, AllSetChainConfig> = {
-  'ethereum-sepolia': {
-    fastBridgeAddress: process.env.ALLSET_ETH_SEPOLIA_BRIDGE_ADDRESS || '',
-    relayerUrl: process.env.ALLSET_ETH_SEPOLIA_RELAYER_URL || '',
-    crossSignUrl: process.env.ALLSET_CROSS_SIGN_URL || '',
-    tokenEvmAddress: process.env.ALLSET_ETH_SEPOLIA_USDC_ADDRESS || '',
-    tokenFastTokenId: TESTNET_USDC_TOKEN_ID,
-  },
-  'arbitrum-sepolia': {
-    fastBridgeAddress: process.env.ALLSET_ARB_SEPOLIA_BRIDGE_ADDRESS || '',
-    relayerUrl: process.env.ALLSET_ARB_SEPOLIA_RELAYER_URL || '',
-    crossSignUrl: process.env.ALLSET_CROSS_SIGN_URL || '',
-    tokenEvmAddress: process.env.ALLSET_ARB_SEPOLIA_USDC_ADDRESS || '',
-    tokenFastTokenId: TESTNET_USDC_TOKEN_ID,
-  },
-  'arbitrum': {
-    fastBridgeAddress: process.env.ALLSET_ARB_BRIDGE_ADDRESS || '',
-    relayerUrl: process.env.ALLSET_ARB_RELAYER_URL || '',
-    crossSignUrl: process.env.ALLSET_CROSS_SIGN_URL || '',
-    tokenEvmAddress: process.env.ALLSET_ARB_USDC_ADDRESS || '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-    tokenFastTokenId: MAINNET_USDC_TOKEN_ID,
-  },
-  'base': {
-    fastBridgeAddress: process.env.ALLSET_BASE_BRIDGE_ADDRESS || '',
-    relayerUrl: process.env.ALLSET_BASE_RELAYER_URL || '',
-    crossSignUrl: process.env.ALLSET_CROSS_SIGN_URL || '',
-    tokenEvmAddress: process.env.ALLSET_BASE_USDC_ADDRESS || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-    tokenFastTokenId: MAINNET_USDC_TOKEN_ID,
-  },
-};
-
-// ─── Cached Providers ─────────────────────────────────────────────────────────
-
-const fastProviders: Record<string, FastProvider> = {};
-
-function getFastProvider(network: 'testnet' | 'mainnet' = 'testnet'): FastProvider {
-  if (!fastProviders[network]) {
-    fastProviders[network] = new FastProvider({ 
-      rpcUrl: FAST_RPC_URLS[network],
-    });
-  }
-  return fastProviders[network];
-}
-
 // ─── Public Types ─────────────────────────────────────────────────────────────
-
-/** Bridge configuration per EVM chain */
-export interface BridgeChainConfig {
-  chainId: number;
-  usdcAddress: string;
-  fastBridgeAddress: string;
-  relayerUrl: string;
-  bridgeContract?: string;
-}
 
 export interface BridgeParams {
   /** Fast wallet with USDC/testUSDC */
@@ -101,8 +24,18 @@ export interface BridgeParams {
   evmReceiverAddress: string;
   /** Amount to bridge (raw, 6 decimals) */
   amount: bigint;
-  /** Target EVM network (e.g., 'arbitrum-sepolia') */
-  network: string;
+  /** Fast RPC URL */
+  rpcUrl: string;
+  /** AllSet Fast bridge address */
+  fastBridgeAddress: string;
+  /** AllSet relayer URL */
+  relayerUrl: string;
+  /** AllSet cross-sign URL */
+  crossSignUrl: string;
+  /** USDC address on the target EVM chain */
+  tokenEvmAddress: string;
+  /** Token ID on Fast network */
+  tokenFastTokenId: string;
   /** Verbose logging */
   verbose?: boolean;
   /** Log collector */
@@ -125,6 +58,7 @@ function createFastWalletAdapter(
   wallet: X402FastWallet,
   signer: Signer,
   provider: FastProvider,
+  rpcUrl: string,
 ): FastWalletLike {
   return {
     address: wallet.address,
@@ -140,7 +74,7 @@ function createFastWalletAdapter(
         certificateByNonce: null,
       });
 
-      const isTestnet = !wallet.rpcUrl || wallet.rpcUrl.includes('testnet');
+      const isTestnet = rpcUrl.includes('testnet');
       const networkId = isTestnet ? 'fast:testnet' : 'fast:mainnet';
 
       // Build transaction with the given claim
@@ -189,36 +123,13 @@ function createFastWalletAdapter(
 // ─── Public Functions ─────────────────────────────────────────────────────────
 
 /**
- * Get bridge configuration for a network.
- */
-export function getBridgeConfig(network: string): BridgeChainConfig | null {
-  const config = ALLSET_CONFIGS[network];
-  if (!config || !config.fastBridgeAddress || !config.relayerUrl) {
-    return null;
-  }
-
-  // Chain IDs for supported networks
-  const chainIds: Record<string, number> = {
-    'ethereum-sepolia': 11155111,
-    'arbitrum-sepolia': 421614,
-    'arbitrum': 42161,
-    'base': 8453,
-  };
-
-  return {
-    chainId: chainIds[network] || 0,
-    usdcAddress: config.tokenEvmAddress,
-    fastBridgeAddress: config.fastBridgeAddress,
-    relayerUrl: config.relayerUrl,
-  };
-}
-
-/**
  * Get USDC/testUSDC balance on Fast network.
  */
-export async function getFastBalance(wallet: X402FastWallet): Promise<bigint> {
-  const isTestnet = !wallet.rpcUrl || wallet.rpcUrl.includes('testnet');
-  const provider = getFastProvider(isTestnet ? 'testnet' : 'mainnet');
+export async function getFastBalance(
+  wallet: X402FastWallet,
+  options: { rpcUrl: string; tokenId: string },
+): Promise<bigint> {
+  const provider = new FastProvider({ rpcUrl: options.rpcUrl });
   const signer = new Signer(wallet.privateKey);
   const publicKey = await signer.getPublicKey();
 
@@ -233,11 +144,9 @@ export async function getFastBalance(wallet: X402FastWallet): Promise<bigint> {
     const tokenBalance = accountInfo.tokenBalance;
     if (!tokenBalance) return 0n;
 
-    // Check for both mainnet USDC and testnet testUSDC
-    const targetTokenId = isTestnet ? TESTNET_USDC_TOKEN_ID : MAINNET_USDC_TOKEN_ID;
     for (const [tokenIdBytes, balance] of tokenBalance) {
       const normalizedId = toHex(tokenIdBytes).replace(/^0x/, '');
-      if (normalizedId === targetTokenId) {
+      if (normalizedId === options.tokenId) {
         return balance as bigint;
       }
     }
@@ -252,7 +161,11 @@ export async function getFastBalance(wallet: X402FastWallet): Promise<bigint> {
  * Uses @fastxyz/allset-sdk's executeIntent().
  */
 export async function bridgeFastusdcToUsdc(params: BridgeParams): Promise<BridgeResult> {
-  const { fastWallet, evmReceiverAddress, amount, network, verbose = false, logs = [] } = params;
+  const {
+    fastWallet, evmReceiverAddress, amount, rpcUrl,
+    fastBridgeAddress, relayerUrl, crossSignUrl, tokenEvmAddress, tokenFastTokenId,
+    verbose = false, logs = [],
+  } = params;
   
   const log = (msg: string) => {
     if (verbose) {
@@ -260,34 +173,21 @@ export async function bridgeFastusdcToUsdc(params: BridgeParams): Promise<Bridge
       logs.push('');
     }
   };
-
-  // Determine network type
-  const isTestnet = network.includes('sepolia');
-  const allsetNetwork = isTestnet ? 'testnet' : 'mainnet';
-  const tokenName = isTestnet ? 'testUSDC' : 'USDC';
   
   log(`━━━ AllSet Bridge START ━━━`);
-  log(`  Amount: ${Number(amount) / 1e6} ${tokenName}`);
+  log(`  Amount: ${Number(amount) / 1e6}`);
   log(`  From: ${fastWallet.address}`);
-  log(`  To: ${evmReceiverAddress} on ${network}`);
+  log(`  To: ${evmReceiverAddress}`);
   log(`  Using: @fastxyz/allset-sdk executeIntent()`);
-
-  const config = ALLSET_CONFIGS[network];
-  if (!config || !config.fastBridgeAddress || !config.relayerUrl || !config.crossSignUrl) {
-    return {
-      success: false,
-      error: `Bridge not configured for network ${network}. Set ALLSET_* environment variables.`,
-    };
-  }
 
   try {
     // Create provider and signer
-    const provider = getFastProvider(allsetNetwork);
+    const provider = new FastProvider({ rpcUrl });
     const signer = new Signer(fastWallet.privateKey);
 
     // Create FastWalletLike adapter
     log(`[Step 1] Creating FastWalletLike adapter...`);
-    const walletAdapter = createFastWalletAdapter(fastWallet, signer, provider);
+    const walletAdapter = createFastWalletAdapter(fastWallet, signer, provider, rpcUrl);
     
     // Verify address matches
     const publicKey = await signer.getPublicKey();
@@ -302,16 +202,16 @@ export async function bridgeFastusdcToUsdc(params: BridgeParams): Promise<Bridge
     // Build transfer intent
     log(`[Step 2] Calling executeIntent()...`);
     const intent = buildTransferIntent(
-      config.tokenEvmAddress as `0x${string}`,
+      tokenEvmAddress as `0x${string}`,
       evmReceiverAddress as `0x${string}`,
     );
 
     const result = await executeIntent({
-      fastBridgeAddress: config.fastBridgeAddress,
-      relayerUrl: config.relayerUrl,
-      crossSignUrl: config.crossSignUrl,
-      tokenEvmAddress: config.tokenEvmAddress,
-      tokenFastTokenId: config.tokenFastTokenId,
+      fastBridgeAddress,
+      relayerUrl,
+      crossSignUrl,
+      tokenEvmAddress,
+      tokenFastTokenId,
       amount: amount.toString(),
       intents: [intent],
       externalAddress: evmReceiverAddress,

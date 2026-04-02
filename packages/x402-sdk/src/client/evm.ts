@@ -15,7 +15,16 @@ import type {
   X402PayResult,
   Eip3009Authorization 
 } from './types.js';
-import { bridgeFastusdcToUsdc, getFastBalance, getBridgeConfig } from './bridge.js';
+import { bridgeFastusdcToUsdc, getFastBalance } from './bridge.js';
+
+export interface BridgeConfig {
+  rpcUrl: string;
+  fastBridgeAddress: string;
+  relayerUrl: string;
+  crossSignUrl: string;
+  tokenEvmAddress: string;
+  tokenFastTokenId: string;
+}
 
 /**
  * Network configuration
@@ -34,7 +43,6 @@ const NETWORK_MAP: Record<string, NetworkConfig> = {
   'arbitrum': { chain: arbitrum, network: 'mainnet', chainId: 42161 },
   'base-sepolia': { chain: baseSepolia, network: 'testnet', chainId: 84532 },
   'base': { chain: base, network: 'mainnet', chainId: 8453 },
-  'ethereum': { chain: mainnet, network: 'mainnet', chainId: 1, rpcUrl: process.env.ETH_RPC_URL },
 };
 
 export const EVM_NETWORKS = Object.keys(NETWORK_MAP);
@@ -113,7 +121,8 @@ export async function handleEvmPayment(
   wallet: EvmWallet,
   verbose: boolean = false,
   logs: string[] = [],
-  fastWallet?: FastWallet
+  fastWallet?: FastWallet,
+  bridgeConfig?: BridgeConfig,
 ): Promise<X402PayResult> {
   const log = (msg: string) => { 
     if (verbose) { 
@@ -167,16 +176,18 @@ export async function handleEvmPayment(
     }
 
     // Check if this network supports bridging
-    const bridgeConfig = getBridgeConfig(evmReq.network);
     if (!bridgeConfig) {
       throw new Error(
-        `Insufficient USDC balance and auto-bridge not supported for ${evmReq.network}`
+        `Insufficient USDC balance and no bridge config provided for ${evmReq.network}`
       );
     }
 
     // Check Fast USDC balance
     log(`[EVM] Checking Fast USDC balance...`);
-    const fastBalance = await getFastBalance(fastWallet);
+    const fastBalance = await getFastBalance(fastWallet, {
+      rpcUrl: bridgeConfig.rpcUrl,
+      tokenId: bridgeConfig.tokenFastTokenId,
+    });
     log(`  Fast USDC balance: ${Number(fastBalance) / 1e6}`);
 
     const shortfall = requiredAmount - currentBalance;
@@ -196,7 +207,12 @@ export async function handleEvmPayment(
       fastWallet,
       evmReceiverAddress: account.address,
       amount: shortfall,
-      network: evmReq.network,
+      rpcUrl: bridgeConfig.rpcUrl,
+      fastBridgeAddress: bridgeConfig.fastBridgeAddress,
+      relayerUrl: bridgeConfig.relayerUrl,
+      crossSignUrl: bridgeConfig.crossSignUrl,
+      tokenEvmAddress: bridgeConfig.tokenEvmAddress,
+      tokenFastTokenId: bridgeConfig.tokenFastTokenId,
       verbose,
       logs,
     });

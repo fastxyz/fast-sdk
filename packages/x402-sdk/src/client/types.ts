@@ -65,6 +65,15 @@ export interface X402PayParams {
   body?: string;
   /** Wallet(s) to use for payment */
   wallet: Wallet | Wallet[];
+  /** Bridge configuration for auto-bridge from Fast to EVM */
+  bridgeConfig?: {
+    rpcUrl: string;
+    fastBridgeAddress: string;
+    relayerUrl: string;
+    crossSignUrl: string;
+    tokenEvmAddress: string;
+    tokenFastTokenId: string;
+  };
   /** Enable verbose logging */
   verbose?: boolean;
 }

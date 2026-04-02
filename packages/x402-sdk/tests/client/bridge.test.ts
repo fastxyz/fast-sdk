@@ -2,9 +2,10 @@
  * Tests for AllSet bridge functionality
  */
 
-import { describe, it, afterEach, beforeEach, expect } from 'vitest';
+import { describe, it, afterEach, expect } from 'vitest';
 import { 
-  getBridgeConfig,
+  getFastBalance,
+  bridgeFastusdcToUsdc,
 } from '../../src/client/bridge.js';
 
 const originalFetch = globalThis.fetch;
@@ -14,58 +15,40 @@ describe('AllSet Bridge', () => {
     globalThis.fetch = originalFetch;
   });
 
-  describe('getBridgeConfig', () => {
-    // getBridgeConfig returns null when env vars are not set (fastBridgeAddress/relayerUrl empty).
-    // These tests verify the env-dependent behavior.
-
-    const savedEnv: Record<string, string | undefined> = {};
-
-    beforeEach(() => {
-      // Save and set required env vars for bridge config tests
-      const envVars: Record<string, string> = {
-        ALLSET_ARB_SEPOLIA_BRIDGE_ADDRESS: 'fast1testbridge',
-        ALLSET_ARB_SEPOLIA_RELAYER_URL: 'https://arbitrum-sepolia.relayer.example.com',
-        ALLSET_ETH_SEPOLIA_BRIDGE_ADDRESS: 'fast1ethbridge',
-        ALLSET_ETH_SEPOLIA_RELAYER_URL: 'https://ethereum-sepolia.relayer.example.com',
-        ALLSET_BASE_BRIDGE_ADDRESS: 'fast1basebridge',
-        ALLSET_BASE_RELAYER_URL: 'https://base.relayer.example.com',
+  describe('getFastBalance', () => {
+    it('should return 0n when RPC call fails', async () => {
+      globalThis.fetch = async () => {
+        throw new Error('network error');
       };
-      for (const [key, val] of Object.entries(envVars)) {
-        savedEnv[key] = process.env[key];
-        process.env[key] = val;
-      }
-    });
 
-    afterEach(() => {
-      // Restore env vars
-      for (const [key, val] of Object.entries(savedEnv)) {
-        if (val === undefined) {
-          delete process.env[key];
-        } else {
-          process.env[key] = val;
-        }
-      }
+      const balance = await getFastBalance(
+        { type: 'fast', address: 'fast1test', privateKey: '0x' + '01'.repeat(32) },
+        { rpcUrl: 'https://testnet.api.fast.xyz/proxy', tokenId: 'abc123' },
+      );
+      expect(balance).toBe(0n);
     });
+  });
 
-    it('should return null for unsupported network', () => {
-      const config = getBridgeConfig('ethereum-mainnet');
-      expect(config).toBeNull();
-    });
+  describe('bridgeFastusdcToUsdc', () => {
+    it('should return error when RPC call fails', async () => {
+      globalThis.fetch = async () => {
+        throw new Error('network error');
+      };
 
-    it('should return null for invalid network', () => {
-      const config = getBridgeConfig('invalid-network');
-      expect(config).toBeNull();
-    });
+      const result = await bridgeFastusdcToUsdc({
+        fastWallet: { type: 'fast', address: 'fast1test', privateKey: '0x' + '01'.repeat(32) },
+        evmReceiverAddress: '0x' + 'ab'.repeat(20),
+        amount: 1000000n,
+        rpcUrl: 'https://testnet.api.fast.xyz/proxy',
+        fastBridgeAddress: 'fast1bridge',
+        relayerUrl: 'https://relayer.example.com',
+        crossSignUrl: 'https://crosssign.example.com',
+        tokenEvmAddress: '0x' + 'cc'.repeat(20),
+        tokenFastTokenId: 'abc123',
+      });
 
-    it('should return null when env vars are not set', () => {
-      // Temporarily clear the env vars
-      delete process.env.ALLSET_ARB_SEPOLIA_BRIDGE_ADDRESS;
-      delete process.env.ALLSET_ARB_SEPOLIA_RELAYER_URL;
-      // Note: getBridgeConfig reads from module-level ALLSET_CONFIGS which captured
-      // process.env at import time, so this test validates the default empty-string behavior.
-      // The config is evaluated at module load, so we check a network without env vars set.
-      const config = getBridgeConfig('ethereum-mainnet');
-      expect(config).toBeNull();
+      expect(result.success).toBe(false);
+      expect(result.error).toBeTruthy();
     });
   });
 });

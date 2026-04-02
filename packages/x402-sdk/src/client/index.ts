@@ -22,16 +22,16 @@ import type {
 } from './types.js';
 
 import { handleFastPayment, FAST_NETWORKS } from './fast.js';
-import { handleEvmPayment, EVM_NETWORKS } from './evm.js';
+import { handleEvmPayment, EVM_NETWORKS, type BridgeConfig } from './evm.js';
 import { stringifyPaymentPayload } from './fast.js';
 
 export { FAST_NETWORKS, EVM_NETWORKS };
+export type { BridgeConfig } from './evm.js';
 
 // Re-export bridge utilities for manual use
 export { 
   bridgeFastusdcToUsdc, 
   getFastBalance,
-  getBridgeConfig,
 } from './bridge.js';
 
 /**
@@ -64,6 +64,7 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
     headers: customHeaders = {}, 
     body: requestBody, 
     wallet,
+    bridgeConfig,
     verbose = false,
   } = params;
 
@@ -156,7 +157,8 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
       url, method, customHeaders, requestBody,
       paymentRequired, evmReq, evmWallet,
       verbose, logs,
-      fastWallet  // Enable auto-bridge if provided
+      fastWallet,  // Enable auto-bridge if provided
+      bridgeConfig,
     );
   }
 

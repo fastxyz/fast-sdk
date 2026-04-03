@@ -6,12 +6,12 @@ export interface NetworkConfig {
 
 export const bundledNetworks: Record<string, NetworkConfig> = {
   testnet: {
-    rpcUrl: "https://testnet.rpc.fast.xyz",
+    rpcUrl: "https://testnet.api.fast.xyz/proxy",
     explorerUrl: "https://testnet.explorer.fast.xyz",
     networkId: "fast:testnet",
   },
   mainnet: {
-    rpcUrl: "https://rpc.fast.xyz",
+    rpcUrl: "https://api.fast.xyz/proxy",
     explorerUrl: "https://explorer.fast.xyz",
     networkId: "fast:mainnet",
   },

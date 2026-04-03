@@ -4,7 +4,7 @@ import { FileSystem } from '@effect/platform';
 import { Context, Effect, Layer, Schema } from 'effect';
 import lockfile from 'proper-lockfile';
 import { StorageError, TxNotFoundError } from '../errors/index.js';
-import { type HistoryEntry, HistoryFile } from '../schemas/history.js';
+import { HistoryEntry, HistoryFile } from '../schemas/history.js';
 
 const FAST_DIR = join(homedir(), '.fast');
 const HISTORY_FILE = join(FAST_DIR, 'history.json');
@@ -21,6 +21,7 @@ export interface HistoryStoreShape {
   readonly record: (entry: HistoryEntry) => Effect.Effect<void, StorageError>;
   readonly list: (filters: HistoryFilters) => Effect.Effect<HistoryEntry[], StorageError>;
   readonly getByHash: (hash: string) => Effect.Effect<HistoryEntry, TxNotFoundError | StorageError>;
+  readonly updateStatus: (hash: string, status: string) => Effect.Effect<void, StorageError>;
 }
 
 export class HistoryStore extends Context.Tag('HistoryStore')<HistoryStore, HistoryStoreShape>() {}
@@ -129,6 +130,24 @@ export const HistoryStoreLive = Layer.effect(
             return yield* Effect.fail(new TxNotFoundError({ hash: normalizedHash }));
           }
           return entry;
+        }),
+
+      updateStatus: (hash, status) =>
+        Effect.gen(function* () {
+          const exists = yield* fs
+            .exists(HISTORY_FILE)
+            .pipe(Effect.mapError((e) => new StorageError({ message: 'Failed to check history file', cause: e })));
+          if (!exists) return;
+          yield* withLock(
+            Effect.gen(function* () {
+              const entries = yield* readHistory(fs);
+              const idx = entries.findIndex((e) => e.hash === hash);
+              if (idx !== -1) {
+                entries[idx] = new HistoryEntry({ ...entries[idx]!, status });
+                yield* writeHistory(fs, entries);
+              }
+            }),
+          );
         }),
     };
   }),

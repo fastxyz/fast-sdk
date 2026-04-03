@@ -6,7 +6,7 @@ import { FastError } from './errors.js';
 import { fastAddressToBytes } from './address.js';
 import { buildDepositTransaction } from './deposit.js';
 import { IntentAction, buildTransferIntent, type Intent } from './intents.js';
-import { ERC20_ABI, type EvmClients } from './evm-executor.js';
+import { ERC20_ABI, type EvmClients } from './evm.js';
 import type { BridgeResult, ExecuteDepositParams, ExecuteIntentParams, ExecuteWithdrawParams } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -213,11 +213,7 @@ export async function executeDeposit(params: ExecuteDepositParams): Promise<Brid
     }
     txHash = receipt.txHash;
   } else {
-    const requiredAmount = BigInt(amount);
-    const currentAllowance = await checkAllowance(evmClients, tokenAddress, bridgeContract, senderAddress);
-    if (currentAllowance < requiredAmount) {
-      await approveErc20(evmClients, tokenAddress, bridgeContract, amount);
-    }
+    await approveErc20(evmClients, tokenAddress, bridgeContract, amount);
     const receipt = await sendTx(evmClients, {
       to: depositPlan.to,
       data: depositPlan.data,

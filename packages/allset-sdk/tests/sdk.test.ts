@@ -394,7 +394,7 @@ test('executeDeposit sends approve + deposit transaction for ERC-20', async () =
   assert.equal(result.orderId, TX_HASH);
 });
 
-test('executeDeposit skips approve when allowance is sufficient', async () => {
+test('executeDeposit always approves before depositing', async () => {
   let approveCallCount = 0;
 
   const mockClients = {
@@ -407,7 +407,7 @@ test('executeDeposit skips approve when allowance is sufficient', async () => {
     },
     publicClient: {
       waitForTransactionReceipt: async () => ({ status: 'success' }),
-      readContract: async () => 2_000_000n, // allowance > amount
+      readContract: async () => 2_000_000n,
     },
   };
 
@@ -421,7 +421,7 @@ test('executeDeposit skips approve when allowance is sufficient', async () => {
     evmClients: mockClients as any,
   });
 
-  assert.equal(approveCallCount, 0);
+  assert.equal(approveCallCount, 1);
 });
 
 test('executeDeposit throws FastError on reverted transaction', async () => {

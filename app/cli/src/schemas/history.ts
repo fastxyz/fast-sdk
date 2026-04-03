@@ -13,6 +13,10 @@ export class HistoryEntry extends Schema.Class<HistoryEntry>('HistoryEntry')({
   status: Schema.String,
   timestamp: Schema.String,
   explorerUrl: Schema.NullOr(Schema.String),
+  route: Schema.optionalWith(Schema.Literal('fast', 'evm-to-fast', 'fast-to-evm'), {
+    default: () => 'fast' as const,
+  }),
+  chainId: Schema.optionalWith(Schema.NullOr(Schema.Number), { default: () => null }),
 }) {}
 
 export const HistoryFile = Schema.Array(HistoryEntry);

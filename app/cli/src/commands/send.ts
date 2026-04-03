@@ -26,7 +26,7 @@ const addressArg = Args.text({ name: 'address' }).pipe(Args.withDescription('Rec
 
 const amountArg = Args.text({ name: 'amount' }).pipe(Args.withDescription('Human-readable amount (e.g., 10.5)'));
 
-const tokenOption = Options.text('token').pipe(Options.withDefault('testUSDC'), Options.withDescription('Token to send (e.g., testUSDC, USDC)'));
+const tokenOption = Options.text('token').pipe(Options.optional, Options.withDescription('Token to send (e.g., testUSDC, USDC). Defaults to the first token available on the current network.'));
 
 const fromChainOption = Options.text('from-chain').pipe(
   Options.optional,
@@ -120,10 +120,17 @@ export const sendCommand = Command.make(
         .resolve(config.network)
         .pipe(Effect.mapError((e) => new TransactionFailedError({ message: e.message, cause: e })));
 
-      // Resolve token using the appropriate chain context
+      // Resolve token name: use provided value or default to first token on the network
       const tokenChain = fromChain ?? toChain;
+      const resolvedTokenName = Option.getOrElse(args.token, () => {
+        const chains = network.allset?.chains ?? {};
+        const firstChain = Object.values(chains)[0];
+        return firstChain ? (Object.keys(firstChain.tokens)[0] ?? 'USDC') : 'USDC';
+      });
+
+      // Resolve token using the appropriate chain context
       const tokenInfo = yield* Effect.try({
-        try: () => resolveToken(args.token, network, tokenChain),
+        try: () => resolveToken(resolvedTokenName, network, tokenChain),
         catch: (e) => e as InvalidConfigError | Error,
       }).pipe(
         Effect.mapError((e) =>
@@ -138,7 +145,7 @@ export const sendCommand = Command.make(
       if (decimalParts.length > 1 && decimalParts[1]!.length > decimals) {
         return yield* Effect.fail(
           new InvalidAmountError({
-            message: `Amount has too many decimal places for ${args.token} (max ${decimals})`,
+            message: `Amount has too many decimal places for ${resolvedTokenName} (max ${decimals})`,
           }),
         );
       }
@@ -155,11 +162,11 @@ export const sendCommand = Command.make(
         const routeLabel =
           route === 'evm-to-fast' ? `EVM (${fromChain}) → Fast` : route === 'fast-to-evm' ? `Fast → EVM (${toChain})` : 'Fast → Fast';
 
-        yield* output.humanLine(`Send ${args.amount} ${args.token}`);
+        yield* output.humanLine(`Send ${args.amount} ${resolvedTokenName}`);
         yield* output.humanLine(`  From:  ${accountInfo.name} (${route === 'evm-to-fast' ? accountInfo.evmAddress : accountInfo.fastAddress})`);
         yield* output.humanLine(`  To:    ${args.address}`);
         yield* output.humanLine(`  Route: ${routeLabel}`);
-        yield* output.humanLine(`  Token: ${args.token}`);
+        yield* output.humanLine(`  Token: ${resolvedTokenName}`);
         yield* output.humanLine('');
         const confirmed = yield* output.confirm('Confirm?');
         if (!confirmed) {
@@ -316,22 +323,29 @@ export const sendCommand = Command.make(
           to: args.address,
           amount: amountRaw.toString(),
           formatted: args.amount,
-          tokenName: args.token,
+          tokenName: resolvedTokenName,
           tokenId: bytesToHex(tokenInfo.fastTokenId),
           network: config.network,
           status: route === 'fast' ? 'confirmed' : 'pending',
           timestamp: new Date().toISOString(),
           explorerUrl,
+          route,
+          chainId:
+            route === 'evm-to-fast'
+              ? network.allset!.chains[fromChain!]!.chainId
+              : route === 'fast-to-evm'
+                ? network.allset!.chains[toChain!]!.chainId
+                : null,
         }),
       );
 
       if (estimatedTime) {
-        yield* output.humanLine(`Sent ${args.amount} ${args.token} to ${args.address}`);
+        yield* output.humanLine(`Sent ${args.amount} ${resolvedTokenName} to ${args.address}`);
         yield* output.humanLine(`  Transaction: ${txHash}`);
         yield* output.humanLine(`  Explorer:    ${explorerUrl}`);
         yield* output.humanLine(`  Estimated:   ${estimatedTime}`);
       } else {
-        yield* output.humanLine(`Sent ${args.amount} ${args.token} to ${args.address}`);
+        yield* output.humanLine(`Sent ${args.amount} ${resolvedTokenName} to ${args.address}`);
         yield* output.humanLine(`  Transaction: ${txHash}`);
         yield* output.humanLine(`  Explorer:    ${explorerUrl}`);
       }
@@ -342,7 +356,7 @@ export const sendCommand = Command.make(
         to: args.address,
         amount: amountRaw.toString(),
         formatted: args.amount,
-        tokenName: args.token,
+        tokenName: resolvedTokenName,
         route,
         explorerUrl,
         estimatedTime,

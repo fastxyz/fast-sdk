@@ -16,6 +16,7 @@ export interface AllsetChainConfig {
 
 export interface AllsetConfig {
   readonly crossSignUrl: string;
+  readonly portalApiUrl: string;
   readonly chains: Record<string, AllsetChainConfig>;
 }
 
@@ -33,6 +34,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
     networkId: 'fast:testnet',
     allset: {
       crossSignUrl: 'https://testnet.cross-sign.allset.fast.xyz',
+      portalApiUrl: 'https://testnet.allset.fast.xyz/api',
       chains: {
         'arbitrum-sepolia': {
           chainId: 421614,
@@ -73,6 +75,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
     networkId: 'fast:mainnet',
     allset: {
       crossSignUrl: 'https://cross-sign.allset.fast.xyz',
+      portalApiUrl: 'https://allset.fast.xyz/api',
       chains: {
         ethereum: {
           chainId: 1,
@@ -82,7 +85,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
           evmRpcUrl: 'https://lb.drpc.live/ethereum/Av_ucIUlR08slbBUFg1E4U0n6sODvwMR8JF6QmlfqV1j',
           evmExplorerUrl: 'https://etherscan.io',
           tokens: {
-            testUSDC: {
+            USDC: {
               evmAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
               fastTokenId: '0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
               decimals: 6,
@@ -97,7 +100,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
           evmRpcUrl: 'https://lb.drpc.live/arbitrum/Av_ucIUlR08slbBUFg1E4U0n6sODvwMR8JF6QmlfqV1j',
           evmExplorerUrl: 'https://arbiscan.io',
           tokens: {
-            testUSDC: {
+            USDC: {
               evmAddress: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
               fastTokenId: '0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
               decimals: 6,
@@ -112,7 +115,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
           evmRpcUrl: 'https://lb.drpc.live/base/Av_ucIUlR08slbBUFg1E4U0n6sODvwMR8JF6QmlfqV1j',
           evmExplorerUrl: 'https://basescan.org',
           tokens: {
-            testUSDC: {
+            USDC: {
               evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
               fastTokenId: '0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
               decimals: 6,

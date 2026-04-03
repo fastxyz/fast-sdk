@@ -65,10 +65,7 @@ export interface FacilitatorConfig {
  * Get chain ID from network name.
  * Uses the chain object from config if available.
  */
-export function getNetworkId(
-  network: string,
-  config?: FacilitatorConfig,
-): number {
+export function getNetworkId(network: string, config?: FacilitatorConfig): number {
   const chainConfig = config?.evmChains?.[network];
   if (chainConfig) {
     return chainConfig.chain.id;

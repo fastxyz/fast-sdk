@@ -33,17 +33,19 @@ export interface DepositTransactionPlan {
 // ABI
 // ---------------------------------------------------------------------------
 
-const BRIDGE_DEPOSIT_ABI = [{
-  type: 'function' as const,
-  name: 'deposit' as const,
-  inputs: [
-    { name: 'token', type: 'address' as const },
-    { name: 'amount', type: 'uint256' as const },
-    { name: 'receiver', type: 'bytes32' as const },
-  ],
-  outputs: [],
-  stateMutability: 'payable' as const,
-}];
+const BRIDGE_DEPOSIT_ABI = [
+  {
+    type: 'function' as const,
+    name: 'deposit' as const,
+    inputs: [
+      { name: 'token', type: 'address' as const },
+      { name: 'amount', type: 'uint256' as const },
+      { name: 'receiver', type: 'bytes32' as const },
+    ],
+    outputs: [],
+    stateMutability: 'payable' as const,
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Functions
@@ -56,11 +58,7 @@ export function encodeDepositCalldata(params: EncodeDepositCalldataParams): `0x$
   return encodeFunctionData({
     abi: BRIDGE_DEPOSIT_ABI,
     functionName: 'deposit',
-    args: [
-      params.tokenAddress as `0x${string}`,
-      params.amount,
-      params.receiverBytes32,
-    ],
+    args: [params.tokenAddress as `0x${string}`, params.amount, params.receiverBytes32],
   });
 }
 
@@ -82,9 +80,7 @@ export function encodeDepositCalldata(params: EncodeDepositCalldataParams): `0x$
  * // plan.to, plan.data, plan.value are ready to send via viem walletClient
  * ```
  */
-export function buildDepositTransaction(
-  params: BuildDepositTransactionParams,
-): DepositTransactionPlan {
+export function buildDepositTransaction(params: BuildDepositTransactionParams): DepositTransactionPlan {
   const receiverBytes32 = fastAddressToBytes32(params.receiver);
   return {
     chainId: params.chainId,

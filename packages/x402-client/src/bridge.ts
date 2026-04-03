@@ -49,10 +49,7 @@ export interface BridgeResult {
 /**
  * Get USDC balance on Fast network.
  */
-export async function getFastBalance(
-  wallet: FastWallet,
-  options: { rpcUrl: string; tokenId: string },
-): Promise<bigint> {
+export async function getFastBalance(wallet: FastWallet, options: { rpcUrl: string; tokenId: string }): Promise<bigint> {
   const provider = new FastProvider({ rpcUrl: options.rpcUrl });
   const signer = new Signer(wallet.privateKey);
   const publicKey = await signer.getPublicKey();
@@ -86,9 +83,18 @@ export async function getFastBalance(
  */
 export async function bridgeFastusdcToUsdc(params: BridgeParams): Promise<BridgeResult> {
   const {
-    fastWallet, evmReceiverAddress, amount, rpcUrl,
-    fastBridgeAddress, relayerUrl, crossSignUrl, tokenEvmAddress, tokenFastTokenId,
-    networkId, verbose = false, logs = [],
+    fastWallet,
+    evmReceiverAddress,
+    amount,
+    rpcUrl,
+    fastBridgeAddress,
+    relayerUrl,
+    crossSignUrl,
+    tokenEvmAddress,
+    tokenFastTokenId,
+    networkId,
+    verbose = false,
+    logs = [],
   } = params;
 
   const log = (msg: string) => {
@@ -111,9 +117,7 @@ export async function bridgeFastusdcToUsdc(params: BridgeParams): Promise<Bridge
     const publicKey = await signer.getPublicKey();
     const derivedAddress = toFastAddress(publicKey);
     if (derivedAddress !== fastWallet.address) {
-      throw new Error(
-        `Address mismatch: expected ${fastWallet.address}, got ${derivedAddress}`
-      );
+      throw new Error(`Address mismatch: expected ${fastWallet.address}, got ${derivedAddress}`);
     }
     log(`  ✓ Address verified: ${derivedAddress}`);
 

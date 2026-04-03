@@ -58,10 +58,7 @@ export interface Intent {
  * ```
  */
 export function buildTransferIntent(token: string, receiver: string): Intent {
-  const payload = encodeAbiParameters(
-    [{ type: 'address' }, { type: 'address' }],
-    [token as `0x${string}`, receiver as `0x${string}`],
-  );
+  const payload = encodeAbiParameters([{ type: 'address' }, { type: 'address' }], [token as `0x${string}`, receiver as `0x${string}`]);
   return {
     action: IntentAction.DynamicTransfer,
     payload,
@@ -88,15 +85,8 @@ export function buildTransferIntent(token: string, receiver: string): Intent {
  * const intent = buildExecuteIntent('0xContractAddress', calldata);
  * ```
  */
-export function buildExecuteIntent(
-  target: string,
-  calldata: string,
-  value: bigint = 0n,
-): Intent {
-  const payload = encodeAbiParameters(
-    [{ type: 'address' }, { type: 'bytes' }],
-    [target as `0x${string}`, calldata as `0x${string}`],
-  );
+export function buildExecuteIntent(target: string, calldata: string, value: bigint = 0n): Intent {
+  const payload = encodeAbiParameters([{ type: 'address' }, { type: 'bytes' }], [target as `0x${string}`, calldata as `0x${string}`]);
   return {
     action: IntentAction.Execute,
     payload,
@@ -119,15 +109,9 @@ export function buildExecuteIntent(
  * );
  * ```
  */
-export function buildDepositBackIntent(
-  token: string,
-  fastReceiver: string,
-): Intent {
+export function buildDepositBackIntent(token: string, fastReceiver: string): Intent {
   const receiverBytes = fastAddressToBytes32(fastReceiver);
-  const payload = encodeAbiParameters(
-    [{ type: 'address' }, { type: 'bytes32' }],
-    [token as `0x${string}`, receiverBytes],
-  );
+  const payload = encodeAbiParameters([{ type: 'address' }, { type: 'bytes32' }], [token as `0x${string}`, receiverBytes]);
   return {
     action: IntentAction.DynamicDeposit,
     payload,

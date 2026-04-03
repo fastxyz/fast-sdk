@@ -4,12 +4,7 @@
  * Re-exports shared types from x402-types and defines server-specific types.
  */
 
-export type {
-  PaymentRequirement,
-  PaymentPayload,
-  VerifyResponse,
-  SettleResponse,
-} from '@fastxyz/x402-types';
+export type { PaymentRequirement, PaymentPayload, VerifyResponse, SettleResponse } from '@fastxyz/x402-types';
 
 /**
  * Payment addresses configuration.

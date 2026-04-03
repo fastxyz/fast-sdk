@@ -32,19 +32,19 @@ double-wrapping (Effect -> Promise -> Effect).
 
 ## Dependencies
 
-| Package | Purpose |
-|---|---|
-| `@effect/cli` | Command/option parsing, help generation |
-| `@effect/platform` | FileSystem, Terminal, Path services |
-| `@effect/platform-node` | Node.js implementations of platform services |
-| `effect` | Core Effect runtime |
-| `@noble/ciphers` | AES-256-CTR for keystore encryption |
-| `@noble/hashes` | scrypt KDF, keccak256 for MAC + EVM address |
-| `@noble/curves` | secp256k1 for EVM address derivation |
-| `proper-lockfile` | File locking for concurrent CLI instances |
-| `uuid` | V4 UUIDs for keyfile IDs |
-| `@fastxyz/fast-sdk` | Signer, TransactionBuilder, core RPC functions |
-| `@fastxyz/fast-schema` | Schema definitions for RPC codecs |
+| Package                 | Purpose                                        |
+| ----------------------- | ---------------------------------------------- |
+| `@effect/cli`           | Command/option parsing, help generation        |
+| `@effect/platform`      | FileSystem, Terminal, Path services            |
+| `@effect/platform-node` | Node.js implementations of platform services   |
+| `effect`                | Core Effect runtime                            |
+| `@noble/ciphers`        | AES-256-CTR for keystore encryption            |
+| `@noble/hashes`         | scrypt KDF, keccak256 for MAC + EVM address    |
+| `@noble/curves`         | secp256k1 for EVM address derivation           |
+| `proper-lockfile`       | File locking for concurrent CLI instances      |
+| `uuid`                  | V4 UUIDs for keyfile IDs                       |
+| `@fastxyz/fast-sdk`     | Signer, TransactionBuilder, core RPC functions |
+| `@fastxyz/fast-schema`  | Schema definitions for RPC codecs              |
 
 ## Project Structure
 
@@ -295,15 +295,15 @@ fast (root, global options)
 Each command is an Effect.gen that yields services from context:
 
 ```typescript
-export const accountCreate = Command.make("create", { name }, (args) =>
+export const accountCreate = Command.make('create', { name }, (args) =>
   Effect.gen(function* () {
-    const accounts = yield* AccountStore
-    const password = yield* PasswordService
-    const output = yield* Output
+    const accounts = yield* AccountStore;
+    const password = yield* PasswordService;
+    const output = yield* Output;
     // ... business logic
-    yield* output.success(data)
-  })
-)
+    yield* output.success(data);
+  }),
+);
 ```
 
 Global options flow into CliConfig via the root command handler, which wraps
@@ -315,22 +315,22 @@ subcommand execution with `Effect.provide(CliConfig.layer(globalOpts))`.
 
 All extend `Data.TaggedError`:
 
-| Error Tag | Exit Code | Triggers |
-|---|---|---|
-| `StorageError` | 1 | can't read/write ~/.fast/ |
-| `InvalidUsageError` | 2 | bad flags, format, missing args |
-| `AccountExistsError` | 2 | name already taken |
-| `ReservedNameError` | 2 | testnet/mainnet can't be modified |
-| `InvalidConfigError` | 2 | bad network config file |
-| `AccountNotFoundError` | 3 | named account doesn't exist |
-| `NoAccountsError` | 3 | no accounts and no name given |
-| `InsufficientBalanceError` | 4 | not enough tokens |
-| `NetworkError` | 5 | RPC unreachable/timeout |
-| `TxNotFoundError` | 1 | hash not in local history |
-| `TransactionFailedError` | 6 | rejected by network |
-| `UserCancelledError` | 7 | declined interactive prompt |
-| `PasswordRequiredError` | 8 | no password in non-interactive |
-| `WrongPasswordError` | 8 | MAC mismatch on decrypt |
+| Error Tag                  | Exit Code | Triggers                          |
+| -------------------------- | --------- | --------------------------------- |
+| `StorageError`             | 1         | can't read/write ~/.fast/         |
+| `InvalidUsageError`        | 2         | bad flags, format, missing args   |
+| `AccountExistsError`       | 2         | name already taken                |
+| `ReservedNameError`        | 2         | testnet/mainnet can't be modified |
+| `InvalidConfigError`       | 2         | bad network config file           |
+| `AccountNotFoundError`     | 3         | named account doesn't exist       |
+| `NoAccountsError`          | 3         | no accounts and no name given     |
+| `InsufficientBalanceError` | 4         | not enough tokens                 |
+| `NetworkError`             | 5         | RPC unreachable/timeout           |
+| `TxNotFoundError`          | 1         | hash not in local history         |
+| `TransactionFailedError`   | 6         | rejected by network               |
+| `UserCancelledError`       | 7         | declined interactive prompt       |
+| `PasswordRequiredError`    | 8         | no password in non-interactive    |
+| `WrongPasswordError`       | 8         | MAC mismatch on decrypt           |
 
 ### Top-level Error Handler
 
@@ -348,11 +348,13 @@ In `main.ts`, the entire CLI effect is wrapped with `Effect.catchAll`:
 ```typescript
 Schema.Struct({
   default: Schema.NullOr(Schema.String),
-  accounts: Schema.Array(Schema.Struct({
-    name: Schema.String,
-    createdAt: Schema.String,
-  })),
-})
+  accounts: Schema.Array(
+    Schema.Struct({
+      name: Schema.String,
+      createdAt: Schema.String,
+    }),
+  ),
+});
 ```
 
 ### Keyfile V3 (`~/.fast/keys/<name>.json`)
@@ -364,19 +366,21 @@ Schema.Struct({
   fastAddress: Schema.String,
   evmAddress: Schema.String,
   crypto: Schema.Struct({
-    cipher: Schema.Literal("aes-256-ctr"),
+    cipher: Schema.Literal('aes-256-ctr'),
     cipherparams: Schema.Struct({ iv: Schema.String }),
     ciphertext: Schema.String,
-    kdf: Schema.Literal("scrypt"),
+    kdf: Schema.Literal('scrypt'),
     kdfparams: Schema.Struct({
       dklen: Schema.Literal(32),
-      n: Schema.Number, r: Schema.Number, p: Schema.Number,
+      n: Schema.Number,
+      r: Schema.Number,
+      p: Schema.Number,
       salt: Schema.String,
     }),
     mac: Schema.String,
   }),
   createdAt: Schema.String,
-})
+});
 ```
 
 ### networks.json
@@ -385,26 +389,28 @@ Schema.Struct({
 Schema.Struct({
   default: Schema.String,
   networks: Schema.Array(Schema.String),
-})
+});
 ```
 
 ### history.json
 
 ```typescript
-Schema.Array(Schema.Struct({
-  hash: Schema.String,
-  type: Schema.Literal("transfer"),
-  from: Schema.String,
-  to: Schema.String,
-  amount: Schema.String,
-  formatted: Schema.String,
-  tokenName: Schema.String,
-  tokenId: Schema.String,
-  network: Schema.String,
-  status: Schema.String,
-  timestamp: Schema.String,
-  explorerUrl: Schema.NullOr(Schema.String),
-}))
+Schema.Array(
+  Schema.Struct({
+    hash: Schema.String,
+    type: Schema.Literal('transfer'),
+    from: Schema.String,
+    to: Schema.String,
+    amount: Schema.String,
+    formatted: Schema.String,
+    tokenName: Schema.String,
+    tokenId: Schema.String,
+    network: Schema.String,
+    status: Schema.String,
+    timestamp: Schema.String,
+    explorerUrl: Schema.NullOr(Schema.String),
+  }),
+);
 ```
 
 ### Output Envelope

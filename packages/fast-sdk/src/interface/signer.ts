@@ -1,12 +1,9 @@
-import {
-  PrivateKeyFromInput,
-  type PrivateKeyInputParams,
-} from "@fastxyz/fast-schema";
-import type { BcsType } from "@mysten/bcs";
-import { Redacted, Schema } from "effect";
-import * as signing from "../core/crypto/signing";
-import { run } from "../core/run";
-import { toFastAddress } from "./convert";
+import { PrivateKeyFromInput, type PrivateKeyInputParams } from '@fastxyz/fast-schema';
+import type { BcsType } from '@mysten/bcs';
+import { Redacted, Schema } from 'effect';
+import * as signing from '../core/crypto/signing';
+import { run } from '../core/run';
+import { toFastAddress } from './convert';
 
 /**
  * Ed25519 signer for Fast transactions.
@@ -43,9 +40,7 @@ export class Signer {
 
   /** Derive the Ed25519 public key. The result is cached after the first call. */
   async getPublicKey(): Promise<Uint8Array> {
-    this.publicKey ??= await run(
-      signing.getPublicKey(Redacted.value(this.privateKey)),
-    );
+    this.publicKey ??= await run(signing.getPublicKey(Redacted.value(this.privateKey)));
     return this.publicKey;
   }
 
@@ -65,24 +60,14 @@ export class Signer {
    * The domain prefix is `SchemaName::` followed by the serialized bytes.
    */
   async signTypedData<T>(type: BcsType<T>, data: T): Promise<Uint8Array> {
-    return run(
-      signing.signTypedData(Redacted.value(this.privateKey), type, data),
-    );
+    return run(signing.signTypedData(Redacted.value(this.privateKey), type, data));
   }
 }
 
 /** Verify an Ed25519 signature against a raw message. Returns `false` on mismatch. */
-export const verify = (
-  signature: Uint8Array,
-  message: Uint8Array,
-  publicKey: Uint8Array,
-): Promise<boolean> => run(signing.verify(signature, message, publicKey));
+export const verify = (signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> =>
+  run(signing.verify(signature, message, publicKey));
 
 /** Verify an Ed25519 signature against BCS-encoded typed data with domain prefix. */
-export const verifyTypedData = <T>(
-  signature: Uint8Array,
-  type: BcsType<T>,
-  data: T,
-  publicKey: Uint8Array,
-): Promise<boolean> =>
+export const verifyTypedData = <T>(signature: Uint8Array, type: BcsType<T>, data: T, publicKey: Uint8Array): Promise<boolean> =>
   run(signing.verifyTypedData(signature, type, data, publicKey));

@@ -3,6 +3,7 @@
 Client SDK for the x402 HTTP Payment Protocol. Automatically handles HTTP 402 Payment Required responses by signing and paying for content.
 
 Supports:
+
 - **Fast networks** — via wallet `rpcUrl`
 - **EVM networks** — via EIP-3009 transferWithAuthorization
 - **Auto-bridge** — Fast USDC → EVM USDC when EVM balance insufficient
@@ -84,16 +85,16 @@ Main entry point. Fetches the URL, and if a 402 is returned, handles payment aut
 
 **Parameters (`X402PayParams`):**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `url` | `string` | Yes | URL of the 402-protected resource |
-| `method` | `string` | No | HTTP method (default: `GET`) |
-| `headers` | `Record<string, string>` | No | Custom headers |
-| `body` | `string` | No | Request body |
-| `wallet` | `Wallet \| Wallet[]` | Yes | Wallet(s) for payment |
-| `evmNetworks` | `Record<string, EvmChainConfig>` | No* | EVM chain configs (*required for EVM payments) |
-| `bridgeConfig` | `BridgeConfig` | No | Bridge config for auto-bridge |
-| `verbose` | `boolean` | No | Enable verbose logging |
+| Field          | Type                             | Required | Description                                     |
+| -------------- | -------------------------------- | -------- | ----------------------------------------------- |
+| `url`          | `string`                         | Yes      | URL of the 402-protected resource               |
+| `method`       | `string`                         | No       | HTTP method (default: `GET`)                    |
+| `headers`      | `Record<string, string>`         | No       | Custom headers                                  |
+| `body`         | `string`                         | No       | Request body                                    |
+| `wallet`       | `Wallet \| Wallet[]`             | Yes      | Wallet(s) for payment                           |
+| `evmNetworks`  | `Record<string, EvmChainConfig>` | No\*     | EVM chain configs (\*required for EVM payments) |
+| `bridgeConfig` | `BridgeConfig`                   | No       | Bridge config for auto-bridge                   |
+| `verbose`      | `boolean`                        | No       | Enable verbose logging                          |
 
 ### `bridgeFastusdcToUsdc(fastWallet, evmWallet, amount, bridgeConfig)`
 

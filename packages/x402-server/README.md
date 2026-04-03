@@ -16,19 +16,21 @@ import { paywall } from '@fastxyz/x402-server';
 
 const app = express();
 
-app.use(paywall(
-  {
-    '/premium': {
-      price: '$0.10',
-      network: 'fast-testnet',
-      networkConfig: {
-        asset: '0x...',
-        decimals: 6,
+app.use(
+  paywall(
+    {
+      '/premium': {
+        price: '$0.10',
+        network: 'fast-testnet',
+        networkConfig: {
+          asset: '0x...',
+          decimals: 6,
+        },
       },
     },
-  },
-  { url: 'https://facilitator.example.com' },
-));
+    { url: 'https://facilitator.example.com' },
+  ),
+);
 
 app.get('/premium', (req, res) => {
   res.json({ content: 'exclusive data' });
@@ -62,11 +64,11 @@ Express middleware that protects multiple routes with payment requirements.
 
 **Parameters:**
 
-| Param | Type | Description |
-|-------|------|-------------|
-| `routes` | `Record<string, RouteConfig>` | Route path → payment config |
-| `facilitator` | `FacilitatorConfig` | Facilitator endpoint (`{ url }`) |
-| `options` | `MiddlewareOptions` | Optional config |
+| Param         | Type                          | Description                      |
+| ------------- | ----------------------------- | -------------------------------- |
+| `routes`      | `Record<string, RouteConfig>` | Route path → payment config      |
+| `facilitator` | `FacilitatorConfig`           | Facilitator endpoint (`{ url }`) |
+| `options`     | `MiddlewareOptions`           | Optional config                  |
 
 ### `paymentMiddleware(routeConfig, facilitator, options?)`
 
@@ -76,19 +78,19 @@ Express middleware for a single route.
 
 ```typescript
 interface RouteConfig {
-  price: string;              // "$0.10", "0.1 USDC"
-  network: string;            // "fast-testnet", "arbitrum-sepolia"
+  price: string; // "$0.10", "0.1 USDC"
+  network: string; // "fast-testnet", "arbitrum-sepolia"
   networkConfig: NetworkConfig;
   config?: {
     description?: string;
     mimeType?: string;
-    asset?: string;           // Override networkConfig.asset
+    asset?: string; // Override networkConfig.asset
   };
 }
 
 interface NetworkConfig {
-  asset: string;     // USDC contract/token address
-  decimals: number;  // Token decimals (typically 6)
+  asset: string; // USDC contract/token address
+  decimals: number; // Token decimals (typically 6)
   extra?: Record<string, unknown>;
 }
 ```

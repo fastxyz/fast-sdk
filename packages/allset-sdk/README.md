@@ -34,9 +34,9 @@ const evmClients = createEvmExecutor(account, 'https://your-evm-rpc...', 421614)
 
 const result = await executeDeposit({
   chainId: 421614,
-  bridgeContract: '0xb536...',   // AllSet bridge contract on Arbitrum Sepolia
-  tokenAddress: '0x75fa...',    // USDC on Arbitrum Sepolia
-  amount: '1000000',             // 1 USDC (6 decimals)
+  bridgeContract: '0xb536...', // AllSet bridge contract on Arbitrum Sepolia
+  tokenAddress: '0x75fa...', // USDC on Arbitrum Sepolia
+  amount: '1000000', // 1 USDC (6 decimals)
   senderAddress: account.address,
   receiverAddress: 'fast1abc...', // your Fast address
   evmClients,
@@ -59,10 +59,10 @@ const result = await executeWithdraw({
   relayerUrl: 'https://relayer.allset...',
   crossSignUrl: 'https://cross-sign.allset...',
   tokenEvmAddress: '0x75fa...',
-  tokenFastTokenId: 'abc123...',  // hex token ID on Fast network (no 0x)
+  tokenFastTokenId: 'abc123...', // hex token ID on Fast network (no 0x)
   amount: '1000000',
   receiverEvmAddress: '0xReceiverEVM...',
-  networkId: 'fast:testnet',      // or 'fast:mainnet'
+  networkId: 'fast:testnet', // or 'fast:mainnet'
   signer,
   provider,
 });
@@ -104,7 +104,7 @@ const result = await executeIntent({
 Creates an EVM wallet. Generates a new random wallet if `privateKey` is omitted.
 
 ```ts
-const account = createEvmWallet();            // random
+const account = createEvmWallet(); // random
 const account = createEvmWallet('0xabc123...'); // from existing key
 // account.privateKey — hex key (persist to reuse)
 // account.address    — 0x address
@@ -133,10 +133,10 @@ interface ExecuteDepositParams {
   chainId: number;
   bridgeContract: `0x${string}`;
   tokenAddress: `0x${string}`;
-  isNative?: boolean;        // true for ETH deposits
-  amount: string;            // smallest units as string
+  isNative?: boolean; // true for ETH deposits
+  amount: string; // smallest units as string
   senderAddress: string;
-  receiverAddress: string;   // Fast bech32m address (fast1...)
+  receiverAddress: string; // Fast bech32m address (fast1...)
   evmClients: EvmClients;
 }
 ```
@@ -151,19 +151,20 @@ interface ExecuteWithdrawParams {
   relayerUrl: string;
   crossSignUrl: string;
   tokenEvmAddress: string;
-  tokenFastTokenId: string;   // hex, no 0x prefix
+  tokenFastTokenId: string; // hex, no 0x prefix
   amount: string;
   receiverEvmAddress: string; // EVM address to receive tokens
-  deadlineSeconds?: number;   // default: 3600
-  networkId: string;          // 'fast:testnet' | 'fast:mainnet' | ...
-  signer: Signer;             // from @fastxyz/fast-sdk
-  provider: FastProvider;     // from @fastxyz/fast-sdk
+  deadlineSeconds?: number; // default: 3600
+  networkId: string; // 'fast:testnet' | 'fast:mainnet' | ...
+  signer: Signer; // from @fastxyz/fast-sdk
+  provider: FastProvider; // from @fastxyz/fast-sdk
 }
 ```
 
 #### `executeIntent(params): Promise<BridgeResult>`
 
 Executes Fast → EVM bridge with custom intents. Internally:
+
 1. Transfers tokens to the bridge on Fast network
 2. Cross-signs the transfer certificate
 3. Submits intent claim on Fast network
@@ -176,14 +177,14 @@ interface ExecuteIntentParams {
   relayerUrl: string;
   crossSignUrl: string;
   tokenEvmAddress: string;
-  tokenFastTokenId: string;   // hex, no 0x prefix
+  tokenFastTokenId: string; // hex, no 0x prefix
   amount: string;
   intents: Intent[];
-  externalAddress?: string;   // override EVM target (required for depositBack/revoke flows)
-  deadlineSeconds?: number;   // default: 3600
-  networkId: string;          // 'fast:testnet' | 'fast:mainnet' | ...
-  signer: Signer;             // from @fastxyz/fast-sdk
-  provider: FastProvider;     // from @fastxyz/fast-sdk
+  externalAddress?: string; // override EVM target (required for depositBack/revoke flows)
+  deadlineSeconds?: number; // default: 3600
+  networkId: string; // 'fast:testnet' | 'fast:mainnet' | ...
+  signer: Signer; // from @fastxyz/fast-sdk
+  provider: FastProvider; // from @fastxyz/fast-sdk
 }
 ```
 
@@ -215,7 +216,7 @@ const plan = buildDepositTransaction({
   chainId: 421614,
   bridgeContract: '0xb536...',
   tokenAddress: '0x75fa...',
-  amount: 1000000n,       // bigint
+  amount: 1000000n, // bigint
   receiver: 'fast1abc...',
 });
 // plan.to, plan.data, plan.value — pass to walletClient.sendTransaction()
@@ -269,6 +270,7 @@ interface BridgeResult {
 ## Changelog
 
 **v0.x (current)**
+
 - `executeWithdraw()` — new convenience function for simple Fast → EVM withdrawals
 - `executeIntent()` / `executeWithdraw()` now accept `signer`, `provider`, `networkId` from `@fastxyz/fast-sdk` (replaces `FastWalletLike`)
 - Added Ethereum mainnet (chainId 1) support

@@ -1,12 +1,12 @@
-import { Data } from "effect";
+import { Data } from 'effect';
 
 // Exit code 1 — General / storage errors
-export class StorageError extends Data.TaggedError("StorageError")<{
+export class StorageError extends Data.TaggedError('StorageError')<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
 
-export class TxNotFoundError extends Data.TaggedError("TxNotFoundError")<{
+export class TxNotFoundError extends Data.TaggedError('TxNotFoundError')<{
   readonly hash: string;
 }> {
   get message() {
@@ -15,11 +15,11 @@ export class TxNotFoundError extends Data.TaggedError("TxNotFoundError")<{
 }
 
 // Exit code 2 — Invalid usage
-export class InvalidUsageError extends Data.TaggedError("InvalidUsageError")<{
+export class InvalidUsageError extends Data.TaggedError('InvalidUsageError')<{
   readonly message: string;
 }> {}
 
-export class AccountExistsError extends Data.TaggedError("AccountExistsError")<{
+export class AccountExistsError extends Data.TaggedError('AccountExistsError')<{
   readonly name: string;
 }> {
   get message() {
@@ -27,7 +27,7 @@ export class AccountExistsError extends Data.TaggedError("AccountExistsError")<{
   }
 }
 
-export class ReservedNameError extends Data.TaggedError("ReservedNameError")<{
+export class ReservedNameError extends Data.TaggedError('ReservedNameError')<{
   readonly name: string;
 }> {
   get message() {
@@ -35,7 +35,7 @@ export class ReservedNameError extends Data.TaggedError("ReservedNameError")<{
   }
 }
 
-export class NetworkExistsError extends Data.TaggedError("NetworkExistsError")<{
+export class NetworkExistsError extends Data.TaggedError('NetworkExistsError')<{
   readonly name: string;
 }> {
   get message() {
@@ -43,13 +43,11 @@ export class NetworkExistsError extends Data.TaggedError("NetworkExistsError")<{
   }
 }
 
-export class InvalidConfigError extends Data.TaggedError("InvalidConfigError")<{
+export class InvalidConfigError extends Data.TaggedError('InvalidConfigError')<{
   readonly message: string;
 }> {}
 
-export class UnsupportedChainError extends Data.TaggedError(
-  "UnsupportedChainError",
-)<{
+export class UnsupportedChainError extends Data.TaggedError('UnsupportedChainError')<{
   readonly chain: string;
 }> {
   get message() {
@@ -57,23 +55,19 @@ export class UnsupportedChainError extends Data.TaggedError(
   }
 }
 
-export class NotImplementedError extends Data.TaggedError(
-  "NotImplementedError",
-)<{
+export class NotImplementedError extends Data.TaggedError('NotImplementedError')<{
   readonly message: string;
 }> {}
 
-export class InvalidAddressError extends Data.TaggedError(
-  "InvalidAddressError",
-)<{
+export class InvalidAddressError extends Data.TaggedError('InvalidAddressError')<{
   readonly message: string;
 }> {}
 
-export class InvalidAmountError extends Data.TaggedError("InvalidAmountError")<{
+export class InvalidAmountError extends Data.TaggedError('InvalidAmountError')<{
   readonly message: string;
 }> {}
 
-export class TokenNotFoundError extends Data.TaggedError("TokenNotFoundError")<{
+export class TokenNotFoundError extends Data.TaggedError('TokenNotFoundError')<{
   readonly token: string;
 }> {
   get message() {
@@ -82,9 +76,7 @@ export class TokenNotFoundError extends Data.TaggedError("TokenNotFoundError")<{
 }
 
 // Exit code 3 — Account not found
-export class AccountNotFoundError extends Data.TaggedError(
-  "AccountNotFoundError",
-)<{
+export class AccountNotFoundError extends Data.TaggedError('AccountNotFoundError')<{
   readonly name: string;
 }> {
   get message() {
@@ -92,68 +84,54 @@ export class AccountNotFoundError extends Data.TaggedError(
   }
 }
 
-export class NoAccountsError extends Data.TaggedError("NoAccountsError")<{}> {
+export class NoAccountsError extends Data.TaggedError('NoAccountsError')<{}> {
   get message() {
-    return "No accounts found. Create one with `fast account create`.";
+    return 'No accounts found. Create one with `fast account create`.';
   }
 }
 
 // Exit code 4 — Insufficient balance
-export class InsufficientBalanceError extends Data.TaggedError(
-  "InsufficientBalanceError",
-)<{
+export class InsufficientBalanceError extends Data.TaggedError('InsufficientBalanceError')<{
   readonly message: string;
 }> {}
 
-export class InsufficientGasError extends Data.TaggedError(
-  "InsufficientGasError",
-)<{
+export class InsufficientGasError extends Data.TaggedError('InsufficientGasError')<{
   readonly message: string;
 }> {}
 
 // Exit code 5 — Network error
-export class NetworkError extends Data.TaggedError("NetworkError")<{
+export class NetworkError extends Data.TaggedError('NetworkError')<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
 
 // Exit code 6 — Transaction failed
-export class TransactionFailedError extends Data.TaggedError(
-  "TransactionFailedError",
-)<{
+export class TransactionFailedError extends Data.TaggedError('TransactionFailedError')<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
 
 // Exit code 7 — User cancelled
-export class UserCancelledError extends Data.TaggedError(
-  "UserCancelledError",
-)<{}> {
+export class UserCancelledError extends Data.TaggedError('UserCancelledError')<{}> {
   get message() {
-    return "Operation cancelled by user";
+    return 'Operation cancelled by user';
   }
 }
 
 // Exit code 8 — Password errors
-export class PasswordRequiredError extends Data.TaggedError(
-  "PasswordRequiredError",
-)<{}> {
+export class PasswordRequiredError extends Data.TaggedError('PasswordRequiredError')<{}> {
   get message() {
-    return "Password required. Use --password, FAST_PASSWORD env var, or run in interactive mode.";
+    return 'Password required. Use --password, FAST_PASSWORD env var, or run in interactive mode.';
   }
 }
 
-export class WrongPasswordError extends Data.TaggedError(
-  "WrongPasswordError",
-)<{}> {
+export class WrongPasswordError extends Data.TaggedError('WrongPasswordError')<{}> {
   get message() {
-    return "Incorrect password";
+    return 'Incorrect password';
   }
 }
 
-export class DefaultAccountError extends Data.TaggedError(
-  "DefaultAccountError",
-)<{
+export class DefaultAccountError extends Data.TaggedError('DefaultAccountError')<{
   readonly name: string;
 }> {
   get message() {
@@ -161,9 +139,7 @@ export class DefaultAccountError extends Data.TaggedError(
   }
 }
 
-export class DefaultNetworkError extends Data.TaggedError(
-  "DefaultNetworkError",
-)<{
+export class DefaultNetworkError extends Data.TaggedError('DefaultNetworkError')<{
   readonly name: string;
 }> {
   get message() {
@@ -171,9 +147,7 @@ export class DefaultNetworkError extends Data.TaggedError(
   }
 }
 
-export class NetworkNotFoundError extends Data.TaggedError(
-  "NetworkNotFoundError",
-)<{
+export class NetworkNotFoundError extends Data.TaggedError('NetworkNotFoundError')<{
   readonly name: string;
 }> {
   get message() {
@@ -236,35 +210,33 @@ const exitCodeMap: Record<string, number> = {
   NetworkNotFoundError: 2,
 };
 
-export const toExitCode = (error: { readonly _tag: string }): number =>
-  exitCodeMap[error._tag] ?? 1;
+export const toExitCode = (error: { readonly _tag: string }): number => exitCodeMap[error._tag] ?? 1;
 
 const errorCodeMap: Record<string, string> = {
-  StorageError: "STORAGE_ERROR",
-  TxNotFoundError: "TX_NOT_FOUND",
-  InvalidUsageError: "INVALID_USAGE",
-  AccountExistsError: "ACCOUNT_EXISTS",
-  ReservedNameError: "RESERVED_NAME",
-  NetworkExistsError: "NETWORK_EXISTS",
-  InvalidConfigError: "INVALID_CONFIG",
-  InvalidAddressError: "INVALID_ADDRESS",
-  InvalidAmountError: "INVALID_AMOUNT",
-  TokenNotFoundError: "TOKEN_NOT_FOUND",
-  UnsupportedChainError: "UNSUPPORTED_CHAIN",
-  NotImplementedError: "NOT_IMPLEMENTED",
-  DefaultAccountError: "DEFAULT_ACCOUNT",
-  DefaultNetworkError: "DEFAULT_NETWORK",
-  AccountNotFoundError: "ACCOUNT_NOT_FOUND",
-  NoAccountsError: "NO_ACCOUNTS",
-  InsufficientBalanceError: "INSUFFICIENT_BALANCE",
-  InsufficientGasError: "INSUFFICIENT_GAS",
-  NetworkError: "NETWORK_ERROR",
-  TransactionFailedError: "TX_FAILED",
-  UserCancelledError: "USER_CANCELLED",
-  PasswordRequiredError: "PASSWORD_REQUIRED",
-  WrongPasswordError: "WRONG_PASSWORD",
-  NetworkNotFoundError: "NETWORK_NOT_FOUND",
+  StorageError: 'STORAGE_ERROR',
+  TxNotFoundError: 'TX_NOT_FOUND',
+  InvalidUsageError: 'INVALID_USAGE',
+  AccountExistsError: 'ACCOUNT_EXISTS',
+  ReservedNameError: 'RESERVED_NAME',
+  NetworkExistsError: 'NETWORK_EXISTS',
+  InvalidConfigError: 'INVALID_CONFIG',
+  InvalidAddressError: 'INVALID_ADDRESS',
+  InvalidAmountError: 'INVALID_AMOUNT',
+  TokenNotFoundError: 'TOKEN_NOT_FOUND',
+  UnsupportedChainError: 'UNSUPPORTED_CHAIN',
+  NotImplementedError: 'NOT_IMPLEMENTED',
+  DefaultAccountError: 'DEFAULT_ACCOUNT',
+  DefaultNetworkError: 'DEFAULT_NETWORK',
+  AccountNotFoundError: 'ACCOUNT_NOT_FOUND',
+  NoAccountsError: 'NO_ACCOUNTS',
+  InsufficientBalanceError: 'INSUFFICIENT_BALANCE',
+  InsufficientGasError: 'INSUFFICIENT_GAS',
+  NetworkError: 'NETWORK_ERROR',
+  TransactionFailedError: 'TX_FAILED',
+  UserCancelledError: 'USER_CANCELLED',
+  PasswordRequiredError: 'PASSWORD_REQUIRED',
+  WrongPasswordError: 'WRONG_PASSWORD',
+  NetworkNotFoundError: 'NETWORK_NOT_FOUND',
 };
 
-export const toErrorCode = (error: { readonly _tag: string }): string =>
-  errorCodeMap[error._tag] ?? "UNKNOWN_ERROR";
+export const toErrorCode = (error: { readonly _tag: string }): string => errorCodeMap[error._tag] ?? 'UNKNOWN_ERROR';

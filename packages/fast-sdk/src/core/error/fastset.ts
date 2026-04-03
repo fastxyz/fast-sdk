@@ -1,4 +1,4 @@
-import { Data } from "effect";
+import { Data } from 'effect';
 
 /**
  * Validator-level protocol errors (FastSetError).
@@ -17,7 +17,7 @@ import { Data } from "effect";
  * Recovery: call `getAccountInfo()` to fetch the current `nextNonce`,
  * then rebuild and resubmit the transaction with the correct nonce.
  */
-export class UnexpectedNonceError extends Data.TaggedError("UnexpectedNonceError")<{
+export class UnexpectedNonceError extends Data.TaggedError('UnexpectedNonceError')<{
   readonly message: string;
   readonly expectedNonce: bigint;
 }> {}
@@ -31,7 +31,7 @@ export class UnexpectedNonceError extends Data.TaggedError("UnexpectedNonceError
  * Recovery: check balance via `getAccountInfo()`, then either reduce
  * the amount or fund the account first.
  */
-export class InsufficientFundingError extends Data.TaggedError("InsufficientFundingError")<{
+export class InsufficientFundingError extends Data.TaggedError('InsufficientFundingError')<{
   readonly message: string;
   readonly currentBalance: bigint;
 }> {}
@@ -47,7 +47,7 @@ export class InsufficientFundingError extends Data.TaggedError("InsufficientFund
  * resubmit. The `pendingConfirmation` field contains the blocking
  * transaction envelope.
  */
-export class PreviousTransactionPendingError extends Data.TaggedError("PreviousTransactionPendingError")<{
+export class PreviousTransactionPendingError extends Data.TaggedError('PreviousTransactionPendingError')<{
   readonly message: string;
   readonly pendingConfirmation: unknown;
 }> {}
@@ -61,7 +61,7 @@ export class PreviousTransactionPendingError extends Data.TaggedError("PreviousT
  * Recovery: ensure the transaction is signed with the correct private
  * key and that the transaction content hasn't been modified after signing.
  */
-export class InvalidSignatureError extends Data.TaggedError("InvalidSignatureError")<{
+export class InvalidSignatureError extends Data.TaggedError('InvalidSignatureError')<{
   readonly message: string;
   readonly error: string;
 }> {}
@@ -74,7 +74,7 @@ export class InvalidSignatureError extends Data.TaggedError("InvalidSignatureErr
  *
  * Recovery: retry after a short delay; the validator may catch up.
  */
-export class MissingEarlierConfirmationsError extends Data.TaggedError("MissingEarlierConfirmationsError")<{
+export class MissingEarlierConfirmationsError extends Data.TaggedError('MissingEarlierConfirmationsError')<{
   readonly message: string;
   readonly currentNonce: bigint;
 }> {}
@@ -87,7 +87,7 @@ export class MissingEarlierConfirmationsError extends Data.TaggedError("MissingE
  *
  * Recovery: wait the specified nanoseconds before resubmitting.
  */
-export class CertificateTooYoungError extends Data.TaggedError("CertificateTooYoungError")<{
+export class CertificateTooYoungError extends Data.TaggedError('CertificateTooYoungError')<{
   readonly message: string;
   readonly resendAfterNanos: bigint;
 }> {}
@@ -102,7 +102,7 @@ export class CertificateTooYoungError extends Data.TaggedError("CertificateTooYo
  * Recovery: check the `reason` field for specifics and adjust
  * the transaction accordingly.
  */
-export class NonSubmittableOperationError extends Data.TaggedError("NonSubmittableOperationError")<{
+export class NonSubmittableOperationError extends Data.TaggedError('NonSubmittableOperationError')<{
   readonly message: string;
   readonly reason: string;
 }> {}
@@ -113,6 +113,6 @@ export class NonSubmittableOperationError extends Data.TaggedError("NonSubmittab
  * A catch-all for validator errors that don't map to a specific
  * FastSetError variant. Check the message for details.
  */
-export class ValidatorGenericError extends Data.TaggedError("ValidatorGenericError")<{
+export class ValidatorGenericError extends Data.TaggedError('ValidatorGenericError')<{
   readonly message: string;
 }> {}

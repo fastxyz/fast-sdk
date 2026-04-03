@@ -7,7 +7,7 @@ export {
   Uint8ArrayFromHex,
   Uint8ArrayFromHexOptional0x,
   Uint8ArrayFromNumberArray,
-} from "./array.ts";
+} from './array.ts';
 export {
   DecimalInt320,
   DecimalUint64,
@@ -35,7 +35,7 @@ export {
   Uint128,
   Uint256,
   Uint256FromNumberOrSelf,
-} from "./instances.ts";
+} from './instances.ts';
 export {
   BigIntFromNumberOrSelf,
   DecimalBigInt,
@@ -52,8 +52,8 @@ export {
   UintBigInt,
   UintBigIntFromNumberOrSelf,
   UintNumber,
-} from "./numeric.ts";
-export type { SnakeToCamel } from "./struct.ts";
+} from './numeric.ts';
+export type { SnakeToCamel } from './struct.ts';
 
-export { CamelCaseStruct } from "./struct.ts";
-export { TypedVariant } from "./variant.ts";
+export { CamelCaseStruct } from './struct.ts';
+export { TypedVariant } from './variant.ts';

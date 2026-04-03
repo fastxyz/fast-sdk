@@ -11,7 +11,7 @@ export {
   StateKeyFromBcs,
   TokenIdFromBcs,
   UserDataFromBcs,
-} from "./bcs.ts";
+} from './bcs.ts';
 export {
   AddressFromInput,
   type AddressInput,
@@ -36,7 +36,7 @@ export {
   type TokenIdInput,
   UserDataFromInput,
   type UserDataInput,
-} from "./input.ts";
+} from './input.ts';
 export {
   Address,
   Amount,
@@ -51,7 +51,7 @@ export {
   StateKey,
   TokenId,
   UserData,
-} from "./internal.ts";
+} from './internal.ts';
 export {
   AddressFromRest,
   AmountFromRest,
@@ -65,7 +65,7 @@ export {
   StateKeyFromRest,
   TokenIdFromRest,
   UserDataFromRest,
-} from "./rest.ts";
+} from './rest.ts';
 export {
   AddressFromRpc,
   AmountFromRpc,
@@ -79,4 +79,4 @@ export {
   StateKeyFromRpc,
   TokenIdFromRpc,
   UserDataFromRpc,
-} from "./rpc.ts";
+} from './rpc.ts';

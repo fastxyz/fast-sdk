@@ -1,5 +1,1 @@
-export {
-  FastSetErrorData,
-  JsonRpcError,
-  ProxyErrorData,
-} from "./fastset.ts";
+export { FastSetErrorData, JsonRpcError, ProxyErrorData } from './fastset.ts';

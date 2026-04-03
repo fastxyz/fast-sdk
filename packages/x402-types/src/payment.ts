@@ -13,7 +13,7 @@
  * client (to consume), and facilitator (to verify/settle).
  */
 export interface PaymentRequirement {
-  scheme: "exact";
+  scheme: 'exact';
   network: string;
   maxAmountRequired: string;
   resource: string;
@@ -105,13 +105,13 @@ export interface SupportedPaymentKind {
 
 // ─── Network Type ─────────────────────────────────────────────────────────────
 
-export type NetworkType = "evm" | "fast" | "svm";
+export type NetworkType = 'evm' | 'fast' | 'svm';
 
 /**
  * Determine network type from a network identifier string.
  */
 export function getNetworkType(network: string): NetworkType {
-  if (network.startsWith("fast-")) return "fast";
-  if (network.startsWith("solana")) return "svm";
-  return "evm";
+  if (network.startsWith('fast-')) return 'fast';
+  if (network.startsWith('solana')) return 'svm';
+  return 'evm';
 }

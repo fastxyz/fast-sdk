@@ -1,5 +1,5 @@
-import { Schema } from "effect";
-import { BigIntFromNumberOrSelf, CamelCaseStruct, TypedVariant } from "../util/index.ts";
+import { Schema } from 'effect';
+import { BigIntFromNumberOrSelf, CamelCaseStruct, TypedVariant } from '../util/index.ts';
 
 /** FastSetError as a TypedVariant — decodes to { type, value } format. */
 export const FastSetErrorData = TypedVariant({

@@ -36,30 +36,25 @@ function bigIntToNumber(obj: unknown): unknown {
   return obj;
 }
 
-function resolveExternalAddress(
-  intents: Intent[],
-  externalAddressOverride?: string,
-): `0x${string}` | null {
+function resolveExternalAddress(intents: Intent[], externalAddressOverride?: string): `0x${string}` | null {
   if (externalAddressOverride) return externalAddressOverride as `0x${string}`;
 
   for (const intent of intents) {
     if (intent.action === IntentAction.DynamicTransfer) {
       try {
-        const [, receiver] = decodeAbiParameters(
-          [{ type: 'address' }, { type: 'address' }],
-          intent.payload,
-        );
+        const [, receiver] = decodeAbiParameters([{ type: 'address' }, { type: 'address' }], intent.payload);
         return receiver;
-      } catch { continue; }
+      } catch {
+        continue;
+      }
     }
     if (intent.action === IntentAction.Execute) {
       try {
-        const [target] = decodeAbiParameters(
-          [{ type: 'address' }, { type: 'bytes' }],
-          intent.payload,
-        );
+        const [target] = decodeAbiParameters([{ type: 'address' }, { type: 'bytes' }], intent.payload);
         return target;
-      } catch { continue; }
+      } catch {
+        continue;
+      }
     }
   }
   return null;
@@ -85,12 +80,7 @@ async function sendTx(
   return { txHash: hash, status: receipt.status === 'success' ? 'success' : 'reverted' };
 }
 
-async function checkAllowance(
-  clients: EvmClients,
-  token: string,
-  spender: string,
-  owner: string,
-): Promise<bigint> {
+async function checkAllowance(clients: EvmClients, token: string, spender: string, owner: string): Promise<bigint> {
   return clients.publicClient.readContract({
     address: token as `0x${string}`,
     abi: ERC20_ABI,
@@ -99,12 +89,7 @@ async function checkAllowance(
   });
 }
 
-async function approveErc20(
-  clients: EvmClients,
-  token: string,
-  spender: string,
-  amount: string,
-): Promise<void> {
+async function approveErc20(clients: EvmClients, token: string, spender: string, amount: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const walletClient = clients.walletClient as any;
   const hash = await walletClient.writeContract({
@@ -131,10 +116,7 @@ export interface EvmSignResult {
  * @param certificate - Certificate from fastWallet.submit()
  * @param crossSignUrl - AllSet cross-sign service URL (required)
  */
-export async function evmSign(
-  certificate: unknown,
-  crossSignUrl: string,
-): Promise<EvmSignResult> {
+export async function evmSign(certificate: unknown, crossSignUrl: string): Promise<EvmSignResult> {
   const wireFormat = Schema.encodeSync(TransactionCertificateFromRpc)(certificate as never);
   const serialized = bigIntToNumber(wireFormat);
   const res = await fetch(crossSignUrl, {
@@ -154,7 +136,7 @@ export async function evmSign(
     });
   }
 
-  const json = await res.json() as {
+  const json = (await res.json()) as {
     result?: { transaction: number[]; signature: string };
     error?: { message: string };
   };
@@ -357,23 +339,25 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
   // Step 3: Build and encode the intent claim
   const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
   const intentClaimEncoded = encodeAbiParameters(
-    [{
-      type: 'tuple',
-      components: [
-        { name: 'transferFastTxId', type: 'bytes32' },
-        { name: 'deadline', type: 'uint256' },
-        {
-          name: 'intents',
-          type: 'tuple[]',
-          components: [
-            { name: 'action', type: 'uint8' },
-            { name: 'payload', type: 'bytes' },
-            { name: 'value', type: 'uint256' },
-          ],
-        },
-      ],
-    }],
-    [{ transferFastTxId, deadline, intents: intents.map(i => ({ action: i.action, payload: i.payload, value: i.value })) }],
+    [
+      {
+        type: 'tuple',
+        components: [
+          { name: 'transferFastTxId', type: 'bytes32' },
+          { name: 'deadline', type: 'uint256' },
+          {
+            name: 'intents',
+            type: 'tuple[]',
+            components: [
+              { name: 'action', type: 'uint8' },
+              { name: 'payload', type: 'bytes' },
+              { name: 'value', type: 'uint256' },
+            ],
+          },
+        ],
+      },
+    ],
+    [{ transferFastTxId, deadline, intents: intents.map((i) => ({ action: i.action, payload: i.payload, value: i.value })) }],
   );
 
   const intentBytes = hexToUint8Array(intentClaimEncoded);

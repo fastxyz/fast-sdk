@@ -14,12 +14,14 @@ metadata:
 ## When to Use This Skill
 
 **USE this skill when the user wants to:**
+
 - Protect API routes with payment requirements (HTTP 402)
 - Add payment middleware to an Express app
 - Create payment requirements for specific routes
 - Verify or settle payments via a facilitator
 
 **DO NOT use this skill for:**
+
 - Paying for 402-protected content → use `@fastxyz/x402-client`
 - Running a facilitator service → use `@fastxyz/x402-facilitator`
 - Shared x402 types only → use `@fastxyz/x402-types`
@@ -45,7 +47,7 @@ const routes: Record<string, RouteConfig> = {
     price: '$0.10',
     network: 'fast-testnet',
     networkConfig: {
-      asset: '0x...',  // USDC token ID / address
+      asset: '0x...', // USDC token ID / address
       decimals: 6,
     },
     config: {

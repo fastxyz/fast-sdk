@@ -19,11 +19,7 @@ export type {
 
 export { getNetworkType } from '@fastxyz/x402-types';
 
-export type {
-  FacilitatorConfig,
-  FacilitatorEvmChainConfig,
-  FacilitatorFastNetworkConfig,
-} from './types.js';
+export type { FacilitatorConfig, FacilitatorEvmChainConfig, FacilitatorFastNetworkConfig } from './types.js';
 
 export { getNetworkId } from './types.js';
 

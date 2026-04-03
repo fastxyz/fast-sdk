@@ -8,12 +8,7 @@
 import { FastProvider, Signer, TransactionBuilder, hashHex } from '@fastxyz/fast-sdk';
 import { fromHex, fromFastAddress, toFastAddress } from '@fastxyz/fast-sdk';
 import { bcsSchema } from '@fastxyz/fast-schema';
-import type {
-  FastWallet,
-  PaymentRequired,
-  ClientPaymentRequirement,
-  X402PayResult,
-} from './types.js';
+import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResult } from './types.js';
 
 // ─── Cached Providers ─────────────────────────────────────────────────────────
 
@@ -47,11 +42,10 @@ function serializeFastRpcJsonValue(value: unknown, quoteBigInt = false): string 
     return `[${value.map((item) => serializeFastRpcJsonValue(item, quoteBigInt) ?? 'null').join(',')}]`;
   }
   if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .flatMap(([key, entryValue]) => {
-        const serialized = serializeFastRpcJsonValue(entryValue, quoteBigInt);
-        return serialized === undefined ? [] : [`${JSON.stringify(key)}:${serialized}`];
-      });
+    const entries = Object.entries(value as Record<string, unknown>).flatMap(([key, entryValue]) => {
+      const serialized = serializeFastRpcJsonValue(entryValue, quoteBigInt);
+      return serialized === undefined ? [] : [`${JSON.stringify(key)}:${serialized}`];
+    });
     return `{${entries.join(',')}}`;
   }
   return undefined;
@@ -84,7 +78,7 @@ export async function handleFastPayment(
   fastReq: ClientPaymentRequirement,
   wallet: FastWallet,
   verbose: boolean = false,
-  logs: string[] = []
+  logs: string[] = [],
 ): Promise<X402PayResult> {
   const log = (msg: string) => {
     if (verbose) {
@@ -111,9 +105,7 @@ export async function handleFastPayment(
   log(`  Wallet address: ${derivedAddress}`);
 
   if (derivedAddress !== wallet.address) {
-    throw new Error(
-      `Address mismatch: expected ${wallet.address}, got ${derivedAddress}`
-    );
+    throw new Error(`Address mismatch: expected ${wallet.address}, got ${derivedAddress}`);
   }
 
   log(`[Fast] Getting account info for nonce...`);
@@ -136,9 +128,7 @@ export async function handleFastPayment(
     throw new Error('No token asset specified in payment requirement');
   }
 
-  const recipientBytes = fastReq.payTo.startsWith('fast1')
-    ? fromFastAddress(fastReq.payTo)
-    : fromHex(fastReq.payTo);
+  const recipientBytes = fastReq.payTo.startsWith('fast1') ? fromFastAddress(fastReq.payTo) : fromHex(fastReq.payTo);
 
   const amountHuman = toHuman(fastReq.maxAmountRequired, 6);
   log(`[Fast] Building transaction via TransactionBuilder...`);
@@ -198,10 +188,16 @@ export async function handleFastPayment(
   log(`  Response: ${paidRes.status} ${paidRes.statusText}`);
 
   const resHeaders: Record<string, string> = {};
-  paidRes.headers.forEach((v: string, k: string) => { resHeaders[k] = v; });
+  paidRes.headers.forEach((v: string, k: string) => {
+    resHeaders[k] = v;
+  });
 
   let resBody: unknown;
-  try { resBody = await paidRes.json(); } catch { resBody = await paidRes.text(); }
+  try {
+    resBody = await paidRes.json();
+  } catch {
+    resBody = await paidRes.text();
+  }
 
   log(`━━━ Fast Payment Handler END ━━━`);
 

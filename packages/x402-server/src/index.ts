@@ -19,11 +19,7 @@ export type {
 } from './types.js';
 
 // Re-export shared types
-export type {
-  PaymentRequirement,
-  VerifyResponse,
-  SettleResponse,
-} from '@fastxyz/x402-types';
+export type { PaymentRequirement, VerifyResponse, SettleResponse } from '@fastxyz/x402-types';
 
 // Utils
 export { parsePrice, encodePayload, decodePayload } from './utils.js';
@@ -40,10 +36,4 @@ export {
 } from './payment.js';
 
 // Middleware
-export {
-  paymentMiddleware,
-  paywall,
-  type Request,
-  type Response,
-  type NextFunction,
-} from './middleware.js';
+export { paymentMiddleware, paywall, type Request, type Response, type NextFunction } from './middleware.js';

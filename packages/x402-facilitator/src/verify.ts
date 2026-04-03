@@ -5,20 +5,8 @@
  */
 
 import { createPublicKey, verify as verifySignature } from 'node:crypto';
-import {
-  createPublicClient,
-  http,
-  type Address,
-  type Hex,
-  parseAbi,
-} from 'viem';
-import type {
-  PaymentPayload,
-  PaymentRequirement,
-  VerifyResponse,
-  EvmPayload,
-  FastPayload,
-} from '@fastxyz/x402-types';
+import { createPublicClient, http, type Address, type Hex, parseAbi } from 'viem';
+import type { PaymentPayload, PaymentRequirement, VerifyResponse, EvmPayload, FastPayload } from '@fastxyz/x402-types';
 import { getNetworkType } from '@fastxyz/x402-types';
 import type { FacilitatorConfig, FacilitatorEvmChainConfig, FacilitatorFastNetworkConfig } from './types.js';
 import { getNetworkId } from './types.js';
@@ -44,9 +32,7 @@ interface FastTransactionCertificate {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const ERC20_ABI = parseAbi([
-  'function balanceOf(address account) external view returns (uint256)',
-]);
+const ERC20_ABI = parseAbi(['function balanceOf(address account) external view returns (uint256)']);
 
 const authorizationTypes = {
   TransferWithAuthorization: [
@@ -64,17 +50,11 @@ const warnedUntrustedCommitteeNetworks = new Set<string>();
 
 // ─── Config Accessors ────────────────────────────────────────────────────────
 
-function getEvmChainConfig(
-  network: string,
-  config: FacilitatorConfig,
-): FacilitatorEvmChainConfig | null {
+function getEvmChainConfig(network: string, config: FacilitatorConfig): FacilitatorEvmChainConfig | null {
   return config.evmChains?.[network] ?? null;
 }
 
-function getFastNetworkConfig(
-  network: string,
-  config: FacilitatorConfig,
-): FacilitatorFastNetworkConfig | null {
+function getFastNetworkConfig(network: string, config: FacilitatorConfig): FacilitatorFastNetworkConfig | null {
   return config.fastNetworks?.[network] ?? null;
 }
 
@@ -290,9 +270,7 @@ function normalizeAddress(addr: string): string {
 function normalizeComparableAddress(addr: string): string | null {
   const trimmed = addr.trim();
   if (trimmed.startsWith('fast1') || trimmed.startsWith('set1')) {
-    const canonicalFastAddress = trimmed.startsWith('set1')
-      ? `fast1${trimmed.slice(4)}`
-      : trimmed;
+    const canonicalFastAddress = trimmed.startsWith('set1') ? `fast1${trimmed.slice(4)}` : trimmed;
 
     try {
       return normalizeAddress(bytesToHex(fastAddressToBytes(canonicalFastAddress)));
@@ -332,18 +310,14 @@ function toByteArray(value: unknown): Uint8Array | null {
     return new Uint8Array(Buffer.from(normalized, 'hex'));
   }
 
-  if (Array.isArray(value) && value.every(v => Number.isInteger(v) && v >= 0 && v <= 255)) {
+  if (Array.isArray(value) && value.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)) {
     return new Uint8Array(value);
   }
 
   return null;
 }
 
-function verifyEd25519(
-  publicKeyBytes: Uint8Array,
-  message: Uint8Array,
-  signatureBytes: Uint8Array,
-): boolean {
+function verifyEd25519(publicKeyBytes: Uint8Array, message: Uint8Array, signatureBytes: Uint8Array): boolean {
   if (publicKeyBytes.length !== 32 || signatureBytes.length !== 64) {
     return false;
   }
@@ -374,17 +348,10 @@ function extractSenderSignature(signature: unknown): Uint8Array | null {
 }
 
 function hasMultiSig(signature: unknown): boolean {
-  return Boolean(
-    signature &&
-      typeof signature === 'object' &&
-      !Array.isArray(signature) &&
-      (signature as Record<string, unknown>).MultiSig,
-  );
+  return Boolean(signature && typeof signature === 'object' && !Array.isArray(signature) && (signature as Record<string, unknown>).MultiSig);
 }
 
-function parseCommitteeSignature(
-  entry: unknown,
-): { publicKey: Uint8Array; signature: Uint8Array } | null {
+function parseCommitteeSignature(entry: unknown): { publicKey: Uint8Array; signature: Uint8Array } | null {
   if (Array.isArray(entry) && entry.length === 2) {
     const publicKey = toByteArray(entry[0]);
     const signature = toByteArray(entry[1]);
@@ -443,10 +410,7 @@ function parseTrustedCommitteePublicKey(value: string): string | null {
   }
 }
 
-function resolveTrustedCommittee(
-  network: string,
-  config: FacilitatorConfig,
-): ResolvedTrustedCommittee | null {
+function resolveTrustedCommittee(network: string, config: FacilitatorConfig): ResolvedTrustedCommittee | null {
   const fastConfig = getFastNetworkConfig(network, config);
   const keys = fastConfig?.committeePublicKeys;
   if (!keys?.length) {
@@ -644,8 +608,7 @@ async function verifyFastPayment(
     const message = error instanceof Error ? error.message : String(error);
     return {
       isValid: false,
-      invalidReason:
-        message === 'not_a_token_transfer' ? message : `invalid_transaction: ${message}`,
+      invalidReason: message === 'not_a_token_transfer' ? message : `invalid_transaction: ${message}`,
       network: paymentPayload.network,
     };
   }
@@ -680,20 +643,13 @@ async function verifyFastPayment(
     amountBigInt = transferDetails.amount;
     nonce = decoded.nonce;
   } catch (resultOrError) {
-    if (
-      resultOrError &&
-      typeof resultOrError === 'object' &&
-      'isValid' in resultOrError &&
-      'network' in resultOrError
-    ) {
+    if (resultOrError && typeof resultOrError === 'object' && 'isValid' in resultOrError && 'network' in resultOrError) {
       return resultOrError as VerifyResponse;
     }
 
     return {
       isValid: false,
-      invalidReason: `invalid_transaction: ${
-        resultOrError instanceof Error ? resultOrError.message : String(resultOrError)
-      }`,
+      invalidReason: `invalid_transaction: ${resultOrError instanceof Error ? resultOrError.message : String(resultOrError)}`,
       network: paymentPayload.network,
     };
   }
@@ -704,9 +660,7 @@ async function verifyFastPayment(
   } catch (error) {
     return {
       isValid: false,
-      invalidReason: `invalid_committee_configuration: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      invalidReason: `invalid_committee_configuration: ${error instanceof Error ? error.message : String(error)}`,
       network: paymentPayload.network,
     };
   }
@@ -734,13 +688,7 @@ async function verifyFastPayment(
     };
   }
 
-  if (
-    !verifyEd25519(
-      senderPublicKey,
-      createFastTransactionSigningMessage(transactionBytes),
-      senderSignature,
-    )
-  ) {
+  if (!verifyEd25519(senderPublicKey, createFastTransactionSigningMessage(transactionBytes), senderSignature)) {
     return {
       isValid: false,
       invalidReason: 'invalid_fast_transaction_signature',
@@ -781,13 +729,7 @@ async function verifyFastPayment(
       };
     }
 
-    if (
-      !verifyEd25519(
-        parsedSignature.publicKey,
-        createFastTransactionSigningMessage(transactionBytes),
-        parsedSignature.signature,
-      )
-    ) {
+    if (!verifyEd25519(parsedSignature.publicKey, createFastTransactionSigningMessage(transactionBytes), parsedSignature.signature)) {
       return {
         isValid: false,
         invalidReason: 'invalid_fast_committee_signature',
@@ -801,12 +743,7 @@ async function verifyFastPayment(
   let networkCertificate: FastTransactionCertificate | null = null;
   let skipNetworkValidation = false;
   try {
-    networkCertificate = await fetchFastCertificateByNonce(
-      paymentPayload.network,
-      senderPublicKey,
-      nonce,
-      config,
-    );
+    networkCertificate = await fetchFastCertificateByNonce(paymentPayload.network, senderPublicKey, nonce, config);
     if (!networkCertificate) {
       skipNetworkValidation = true;
     }
@@ -818,9 +755,7 @@ async function verifyFastPayment(
   if (!skipNetworkValidation && networkCertificate) {
     let networkTransactionBytes: Uint8Array;
     try {
-      networkTransactionBytes = serializeFastTransaction(
-        unwrapFastTransaction(networkCertificate.envelope.transaction),
-      );
+      networkTransactionBytes = serializeFastTransaction(unwrapFastTransaction(networkCertificate.envelope.transaction));
     } catch {
       return {
         isValid: false,
@@ -861,9 +796,7 @@ async function verifyFastPayment(
         };
       }
 
-      networkCommitteeSignatureKeys.add(
-        signatureKey(parsedSignature.publicKey, parsedSignature.signature),
-      );
+      networkCommitteeSignatureKeys.add(signatureKey(parsedSignature.publicKey, parsedSignature.signature));
     }
 
     for (const signatureEntry of signatures) {
@@ -877,11 +810,7 @@ async function verifyFastPayment(
         };
       }
 
-      if (
-        !networkCommitteeSignatureKeys.has(
-          signatureKey(parsedSignature.publicKey, parsedSignature.signature),
-        )
-      ) {
+      if (!networkCommitteeSignatureKeys.has(signatureKey(parsedSignature.publicKey, parsedSignature.signature))) {
         return {
           isValid: false,
           invalidReason: 'fast_certificate_mismatch',

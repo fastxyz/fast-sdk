@@ -1,8 +1,8 @@
-import { Schema } from "effect"
+import { Schema } from 'effect';
 
-export class HistoryEntry extends Schema.Class<HistoryEntry>("HistoryEntry")({
+export class HistoryEntry extends Schema.Class<HistoryEntry>('HistoryEntry')({
   hash: Schema.String,
-  type: Schema.Literal("transfer"),
+  type: Schema.Literal('transfer'),
   from: Schema.String,
   to: Schema.String,
   amount: Schema.String,
@@ -15,4 +15,4 @@ export class HistoryEntry extends Schema.Class<HistoryEntry>("HistoryEntry")({
   explorerUrl: Schema.NullOr(Schema.String),
 }) {}
 
-export const HistoryFile = Schema.Array(HistoryEntry)
+export const HistoryFile = Schema.Array(HistoryEntry);

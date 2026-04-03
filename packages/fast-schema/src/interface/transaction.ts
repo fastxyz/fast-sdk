@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Schema } from 'effect';
 import {
   AddressFromInput,
   AmountFromInput,
@@ -11,8 +11,8 @@ import {
   StateKeyFromInput,
   TokenIdFromInput,
   UserDataFromInput,
-} from "../base/input.ts";
-import { BigIntFromNumberOrSelf } from "../util/index.ts";
+} from '../base/input.ts';
+import { BigIntFromNumberOrSelf } from '../util/index.ts';
 
 export const TokenTransferInput = Schema.Struct({
   tokenId: TokenIdFromInput,
@@ -34,13 +34,7 @@ export const TokenManagementInput = Schema.Struct({
   updateId: NonceFromInput,
   newAdmin: Schema.NullOr(AddressFromInput),
   mints: Schema.Array(
-    Schema.Tuple(
-      Schema.Union(
-        Schema.Struct({ type: Schema.Literal("Add") }),
-        Schema.Struct({ type: Schema.Literal("Remove") }),
-      ),
-      AddressFromInput,
-    ),
+    Schema.Tuple(Schema.Union(Schema.Struct({ type: Schema.Literal('Add') }), Schema.Struct({ type: Schema.Literal('Remove') })), AddressFromInput),
   ),
   userData: UserDataFromInput,
 });
@@ -104,39 +98,39 @@ export const CommitteeChangeInput = Schema.Struct({
 /** Single operation (12 variants, used inside Batch). */
 const OperationInput = Schema.Union(
   Schema.Struct({
-    type: Schema.Literal("TokenTransfer"),
+    type: Schema.Literal('TokenTransfer'),
     value: TokenTransferInput,
   }),
   Schema.Struct({
-    type: Schema.Literal("TokenCreation"),
+    type: Schema.Literal('TokenCreation'),
     value: TokenCreationInput,
   }),
   Schema.Struct({
-    type: Schema.Literal("TokenManagement"),
+    type: Schema.Literal('TokenManagement'),
     value: TokenManagementInput,
   }),
-  Schema.Struct({ type: Schema.Literal("Mint"), value: MintInput }),
-  Schema.Struct({ type: Schema.Literal("Burn"), value: BurnInput }),
+  Schema.Struct({ type: Schema.Literal('Mint'), value: MintInput }),
+  Schema.Struct({ type: Schema.Literal('Burn'), value: BurnInput }),
   Schema.Struct({
-    type: Schema.Literal("StateInitialization"),
+    type: Schema.Literal('StateInitialization'),
     value: StateInitializationInput,
   }),
   Schema.Struct({
-    type: Schema.Literal("StateUpdate"),
+    type: Schema.Literal('StateUpdate'),
     value: StateUpdateInput,
   }),
-  Schema.Struct({ type: Schema.Literal("StateReset"), value: StateResetInput }),
+  Schema.Struct({ type: Schema.Literal('StateReset'), value: StateResetInput }),
   Schema.Struct({
-    type: Schema.Literal("ExternalClaim"),
+    type: Schema.Literal('ExternalClaim'),
     value: ExternalClaimInput,
   }),
   Schema.Struct({
-    type: Schema.Literal("JoinCommittee"),
+    type: Schema.Literal('JoinCommittee'),
     value: ValidatorConfigInput,
   }),
-  Schema.Struct({ type: Schema.Literal("LeaveCommittee") }),
+  Schema.Struct({ type: Schema.Literal('LeaveCommittee') }),
   Schema.Struct({
-    type: Schema.Literal("ChangeCommittee"),
+    type: Schema.Literal('ChangeCommittee'),
     value: CommitteeChangeInput,
   }),
 );
@@ -145,7 +139,7 @@ const OperationInput = Schema.Union(
 const ClaimTypeInput = Schema.Union(
   ...OperationInput.members,
   Schema.Struct({
-    type: Schema.Literal("Batch"),
+    type: Schema.Literal('Batch'),
     value: Schema.Array(OperationInput),
   }),
 );
@@ -167,8 +161,7 @@ export type TokenCreationInputParams = typeof TokenCreationInput.Encoded;
 export type TokenManagementInputParams = typeof TokenManagementInput.Encoded;
 export type MintInputParams = typeof MintInput.Encoded;
 export type BurnInputParams = typeof BurnInput.Encoded;
-export type StateInitializationInputParams =
-  typeof StateInitializationInput.Encoded;
+export type StateInitializationInputParams = typeof StateInitializationInput.Encoded;
 export type StateUpdateInputParams = typeof StateUpdateInput.Encoded;
 export type StateResetInputParams = typeof StateResetInput.Encoded;
 export type ExternalClaimInputParams = typeof ExternalClaimInput.Encoded;

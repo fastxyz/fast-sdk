@@ -15,12 +15,14 @@ metadata:
 ## When to Use This Skill
 
 **USE this skill when the user wants to:**
+
 - Pay for a 402-protected API endpoint
 - Handle HTTP 402 Payment Required responses automatically
 - Auto-bridge Fast USDC → EVM USDC for EVM payments
 - Check Fast balance or bridge funds manually
 
 **DO NOT use this skill for:**
+
 - Protecting API routes with payments → use `@fastxyz/x402-server`
 - Running a facilitator service → use `@fastxyz/x402-facilitator`
 - General wallet operations → use `@fastxyz/fast-sdk`

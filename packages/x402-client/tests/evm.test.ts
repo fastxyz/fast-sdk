@@ -16,7 +16,7 @@ describe('EVM Payment Handler', () => {
   describe('handleEvmPayment', () => {
     it('should throw if no EVM chain config provided', async () => {
       const paymentRequired = mock402Response('arbitrum-sepolia');
-      
+
       await expect(
         handleEvmPayment(
           'https://api.example.com/data',
@@ -29,8 +29,8 @@ describe('EVM Payment Handler', () => {
           // Missing chain config — pass undefined to simulate
           undefined as any,
           false,
-          []
-        )
+          [],
+        ),
       ).rejects.toThrow();
     });
 
@@ -38,10 +38,8 @@ describe('EVM Payment Handler', () => {
       const paymentRequired = mock402Response('arbitrum-sepolia');
       paymentRequired.accepts![0].asset = undefined;
 
-      globalThis.fetch = createMockFetch([
-        { match: /testnet\.api\.fast\.xyz/, status: 200, body: { result: { balances: [] } } },
-      ]);
-      
+      globalThis.fetch = createMockFetch([{ match: /testnet\.api\.fast\.xyz/, status: 200, body: { result: { balances: [] } } }]);
+
       await expect(
         handleEvmPayment(
           'https://api.example.com/data',
@@ -53,8 +51,8 @@ describe('EVM Payment Handler', () => {
           mockEvmWallet,
           mockEvmChainConfig['arbitrum-sepolia'],
           false,
-          []
-        )
+          [],
+        ),
       ).rejects.toThrow();
     });
 
@@ -65,26 +63,32 @@ describe('EVM Payment Handler', () => {
 
       globalThis.fetch = async (_input: string | URL | Request, init?: RequestInit) => {
         const body = init?.body ? JSON.parse(init.body as string) : null;
-        
+
         if (body?.method === 'eth_call') {
-          return new Response(JSON.stringify({
-            jsonrpc: '2.0',
-            id: body.id,
-            result: '0x00000000000000000000000000000000000000000000000000000000000186a0',
-          }), { status: 200 });
+          return new Response(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: '0x00000000000000000000000000000000000000000000000000000000000186a0',
+            }),
+            { status: 200 },
+          );
         }
-        
+
         if (init?.headers && (init.headers as Record<string, string>)['X-PAYMENT']) {
           paymentHeaderSent = true;
           const header = (init.headers as Record<string, string>)['X-PAYMENT'];
           paymentPayload = JSON.parse(Buffer.from(header, 'base64').toString());
-          return new Response(JSON.stringify({ 
-            success: true, 
-            data: 'premium content',
-            txHash: '0xabc123',
-          }), { status: 200 });
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: 'premium content',
+              txHash: '0xabc123',
+            }),
+            { status: 200 },
+          );
         }
-        
+
         return new Response(JSON.stringify({}), { status: 200 });
       };
 
@@ -98,23 +102,23 @@ describe('EVM Payment Handler', () => {
         mockEvmWallet,
         mockEvmChainConfig['arbitrum-sepolia'],
         false,
-        []
+        [],
       );
 
       expect(result.success).toBe(true);
       expect(result.statusCode).toBe(200);
       expect(paymentHeaderSent).toBe(true);
-      
+
       expect(paymentPayload).toBeTruthy();
       const pp = paymentPayload as Record<string, unknown>;
       expect(pp.x402Version).toBe(1);
       expect(pp.scheme).toBe('exact');
       expect(pp.network).toBe('arbitrum-sepolia');
-      
+
       const payload = pp.payload as Record<string, unknown>;
       expect(payload.signature).toBeTruthy();
       expect(payload.authorization).toBeTruthy();
-      
+
       const auth = payload.authorization as Record<string, string>;
       expect(auth.from.toLowerCase()).toBe(mockEvmWallet.address.toLowerCase());
       expect(auth.to.toLowerCase()).toBe('0x1131623344cFdb04D06a9eD511BEc56FF6Ae4372'.toLowerCase());
@@ -126,22 +130,28 @@ describe('EVM Payment Handler', () => {
 
       globalThis.fetch = async (_input: string | URL | Request, init?: RequestInit) => {
         const body = init?.body ? JSON.parse(init.body as string) : null;
-        
+
         if (body?.method === 'eth_call') {
-          return new Response(JSON.stringify({
-            jsonrpc: '2.0',
-            id: body.id,
-            result: '0x000000000000000000000000000000000000000000000000000000000007a120',
-          }), { status: 200 });
+          return new Response(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: '0x000000000000000000000000000000000000000000000000000000000007a120',
+            }),
+            { status: 200 },
+          );
         }
-        
+
         if (init?.headers && (init.headers as Record<string, string>)['X-PAYMENT']) {
-          return new Response(JSON.stringify({ 
-            success: true,
-            txHash: '0xdef456789',
-          }), { status: 200 });
+          return new Response(
+            JSON.stringify({
+              success: true,
+              txHash: '0xdef456789',
+            }),
+            { status: 200 },
+          );
         }
-        
+
         return new Response('{}', { status: 200 });
       };
 
@@ -155,7 +165,7 @@ describe('EVM Payment Handler', () => {
         mockEvmWallet,
         mockEvmChainConfig['arbitrum-sepolia'],
         false,
-        []
+        [],
       );
 
       expect(result.payment).toBeTruthy();
@@ -171,19 +181,22 @@ describe('EVM Payment Handler', () => {
 
       globalThis.fetch = async (_input: string | URL | Request, init?: RequestInit) => {
         const body = init?.body ? JSON.parse(init.body as string) : null;
-        
+
         if (body?.method === 'eth_call') {
-          return new Response(JSON.stringify({
-            jsonrpc: '2.0',
-            id: body.id,
-            result: '0x00000000000000000000000000000000000000000000000000000000000186a0',
-          }), { status: 200 });
+          return new Response(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: '0x00000000000000000000000000000000000000000000000000000000000186a0',
+            }),
+            { status: 200 },
+          );
         }
-        
+
         if (init?.headers && (init.headers as Record<string, string>)['X-PAYMENT']) {
           return new Response(JSON.stringify({ success: true }), { status: 200 });
         }
-        
+
         return new Response('{}', { status: 200 });
       };
 
@@ -197,12 +210,12 @@ describe('EVM Payment Handler', () => {
         mockEvmWallet,
         mockEvmChainConfig['arbitrum-sepolia'],
         true,
-        logs
+        logs,
       );
 
       expect(logs.length).toBeGreaterThan(0);
-      expect(logs.some(l => l.includes('EVM Payment Handler START'))).toBe(true);
-      expect(logs.some(l => l.includes('EIP-3009'))).toBe(true);
+      expect(logs.some((l) => l.includes('EVM Payment Handler START'))).toBe(true);
+      expect(logs.some((l) => l.includes('EIP-3009'))).toBe(true);
     });
   });
 });

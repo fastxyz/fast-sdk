@@ -162,11 +162,7 @@ export function encodeIntentClaim(params: IntentClaimParams): Hex {
  * });
  * ```
  */
-export function buildIntentClaimBytes(params: {
-  transferFastTxId: string;
-  intents: Intent[];
-  deadline?: bigint;
-}): Uint8Array {
+export function buildIntentClaimBytes(params: { transferFastTxId: string; intents: Intent[]; deadline?: bigint }): Uint8Array {
   const deadline = params.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 3600);
   const encoded = encodeIntentClaim({
     transferFastTxId: params.transferFastTxId,
@@ -198,5 +194,7 @@ export function buildIntentClaimBytes(params: {
  */
 export function extractClaimId(crossSignTransaction: number[]): Hex {
   const bytes = new Uint8Array(crossSignTransaction.slice(32, 64));
-  return `0x${Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('')}` as Hex;
+  return `0x${Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')}` as Hex;
 }

@@ -9,12 +9,12 @@ export {
 export {
   AddressChange,
   makeBurn,
+  makeClaimType,
   makeCommitteeChange,
   makeCommitteeConfig,
   makeExternalClaim,
   makeExternalClaimBody,
   makeMint,
-  makeClaimType,
   makeOperation,
   makeStateInitialization,
   makeStateReset,

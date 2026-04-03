@@ -1,0 +1,17 @@
+{
+    "name": "@fastxyz/cli",
+    "description": "Fast CLI - Account and transaction utilities",
+    "version": "0.0.1",
+    "bin": "./dist/index.js",
+    "scripts": {
+        "build": "tsup src/index.ts --format cjs",
+        "dev": "tsup src/index.ts --format cjs --watch"
+    },
+    "dependencies": {
+        "@fastxyz/fast-sdk": "workspace:*",
+        "commander": "^14.0.3"
+    },
+    "devDependencies": {
+        "@types/node": "^25.5.0"
+    }
+}

@@ -1,69 +1,33 @@
 {
-  "name": "@fastxyz/sdk",
-  "version": "0.2.5",
-  "description": "Fast SDK — wallet management, payments, and RPC",
-  "keywords": [
-    "fast",
-    "sdk",
-    "payments",
-    "settlement"
-  ],
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    },
-    "./browser": {
-      "import": "./dist/browser.js",
-      "types": "./dist/browser.d.ts"
-    },
-    "./core": {
-      "import": "./dist/core/index.js",
-      "types": "./dist/core/index.d.ts"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "npm run clean && tsc",
-    "clean": "rm -rf dist",
-    "test": "node --import tsx --test tests/*.test.ts",
-    "live:smoke": "node --import tsx ./scripts/live-smoke.ts",
-    "pack:dry-run": "node ./scripts/pack-dry-run.mjs",
-    "pack:smoke": "node ./scripts/pack-smoke.mjs",
-    "release:verify-tag": "node ./scripts/verify-tag-version.mjs",
-    "prepublishOnly": "npm run build && npm test"
-  },
+  "name": "@fastxyz/monorepo",
+  "private": true,
+  "description": "Official JS SDK and CLI Monorepo for Fast",
   "engines": {
-    "node": ">=20"
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
   },
-  "author": "Fast.xyz",
-  "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/fastxyz/fast-sdk.git"
-  },
-  "bugs": {
-    "url": "https://github.com/fastxyz/fast-sdk/issues"
-  },
-  "homepage": "https://github.com/fastxyz/fast-sdk#readme",
-  "dependencies": {
-    "@mysten/bcs": "^2.0.2",
-    "@noble/ed25519": "^2.1.0",
-    "@noble/hashes": "^1.5.0",
-    "@scure/base": "^2.0.0",
-    "bech32": "^2.0.0"
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "test": "vitest",
+    "cli": "tsx packages/cli/src/index.ts",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
+    "clean": "turbo clean && rm -rf node_modules",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "@types/node": "^22.19.11",
+    "@changesets/cli": "^2.30.0",
+    "eslint": "^10.1.0",
+    "husky": "^9.1.7",
+    "prettier": "^3.8.1",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
-  }
+    "turbo": "^2.8.20",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.1"
+  },
+  "packageManager": "pnpm@10.1.0"
 }

@@ -1,7 +1,7 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { FileSystem } from "@effect/platform"
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Layer, Option, Schema } from "effect"
 import {
   bundledNetworks,
   isBundledNetwork,
@@ -151,6 +151,7 @@ export const NetworkConfigLive = Layer.effect(
             rpcUrl: custom.fast.rpcUrl,
             explorerUrl: custom.fast.explorerUrl,
             networkId: `fast:${name}`,
+            ...(Option.isSome(custom.allset) ? { allset: custom.allset.value } : {}),
           } satisfies NetworkConfig
         }),
 

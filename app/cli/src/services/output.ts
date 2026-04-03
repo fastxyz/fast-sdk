@@ -1,4 +1,5 @@
 import { Context, Effect, Layer } from "effect"
+import * as readline from "node:readline"
 import { type CliError, toErrorCode } from "../errors/index.js"
 import { CliConfig } from "./cli-config.js"
 
@@ -75,8 +76,6 @@ export const OutputLive = Layer.effect(
       confirm: (message) => {
         if (config.nonInteractive || config.json) return Effect.succeed(true)
         return Effect.async<boolean>((resume) => {
-          const readline =
-            require("node:readline") as typeof import("node:readline")
           const rl = readline.createInterface({
             input: process.stdin,
             output: process.stderr,

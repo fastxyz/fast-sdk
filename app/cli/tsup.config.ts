@@ -4,6 +4,7 @@ export default defineConfig({
   entry: ["src/main.ts"],
   format: ["esm"],
   outDir: "dist",
+  platform: "node",
   noExternal: [
     "@noble/curves",
     "@noble/ciphers",

@@ -56,6 +56,9 @@ importers:
       '@effect/typeclass':
         specifier: ^0.40.0
         version: 0.40.0(effect@3.21.0)
+      '@fastxyz/allset-sdk':
+        specifier: workspace:*
+        version: link:../../packages/allset-sdk
       '@fastxyz/fast-schema':
         specifier: workspace:*
         version: link:../../packages/fast-schema
@@ -71,6 +74,9 @@ importers:
       '@noble/hashes':
         specifier: ^2.0.1
         version: 2.0.1
+      bech32:
+        specifier: ^2.0.0
+        version: 2.0.0
       effect:
         specifier: ^3.21.0
         version: 3.21.0
@@ -93,6 +99,9 @@ importers:
 
   packages/allset-sdk:
     dependencies:
+      '@fastxyz/fast-schema':
+        specifier: workspace:*
+        version: link:../fast-schema
       '@fastxyz/fast-sdk':
         specifier: workspace:*
         version: link:../fast-sdk
@@ -108,6 +117,9 @@ importers:
       bech32:
         specifier: ^2.0.0
         version: 2.0.0
+      effect:
+        specifier: ^3.21.0
+        version: 3.21.0
       viem:
         specifier: ^2.46.2
         version: 2.47.6(typescript@6.0.2)

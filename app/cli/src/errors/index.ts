@@ -47,6 +47,22 @@ export class InvalidConfigError extends Data.TaggedError("InvalidConfigError")<{
   readonly message: string;
 }> {}
 
+export class UnsupportedChainError extends Data.TaggedError(
+  "UnsupportedChainError",
+)<{
+  readonly chain: string;
+}> {
+  get message() {
+    return `Unsupported chain "${this.chain}". Run \`fast info bridge-chains\` to list supported chains.`;
+  }
+}
+
+export class NotImplementedError extends Data.TaggedError(
+  "NotImplementedError",
+)<{
+  readonly message: string;
+}> {}
+
 export class InvalidAddressError extends Data.TaggedError(
   "InvalidAddressError",
 )<{
@@ -85,6 +101,12 @@ export class NoAccountsError extends Data.TaggedError("NoAccountsError")<{}> {
 // Exit code 4 — Insufficient balance
 export class InsufficientBalanceError extends Data.TaggedError(
   "InsufficientBalanceError",
+)<{
+  readonly message: string;
+}> {}
+
+export class InsufficientGasError extends Data.TaggedError(
+  "InsufficientGasError",
 )<{
   readonly message: string;
 }> {}
@@ -172,9 +194,12 @@ export type CliError =
   | InvalidAddressError
   | InvalidAmountError
   | TokenNotFoundError
+  | UnsupportedChainError
+  | NotImplementedError
   | AccountNotFoundError
   | NoAccountsError
   | InsufficientBalanceError
+  | InsufficientGasError
   | NetworkError
   | TransactionFailedError
   | UserCancelledError
@@ -195,11 +220,14 @@ const exitCodeMap: Record<string, number> = {
   InvalidAddressError: 2,
   InvalidAmountError: 2,
   TokenNotFoundError: 2,
+  UnsupportedChainError: 2,
+  NotImplementedError: 2,
   DefaultAccountError: 2,
   DefaultNetworkError: 2,
   AccountNotFoundError: 3,
   NoAccountsError: 3,
   InsufficientBalanceError: 4,
+  InsufficientGasError: 4,
   NetworkError: 5,
   TransactionFailedError: 6,
   UserCancelledError: 7,
@@ -222,11 +250,14 @@ const errorCodeMap: Record<string, string> = {
   InvalidAddressError: "INVALID_ADDRESS",
   InvalidAmountError: "INVALID_AMOUNT",
   TokenNotFoundError: "TOKEN_NOT_FOUND",
+  UnsupportedChainError: "UNSUPPORTED_CHAIN",
+  NotImplementedError: "NOT_IMPLEMENTED",
   DefaultAccountError: "DEFAULT_ACCOUNT",
   DefaultNetworkError: "DEFAULT_NETWORK",
   AccountNotFoundError: "ACCOUNT_NOT_FOUND",
   NoAccountsError: "NO_ACCOUNTS",
   InsufficientBalanceError: "INSUFFICIENT_BALANCE",
+  InsufficientGasError: "INSUFFICIENT_GAS",
   NetworkError: "NETWORK_ERROR",
   TransactionFailedError: "TX_FAILED",
   UserCancelledError: "USER_CANCELLED",

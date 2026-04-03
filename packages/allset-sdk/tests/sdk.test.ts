@@ -3,6 +3,8 @@ import { test, onTestFinished } from 'vitest';
 import { FastError } from '../src/errors.ts';
 import { encodeFunctionData } from 'viem';
 import { Signer, FastProvider } from '@fastxyz/fast-sdk';
+import { Schema } from 'effect';
+import { TransactionCertificateFromRpc } from '@fastxyz/fast-schema';
 
 import {
   // address
@@ -41,6 +43,30 @@ const MOCK_CROSS_SIGN_TX = [
   ...Array(32).fill(0),
   ...Array(32).fill(0x11),
 ];
+
+// Decoded TypeScript-form certificate (decoded from real testnet wire data)
+const MOCK_CERTIFICATE = Schema.decodeUnknownSync(TransactionCertificateFromRpc)({
+  envelope: {
+    transaction: {
+      Release20260319: {
+        network_id: 'fast:testnet',
+        sender: [209,137,109,120,122,63,156,194,212,170,221,193,4,58,6,217,71,137,93,252,177,177,165,12,25,82,50,75,37,79,156,133],
+        nonce: 96,
+        timestamp_nanos: 1775199848200000000,
+        claim: { TokenTransfer: { token_id: [215,58,6,121,162,190,70,152,30,42,138,237,236,217,81,200,182,105,14,125,95,133,2,179,78,211,255,76,194,22,59,70], recipient: [93,182,176,27,159,188,197,156,160,162,191,28,98,68,197,163,135,231,116,139,217,112,10,190,109,79,151,110,57,216,198,165], amount: '2710', user_data: null } },
+        archival: false,
+        fee_token: null,
+      },
+    },
+    signature: { Signature: [243,181,0,134,119,52,155,173,156,16,7,113,166,14,189,123,237,154,157,120,164,45,11,79,83,128,25,1,46,120,149,38,86,187,164,193,214,98,69,92,163,93,57,82,1,29,11,233,18,62,220,251,173,145,79,122,211,239,73,130,155,169,232,10] },
+  },
+  signatures: [
+    [
+      [236,249,103,252,146,0,130,223,133,72,40,87,67,21,187,13,100,52,193,194,242,152,67,181,8,2,150,72,51,230,245,169],
+      [192,157,3,79,239,43,131,115,120,48,145,170,248,129,187,246,86,115,121,21,67,197,151,204,195,214,61,200,206,120,91,73,170,48,108,41,230,184,237,46,120,92,207,52,130,186,64,60,8,25,112,168,42,98,32,100,222,183,5,101,54,231,96,10],
+    ],
+  ],
+});
 
 // ---------------------------------------------------------------------------
 // Entrypoint Tests
@@ -266,7 +292,7 @@ test('evmSign sends certificate to crossSignUrl and returns result', async () =>
   };
   onTestFinished(() => { globalThis.fetch = originalFetch; });
 
-  const result = await evmSign({ ok: true }, CROSS_SIGN_URL);
+  const result = await evmSign(MOCK_CERTIFICATE, CROSS_SIGN_URL);
   assert.equal(capturedUrl, CROSS_SIGN_URL);
   assert.deepEqual(result.transaction, MOCK_CROSS_SIGN_TX);
   assert.equal(result.signature, '0xsig');
@@ -278,7 +304,7 @@ test('evmSign throws FastError on cross-sign error response', async () => {
   onTestFinished(() => { globalThis.fetch = originalFetch; });
 
   await assert.rejects(
-    () => evmSign({ ok: true }, CROSS_SIGN_URL),
+    () => evmSign(MOCK_CERTIFICATE, CROSS_SIGN_URL),
     (error: unknown) => {
       assert.ok(error instanceof FastError);
       assert.equal((error as FastError).code, 'TX_FAILED');
@@ -294,7 +320,7 @@ test('evmSign throws FastError on HTTP error', async () => {
   onTestFinished(() => { globalThis.fetch = originalFetch; });
 
   await assert.rejects(
-    () => evmSign({ ok: true }, CROSS_SIGN_URL),
+    () => evmSign(MOCK_CERTIFICATE, CROSS_SIGN_URL),
     (error: unknown) => {
       assert.ok(error instanceof FastError);
       assert.equal((error as FastError).code, 'TX_FAILED');

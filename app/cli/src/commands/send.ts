@@ -1,6 +1,14 @@
 import { Args, Command, Options } from "@effect/cli"
-import { Effect, Option } from "effect"
-import { Signer, TransactionBuilder } from "@fastxyz/fast-sdk"
+import { Effect, Option, Schema } from "effect"
+import { bech32m } from "bech32"
+import { Signer, TransactionBuilder, FastProvider, hashHex } from "@fastxyz/fast-sdk"
+import { bcsSchema, VersionedTransactionFromBcs } from "@fastxyz/fast-schema"
+import {
+  executeDeposit,
+  executeWithdraw,
+  createEvmWallet,
+  createEvmExecutor,
+} from "@fastxyz/allset-sdk"
 import { AccountStore } from "../services/account-store.js"
 import { PasswordService } from "../services/password-service.js"
 import { FastRpc } from "../services/fast-rpc.js"
@@ -8,16 +16,19 @@ import { Output } from "../services/output.js"
 import { CliConfig } from "../services/cli-config.js"
 import { HistoryStore } from "../services/history-store.js"
 import { NetworkConfigService } from "../services/network-config.js"
+import { resolveToken } from "../services/token-resolver.js"
 import {
   InvalidAddressError,
   InvalidAmountError,
+  InvalidConfigError,
+  UnsupportedChainError,
   UserCancelledError,
   TransactionFailedError,
 } from "../errors/index.js"
 import { HistoryEntry } from "../schemas/history.js"
 
 const addressArg = Args.text({ name: "address" }).pipe(
-  Args.withDescription("Recipient address (fast1... for Fast)"),
+  Args.withDescription("Recipient address (fast1... for Fast, 0x... for EVM)"),
 )
 
 const amountArg = Args.text({ name: "amount" }).pipe(
@@ -25,8 +36,18 @@ const amountArg = Args.text({ name: "amount" }).pipe(
 )
 
 const tokenOption = Options.text("token").pipe(
-  Options.withDefault("USDC"),
-  Options.withDescription("Token to send"),
+  Options.withDefault("testUSDC"),
+  Options.withDescription("Token to send (e.g., testUSDC, USDC)"),
+)
+
+const fromChainOption = Options.text("from-chain").pipe(
+  Options.optional,
+  Options.withDescription("Source EVM chain for bridge-in (e.g., arbitrum-sepolia)"),
+)
+
+const toChainOption = Options.text("to-chain").pipe(
+  Options.optional,
+  Options.withDescription("Destination EVM chain for bridge-out (e.g., arbitrum-sepolia)"),
 )
 
 const bytesToHex = (bytes: Uint8Array): string =>
@@ -34,7 +55,13 @@ const bytesToHex = (bytes: Uint8Array): string =>
 
 export const sendCommand = Command.make(
   "send",
-  { address: addressArg, amount: amountArg, token: tokenOption },
+  {
+    address: addressArg,
+    amount: amountArg,
+    token: tokenOption,
+    fromChain: fromChainOption,
+    toChain: toChainOption,
+  },
   (args) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore
@@ -45,13 +72,54 @@ export const sendCommand = Command.make(
       const historyStore = yield* HistoryStore
       const networkConfig = yield* NetworkConfigService
 
-      // Validate address — Fast-to-Fast only
-      if (!args.address.startsWith("fast1")) {
+      const fromChain = Option.getOrUndefined(args.fromChain)
+      const toChain = Option.getOrUndefined(args.toChain)
+
+      // Determine route
+      const isFastAddress = args.address.startsWith("fast1")
+      const isEvmAddress = args.address.startsWith("0x") && args.address.length === 42
+
+      if (!isFastAddress && !isEvmAddress) {
         return yield* Effect.fail(
           new InvalidAddressError({
-            message: `EVM address requires --to-chain. Did you mean: fast send ${args.address} ${args.amount} --to-chain <chain>?`,
+            message: `Invalid recipient address "${args.address}". Must start with fast1 (Fast) or 0x (EVM).`,
           }),
         )
+      }
+
+      if (fromChain && isFastAddress === false) {
+        // --from-chain with EVM address doesn't make sense
+        return yield* Effect.fail(
+          new InvalidAddressError({
+            message: `--from-chain is for EVM→Fast deposits. Recipient must be a fast1 address.`,
+          }),
+        )
+      }
+
+      if (toChain && isEvmAddress === false) {
+        return yield* Effect.fail(
+          new InvalidAddressError({
+            message: `--to-chain is for Fast→EVM withdrawals. Recipient must be a 0x EVM address.`,
+          }),
+        )
+      }
+
+      if (isEvmAddress && !toChain) {
+        return yield* Effect.fail(
+          new InvalidAddressError({
+            message: `EVM recipient requires --to-chain. Example: fast send ${args.address} ${args.amount} --to-chain arbitrum-sepolia`,
+          }),
+        )
+      }
+
+      // Determine route label
+      let route: "fast" | "evm-to-fast" | "fast-to-evm"
+      if (fromChain) {
+        route = "evm-to-fast"
+      } else if (toChain) {
+        route = "fast-to-evm"
+      } else {
+        route = "fast"
       }
 
       // Parse amount
@@ -62,8 +130,27 @@ export const sendCommand = Command.make(
         )
       }
 
-      // Default to 6 decimals for USDC
-      const decimals = 6
+      // Resolve network
+      const network = yield* networkConfig.resolve(config.network).pipe(
+        Effect.mapError((e) => new TransactionFailedError({ message: e.message, cause: e })),
+      )
+
+      // Resolve token using the appropriate chain context
+      const tokenChain = fromChain ?? toChain
+      const tokenInfo = yield* Effect.try({
+        try: () => resolveToken(args.token, network, tokenChain),
+        catch: (e) => e as InvalidConfigError | Error,
+      }).pipe(
+        Effect.mapError((e) =>
+          "message" in (e as object)
+            ? (e as TransactionFailedError)
+            : new TransactionFailedError({ message: String(e), cause: e }),
+        ),
+      )
+
+      const { decimals } = tokenInfo
+
+      // Validate decimal places
       const decimalParts = args.amount.split(".")
       if (decimalParts.length > 1 && decimalParts[1]!.length > decimals) {
         return yield* Effect.fail(
@@ -80,17 +167,19 @@ export const sendCommand = Command.make(
       const pwd = yield* passwordService.resolve()
       const { seed } = yield* accounts.export_(accountInfo.name, pwd)
 
-      // Resolve network
-      const network = yield* networkConfig.resolve(config.network).pipe(
-        Effect.mapError((e) => new TransactionFailedError({ message: e.message, cause: e })),
-      )
-
       // Interactive confirmation
       if (!config.nonInteractive && !config.json) {
+        const routeLabel =
+          route === "evm-to-fast"
+            ? `EVM (${fromChain}) → Fast`
+            : route === "fast-to-evm"
+              ? `Fast → EVM (${toChain})`
+              : "Fast → Fast"
+
         yield* output.humanLine(`Send ${args.amount} ${args.token}`)
-        yield* output.humanLine(`  From:  ${accountInfo.name} (${accountInfo.fastAddress})`)
+        yield* output.humanLine(`  From:  ${accountInfo.name} (${route === "evm-to-fast" ? accountInfo.evmAddress : accountInfo.fastAddress})`)
         yield* output.humanLine(`  To:    ${args.address}`)
-        yield* output.humanLine(`  Route: Fast → Fast`)
+        yield* output.humanLine(`  Route: ${routeLabel}`)
         yield* output.humanLine(`  Token: ${args.token}`)
         yield* output.humanLine("")
         const confirmed = yield* output.confirm("Confirm?")
@@ -99,86 +188,195 @@ export const sendCommand = Command.make(
         }
       }
 
-      // Build and sign transaction
-      const signer = new Signer(seed)
+      let txHash: string
+      let estimatedTime: string | null = null
+      let evmExplorerUrl: string | null = null
 
-      // Get account nonce
-      const { bech32m } = require("bech32") as typeof import("bech32")
-      const senderBytes = new Uint8Array(
-        bech32m.fromWords(bech32m.decode(accountInfo.fastAddress).words),
-      )
-      const rpcAccountInfo = yield* rpc.getAccountInfo({ sender: senderBytes })
-      const nonce = (rpcAccountInfo as any)?.nextNonce ?? 0n
+      if (route === "evm-to-fast") {
+        // ── EVM → Fast (bridge-in) ──────────────────────────────────────────
+        const allset = network.allset
+        if (!allset) {
+          return yield* Effect.fail(
+            new InvalidConfigError({
+              message: `Network "${config.network}" does not have AllSet bridge config`,
+            }),
+          )
+        }
+        const chainCfg = allset.chains[fromChain!]
+        if (!chainCfg) {
+          return yield* Effect.fail(new UnsupportedChainError({ chain: fromChain! }))
+        }
 
-      // Decode recipient address to bytes
-      const recipientBytes = new Uint8Array(
-        bech32m.fromWords(bech32m.decode(args.address).words),
-      )
+        const evmAccount = createEvmWallet(bytesToHex(seed))
+        const evmClients = createEvmExecutor(evmAccount, chainCfg.evmRpcUrl, chainCfg.chainId)
 
-      // TODO: Resolve token ID properly. For now, use a placeholder for USDC.
-      const tokenId = new Uint8Array(32) // placeholder — needs real token resolution
+        const bridgeResult = yield* Effect.tryPromise({
+          try: () =>
+            executeDeposit({
+              chainId: chainCfg.chainId,
+              bridgeContract: chainCfg.bridgeContract as `0x${string}`,
+              tokenAddress: tokenInfo.evmAddress! as `0x${string}`,
+              isNative: false,
+              amount: amountRaw.toString(),
+              senderAddress: evmAccount.address,
+              receiverAddress: args.address,
+              evmClients,
+            }),
+          catch: (cause) =>
+            new TransactionFailedError({
+              message: cause instanceof Error ? cause.message : "Bridge deposit failed",
+              cause,
+            }),
+        })
 
-      const builder = new TransactionBuilder({
-        networkId: network.networkId as any,
-        signer,
-        nonce,
-      })
+        txHash = bridgeResult.txHash
+        evmExplorerUrl = chainCfg.evmExplorerUrl
+        estimatedTime = bridgeResult.estimatedTime ?? "1-5 minutes"
+      } else if (route === "fast-to-evm") {
+        // ── Fast → EVM (bridge-out) ─────────────────────────────────────────
+        const allset = network.allset
+        if (!allset) {
+          return yield* Effect.fail(
+            new InvalidConfigError({
+              message: `Network "${config.network}" does not have AllSet bridge config`,
+            }),
+          )
+        }
+        const chainCfg = allset.chains[toChain!]
+        if (!chainCfg) {
+          return yield* Effect.fail(new UnsupportedChainError({ chain: toChain! }))
+        }
 
-      const envelope = yield* Effect.tryPromise({
-        try: () =>
-          builder
-            .addTokenTransfer({
-              tokenId,
-              recipient: recipientBytes,
-              amount: amountRaw,
-              userData: null,
-            })
-            .sign(),
-        catch: (cause) =>
-          new TransactionFailedError({ message: "Failed to build transaction", cause }),
-      })
+        const signer = new Signer(seed)
+        const provider = new FastProvider({ rpcUrl: network.rpcUrl })
 
-      // Submit
-      const result = yield* rpc.submitTransaction(envelope)
+        const bridgeResult = yield* Effect.tryPromise({
+          try: () =>
+            executeWithdraw({
+              fastBridgeAddress: chainCfg.fastBridgeAddress,
+              relayerUrl: chainCfg.relayerUrl,
+              crossSignUrl: allset.crossSignUrl,
+              tokenEvmAddress: tokenInfo.evmAddress!,
+              tokenFastTokenId: tokenInfo.fastTokenId.reduce(
+                (s, b) => s + b.toString(16).padStart(2, "0"),
+                "",
+              ),
+              amount: amountRaw.toString(),
+              receiverEvmAddress: args.address,
+              signer,
+              provider,
+              networkId: network.networkId,
+            }),
+          catch: (cause) =>
+            new TransactionFailedError({
+              message: cause instanceof Error ? cause.message : "Bridge withdrawal failed",
+              cause,
+            }),
+        })
 
-      const txHash = bytesToHex(
-        typeof result === "object" && result !== null && "hash" in result
-          ? (result as any).hash
-          : new Uint8Array(32),
-      )
-      const explorerUrl = `${network.explorerUrl}/tx/${txHash}`
+        txHash = bridgeResult.txHash
+        estimatedTime = bridgeResult.estimatedTime ?? "1-5 minutes"
+      } else {
+        // ── Fast → Fast ─────────────────────────────────────────────────────
+        const signer = new Signer(seed)
+
+        const publicKey = yield* Effect.tryPromise({
+          try: () => signer.getPublicKey(),
+          catch: (cause) => new TransactionFailedError({ message: "Failed to get public key", cause }),
+        })
+
+        const accountInfoRpc = yield* rpc.getAccountInfo({
+          address: publicKey,
+          tokenBalancesFilter: null,
+          stateKeyFilter: null,
+          certificateByNonce: null,
+        })
+        const nonce = (accountInfoRpc as any)?.nextNonce ?? 0n
+
+        const recipientBytes = new Uint8Array(
+          bech32m.fromWords(bech32m.decode(args.address).words),
+        )
+
+        const builder = new TransactionBuilder({
+          networkId: network.networkId as any,
+          signer,
+          nonce,
+        })
+
+        const envelope = yield* Effect.tryPromise({
+          try: () =>
+            builder
+              .addTokenTransfer({
+                tokenId: tokenInfo.fastTokenId,
+                recipient: recipientBytes,
+                amount: amountRaw,
+                userData: null,
+              })
+              .sign(),
+          catch: (cause) =>
+            new TransactionFailedError({ message: "Failed to build transaction", cause }),
+        })
+
+        yield* rpc.submitTransaction(envelope)
+
+        // Compute the transaction hash from the signed envelope
+        const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(envelope.transaction).pipe(
+          Effect.mapError((cause) => new TransactionFailedError({ message: "Failed to encode transaction for hashing", cause })),
+        )
+        txHash = yield* Effect.tryPromise({
+          try: () => hashHex(bcsSchema.VersionedTransaction, bcsInput),
+          catch: (cause) => new TransactionFailedError({ message: "Failed to compute transaction hash", cause }),
+        })
+      }
+
+      // evm-to-fast: EVM deposit tx → EVM chain explorer (/tx/)
+      // fast-to-evm: Fast burn tx → Fast explorer (/txs/)
+      // fast→fast:   Fast tx → Fast explorer (/txs/)
+      const explorerUrl =
+        route === "evm-to-fast" && evmExplorerUrl
+          ? `${evmExplorerUrl}/tx/${txHash}`
+          : `${network.explorerUrl}/txs/${txHash}`
 
       // Record in local history
       yield* historyStore.record(
         new HistoryEntry({
           hash: txHash,
           type: "transfer",
-          from: accountInfo.fastAddress,
+          from: route === "evm-to-fast" ? accountInfo.evmAddress : accountInfo.fastAddress,
           to: args.address,
           amount: amountRaw.toString(),
           formatted: args.amount,
           tokenName: args.token,
-          tokenId: bytesToHex(tokenId),
+          tokenId: bytesToHex(tokenInfo.fastTokenId),
           network: config.network,
-          status: "confirmed",
+          status: route === "fast" ? "confirmed" : "pending",
           timestamp: new Date().toISOString(),
           explorerUrl,
         }),
       )
 
-      yield* output.humanLine(`Sent ${args.amount} ${args.token} to ${args.address}`)
-      yield* output.humanLine(`  Transaction: ${txHash}`)
-      yield* output.humanLine(`  Explorer:    ${explorerUrl}`)
+      if (estimatedTime) {
+        yield* output.humanLine(`Sent ${args.amount} ${args.token} to ${args.address}`)
+        yield* output.humanLine(`  Transaction: ${txHash}`)
+        yield* output.humanLine(`  Explorer:    ${explorerUrl}`)
+        yield* output.humanLine(`  Estimated:   ${estimatedTime}`)
+      } else {
+        yield* output.humanLine(`Sent ${args.amount} ${args.token} to ${args.address}`)
+        yield* output.humanLine(`  Transaction: ${txHash}`)
+        yield* output.humanLine(`  Explorer:    ${explorerUrl}`)
+      }
+
       yield* output.success({
         txHash,
-        from: accountInfo.fastAddress,
+        from: route === "evm-to-fast" ? accountInfo.evmAddress : accountInfo.fastAddress,
         to: args.address,
         amount: amountRaw.toString(),
         formatted: args.amount,
         tokenName: args.token,
-        route: "fast",
+        route,
         explorerUrl,
-        estimatedTime: null,
+        estimatedTime,
       })
     }),
-).pipe(Command.withDescription("Send tokens between Fast addresses"))
+).pipe(Command.withDescription("Send tokens (Fast→Fast, EVM→Fast, or Fast→EVM)"))
+

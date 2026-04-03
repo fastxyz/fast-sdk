@@ -1,5 +1,20 @@
 import { Command, Options } from "@effect/cli"
+import { readFileSync } from "node:fs"
+import { homedir } from "node:os"
+import { join } from "node:path"
 import { Context, Layer, type Option } from "effect"
+
+const NETWORKS_FILE = join(homedir(), ".fast", "networks.json")
+
+const readDefaultNetwork = (): string => {
+  try {
+    const content = readFileSync(NETWORKS_FILE, "utf-8")
+    const data = JSON.parse(content)
+    return typeof data.default === "string" ? data.default : "testnet"
+  } catch {
+    return "testnet"
+  }
+}
 
 // --- Global CLI options (single source of truth) ---
 
@@ -21,7 +36,7 @@ const nonInteractiveOption = Options.boolean("non-interactive").pipe(
 )
 
 const networkOption = Options.text("network").pipe(
-  Options.withDefault("testnet"),
+  Options.withDefault(readDefaultNetwork()),
   Options.withDescription("Override the network for this command"),
 )
 

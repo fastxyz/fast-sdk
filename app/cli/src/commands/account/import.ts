@@ -1,5 +1,6 @@
 import { Command, Options } from "@effect/cli"
 import { Effect, Option } from "effect"
+import { readFileSync } from "node:fs"
 import { AccountStore } from "../../services/account-store.js"
 import { PasswordService } from "../../services/password-service.js"
 import { Output } from "../../services/output.js"
@@ -56,8 +57,7 @@ export const accountImport = Command.make(
           )
         }
       } else if (Option.isSome(args.keyFile)) {
-        const fs = require("node:fs") as typeof import("node:fs")
-        const content = fs.readFileSync(args.keyFile.value, "utf-8")
+        const content = readFileSync(args.keyFile.value, "utf-8")
         const parsed = JSON.parse(content) as { privateKey?: string }
         if (!parsed.privateKey) {
           return yield* Effect.fail(

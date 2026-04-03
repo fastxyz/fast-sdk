@@ -1,4 +1,5 @@
 import { Context, Effect, Layer, Option } from "effect"
+import * as readline from "node:readline"
 import { PasswordRequiredError } from "../errors/index.js"
 import { CliConfig } from "./cli-config.js"
 
@@ -15,26 +16,50 @@ const promptPassword = (
   prompt: string,
 ): Effect.Effect<string, PasswordRequiredError> =>
   Effect.async<string, PasswordRequiredError>((resume) => {
-    const readline =
-      require("node:readline") as typeof import("node:readline")
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stderr,
-      terminal: true,
-    })
-
     process.stderr.write(prompt)
 
-    // Suppress echo for password entry
-    const origWrite = (rl as any)._writeToOutput
-    ;(rl as any)._writeToOutput = () => {}
+    if (process.stdin.isTTY) {
+      // TTY mode: use raw input so characters aren't echoed
+      let password = ""
+      process.stdin.setRawMode(true)
+      process.stdin.resume()
+      process.stdin.setEncoding("utf8")
 
-    rl.question("", (answer) => {
-      ;(rl as any)._writeToOutput = origWrite
-      rl.close()
-      process.stderr.write("\n")
-      resume(Effect.succeed(answer))
-    })
+      const onData = (char: string) => {
+        if (char === "\r" || char === "\n" || char === "\u0004") {
+          cleanup()
+          process.stderr.write("\n")
+          resume(Effect.succeed(password))
+        } else if (char === "\u0003") {
+          // Ctrl+C
+          cleanup()
+          process.exit(130)
+        } else if (char === "\u007f" || char === "\b") {
+          // Backspace
+          password = password.slice(0, -1)
+        } else {
+          password += char
+        }
+      }
+
+      const cleanup = () => {
+        process.stdin.removeListener("data", onData)
+        process.stdin.pause()
+        process.stdin.setRawMode(false)
+      }
+
+      process.stdin.on("data", onData)
+    } else {
+      // Non-TTY (piped): fall back to readline
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stderr,
+      })
+      rl.question("", (answer) => {
+        rl.close()
+        resume(Effect.succeed(answer))
+      })
+    }
   })
 
 export const PasswordServiceLive = Layer.effect(

@@ -12,10 +12,12 @@
   },
   "dependencies": {
     "@effect/cli": "^0.75.0",
+    "bech32": "^2.0.0",
     "@effect/platform": "^0.96.0",
     "@effect/platform-node": "^0.106.0",
     "@fastxyz/fast-schema": "workspace:*",
     "@fastxyz/fast-sdk": "workspace:*",
+    "@fastxyz/allset-sdk": "workspace:*",
     "@effect/printer": "^0.49.0",
     "@effect/printer-ansi": "^0.49.0",
     "@effect/typeclass": "^0.40.0",

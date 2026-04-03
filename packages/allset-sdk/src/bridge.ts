@@ -1,5 +1,7 @@
 import { decodeAbiParameters, encodeAbiParameters } from 'viem';
 import { FastProvider, Signer, TransactionBuilder, toHex } from '@fastxyz/fast-sdk';
+import { Schema } from 'effect';
+import { TransactionCertificateFromRpc } from '@fastxyz/fast-schema';
 import { FastError } from './errors.js';
 import { fastAddressToBytes } from './address.js';
 import { buildDepositTransaction } from './deposit.js';
@@ -22,6 +24,7 @@ function hexToUint8Array(hex: string): Uint8Array {
 
 function bigIntToNumber(obj: unknown): unknown {
   if (typeof obj === 'bigint') return Number(obj);
+  if (obj instanceof Uint8Array) return Array.from(obj);
   if (Array.isArray(obj)) return obj.map(bigIntToNumber);
   if (obj !== null && typeof obj === 'object') {
     const result: Record<string, unknown> = {};
@@ -132,7 +135,8 @@ export async function evmSign(
   certificate: unknown,
   crossSignUrl: string,
 ): Promise<EvmSignResult> {
-  const serialized = bigIntToNumber(certificate);
+  const wireFormat = Schema.encodeSync(TransactionCertificateFromRpc)(certificate as never);
+  const serialized = bigIntToNumber(wireFormat);
   const res = await fetch(crossSignUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

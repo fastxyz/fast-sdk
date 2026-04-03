@@ -1,3 +1,4 @@
+import * as readline from "node:readline"
 import { Context, Effect, Layer } from "effect"
 import * as readline from "node:readline"
 import { type CliError, toErrorCode } from "../errors/index.js"

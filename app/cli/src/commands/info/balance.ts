@@ -1,4 +1,5 @@
 import { Command, Options } from "@effect/cli";
+import { bech32m } from "bech32";
 import { Effect, Option } from "effect";
 import { bech32m } from "bech32";
 import { InvalidAddressError } from "../../errors/index.js";
@@ -62,7 +63,12 @@ export const infoBalance = Command.make(
         senderBytes = fromFastAddress(fastAddress);
       }
 
-      const accountInfo = yield* rpc.getAccountInfo({ sender: senderBytes });
+      const accountInfo = yield* rpc.getAccountInfo({
+        address: senderBytes,
+        tokenBalancesFilter: null,
+        stateKeyFilter: null,
+        certificateByNonce: null,
+      });
 
       // Extract balances from account info
       const balances: Array<{

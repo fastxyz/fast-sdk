@@ -1,3 +1,4 @@
+import * as readline from "node:readline"
 import { Context, Effect, Layer, Option } from "effect"
 import * as readline from "node:readline"
 import { PasswordRequiredError } from "../errors/index.js"

@@ -1,10 +1,12 @@
-import { decodeAbiParameters, encodeAbiParameters } from 'viem';
+import { decodeAbiParameters } from 'viem';
 import { FastProvider, Signer, TransactionBuilder, toHex } from '@fastxyz/fast-sdk';
 import { FastError } from './errors.js';
 import { fastAddressToBytes } from './address.js';
 import { buildDepositTransaction } from './deposit.js';
 import { IntentAction, buildTransferIntent, type Intent } from './intents.js';
 import { ERC20_ABI, type EvmClients } from './evm-executor.js';
+import { encodeIntentClaim, extractClaimId } from './claims.js';
+import { relayExecute } from './relay.js';
 import type { BridgeResult, ExecuteDepositParams, ExecuteIntentParams, ExecuteWithdrawParams } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -348,30 +350,11 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
   const transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
 
   // Derive the Fast tx ID from cross-sign bytes[32:64] — this is the canonical transaction hash
-  const transferFastTxId = toHex(new Uint8Array(transferCrossSign.transaction.slice(32, 64))) as `0x${string}`;
+  const transferFastTxId = extractClaimId(transferCrossSign.transaction);
 
   // Step 3: Build and encode the intent claim
   const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
-  const intentClaimEncoded = encodeAbiParameters(
-    [{
-      type: 'tuple',
-      components: [
-        { name: 'transferFastTxId', type: 'bytes32' },
-        { name: 'deadline', type: 'uint256' },
-        {
-          name: 'intents',
-          type: 'tuple[]',
-          components: [
-            { name: 'action', type: 'uint8' },
-            { name: 'payload', type: 'bytes' },
-            { name: 'value', type: 'uint256' },
-          ],
-        },
-      ],
-    }],
-    [{ transferFastTxId, deadline, intents: intents.map(i => ({ action: i.action, payload: i.payload, value: i.value })) }],
-  );
-
+  const intentClaimEncoded = encodeIntentClaim({ transferFastTxId, deadline, intents });
   const intentBytes = hexToUint8Array(intentClaimEncoded);
 
   // Step 4: Submit intent claim on Fast network
@@ -406,7 +389,7 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
 
   // Step 5: Cross-sign the intent certificate
   const intentCrossSign = await evmSign(intentResult.value, crossSignUrl);
-  const intentFastTxId = toHex(new Uint8Array(intentCrossSign.transaction.slice(32, 64))) as `0x${string}`;
+  const intentFastTxId = extractClaimId(intentCrossSign.transaction);
 
   // Step 6: Resolve external address and submit to relayer
   const externalAddress = resolveExternalAddress(intents, externalAddressOverride);
@@ -418,32 +401,19 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
     );
   }
 
-  const relayerBody = {
-    encoded_transfer_claim: Array.from(new Uint8Array(transferCrossSign.transaction.map(Number))),
-    transfer_proof: transferCrossSign.signature,
-    transfer_fast_tx_id: transferFastTxId,
-    transfer_claim_id: transferFastTxId,
-    fastset_address: fastAddress,
-    external_address: externalAddress,
-    encoded_intent_claim: Array.from(new Uint8Array(intentCrossSign.transaction.map(Number))),
-    intent_proof: intentCrossSign.signature,
-    intent_fast_tx_id: intentFastTxId,
-    intent_claim_id: intentFastTxId,
-    external_token_address: tokenEvmAddress,
-  };
-
-  const relayRes = await fetch(`${relayerUrl}/relay`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(relayerBody),
+  await relayExecute({
+    relayerUrl,
+    encodedTransferClaim: Array.from(new Uint8Array(transferCrossSign.transaction.map(Number))),
+    transferProof: transferCrossSign.signature,
+    transferFastTxId,
+    fastsetAddress: fastAddress,
+    externalAddress,
+    encodedIntentClaim: Array.from(new Uint8Array(intentCrossSign.transaction.map(Number))),
+    intentProof: intentCrossSign.signature,
+    intentFastTxId,
+    intentClaimId: intentFastTxId,
+    externalTokenAddress: tokenEvmAddress,
   });
-
-  if (!relayRes.ok) {
-    const text = await relayRes.text();
-    throw new FastError('TX_FAILED', `Relayer request failed (${relayRes.status}): ${text}`, {
-      note: 'The intent was submitted to Fast network but the relayer rejected it. Try again.',
-    });
-  }
 
   return {
     txHash: transferFastTxId,

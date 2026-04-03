@@ -1,4 +1,4 @@
-import type { Schema } from "effect";
+import type { Schema } from 'effect';
 
 export type S = Schema.Schema.AnyNoContext;
 
@@ -39,8 +39,8 @@ import {
   UserDataFromBcs,
   UserDataFromRest,
   UserDataFromRpc,
-} from "../base/index.ts";
-import { BigIntFromNumberOrSelf } from "../util/index.ts";
+} from '../base/index.ts';
+import { BigIntFromNumberOrSelf } from '../util/index.ts';
 
 export interface BasePalette {
   readonly Amount: S;

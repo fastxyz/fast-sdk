@@ -5,7 +5,7 @@ import {
   makeTransactionCertificate,
   makeTransactionEnvelope,
   makeValidatedTransaction,
-} from "../composite/envelope.ts";
+} from '../composite/envelope.ts';
 import {
   makeBurn,
   makeClaimType,
@@ -23,7 +23,7 @@ import {
   makeTokenTransfer,
   makeValidatorConfig,
   makeVerifierSig,
-} from "../composite/operations.ts";
+} from '../composite/operations.ts';
 import {
   makeAccountInfoResponse,
   makeConfirmTransactionResponse,
@@ -33,11 +33,8 @@ import {
   makeSubmitTransactionResponse,
   makeTokenInfoResponse,
   makeTokenMetadata,
-} from "../composite/response.ts";
-import {
-  makeTransaction,
-  makeVersionedTransaction,
-} from "../composite/transaction.ts";
+} from '../composite/response.ts';
+import { makeTransaction, makeVersionedTransaction } from '../composite/transaction.ts';
 import {
   makeFaucetDripParams,
   makeGetAccountInfoParams,
@@ -45,8 +42,8 @@ import {
   makeGetTokenInfoParams,
   makeGetTransactionCertificatesParams,
   makeSubmitTransactionParams,
-} from "../interface/proxy.ts";
-import { RpcPalette } from "./definition.ts";
+} from '../interface/proxy.ts';
+import { RpcPalette } from './definition.ts';
 
 const p = RpcPalette;
 
@@ -79,20 +76,16 @@ export const PageRequestFromRpc = makePageRequest(p);
 export const TokenMetadataFromRpc = makeTokenMetadata(p);
 export const AccountInfoResponseFromRpc = makeAccountInfoResponse(p);
 export const TokenInfoResponseFromRpc = makeTokenInfoResponse(p);
-export const SubmitTransactionResponseFromRpc =
-  makeSubmitTransactionResponse(p);
-export const ConfirmTransactionResponseFromRpc =
-  makeConfirmTransactionResponse(p);
-export const ProxySubmitTransactionResultFromRpc =
-  makeProxySubmitTransactionResult(p);
+export const SubmitTransactionResponseFromRpc = makeSubmitTransactionResponse(p);
+export const ConfirmTransactionResponseFromRpc = makeConfirmTransactionResponse(p);
+export const ProxySubmitTransactionResultFromRpc = makeProxySubmitTransactionResult(p);
 
 export const SubmitTransactionParamsFromRpc = makeSubmitTransactionParams(p);
 export const FaucetDripParamsFromRpc = makeFaucetDripParams(p);
 export const GetAccountInfoParamsFromRpc = makeGetAccountInfoParams(p);
 export const GetPendingMultisigParamsFromRpc = makeGetPendingMultisigParams(p);
 export const GetTokenInfoParamsFromRpc = makeGetTokenInfoParams(p);
-export const GetTransactionCertificatesParamsFromRpc =
-  makeGetTransactionCertificatesParams(p);
+export const GetTransactionCertificatesParamsFromRpc = makeGetTransactionCertificatesParams(p);
 
 export type TokenTransfer = typeof TokenTransferFromRpc.Type;
 export type TokenCreation = typeof TokenCreationFromRpc.Type;
@@ -123,18 +116,12 @@ export type PageRequest = typeof PageRequestFromRpc.Type;
 export type TokenMetadata = typeof TokenMetadataFromRpc.Type;
 export type AccountInfoResponse = typeof AccountInfoResponseFromRpc.Type;
 export type TokenInfoResponse = typeof TokenInfoResponseFromRpc.Type;
-export type SubmitTransactionResponse =
-  typeof SubmitTransactionResponseFromRpc.Type;
-export type ConfirmTransactionResponse =
-  typeof ConfirmTransactionResponseFromRpc.Type;
-export type SubmitTransactionResult =
-  typeof ProxySubmitTransactionResultFromRpc.Type;
-export type SubmitTransactionParams =
-  typeof SubmitTransactionParamsFromRpc.Type;
+export type SubmitTransactionResponse = typeof SubmitTransactionResponseFromRpc.Type;
+export type ConfirmTransactionResponse = typeof ConfirmTransactionResponseFromRpc.Type;
+export type SubmitTransactionResult = typeof ProxySubmitTransactionResultFromRpc.Type;
+export type SubmitTransactionParams = typeof SubmitTransactionParamsFromRpc.Type;
 export type FaucetDripParams = typeof FaucetDripParamsFromRpc.Type;
 export type GetAccountInfoParams = typeof GetAccountInfoParamsFromRpc.Type;
-export type GetPendingMultisigParams =
-  typeof GetPendingMultisigParamsFromRpc.Type;
+export type GetPendingMultisigParams = typeof GetPendingMultisigParamsFromRpc.Type;
 export type GetTokenInfoParams = typeof GetTokenInfoParamsFromRpc.Type;
-export type GetTransactionCertificatesParams =
-  typeof GetTransactionCertificatesParamsFromRpc.Type;
+export type GetTransactionCertificatesParams = typeof GetTransactionCertificatesParamsFromRpc.Type;

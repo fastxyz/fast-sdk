@@ -8,26 +8,13 @@
 import { createPublicClient, http, erc20Abi } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { EvmChainConfig } from '@fastxyz/x402-types';
-import type {
-  EvmWallet,
-  FastWallet,
-  PaymentRequired,
-  ClientPaymentRequirement,
-  X402PayResult,
-  Eip3009Authorization,
-  BridgeConfig,
-} from './types.js';
+import type { EvmWallet, FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResult, Eip3009Authorization, BridgeConfig } from './types.js';
 import { bridgeFastusdcToUsdc, getFastBalance } from './bridge.js';
 
 /**
  * Get EVM USDC balance
  */
-async function getEvmUsdcBalance(
-  address: `0x${string}`,
-  usdcAddress: `0x${string}`,
-  chainId: number,
-  rpcUrl: string,
-): Promise<bigint> {
+async function getEvmUsdcBalance(address: `0x${string}`, usdcAddress: `0x${string}`, chainId: number, rpcUrl: string): Promise<bigint> {
   const client = createPublicClient({
     transport: http(rpcUrl),
   });
@@ -62,7 +49,7 @@ async function pollForBalance(
   let pollCount = 0;
 
   while (Date.now() - startTime < maxWaitMs) {
-    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
     pollCount++;
 
     const balance = await getEvmUsdcBalance(address, usdcAddress, chainId, rpcUrl);
@@ -133,14 +120,12 @@ export async function handleEvmPayment(
     if (!fastWallet) {
       throw new Error(
         `Insufficient USDC balance: have ${Number(currentBalance) / 1e6}, need ${Number(requiredAmount) / 1e6}. ` +
-        `Provide a Fast wallet with USDC to enable auto-bridge.`
+          `Provide a Fast wallet with USDC to enable auto-bridge.`,
       );
     }
 
     if (!bridgeConfig) {
-      throw new Error(
-        `Insufficient USDC balance and no bridge config provided for ${evmReq.network}`
-      );
+      throw new Error(`Insufficient USDC balance and no bridge config provided for ${evmReq.network}`);
     }
 
     log(`[EVM] Checking Fast USDC balance...`);
@@ -154,8 +139,8 @@ export async function handleEvmPayment(
     if (fastBalance < shortfall) {
       throw new Error(
         `Insufficient balance for payment. ` +
-        `EVM USDC: ${Number(currentBalance) / 1e6}, Fast USDC: ${Number(fastBalance) / 1e6}, ` +
-        `Need: ${Number(requiredAmount) / 1e6}`
+          `EVM USDC: ${Number(currentBalance) / 1e6}, Fast USDC: ${Number(fastBalance) / 1e6}, ` +
+          `Need: ${Number(requiredAmount) / 1e6}`,
       );
     }
 
@@ -200,7 +185,7 @@ export async function handleEvmPayment(
     if (!pollResult.arrived) {
       throw new Error(
         `Bridge submitted (${bridgeTxHash}) but USDC has not arrived after 2 minutes. ` +
-        `The bridge may still be processing. Check your balance later and retry.`
+          `The bridge may still be processing. Check your balance later and retry.`,
       );
     }
 
@@ -284,10 +269,16 @@ export async function handleEvmPayment(
   log(`  Response: ${paidRes.status} ${paidRes.statusText}`);
 
   const resHeaders: Record<string, string> = {};
-  paidRes.headers.forEach((v: string, k: string) => { resHeaders[k] = v; });
+  paidRes.headers.forEach((v: string, k: string) => {
+    resHeaders[k] = v;
+  });
 
   let resBody: unknown;
-  try { resBody = await paidRes.json(); } catch { resBody = await paidRes.text(); }
+  try {
+    resBody = await paidRes.json();
+  } catch {
+    resBody = await paidRes.text();
+  }
 
   let settleTxHash = signature.slice(0, 66);
   if (typeof resBody === 'object' && resBody !== null) {

@@ -1,4 +1,4 @@
-import { Schema, String as Str } from "effect";
+import { Schema, String as Str } from 'effect';
 
 /**
  * Converts a snake_case string to camelCase at the type level.
@@ -7,10 +7,7 @@ import { Schema, String as Str } from "effect";
  * type R = SnakeToCamel<"token_id">; // "tokenId"
  * type R = SnakeToCamel<"recipient">; // "recipient"
  */
-export type SnakeToCamel<S extends string> = S extends `${infer T}_${infer U}`
-  ? `${T}${Capitalize<SnakeToCamel<U>>}`
-  : S;
-
+export type SnakeToCamel<S extends string> = S extends `${infer T}_${infer U}` ? `${T}${Capitalize<SnakeToCamel<U>>}` : S;
 
 /**
  * Builds a `Schema.Struct` where snake_case wire keys are automatically
@@ -29,9 +26,7 @@ export type SnakeToCamel<S extends string> = S extends `${infer T}_${infer U}`
  * // Type:    { tokenId, recipient, amount, userData }
  * // Encoded: { token_id, recipient, amount, user_data }
  */
-export const CamelCaseStruct = <
-  Fields extends Record<string, Schema.Schema.All>,
->(
+export const CamelCaseStruct = <Fields extends Record<string, Schema.Schema.All>>(
   fields: Fields,
 ): Schema.Schema<
   { [K in keyof Fields as K extends string ? SnakeToCamel<K> : K]: Schema.Schema.Type<Fields[K]> },
@@ -45,9 +40,7 @@ export const CamelCaseStruct = <
     const camelKey = Str.snakeToCamel(key);
 
     if (camelKey !== key) {
-      structFields[camelKey] = Schema.propertySignature(schema).pipe(
-        Schema.fromKey(key),
-      );
+      structFields[camelKey] = Schema.propertySignature(schema).pipe(Schema.fromKey(key));
     } else {
       structFields[camelKey] = schema;
     }

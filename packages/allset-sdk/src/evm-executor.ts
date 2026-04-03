@@ -1,13 +1,4 @@
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseAbi,
-  type Account,
-  type Chain,
-  type PublicClient,
-  type WalletClient,
-} from 'viem';
+import { createPublicClient, createWalletClient, http, parseAbi, type Account, type Chain, type PublicClient, type WalletClient } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, arbitrumSepolia, base, mainnet as ethereum, sepolia } from 'viem/chains';
 
@@ -90,13 +81,8 @@ export interface EvmClients {
  * const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, 421614);
  * ```
  */
-export function createEvmExecutor(
-  account: Account,
-  rpcUrl: string,
-  chainOrId: Chain | number,
-): EvmClients {
-  const chain =
-    typeof chainOrId === 'number' ? resolveChain(chainOrId) : chainOrId;
+export function createEvmExecutor(account: Account, rpcUrl: string, chainOrId: Chain | number): EvmClients {
+  const chain = typeof chainOrId === 'number' ? resolveChain(chainOrId) : chainOrId;
 
   const walletClient = createWalletClient({
     account,

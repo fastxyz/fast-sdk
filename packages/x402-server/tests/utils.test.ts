@@ -3,11 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  parsePrice,
-  encodePayload,
-  decodePayload,
-} from '../src/utils.js';
+import { parsePrice, encodePayload, decodePayload } from '../src/utils.js';
 
 describe('x402-server utils', () => {
   describe('parsePrice', () => {
@@ -48,10 +44,10 @@ describe('x402-server utils', () => {
     it('should encode and decode JSON payload', () => {
       const payload = { success: true, txHash: '0x123' };
       const encoded = encodePayload(payload);
-      
+
       expect(typeof encoded).toBe('string');
       expect(encoded.length).toBeGreaterThan(0);
-      
+
       const decoded = decodePayload(encoded);
       expect(decoded).toEqual(payload);
     });
@@ -61,7 +57,7 @@ describe('x402-server utils', () => {
         nested: { deep: { value: [1, 2, 3] } },
         unicode: '日本語',
       };
-      
+
       const encoded = encodePayload(payload);
       const decoded = decodePayload(encoded);
       expect(decoded).toEqual(payload);

@@ -3,12 +3,7 @@
  */
 
 import { describe, it, afterEach, expect } from 'vitest';
-import { 
-  x402Pay, 
-  parse402Response, 
-  buildPaymentHeader, 
-  parsePaymentHeader,
-} from '../src/index.js';
+import { x402Pay, parse402Response, buildPaymentHeader, parsePaymentHeader } from '../src/index.js';
 import { mockEvmWallet, mockFastWallet, mock402Response, createMockFetch } from './helpers.js';
 
 const originalFetch = globalThis.fetch;
@@ -68,9 +63,7 @@ describe('x402-client', () => {
 
   describe('x402Pay', () => {
     it('should return success for non-402 response', async () => {
-      globalThis.fetch = createMockFetch([
-        { status: 200, body: { data: 'free content' } },
-      ]);
+      globalThis.fetch = createMockFetch([{ status: 200, body: { data: 'free content' } }]);
 
       const result = await x402Pay({
         url: 'https://api.example.com/free',
@@ -85,35 +78,29 @@ describe('x402-client', () => {
     });
 
     it('should throw if no payment requirements in 402', async () => {
-      globalThis.fetch = createMockFetch([
-        { status: 402, body: { error: 'Payment required', accepts: [] } },
-      ]);
+      globalThis.fetch = createMockFetch([{ status: 402, body: { error: 'Payment required', accepts: [] } }]);
 
       await expect(
         x402Pay({
           url: 'https://api.example.com/paid',
           wallet: mockEvmWallet,
-        })
+        }),
       ).rejects.toThrow(/No payment requirements/);
     });
 
     it('should throw if no matching wallet for network', async () => {
-      globalThis.fetch = createMockFetch([
-        { status: 402, body: mock402Response('arbitrum-sepolia') },
-      ]);
+      globalThis.fetch = createMockFetch([{ status: 402, body: mock402Response('arbitrum-sepolia') }]);
 
       await expect(
         x402Pay({
           url: 'https://api.example.com/paid',
           wallet: mockFastWallet,
-        })
+        }),
       ).rejects.toThrow(/No matching wallet/);
     });
 
     it('should accept array of wallets', async () => {
-      globalThis.fetch = createMockFetch([
-        { status: 200, body: { data: 'content' } },
-      ]);
+      globalThis.fetch = createMockFetch([{ status: 200, body: { data: 'content' } }]);
 
       const result = await x402Pay({
         url: 'https://api.example.com/data',
@@ -124,9 +111,7 @@ describe('x402-client', () => {
     });
 
     it('should include logs when verbose=true', async () => {
-      globalThis.fetch = createMockFetch([
-        { status: 200, body: { data: 'content' } },
-      ]);
+      globalThis.fetch = createMockFetch([{ status: 200, body: { data: 'content' } }]);
 
       const result = await x402Pay({
         url: 'https://api.example.com/data',
@@ -136,13 +121,11 @@ describe('x402-client', () => {
 
       expect(Array.isArray(result.logs)).toBe(true);
       expect(result.logs!.length).toBeGreaterThan(0);
-      expect(result.logs!.some(log => log.includes('x402Pay START'))).toBe(true);
+      expect(result.logs!.some((log) => log.includes('x402Pay START'))).toBe(true);
     });
 
     it('should not include logs when verbose=false', async () => {
-      globalThis.fetch = createMockFetch([
-        { status: 200, body: { data: 'content' } },
-      ]);
+      globalThis.fetch = createMockFetch([{ status: 200, body: { data: 'content' } }]);
 
       const result = await x402Pay({
         url: 'https://api.example.com/data',
@@ -156,7 +139,7 @@ describe('x402-client', () => {
     it('should pass custom headers', async () => {
       let customHeaderValue: string | undefined;
       let authHeaderValue: string | undefined;
-      
+
       globalThis.fetch = async (_input: string | URL | Request, init?: RequestInit) => {
         const headers = init?.headers as Record<string, string> | undefined;
         customHeaderValue = headers?.['X-Custom'];
@@ -167,7 +150,7 @@ describe('x402-client', () => {
       await x402Pay({
         url: 'https://api.example.com/data',
         wallet: mockEvmWallet,
-        headers: { 'X-Custom': 'value', 'Authorization': 'Bearer token' },
+        headers: { 'X-Custom': 'value', Authorization: 'Bearer token' },
       });
 
       expect(customHeaderValue).toBe('value');
@@ -176,7 +159,7 @@ describe('x402-client', () => {
 
     it('should handle different HTTP methods', async () => {
       let capturedMethod: string | undefined;
-      
+
       globalThis.fetch = async (_input: string | URL | Request, init?: RequestInit) => {
         capturedMethod = init?.method;
         return new Response(JSON.stringify({ data: 'ok' }), { status: 200 });

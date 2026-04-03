@@ -14,6 +14,7 @@ metadata:
 ## When to Use This Skill
 
 **USE this skill when the user wants to:**
+
 - Reference x402 payment types (PaymentRequirement, PaymentPayload, VerifyResponse, etc.)
 - Define network configurations (EvmChainConfig, FastNetworkConfig)
 - Parse price strings into raw token units
@@ -21,6 +22,7 @@ metadata:
 - Determine network type from a network name string
 
 **DO NOT use this skill for:**
+
 - Making payments → use `@fastxyz/x402-client`
 - Protecting API routes → use `@fastxyz/x402-server`
 - Verifying/settling payments on-chain → use `@fastxyz/x402-facilitator`
@@ -30,6 +32,7 @@ metadata:
 ## Key Exports
 
 ### Types
+
 - `PaymentRequirement` — 402 response payment requirement
 - `PaymentPayload` — decoded X-PAYMENT header
 - `FastPayload` — Fast transaction certificate payload
@@ -42,6 +45,7 @@ metadata:
 - `FastNetworkConfig` — caller-provided Fast network config (rpcUrl, usdcTokenId)
 
 ### Functions
+
 - `parsePrice(price, decimals?)` — `"$0.10"` → `"100000"`
 - `encodePayload(value)` — object → base64 JSON string
 - `decodePayload<T>(encoded)` — base64 JSON string → T
@@ -56,9 +60,9 @@ metadata:
 ```typescript
 import { parsePrice } from '@fastxyz/x402-types';
 
-parsePrice('$0.10');       // "100000"
-parsePrice('0.1 USDC');   // "100000"
-parsePrice('100000');      // "100000" (passthrough)
+parsePrice('$0.10'); // "100000"
+parsePrice('0.1 USDC'); // "100000"
+parsePrice('100000'); // "100000" (passthrough)
 ```
 
 ### 2. Encode/decode payment payloads
@@ -93,4 +97,4 @@ const fastConfig: FastNetworkConfig = {
 
 1. **DO NOT hardcode `decimals`** — `parsePrice` defaults to 6 (USDC), but pass explicitly if using other tokens.
 2. **DO NOT assume network names** — use `getNetworkType()` to determine if a network is `"evm"` or `"fast"`.
-3. **DO NOT import network configs from this package** — this package only provides *type definitions*. Actual config values are provided by the caller.
+3. **DO NOT import network configs from this package** — this package only provides _type definitions_. Actual config values are provided by the caller.

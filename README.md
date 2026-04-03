@@ -4,11 +4,11 @@ Official TypeScript SDK monorepo for the Fast network.
 
 ## Packages
 
-| Package | Description |
-| --- | --- |
-| [@fastxyz/fast-sdk](packages/fast-sdk/) | High-level SDK — signing, transactions, provider, conversions |
+| Package                                       | Description                                                       |
+| --------------------------------------------- | ----------------------------------------------------------------- |
+| [@fastxyz/fast-sdk](packages/fast-sdk/)       | High-level SDK — signing, transactions, provider, conversions     |
 | [@fastxyz/fast-schema](packages/fast-schema/) | Effect Schema definitions — BCS, RPC, REST codecs and type system |
-| [@fastxyz/cli](app/cli/) | CLI tool for account utilities |
+| [@fastxyz/cli](app/cli/)                      | CLI tool for account utilities                                    |
 
 ## Quick start
 
@@ -17,10 +17,10 @@ npm install @fastxyz/fast-sdk
 ```
 
 ```ts
-import { FastProvider, Signer, TransactionBuilder } from "@fastxyz/fast-sdk";
+import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/fast-sdk';
 
-const signer = new Signer("abcdef0123456789...");
-const provider = new FastProvider({ rpcUrl: "https://api.fast.xyz/proxy" });
+const signer = new Signer('abcdef0123456789...');
+const provider = new FastProvider({ rpcUrl: 'https://api.fast.xyz/proxy' });
 const account = await provider.getAccountInfo({
   address: await signer.getPublicKey(),
   tokenBalancesFilter: null,
@@ -29,11 +29,11 @@ const account = await provider.getAccountInfo({
 });
 
 const envelope = await new TransactionBuilder({
-  networkId: "fast:mainnet",
+  networkId: 'fast:mainnet',
   signer,
   nonce: account.nextNonce,
 })
-  .addBurn({ tokenId: "11".repeat(32), amount: 100n })
+  .addBurn({ tokenId: '11'.repeat(32), amount: 100n })
   .sign();
 
 await provider.submitTransaction(envelope);

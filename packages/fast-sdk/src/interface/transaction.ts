@@ -14,12 +14,12 @@ import type {
   TokenTransferInputParams,
   TransactionEnvelope,
   TransactionVersion,
-} from "@fastxyz/fast-schema";
-import { TransactionInput } from "@fastxyz/fast-schema";
-import { Schema } from "effect";
-import { buildSignedEnvelope } from "../core/crypto/envelope";
-import { run } from "../core/run";
-import type { Signer } from "./signer";
+} from '@fastxyz/fast-schema';
+import { TransactionInput } from '@fastxyz/fast-schema';
+import { Schema } from 'effect';
+import { buildSignedEnvelope } from '../core/crypto/envelope';
+import { run } from '../core/run';
+import type { Signer } from './signer';
 
 /** Options for constructing a {@link TransactionBuilder}. */
 export interface TransactionBuilderOptions {
@@ -72,61 +72,61 @@ export class TransactionBuilder {
 
   /** Add a token transfer operation. */
   addTokenTransfer(params: TokenTransferInputParams): this {
-    this.operations.push({ type: "TokenTransfer", value: params });
+    this.operations.push({ type: 'TokenTransfer', value: params });
     return this;
   }
 
   /** Add a token creation operation (deploys a new token). */
   addTokenCreation(params: TokenCreationInputParams): this {
-    this.operations.push({ type: "TokenCreation", value: params });
+    this.operations.push({ type: 'TokenCreation', value: params });
     return this;
   }
 
   /** Add a token management operation (update admin, minters). */
   addTokenManagement(params: TokenManagementInputParams): this {
-    this.operations.push({ type: "TokenManagement", value: params });
+    this.operations.push({ type: 'TokenManagement', value: params });
     return this;
   }
 
   /** Add a mint operation (requires minter authority). */
   addMint(params: MintInputParams): this {
-    this.operations.push({ type: "Mint", value: params });
+    this.operations.push({ type: 'Mint', value: params });
     return this;
   }
 
   /** Add a burn operation. */
   addBurn(params: BurnInputParams): this {
-    this.operations.push({ type: "Burn", value: params });
+    this.operations.push({ type: 'Burn', value: params });
     return this;
   }
 
   /** Add a state initialization operation (create a new state key). */
   addStateInitialization(params: StateInitializationInputParams): this {
-    this.operations.push({ type: "StateInitialization", value: params });
+    this.operations.push({ type: 'StateInitialization', value: params });
     return this;
   }
 
   /** Add a state update operation (transition state with a compute claim reference). */
   addStateUpdate(params: StateUpdateInputParams): this {
-    this.operations.push({ type: "StateUpdate", value: params });
+    this.operations.push({ type: 'StateUpdate', value: params });
     return this;
   }
 
   /** Add a state reset operation (reset state to a new value). */
   addStateReset(params: StateResetInputParams): this {
-    this.operations.push({ type: "StateReset", value: params });
+    this.operations.push({ type: 'StateReset', value: params });
     return this;
   }
 
   /** Add an external claim with verifier signatures. */
   addExternalClaim(params: ExternalClaimInputParams): this {
-    this.operations.push({ type: "ExternalClaim", value: params });
+    this.operations.push({ type: 'ExternalClaim', value: params });
     return this;
   }
 
   /** Add a leave-committee operation (no parameters). */
   addLeaveCommittee(): this {
-    this.operations.push({ type: "LeaveCommittee" });
+    this.operations.push({ type: 'LeaveCommittee' });
     return this;
   }
 
@@ -158,14 +158,12 @@ export class TransactionBuilder {
    * @returns A signed {@link TransactionEnvelope} ready for submission.
    */
   async sign(): Promise<TransactionEnvelope> {
-    const { signer, networkId, nonce, version, archival, feeToken } =
-      this.options;
+    const { signer, networkId, nonce, version, archival, feeToken } = this.options;
     const sender = await signer.getPublicKey();
     const privateKey = await signer.getPrivateKey();
 
     const ops = this.operations;
-    const claim =
-      ops.length === 1 ? ops[0]! : { type: "Batch" as const, value: ops };
+    const claim = ops.length === 1 ? ops[0]! : { type: 'Batch' as const, value: ops };
 
     const txInput = {
       networkId,
@@ -178,7 +176,7 @@ export class TransactionBuilder {
     };
 
     const internal = Schema.decodeUnknownSync(TransactionInput)(txInput);
-    const type: TransactionVersion = version ?? "Release20260319";
+    const type: TransactionVersion = version ?? 'Release20260319';
     const versioned = { type, value: internal };
 
     return run(buildSignedEnvelope(privateKey, versioned));

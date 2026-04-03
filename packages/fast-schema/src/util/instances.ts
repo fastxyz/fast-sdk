@@ -1,9 +1,4 @@
-import {
-  FixedUint8Array,
-  FixedUint8ArrayFromHex,
-  FixedUint8ArrayFromHexOptional0x,
-  FixedUint8ArrayFromNumberArray,
-} from "./array.ts";
+import { FixedUint8Array, FixedUint8ArrayFromHex, FixedUint8ArrayFromHexOptional0x, FixedUint8ArrayFromNumberArray } from './array.ts';
 import {
   DecimalIntBigInt,
   DecimalUintBigInt,
@@ -15,7 +10,7 @@ import {
   UintBigInt,
   UintBigIntFromNumberOrSelf,
   UintNumber,
-} from "./numeric.ts";
+} from './numeric.ts';
 
 /** `Uint8Array` that must be exactly 32 bytes. */
 export const Uint8Array32 = FixedUint8Array(32);

@@ -15,8 +15,8 @@ export {
   makeGetTokenInfoParams,
   makeGetTransactionCertificatesParams,
   makeSubmitTransactionParams,
-} from "./proxy.ts";
-export { PrivateKeyFromInput, type PrivateKeyInputParams } from "./signing.ts";
+} from './proxy.ts';
+export { PrivateKeyFromInput, type PrivateKeyInputParams } from './signing.ts';
 export {
   type BurnInputParams,
   type CommitteeChangeInputParams,
@@ -32,4 +32,4 @@ export {
   TransactionInput,
   type TransactionInputParams,
   type ValidatorConfigInputParams,
-} from "./transaction.ts";
+} from './transaction.ts';

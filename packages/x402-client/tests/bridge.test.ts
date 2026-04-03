@@ -3,10 +3,7 @@
  */
 
 import { describe, it, afterEach, expect } from 'vitest';
-import { 
-  getFastBalance,
-  bridgeFastusdcToUsdc,
-} from '../src/bridge.js';
+import { getFastBalance, bridgeFastusdcToUsdc } from '../src/bridge.js';
 
 const originalFetch = globalThis.fetch;
 
@@ -22,7 +19,13 @@ describe('AllSet Bridge', () => {
       };
 
       const balance = await getFastBalance(
-        { type: 'fast', address: 'fast1test', privateKey: '0x' + '01'.repeat(32), publicKey: '01'.repeat(32), rpcUrl: 'https://testnet.api.fast.xyz/proxy' },
+        {
+          type: 'fast',
+          address: 'fast1test',
+          privateKey: '0x' + '01'.repeat(32),
+          publicKey: '01'.repeat(32),
+          rpcUrl: 'https://testnet.api.fast.xyz/proxy',
+        },
         { rpcUrl: 'https://testnet.api.fast.xyz/proxy', tokenId: 'abc123' },
       );
       expect(balance).toBe(0n);
@@ -36,7 +39,13 @@ describe('AllSet Bridge', () => {
       };
 
       const result = await bridgeFastusdcToUsdc({
-        fastWallet: { type: 'fast', address: 'fast1test', privateKey: '0x' + '01'.repeat(32), publicKey: '01'.repeat(32), rpcUrl: 'https://testnet.api.fast.xyz/proxy' },
+        fastWallet: {
+          type: 'fast',
+          address: 'fast1test',
+          privateKey: '0x' + '01'.repeat(32),
+          publicKey: '01'.repeat(32),
+          rpcUrl: 'https://testnet.api.fast.xyz/proxy',
+        },
         evmReceiverAddress: '0x' + 'ab'.repeat(20),
         amount: 1000000n,
         rpcUrl: 'https://testnet.api.fast.xyz/proxy',

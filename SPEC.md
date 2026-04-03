@@ -20,22 +20,22 @@ tool for managing accounts, moving assets, and querying network state.
   human-readable output, and sensible defaults.
 - **Single entry point.** No sub-skills, no separate binaries. One CLI covers
   Fast-to-Fast transfers, EVM-Fast transfers, on-ramp funding, and payments via protocols such as x402.
-- **≤7 top-level command.** A thin surface is preferred by agents. 
+- **≤7 top-level command.** A thin surface is preferred by agents.
 
 ## 2. Global Flags
 
 Every command inherits these flags. They are parsed before command-specific flags.
 
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--version` | — | — | Print current version of the CLI. |
-| `--help` | boolean | — | Print detailed usage with examples, then exit 0. When combined with `--json`, output help as structured JSON. |
-| `--debug` | boolean | `false` | Enable verbose logging to **stderr**. Never affects stdout or JSON output. An agent never uses this flag. Instead, the JSON error output itself should be rich enough for agents to self-diagnose.|
-| `--json` | boolean | `false` | Emit machine-parseable JSON to stdout. JSON output follows a predefined schema to help agents parse it. Implies `--non-interactive`. |
-| `--network <name>` | string | `testnet` | Override the network for this command. Must be a name from `fast network list`. |
-| `--non-interactive` | boolean | `false` | Auto-confirms dangerous operations but fails with exit code 2 when required input is missing (e.g., amount not provided).  |
-| `--account <name>` | string | *first in the account list* | Use the named account for signing operations. Errors with exit code 3 if not found. |
-| `--password <value>` | string | — | Keystore password for decrypting the account key. If omitted in interactive mode, the CLI prompts via masked stdin. Can also be set via `FAST_PASSWORD` env var. In `--non-interactive` mode, one of `--password` or `FAST_PASSWORD` is required for any signing operation. When used, add a warning note: the password will be visible in shell history; prefer `FAST_PASSWORD` env var.|
+| Flag                 | Type    | Default                     | Description                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------- | ------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--version`          | —       | —                           | Print current version of the CLI.                                                                                                                                                                                                                                                                                                                                                         |
+| `--help`             | boolean | —                           | Print detailed usage with examples, then exit 0. When combined with `--json`, output help as structured JSON.                                                                                                                                                                                                                                                                             |
+| `--debug`            | boolean | `false`                     | Enable verbose logging to **stderr**. Never affects stdout or JSON output. An agent never uses this flag. Instead, the JSON error output itself should be rich enough for agents to self-diagnose.                                                                                                                                                                                        |
+| `--json`             | boolean | `false`                     | Emit machine-parseable JSON to stdout. JSON output follows a predefined schema to help agents parse it. Implies `--non-interactive`.                                                                                                                                                                                                                                                      |
+| `--network <name>`   | string  | `testnet`                   | Override the network for this command. Must be a name from `fast network list`.                                                                                                                                                                                                                                                                                                           |
+| `--non-interactive`  | boolean | `false`                     | Auto-confirms dangerous operations but fails with exit code 2 when required input is missing (e.g., amount not provided).                                                                                                                                                                                                                                                                 |
+| `--account <name>`   | string  | _first in the account list_ | Use the named account for signing operations. Errors with exit code 3 if not found.                                                                                                                                                                                                                                                                                                       |
+| `--password <value>` | string  | —                           | Keystore password for decrypting the account key. If omitted in interactive mode, the CLI prompts via masked stdin. Can also be set via `FAST_PASSWORD` env var. In `--non-interactive` mode, one of `--password` or `FAST_PASSWORD` is required for any signing operation. When used, add a warning note: the password will be visible in shell history; prefer `FAST_PASSWORD` env var. |
 
 ### Hex Input Convention
 
@@ -64,9 +64,7 @@ with mode `0700`.
 ```json
 {
   "default": "my-account",
-  "accounts": [
-    { "name": "my-account", "createdAt": "2026-03-31T00:00:00Z" }
-  ]
+  "accounts": [{ "name": "my-account", "createdAt": "2026-03-31T00:00:00Z" }]
 }
 ```
 
@@ -184,7 +182,7 @@ Every `--json` response uses a consistent envelope on stdout.
 ```json
 {
   "ok": true,
-  "data": { }
+  "data": {}
 }
 ```
 
@@ -209,17 +207,17 @@ Rules:
 
 ## 5. Exit Codes
 
-| Code | Meaning |
-|---|---|
-| 0 | Success |
-| 1 | General / unknown error |
-| 2 | Invalid usage (bad flags, missing arguments, address format mismatch) |
-| 3 | Account not found |
-| 4 | Insufficient balance |
-| 5 | Network error (RPC unreachable, timeout) |
-| 6 | Transaction failed (rejected by network) |
-| 7 | User cancelled (interactive prompt declined) |
-| 8 | Password required or incorrect |
+| Code | Meaning                                                               |
+| ---- | --------------------------------------------------------------------- |
+| 0    | Success                                                               |
+| 1    | General / unknown error                                               |
+| 2    | Invalid usage (bad flags, missing arguments, address format mismatch) |
+| 3    | Account not found                                                     |
+| 4    | Insufficient balance                                                  |
+| 5    | Network error (RPC unreachable, timeout)                              |
+| 6    | Transaction failed (rejected by network)                              |
+| 7    | User cancelled (interactive prompt declined)                          |
+| 8    | Password required or incorrect                                        |
 
 ## 6. Commands
 
@@ -272,9 +270,9 @@ default.
 
 **Flags**
 
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--name` | string | no | auto (`account-N`) | Human-readable alias for the account. |
+| Flag     | Type   | Required | Default            | Description                           |
+| -------- | ------ | -------- | ------------------ | ------------------------------------- |
+| `--name` | string | no       | auto (`account-N`) | Human-readable alias for the account. |
 
 Password is provided via `--password`, `FAST_PASSWORD` env var, or interactive
 prompt (see section 3.3).
@@ -312,11 +310,11 @@ Created account "account-1"
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Name already exists | 2 | `ACCOUNT_EXISTS` |
-| No password in `--non-interactive` mode | 8 | `PASSWORD_REQUIRED` |
-| Cannot write to `~/.fast/` | 1 | `STORAGE_ERROR` |
+| Condition                               | Exit | Code                |
+| --------------------------------------- | ---- | ------------------- |
+| Name already exists                     | 2    | `ACCOUNT_EXISTS`    |
+| No password in `--non-interactive` mode | 8    | `PASSWORD_REQUIRED` |
+| Cannot write to `~/.fast/`              | 1    | `STORAGE_ERROR`     |
 
 ### 6.2 `fast account import`
 
@@ -335,13 +333,13 @@ for the key via masked stdin input.
 
 **Flags**
 
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--name` | string | no | auto (`account-N`) | Alias for the account. |
-| `--private-key` | string | no* | — | Hex-encoded Ed25519 seed (`0x`-prefixed or raw). |
-| `--key-file` | string | no* | — | Path to a JSON file containing a `privateKey` field. |
+| Flag            | Type   | Required | Default            | Description                                          |
+| --------------- | ------ | -------- | ------------------ | ---------------------------------------------------- |
+| `--name`        | string | no       | auto (`account-N`) | Alias for the account.                               |
+| `--private-key` | string | no\*     | —                  | Hex-encoded Ed25519 seed (`0x`-prefixed or raw).     |
+| `--key-file`    | string | no\*     | —                  | Path to a JSON file containing a `privateKey` field. |
 
-*In `--non-interactive` mode, one of `--private-key` or `--key-file` is required.
+\*In `--non-interactive` mode, one of `--private-key` or `--key-file` is required.
 
 Password is provided via `--password`, `FAST_PASSWORD` env var, or interactive
 prompt (see section 3.3).
@@ -368,14 +366,14 @@ prompt (see section 3.3).
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Both `--private-key` and `--key-file` provided | 2 | `INVALID_USAGE` |
-| Neither flag in `--non-interactive` mode | 2 | `MISSING_KEY` |
-| Invalid key (wrong length, not hex) | 2 | `INVALID_KEY` |
-| Key file not found or unreadable | 1 | `FILE_NOT_FOUND` |
-| No password in `--non-interactive` mode | 8 | `PASSWORD_REQUIRED` |
-| Name already exists | 2 | `ACCOUNT_EXISTS` |
+| Condition                                      | Exit | Code                |
+| ---------------------------------------------- | ---- | ------------------- |
+| Both `--private-key` and `--key-file` provided | 2    | `INVALID_USAGE`     |
+| Neither flag in `--non-interactive` mode       | 2    | `MISSING_KEY`       |
+| Invalid key (wrong length, not hex)            | 2    | `INVALID_KEY`       |
+| Key file not found or unreadable               | 1    | `FILE_NOT_FOUND`    |
+| No password in `--non-interactive` mode        | 8    | `PASSWORD_REQUIRED` |
+| Name already exists                            | 2    | `ACCOUNT_EXISTS`    |
 
 ### 6.3 `fast account list`
 
@@ -429,9 +427,9 @@ Set the named account as the default for all signing operations.
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | yes | Alias of an existing account. |
+| Arg    | Type   | Required | Description                   |
+| ------ | ------ | -------- | ----------------------------- |
+| `name` | string | yes      | Alias of an existing account. |
 
 **Output (`--json`)**
 
@@ -447,9 +445,9 @@ Set the named account as the default for all signing operations.
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Account not found | 3 | `ACCOUNT_NOT_FOUND` |
+| Condition         | Exit | Code                |
+| ----------------- | ---- | ------------------- |
+| Account not found | 3    | `ACCOUNT_NOT_FOUND` |
 
 ### 6.5 `fast account info`
 
@@ -466,9 +464,9 @@ Display address details for a stored account. Defaults to the default account if
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | no | Account alias. Defaults to the default account. |
+| Arg    | Type   | Required | Description                                     |
+| ------ | ------ | -------- | ----------------------------------------------- |
+| `name` | string | no       | Account alias. Defaults to the default account. |
 
 **Output (human)**
 
@@ -494,10 +492,10 @@ Account: my-account (default)
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Account not found | 3 | `ACCOUNT_NOT_FOUND` |
-| No accounts exist and no name given | 3 | `NO_ACCOUNTS` |
+| Condition                           | Exit | Code                |
+| ----------------------------------- | ---- | ------------------- |
+| Account not found                   | 3    | `ACCOUNT_NOT_FOUND` |
+| No accounts exist and no name given | 3    | `NO_ACCOUNTS`       |
 
 ### 6.6 `fast account export`
 
@@ -516,9 +514,9 @@ the confirmation.
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | no | Account alias. Defaults to the default account. |
+| Arg    | Type   | Required | Description                                     |
+| ------ | ------ | -------- | ----------------------------------------------- |
+| `name` | string | no       | Account alias. Defaults to the default account. |
 
 **Output (human, after confirmation)**
 
@@ -543,13 +541,13 @@ the confirmation.
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Account not found | 3 | `ACCOUNT_NOT_FOUND` |
-| No accounts exist and no name given | 3 | `NO_ACCOUNTS` |
-| Incorrect password | 8 | `WRONG_PASSWORD` |
-| No password in `--non-interactive` mode | 8 | `PASSWORD_REQUIRED` |
-| User declines confirmation | 7 | `USER_CANCELLED` |
+| Condition                               | Exit | Code                |
+| --------------------------------------- | ---- | ------------------- |
+| Account not found                       | 3    | `ACCOUNT_NOT_FOUND` |
+| No accounts exist and no name given     | 3    | `NO_ACCOUNTS`       |
+| Incorrect password                      | 8    | `WRONG_PASSWORD`    |
+| No password in `--non-interactive` mode | 8    | `PASSWORD_REQUIRED` |
+| User declines confirmation              | 7    | `USER_CANCELLED`    |
 
 ### 6.7 `fast account delete`
 
@@ -567,9 +565,9 @@ account remaining (in which case the default becomes `null`).
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | yes | Account alias to delete. |
+| Arg    | Type   | Required | Description              |
+| ------ | ------ | -------- | ------------------------ |
+| `name` | string | yes      | Account alias to delete. |
 
 **Behavior**
 
@@ -595,11 +593,11 @@ account remaining (in which case the default becomes `null`).
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Account not found | 3 | `ACCOUNT_NOT_FOUND` |
-| Is default with other accounts existing | 2 | `DEFAULT_ACCOUNT` |
-| User declines confirmation | 7 | `USER_CANCELLED` |
+| Condition                               | Exit | Code                |
+| --------------------------------------- | ---- | ------------------- |
+| Account not found                       | 3    | `ACCOUNT_NOT_FOUND` |
+| Is default with other accounts existing | 2    | `DEFAULT_ACCOUNT`   |
+| User declines confirmation              | 7    | `USER_CANCELLED`    |
 
 ### 6.8 `fast network list`
 
@@ -651,9 +649,9 @@ Set the default network used when `--network` is not specified.
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | yes | Network name (`testnet`, `mainnet`, or a custom name). |
+| Arg    | Type   | Required | Description                                            |
+| ------ | ------ | -------- | ------------------------------------------------------ |
+| `name` | string | yes      | Network name (`testnet`, `mainnet`, or a custom name). |
 
 **Output (`--json`)**
 
@@ -668,9 +666,9 @@ Set the default network used when `--network` is not specified.
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Network not found | 2 | `NETWORK_NOT_FOUND` |
+| Condition         | Exit | Code                |
+| ----------------- | ---- | ------------------- |
+| Network not found | 2    | `NETWORK_NOT_FOUND` |
 
 ### 6.10 `fast network add`
 
@@ -687,15 +685,15 @@ Add a custom network from a JSON config file. The file is copied to
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | yes | Name for the custom network. |
+| Arg    | Type   | Required | Description                  |
+| ------ | ------ | -------- | ---------------------------- |
+| `name` | string | yes      | Name for the custom network. |
 
 **Flags**
 
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--config` | string | yes | — | Path to network config JSON file (see section 3.5 for format). |
+| Flag       | Type   | Required | Default | Description                                                    |
+| ---------- | ------ | -------- | ------- | -------------------------------------------------------------- |
+| `--config` | string | yes      | —       | Path to network config JSON file (see section 3.5 for format). |
 
 **Output (`--json`)**
 
@@ -711,11 +709,11 @@ Add a custom network from a JSON config file. The file is copied to
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Name is `testnet` or `mainnet` | 2 | `RESERVED_NAME` |
-| Name already exists | 2 | `NETWORK_EXISTS` |
-| Config file not found or invalid | 2 | `INVALID_CONFIG` |
+| Condition                        | Exit | Code             |
+| -------------------------------- | ---- | ---------------- |
+| Name is `testnet` or `mainnet`   | 2    | `RESERVED_NAME`  |
+| Name already exists              | 2    | `NETWORK_EXISTS` |
+| Config file not found or invalid | 2    | `INVALID_CONFIG` |
 
 ### 6.11 `fast network remove`
 
@@ -732,9 +730,9 @@ the current default network — use `set-default` first.
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | yes | Name of the custom network to remove. |
+| Arg    | Type   | Required | Description                           |
+| ------ | ------ | -------- | ------------------------------------- |
+| `name` | string | yes      | Name of the custom network to remove. |
 
 **Output (`--json`)**
 
@@ -750,11 +748,11 @@ the current default network — use `set-default` first.
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Name is `testnet` or `mainnet` | 2 | `RESERVED_NAME` |
-| Network not found | 2 | `NETWORK_NOT_FOUND` |
-| Is current default | 2 | `DEFAULT_NETWORK` |
+| Condition                      | Exit | Code                |
+| ------------------------------ | ---- | ------------------- |
+| Name is `testnet` or `mainnet` | 2    | `RESERVED_NAME`     |
+| Network not found              | 2    | `NETWORK_NOT_FOUND` |
+| Is current default             | 2    | `DEFAULT_NETWORK`   |
 
 ### 6.12 `fast info status`
 
@@ -804,9 +802,9 @@ Network: mainnet (default)
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| RPC unreachable | 5 | `NETWORK_ERROR` |
+| Condition       | Exit | Code            |
+| --------------- | ---- | --------------- |
+| RPC unreachable | 5    | `NETWORK_ERROR` |
 
 ### 6.13 `fast info balance`
 
@@ -824,10 +822,10 @@ account. `--address` queries any Fast address without needing a stored account.
 
 **Flags**
 
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--address` | string | no | default account's Fast address | Any Fast address (`fast1...`) to query. |
-| `--token` | string | no | *(all tokens)* | Filter by token. See [Token Resolution](#7-token-resolution-rules). |
+| Flag        | Type   | Required | Default                        | Description                                                         |
+| ----------- | ------ | -------- | ------------------------------ | ------------------------------------------------------------------- |
+| `--address` | string | no       | default account's Fast address | Any Fast address (`fast1...`) to query.                             |
+| `--token`   | string | no       | _(all tokens)_                 | Filter by token. See [Token Resolution](#7-token-resolution-rules). |
 
 **Underlying SDK call:** `FastProvider.getAccountInfo({ sender })` — reads
 `token_balance` from the response.
@@ -864,12 +862,12 @@ Balances for fast1qw5...x9z
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| No account and no `--address` | 3 | `NO_ACCOUNTS` |
-| Invalid address format | 2 | `INVALID_ADDRESS` |
-| Token not found | 2 | `TOKEN_NOT_FOUND` |
-| RPC unreachable | 5 | `NETWORK_ERROR` |
+| Condition                     | Exit | Code              |
+| ----------------------------- | ---- | ----------------- |
+| No account and no `--address` | 3    | `NO_ACCOUNTS`     |
+| Invalid address format        | 2    | `INVALID_ADDRESS` |
+| Token not found               | 2    | `TOKEN_NOT_FOUND` |
+| RPC unreachable               | 5    | `NETWORK_ERROR`   |
 
 ### 6.14 `fast info tx`
 
@@ -882,21 +880,21 @@ fast info tx <hash> [--source <source>]
 **Description**
 
 Look up a single transaction by its hash. The `--source` flag specifies where
-to query; if missing, then it uses the default Fast network. 
+to query; if missing, then it uses the default Fast network.
 Returns the same transaction object shape as items in
 `fast info history`.
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `hash` | string | yes | Transaction hash (hex). |
+| Arg    | Type   | Required | Description             |
+| ------ | ------ | -------- | ----------------------- |
+| `hash` | string | yes      | Transaction hash (hex). |
 
 **Flags**
 
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--source` | string | yes | — | Where to look up the transaction. `fast` for Fast-native transactions, or a chain name (`base`, `arbitrum`, `ethereum-sepolia`, `arbitrum-sepolia`) for bridge/EVM transactions. |
+| Flag       | Type   | Required | Default | Description                                                                                                                                                                      |
+| ---------- | ------ | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--source` | string | yes      | —       | Where to look up the transaction. `fast` for Fast-native transactions, or a chain name (`base`, `arbitrum`, `ethereum-sepolia`, `arbitrum-sepolia`) for bridge/EVM transactions. |
 
 **Underlying SDK calls:** When `--source fast`,
 `FastProvider.getTransactionCertificates()`. When `--source <chain>`, AllSet
@@ -930,13 +928,13 @@ the items in `fast info history`'s `transactions` array:
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| `--source` not provided | 2 | `INVALID_USAGE` |
-| Transaction not found | 1 | `TX_NOT_FOUND` |
-| Invalid hash format | 2 | `INVALID_HASH` |
-| Unsupported `--source` value | 2 | `UNSUPPORTED_CHAIN` |
-| RPC unreachable | 5 | `NETWORK_ERROR` |
+| Condition                    | Exit | Code                |
+| ---------------------------- | ---- | ------------------- |
+| `--source` not provided      | 2    | `INVALID_USAGE`     |
+| Transaction not found        | 1    | `TX_NOT_FOUND`      |
+| Invalid hash format          | 2    | `INVALID_HASH`      |
+| Unsupported `--source` value | 2    | `UNSUPPORTED_CHAIN` |
+| RPC unreachable              | 5    | `NETWORK_ERROR`     |
 
 ### 6.15 `fast info history`
 
@@ -955,15 +953,15 @@ operations. Results are ordered by timestamp descending.
 
 **Flags**
 
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--from` | string | no | all accounts | Filter by sender account name or address. |
-| `--to` | string | no | — | Filter by recipient (Fast or EVM address). |
-| `--source` | string | no | — | Filter by source network/chain. |
-| `--dest` | string | no | — | Filter by destination network/chain. |
-| `--token` | string | no | — | Filter by token. See [Token Resolution](#7-token-resolution-rules). |
-| `--limit` | integer | no | `20` | Max number of records to return. |
-| `--offset` | integer | no | `0` | Number of records to skip. Use with `--limit` for pagination. |
+| Flag       | Type    | Required | Default      | Description                                                         |
+| ---------- | ------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `--from`   | string  | no       | all accounts | Filter by sender account name or address.                           |
+| `--to`     | string  | no       | —            | Filter by recipient (Fast or EVM address).                          |
+| `--source` | string  | no       | —            | Filter by source network/chain.                                     |
+| `--dest`   | string  | no       | —            | Filter by destination network/chain.                                |
+| `--token`  | string  | no       | —            | Filter by token. See [Token Resolution](#7-token-resolution-rules). |
+| `--limit`  | integer | no       | `20`         | Max number of records to return.                                    |
+| `--offset` | integer | no       | `0`          | Number of records to skip. Use with `--limit` for pagination.       |
 
 **Output (`--json`)**
 
@@ -994,12 +992,12 @@ operations. Results are ordered by timestamp descending.
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Account alias not found (`--from`) | 3 | `ACCOUNT_NOT_FOUND` |
-| Invalid address format (`--from` and `--to`) | 2 | `INVALID_ADDRESS` |
-| Token not found (`--token`) | 2 | `TOKEN_NOT_FOUND` |
-| RPC unreachable | 5 | `NETWORK_ERROR` |
+| Condition                                    | Exit | Code                |
+| -------------------------------------------- | ---- | ------------------- |
+| Account alias not found (`--from`)           | 3    | `ACCOUNT_NOT_FOUND` |
+| Invalid address format (`--from` and `--to`) | 2    | `INVALID_ADDRESS`   |
+| Token not found (`--token`)                  | 2    | `TOKEN_NOT_FOUND`   |
+| RPC unreachable                              | 5    | `NETWORK_ERROR`     |
 
 ### 6.16 `fast info bridge-tokens`
 
@@ -1117,11 +1115,11 @@ or bank transfer (on-ramp).
 
 **Flags**
 
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--address` | string | no | default account's Fast address | Fund to a specific Fast address. |
-| `--token` | string | no | `USDC` | Token to fund. See [Token Resolution](#7-token-resolution-rules). |
-| `--provider` | string | no | `swapper` | On-ramp provider. |
+| Flag         | Type   | Required | Default                        | Description                                                       |
+| ------------ | ------ | -------- | ------------------------------ | ----------------------------------------------------------------- |
+| `--address`  | string | no       | default account's Fast address | Fund to a specific Fast address.                                  |
+| `--token`    | string | no       | `USDC`                         | Token to fund. See [Token Resolution](#7-token-resolution-rules). |
+| `--provider` | string | no       | `swapper`                      | On-ramp provider.                                                 |
 
 **Output (human)**
 
@@ -1146,11 +1144,11 @@ Fund USDC to fast1qw5...x9z via Swapper:
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| No account and no `--address` | 3 | `NO_ACCOUNTS` |
-| Invalid address format | 2 | `INVALID_ADDRESS` |
-| Unsupported provider | 2 | `UNSUPPORTED_PROVIDER` |
+| Condition                     | Exit | Code                   |
+| ----------------------------- | ---- | ---------------------- |
+| No account and no `--address` | 3    | `NO_ACCOUNTS`          |
+| Invalid address format        | 2    | `INVALID_ADDRESS`      |
+| Unsupported provider          | 2    | `UNSUPPORTED_PROVIDER` |
 
 #### 6.18.2 `fast fund crypto`
 
@@ -1162,14 +1160,15 @@ fast fund crypto <amount> --chain <chain> [--token <value>]
 
 **Description**
 
-Fund a Fast account by bridging tokens from an EVM chain. 
-The CLI checks the EVM balance of the account's derived EVM address 
+Fund a Fast account by bridging tokens from an EVM chain.
+The CLI checks the EVM balance of the account's derived EVM address
 (same underlying key) on the specified chain.
+
 - f the EVM balance is sufficient: bridge the requested amount to Fast
-automatically.
+  automatically.
 - If the EVM balance is insufficient: print the EVM address and the shortfall
-amount, then exit. The user (or a human) sends the required tokens to that
-address on the specified chain, then re-runs the same command.
+  amount, then exit. The user (or a human) sends the required tokens to that
+  address on the specified chain, then re-runs the same command.
 
 **Arguments**
 
@@ -1177,19 +1176,19 @@ address on the specified chain, then re-runs the same command.
 | ------ | ------ | -------- | --------------------------------------------- |
 | amount | string | yes      | Human-readable amount to fund (e.g., 100.00). |
 
-
 **Flags**
-| Flag    | Type   | Required | Default         | Description                                                    |
+| Flag | Type | Required | Default | Description |
 | ------- | ------ | -------- | --------------- | -------------------------------------------------------------- |
-| --chain | string | yes      | --               | EVM chain to bridge from. Values from fast info bridge-chains. |
-| --token | string | no       | USDC / testUSDC | Token to bridge. See Token Resolution.                         |
+| --chain | string | yes | -- | EVM chain to bridge from. Values from fast info bridge-chains. |
+| --token | string | no | USDC / testUSDC | Token to bridge. See Token Resolution. |
 
 **Behavior**
+
 1. Check the token balance on --chain for the (derived) EVM address.
-2. If balance >= amount: execute `fast send` and bridge tokens to Fast. 
+2. If balance >= amount: execute `fast send` and bridge tokens to Fast.
 3. If balance < amount: print the shortfall and the EVM address. Exit with
-code 4 and error code FUNDING_REQUIRED.
-If balance >= amount, the above should not require any human intervention (like entering password).
+   code 4 and error code FUNDING_REQUIRED.
+   If balance >= amount, the above should not require any human intervention (like entering password).
 
 ### 6.19 `fast send`
 
@@ -1207,30 +1206,30 @@ and chain flags.
 
 **Arguments**
 
-| Arg | Type | Required | Description |
-|---|---|---|---|
-| `address` | string | yes | Recipient address (`fast1...` for Fast, `0x...` for EVM). |
-| `amount` | string | yes | Human-readable amount (e.g., `10.5`). Converted to smallest units using the token's decimals. |
+| Arg       | Type   | Required | Description                                                                                   |
+| --------- | ------ | -------- | --------------------------------------------------------------------------------------------- |
+| `address` | string | yes      | Recipient address (`fast1...` for Fast, `0x...` for EVM).                                     |
+| `amount`  | string | yes      | Human-readable amount (e.g., `10.5`). Converted to smallest units using the token's decimals. |
 
 If the amount has more decimal places than the token supports, the CLI exits
 with code 2 (`INVALID_AMOUNT`): `"Amount has too many decimal places for <token-symbol> (max <decimal>])."`
 
 **Flags**
 
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--from-chain` | string | no | — | Source chain for bridge-in. Must be a chain from `fast info bridge-chains`. |
-| `--to-chain` | string | no | — | Destination chain for bridge-out. Must be a chain from `fast info bridge-chains`. |
-| `--token` | string | no | `USDC` | Token to send. See [Token Resolution](#7-token-resolution-rules). Default is `USDC`. For Fast→Fast transfers, any token on the Fast network is supported (not limited to bridge tokens). For bridge operations, only tokens listed in `fast info bridge-tokens` are supported. |
+| Flag           | Type   | Required | Default | Description                                                                                                                                                                                                                                                                    |
+| -------------- | ------ | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--from-chain` | string | no       | —       | Source chain for bridge-in. Must be a chain from `fast info bridge-chains`.                                                                                                                                                                                                    |
+| `--to-chain`   | string | no       | —       | Destination chain for bridge-out. Must be a chain from `fast info bridge-chains`.                                                                                                                                                                                              |
+| `--token`      | string | no       | `USDC`  | Token to send. See [Token Resolution](#7-token-resolution-rules). Default is `USDC`. For Fast→Fast transfers, any token on the Fast network is supported (not limited to bridge tokens). For bridge operations, only tokens listed in `fast info bridge-tokens` are supported. |
 
 **Routing Rules**
 
-| `--from-chain` | `--to-chain` | `address` format | Route | SDK method |
-|---|---|---|---|---|
-| *(none)* | *(none)* | `fast1...` | Fast → Fast | `FastProvider.submitTransaction()` with `TokenTransfer` |
-| set | *(none)* | `fast1...` | EVM → Fast (bridge in) | `AllSetProvider.sendToFast()` |
-| *(none)* | set | `0x...` | Fast → EVM (bridge out) | `AllSetProvider.sendToExternal()` |
-| set | set | `0x...` | EVM → EVM (routed via Fast) | *Reserved — exit code 2 with `NOT_IMPLEMENTED`* |
+| `--from-chain` | `--to-chain` | `address` format | Route                       | SDK method                                              |
+| -------------- | ------------ | ---------------- | --------------------------- | ------------------------------------------------------- |
+| _(none)_       | _(none)_     | `fast1...`       | Fast → Fast                 | `FastProvider.submitTransaction()` with `TokenTransfer` |
+| set            | _(none)_     | `fast1...`       | EVM → Fast (bridge in)      | `AllSetProvider.sendToFast()`                           |
+| _(none)_       | set          | `0x...`          | Fast → EVM (bridge out)     | `AllSetProvider.sendToExternal()`                       |
+| set            | set          | `0x...`          | EVM → EVM (routed via Fast) | _Reserved — exit code 2 with `NOT_IMPLEMENTED`_         |
 
 **Bridge-in source:** When `--from-chain` is set, the CLI uses the EVM address
 derived from the signing account's key (see section 3.2). The sender must have
@@ -1241,7 +1240,6 @@ sufficient token balance at that address on the specified chain. Use
 allowance for the bridge contract, (2) submit an approval transaction if
 needed, (3) submit the bridge deposit. The user sees a single confirmation
 prompt; the CLI manages the underlying transactions.
-
 
 **Address validation rules:**
 
@@ -1301,25 +1299,24 @@ operations, the command returns after the initiating transaction is confirmed
 on the source chain — it does **not** wait for the destination side to settle.
 Use `fast info tx <hash> --source <chain>` to check bridge completion status.
 
-
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Missing address or amount | 2 | `INVALID_USAGE` |
-| Address/flag mismatch (see rules above) | 2 | `INVALID_ADDRESS` |
-| Insufficient balance | 4 | `INSUFFICIENT_BALANCE` |
-| Insufficient gas on source chain (bridge-in) | 4 | `INSUFFICIENT_GAS` |
-| Amount exceeds token decimal precision | 2 | `INVALID_AMOUNT` |
-| Amount is zero or negative | 2 | `INVALID_AMOUNT` |
-| Unsupported chain value | 2 | `UNSUPPORTED_CHAIN` |
-| Token not found | 2 | `TOKEN_NOT_FOUND` |
-| Both chain flags set | 2 | `NOT_IMPLEMENTED` |
-| Transaction rejected | 6 | `TX_FAILED` |
-| RPC unreachable | 5 | `NETWORK_ERROR` |
-| Incorrect password | 8 | `WRONG_PASSWORD` |
-| No password in `--non-interactive` mode | 8 | `PASSWORD_REQUIRED` |
-| User declines confirmation | 7 | `USER_CANCELLED` |
+| Condition                                    | Exit | Code                   |
+| -------------------------------------------- | ---- | ---------------------- |
+| Missing address or amount                    | 2    | `INVALID_USAGE`        |
+| Address/flag mismatch (see rules above)      | 2    | `INVALID_ADDRESS`      |
+| Insufficient balance                         | 4    | `INSUFFICIENT_BALANCE` |
+| Insufficient gas on source chain (bridge-in) | 4    | `INSUFFICIENT_GAS`     |
+| Amount exceeds token decimal precision       | 2    | `INVALID_AMOUNT`       |
+| Amount is zero or negative                   | 2    | `INVALID_AMOUNT`       |
+| Unsupported chain value                      | 2    | `UNSUPPORTED_CHAIN`    |
+| Token not found                              | 2    | `TOKEN_NOT_FOUND`      |
+| Both chain flags set                         | 2    | `NOT_IMPLEMENTED`      |
+| Transaction rejected                         | 6    | `TX_FAILED`            |
+| RPC unreachable                              | 5    | `NETWORK_ERROR`        |
+| Incorrect password                           | 8    | `WRONG_PASSWORD`       |
+| No password in `--non-interactive` mode      | 8    | `PASSWORD_REQUIRED`    |
+| User declines confirmation                   | 7    | `USER_CANCELLED`       |
 
 ### 6.20 `fast pay`
 
@@ -1342,23 +1339,22 @@ needed).
 
 The CLI currently supports the x402 payment protocol. Payment type (Fast x402
 or chain x402) is selected automatically based on the server's accepted options
-and the account's available balances. Fast x402 is preferred when available. 
+and the account's available balances. Fast x402 is preferred when available.
 
 **Arguments**
 
-| Arg | Type   | Required | Description                            |
-| --- | ------ | -------- | -------------------------------------- |
+| Arg   | Type   | Required | Description                            |
+| ----- | ------ | -------- | -------------------------------------- |
 | `url` | string | yes      | URL of the payment-protected resource. |
 
 **Flags**
 
-| Flag      | Type    | Required | Default | Description                                                                                                                                                      |
-| --------- | ------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--dry-run` | boolean | no       | `false`   | Inspect the payment requirement without executing. Shows the cost, accepted payment options, and which option the CLI would select. Does not require a password. |
-| `--method`  | string  | no       | `GET`     | HTTP method for the request.                                                                                                                                     |
+| Flag        | Type    | Required | Default | Description                                                                                                                                                      |
+| ----------- | ------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--dry-run` | boolean | no       | `false` | Inspect the payment requirement without executing. Shows the cost, accepted payment options, and which option the CLI would select. Does not require a password. |
+| `--method`  | string  | no       | `GET`   | HTTP method for the request.                                                                                                                                     |
 | `--header`  | string  | no       | —       | Custom header in key: value format. Repeatable for multiple headers.                                                                                             |
-| `--body`    | string  | no       | —       | Request body. Prefix with `@` to read from a file (e.g., `@request.json`).                                                                                           |
-
+| `--body`    | string  | no       | —       | Request body. Prefix with `@` to read from a file (e.g., `@request.json`).                                                                                       |
 
 The paying account is selected via the global `--account <name>` flag or the
 default account. Not required for `--dry-run`.
@@ -1403,6 +1399,7 @@ Pay from my-account? [Y/N]
 ```
 
 With auto-bridge:
+
 ```text
 Payment required:
   Merchant: api.example.com
@@ -1439,7 +1436,6 @@ The `response` field contains the HTTP status code and body returned by the
 merchant after successful payment. The `body` is the parsed JSON response, or
 a string if the response is not JSON. This is the content the agent is paying
 to access.
-
 
 **Output (`--json`, `--dry-run`)**
 
@@ -1482,16 +1478,16 @@ logic above). The `accepts` array shows all payment options from the merchant.
 
 **Errors**
 
-| Condition | Exit | Code |
-|---|---|---|
-| Invalid or unreachable payment link | 2 | `INVALID_PAYMENT_LINK` |
-| Insufficient balance (including after auto-bridge attempt) | 4 | `INSUFFICIENT_BALANCE` |
-| Payment rejected by merchant | 6 | `PAYMENT_REJECTED` |
-| No accounts | 3 | `NO_ACCOUNTS` |
-| Incorrect password | 8 | `WRONG_PASSWORD` |
-| No password in `--non-interactive` mode | 8 | `PASSWORD_REQUIRED` |
-| User declines confirmation | 7 | `USER_CANCELLED` |
-| RPC unreachable | 5 | `NETWORK_ERROR` |
+| Condition                                                  | Exit | Code                   |
+| ---------------------------------------------------------- | ---- | ---------------------- |
+| Invalid or unreachable payment link                        | 2    | `INVALID_PAYMENT_LINK` |
+| Insufficient balance (including after auto-bridge attempt) | 4    | `INSUFFICIENT_BALANCE` |
+| Payment rejected by merchant                               | 6    | `PAYMENT_REJECTED`     |
+| No accounts                                                | 3    | `NO_ACCOUNTS`          |
+| Incorrect password                                         | 8    | `WRONG_PASSWORD`       |
+| No password in `--non-interactive` mode                    | 8    | `PASSWORD_REQUIRED`    |
+| User declines confirmation                                 | 7    | `USER_CANCELLED`       |
+| RPC unreachable                                            | 5    | `NETWORK_ERROR`        |
 
 ## 7. Token Resolution Rules
 
@@ -1542,25 +1538,25 @@ configuration. These are the canonical values accepted by `--from-chain`,
 
 ### Mainnet
 
-| Chain | Chain ID | Bridge Contract | Tokens |
-|---|---|---|---|
-| `base` | 8453 | `0x8677...` | USDC (`0x8335...`) |
-| `arbitrum` | 42161 | `0x8677...` | USDC (`0xaf88...`) |
+| Chain      | Chain ID | Bridge Contract | Tokens             |
+| ---------- | -------- | --------------- | ------------------ |
+| `base`     | 8453     | `0x8677...`     | USDC (`0x8335...`) |
+| `arbitrum` | 42161    | `0x8677...`     | USDC (`0xaf88...`) |
 
-| Token | Symbol | Fast Token ID | Decimals |
-|---|---|---|---|
-| USD Coin | `USDC` | `0xc655a123...` | 6 |
+| Token    | Symbol | Fast Token ID   | Decimals |
+| -------- | ------ | --------------- | -------- |
+| USD Coin | `USDC` | `0xc655a123...` | 6        |
 
 ### Testnet
 
-| Chain | Chain ID | Bridge Contract | Tokens |
-|---|---|---|---|
-| `ethereum-sepolia` | 11155111 | `0xb536...` | USDC (`0x1c7D4B...`) |
-| `arbitrum-sepolia` | 421614 | `0xb536...` | USDC (`0x75fa...`) |
+| Chain              | Chain ID | Bridge Contract | Tokens               |
+| ------------------ | -------- | --------------- | -------------------- |
+| `ethereum-sepolia` | 11155111 | `0xb536...`     | USDC (`0x1c7D4B...`) |
+| `arbitrum-sepolia` | 421614   | `0xb536...`     | USDC (`0x75fa...`)   |
 
-| Token | Symbol (alias) | Fast Token ID | Decimals |
-|---|---|---|---|
-| Test USD Coin | `USDC` (`testUSDC`, `fastUSDC`) | `0xd73a0679...` | 6 |
+| Token         | Symbol (alias)                  | Fast Token ID   | Decimals |
+| ------------- | ------------------------------- | --------------- | -------- |
+| Test USD Coin | `USDC` (`testUSDC`, `fastUSDC`) | `0xd73a0679...` | 6        |
 
 **Note:** The x402 payment protocol (`fast pay`) may encounter payment
 requirements on chains not listed above (e.g., `base-sepolia`, `ethereum`).

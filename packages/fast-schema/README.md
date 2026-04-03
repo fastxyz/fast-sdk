@@ -58,16 +58,16 @@ const bytes = bcsSchema.VersionedTransaction.serialize(tx).toBytes();
 
 ## Key exports
 
-| Export | Description |
-| --- | --- |
-| `*FromRpc` schemas | Decode/encode JSON-RPC wire format |
-| `*FromRest` schemas | Decode/encode REST API format |
-| `*FromBcs` schemas | Decode/encode BCS binary format |
-| `*FromInput` schemas | Accept flexible user input (hex, bytes, bech32m) |
-| `bcsSchema` | `@mysten/bcs` struct/enum definitions for serialization |
-| `TypedVariant` | Rust externally-tagged enum codec (serde/bcs modes) |
-| `CamelCaseStruct` | Automatic snake_case wire format to camelCase |
-| `ProxyErrorData`, `FastSetErrorData` | Structured error variant schemas |
+| Export                               | Description                                             |
+| ------------------------------------ | ------------------------------------------------------- |
+| `*FromRpc` schemas                   | Decode/encode JSON-RPC wire format                      |
+| `*FromRest` schemas                  | Decode/encode REST API format                           |
+| `*FromBcs` schemas                   | Decode/encode BCS binary format                         |
+| `*FromInput` schemas                 | Accept flexible user input (hex, bytes, bech32m)        |
+| `bcsSchema`                          | `@mysten/bcs` struct/enum definitions for serialization |
+| `TypedVariant`                       | Rust externally-tagged enum codec (serde/bcs modes)     |
+| `CamelCaseStruct`                    | Automatic snake_case wire format to camelCase           |
+| `ProxyErrorData`, `FastSetErrorData` | Structured error variant schemas                        |
 
 ## Development
 

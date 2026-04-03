@@ -1,37 +1,35 @@
-import { describe, expect, it } from "vitest";
-import { Signer, TransactionBuilder } from "../../src/index";
+import { describe, expect, it } from 'vitest';
+import { Signer, TransactionBuilder } from '../../src/index';
 
-const HEX_TOKEN_ID =
-  "1111111111111111111111111111111111111111111111111111111111111111";
-const HEX_STATE_KEY =
-  "2222222222222222222222222222222222222222222222222222222222222222";
+const HEX_TOKEN_ID = '1111111111111111111111111111111111111111111111111111111111111111';
+const HEX_STATE_KEY = '2222222222222222222222222222222222222222222222222222222222222222';
 
-describe("TransactionBuilder", () => {
-  describe("construction", () => {
-    it("accepts minimal options", () => {
+describe('TransactionBuilder', () => {
+  describe('construction', () => {
+    it('accepts minimal options', () => {
       const signer = new Signer(new Uint8Array(32).fill(1));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
       expect(builder).toBeInstanceOf(TransactionBuilder);
     });
 
-    it("accepts number nonce", () => {
+    it('accepts number nonce', () => {
       const signer = new Signer(new Uint8Array(32).fill(1));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0,
       });
       expect(builder).toBeInstanceOf(TransactionBuilder);
     });
 
-    it("accepts feeToken option", () => {
+    it('accepts feeToken option', () => {
       const signer = new Signer(new Uint8Array(32).fill(1));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
         feeToken: HEX_TOKEN_ID,
@@ -40,11 +38,11 @@ describe("TransactionBuilder", () => {
     });
   });
 
-  describe("single operations", () => {
-    it("builds TokenTransfer", async () => {
+  describe('single operations', () => {
+    it('builds TokenTransfer', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -57,19 +55,19 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("TokenTransfer");
+      expect(envelope.transaction.value.claim.type).toBe('TokenTransfer');
     });
 
-    it("builds TokenCreation", async () => {
+    it('builds TokenCreation', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
 
       builder.addTokenCreation({
-        tokenName: "TestToken",
+        tokenName: 'TestToken',
         decimals: 8,
         initialAmount: 1000000n,
         mints: [],
@@ -77,29 +75,29 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("TokenCreation");
+      expect(envelope.transaction.value.claim.type).toBe('TokenCreation');
     });
 
-    it("builds Burn", async () => {
+    it('builds Burn', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
 
       builder.addBurn({ tokenId: HEX_TOKEN_ID, amount: 100n });
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("Burn");
-      if (envelope.transaction.value.claim.type === "Burn") {
+      expect(envelope.transaction.value.claim.type).toBe('Burn');
+      if (envelope.transaction.value.claim.type === 'Burn') {
         expect(envelope.transaction.value.claim.value.amount).toBe(100n);
       }
     });
 
-    it("builds Mint", async () => {
+    it('builds Mint', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -111,26 +109,26 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("Mint");
+      expect(envelope.transaction.value.claim.type).toBe('Mint');
     });
 
-    it("builds LeaveCommittee", async () => {
+    it('builds LeaveCommittee', async () => {
       const signer = new Signer(new Uint8Array(32).fill(12));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 2n,
       });
 
       builder.addLeaveCommittee();
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("LeaveCommittee");
+      expect(envelope.transaction.value.claim.type).toBe('LeaveCommittee');
     });
 
-    it("builds StateInitialization", async () => {
+    it('builds StateInitialization', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -141,15 +139,13 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe(
-        "StateInitialization",
-      );
+      expect(envelope.transaction.value.claim.type).toBe('StateInitialization');
     });
 
-    it("builds StateUpdate", async () => {
+    it('builds StateUpdate', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -163,13 +159,13 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("StateUpdate");
+      expect(envelope.transaction.value.claim.type).toBe('StateUpdate');
     });
 
-    it("builds StateReset", async () => {
+    it('builds StateReset', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -180,13 +176,13 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("StateReset");
+      expect(envelope.transaction.value.claim.type).toBe('StateReset');
     });
 
-    it("builds ExternalClaim", async () => {
+    it('builds ExternalClaim', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -195,60 +191,56 @@ describe("TransactionBuilder", () => {
         claim: {
           verifierCommittee: [],
           verifierQuorum: 0,
-          claimData: new TextEncoder().encode("test"),
+          claimData: new TextEncoder().encode('test'),
         },
         signatures: [],
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("ExternalClaim");
+      expect(envelope.transaction.value.claim.type).toBe('ExternalClaim');
     });
   });
 
-  describe("batching", () => {
-    it("builds Batch when multiple operations are added", async () => {
+  describe('batching', () => {
+    it('builds Batch when multiple operations are added', async () => {
       const signer = new Signer(new Uint8Array(32).fill(11));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 1n,
       });
 
-      builder
-        .addBurn({ tokenId: HEX_TOKEN_ID, amount: 100n })
-        .addBurn({ tokenId: HEX_TOKEN_ID, amount: 200n });
+      builder.addBurn({ tokenId: HEX_TOKEN_ID, amount: 100n }).addBurn({ tokenId: HEX_TOKEN_ID, amount: 200n });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("Batch");
+      expect(envelope.transaction.value.claim.type).toBe('Batch');
     });
 
-    it("batches mixed operation types", async () => {
+    it('batches mixed operation types', async () => {
       const signer = new Signer(new Uint8Array(32).fill(11));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
 
-      builder
-        .addBurn({ tokenId: HEX_TOKEN_ID, amount: 100n })
-        .addTokenTransfer({
-          tokenId: HEX_TOKEN_ID,
-          recipient: new Uint8Array(32).fill(2),
-          amount: 50n,
-          userData: null,
-        });
+      builder.addBurn({ tokenId: HEX_TOKEN_ID, amount: 100n }).addTokenTransfer({
+        tokenId: HEX_TOKEN_ID,
+        recipient: new Uint8Array(32).fill(2),
+        amount: 50n,
+        userData: null,
+      });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("Batch");
+      expect(envelope.transaction.value.claim.type).toBe('Batch');
     });
   });
 
-  describe("envelope fields", () => {
-    it("populates all transaction fields", async () => {
+  describe('envelope fields', () => {
+    it('populates all transaction fields', async () => {
       const signer = new Signer(new Uint8Array(32).fill(15));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 42n,
         feeToken: HEX_TOKEN_ID,
@@ -258,23 +250,23 @@ describe("TransactionBuilder", () => {
       const envelope = await builder.sign();
 
       const tx = envelope.transaction.value;
-      expect(tx.networkId).toBe("fast:testnet");
+      expect(tx.networkId).toBe('fast:testnet');
       expect(tx.nonce).toBe(42n);
       expect(tx.sender).toBeInstanceOf(Uint8Array);
       expect(tx.sender).toHaveLength(32);
       expect(tx.archival).toBe(false);
       expect(tx.feeToken).toBeInstanceOf(Uint8Array);
-      expect(tx.timestampNanos).toBeTypeOf("bigint");
+      expect(tx.timestampNanos).toBeTypeOf('bigint');
 
-      expect(envelope.transaction.type).toBe("Release20260319");
-      expect(envelope.signature.type).toBe("Signature");
+      expect(envelope.transaction.type).toBe('Release20260319');
+      expect(envelope.signature.type).toBe('Signature');
       expect(envelope.signature.value).toHaveLength(64);
     });
 
-    it("sets archival flag", async () => {
+    it('sets archival flag', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
         archival: true,
@@ -285,10 +277,10 @@ describe("TransactionBuilder", () => {
       expect(envelope.transaction.value.archival).toBe(true);
     });
 
-    it("defaults feeToken to null", async () => {
+    it('defaults feeToken to null', async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -299,11 +291,11 @@ describe("TransactionBuilder", () => {
     });
   });
 
-  describe("builder reuse", () => {
-    it("reset clears operations", async () => {
+  describe('builder reuse', () => {
+    it('reset clears operations', async () => {
       const signer = new Signer(new Uint8Array(32).fill(13));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -315,15 +307,15 @@ describe("TransactionBuilder", () => {
       builder.addLeaveCommittee();
       const envelope = await builder.sign();
       expect(envelope.transaction.value.nonce).toBe(1n);
-      expect(envelope.transaction.value.claim.type).toBe("LeaveCommittee");
+      expect(envelope.transaction.value.claim.type).toBe('LeaveCommittee');
     });
 
-    it("setSigner changes the signing key", async () => {
+    it('setSigner changes the signing key', async () => {
       const signer1 = new Signer(new Uint8Array(32).fill(13));
       const signer2 = new Signer(new Uint8Array(32).fill(14));
 
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer: signer1,
         nonce: 0n,
       });
@@ -335,19 +327,15 @@ describe("TransactionBuilder", () => {
       builder.addBurn({ tokenId: HEX_TOKEN_ID, amount: 100n });
       const env2 = await builder.sign();
 
-      expect(env1.transaction.value.sender).toEqual(
-        await signer1.getPublicKey(),
-      );
-      expect(env2.transaction.value.sender).toEqual(
-        await signer2.getPublicKey(),
-      );
+      expect(env1.transaction.value.sender).toEqual(await signer1.getPublicKey());
+      expect(env2.transaction.value.sender).toEqual(await signer2.getPublicKey());
       expect(env1.signature.value).not.toEqual(env2.signature.value);
     });
 
-    it("supports sequential transactions with incrementing nonces", async () => {
+    it('supports sequential transactions with incrementing nonces', async () => {
       const signer = new Signer(new Uint8Array(32).fill(22));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -369,26 +357,24 @@ describe("TransactionBuilder", () => {
     });
   });
 
-  describe("fluent API", () => {
-    it("all add* methods return this for chaining", () => {
+  describe('fluent API', () => {
+    it('all add* methods return this for chaining', () => {
       const signer = new Signer(new Uint8Array(32).fill(1));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
 
-      const result = builder
-        .addBurn({ tokenId: HEX_TOKEN_ID, amount: 1n })
-        .addBurn({ tokenId: HEX_TOKEN_ID, amount: 2n });
+      const result = builder.addBurn({ tokenId: HEX_TOKEN_ID, amount: 1n }).addBurn({ tokenId: HEX_TOKEN_ID, amount: 2n });
 
       expect(result).toBe(builder);
     });
 
-    it("reset returns this for chaining", () => {
+    it('reset returns this for chaining', () => {
       const signer = new Signer(new Uint8Array(32).fill(1));
       const builder = new TransactionBuilder({
-        networkId: "fast:testnet",
+        networkId: 'fast:testnet',
         signer,
         nonce: 0n,
       });
@@ -398,13 +384,8 @@ describe("TransactionBuilder", () => {
     });
   });
 
-  describe("network IDs", () => {
-    for (const networkId of [
-      "fast:localnet",
-      "fast:devnet",
-      "fast:testnet",
-      "fast:mainnet",
-    ] as const) {
+  describe('network IDs', () => {
+    for (const networkId of ['fast:localnet', 'fast:devnet', 'fast:testnet', 'fast:mainnet'] as const) {
       it(`accepts ${networkId}`, async () => {
         const signer = new Signer(new Uint8Array(32).fill(1));
         const builder = new TransactionBuilder({ networkId, signer, nonce: 0n });

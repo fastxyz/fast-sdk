@@ -1,10 +1,7 @@
-import { Either, ParseResult, Schema } from "effect";
-import type { Transformation } from "effect/SchemaAST";
+import { Either, ParseResult, Schema } from 'effect';
+import type { Transformation } from 'effect/SchemaAST';
 
-const KeyedVariantSchema = Schema.Union(
-  Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-  Schema.String,
-);
+const KeyedVariantSchema = Schema.Union(Schema.Record({ key: Schema.String, value: Schema.Unknown }), Schema.String);
 
 const TypedVariantSchema = Schema.Struct({
   type: Schema.String,
@@ -17,13 +14,10 @@ const TypedVariantSchema = Schema.Struct({
  * - `"serde"` (default): unit variants encode as bare strings (`"LeaveCommittee"`)
  * - `"bcs"`: unit variants encode as `{ "LeaveCommittee": readonly [] }`
  */
-type VariantEncoded<
-  V extends Record<string, Schema.Schema.All | null>,
-  Mode extends "serde" | "bcs" = "serde",
-> = {
+type VariantEncoded<V extends Record<string, Schema.Schema.All | null>, Mode extends 'serde' | 'bcs' = 'serde'> = {
   [K in keyof V & string]: V[K] extends Schema.Schema.All
     ? { readonly [P in K]: Schema.Schema.Encoded<V[K]> }
-    : Mode extends "bcs"
+    : Mode extends 'bcs'
       ? { readonly [P in K]: readonly [] }
       : K;
 }[keyof V & string];
@@ -39,34 +33,27 @@ type VariantEncoded<
  * @param options.unitEncoding `"serde"` (default): unit variants encode as
  *   bare strings. `"bcs"`: unit variants encode as `{ Key: [] }`.
  */
-export const TypedVariant = <
-  V extends Record<string, Schema.Schema.All | null>,
-  Mode extends "serde" | "bcs" = "serde",
->(
+export const TypedVariant = <V extends Record<string, Schema.Schema.All | null>, Mode extends 'serde' | 'bcs' = 'serde'>(
   variants: V,
   options?: { unitEncoding: Mode },
 ): Schema.Schema<
   {
-    [K in keyof V & string]: V[K] extends Schema.Schema.All
-      ? { readonly type: K; readonly value: Schema.Schema.Type<V[K]> }
-      : { readonly type: K };
+    [K in keyof V & string]: V[K] extends Schema.Schema.All ? { readonly type: K; readonly value: Schema.Schema.Type<V[K]> } : { readonly type: K };
   }[keyof V & string],
   VariantEncoded<V, Mode>
 > => {
-  const bcsMode = options?.unitEncoding === "bcs";
+  const bcsMode = options?.unitEncoding === 'bcs';
 
-  const fail = (ast: Transformation, actual: unknown, message: string) =>
-    ParseResult.fail(new ParseResult.Type(ast, actual, message));
+  const fail = (ast: Transformation, actual: unknown, message: string) => ParseResult.fail(new ParseResult.Type(ast, actual, message));
 
   return Schema.transformOrFail(KeyedVariantSchema, TypedVariantSchema, {
     strict: false,
 
     decode: (kv, _options, ast) => {
       // Serde mode: bare string for unit variants
-      if (typeof kv === "string") {
+      if (typeof kv === 'string') {
         if (!(kv in variants)) return fail(ast, kv, `Unknown variant "${kv}"`);
-        if (variants[kv] !== null)
-          return fail(ast, kv, `Variant "${kv}" expects data`);
+        if (variants[kv] !== null) return fail(ast, kv, `Variant "${kv}" expects data`);
         return ParseResult.succeed({ type: kv });
       }
 
@@ -76,8 +63,7 @@ export const TypedVariant = <
       }
 
       const type = keys[0]!;
-      if (!(type in variants))
-        return fail(ast, kv, `Unknown variant "${type}"`);
+      if (!(type in variants)) return fail(ast, kv, `Unknown variant "${type}"`);
 
       const schema = variants[type];
 
@@ -86,26 +72,21 @@ export const TypedVariant = <
         return ParseResult.succeed({ type });
       }
 
-      const decoded = ParseResult.decodeUnknownEither(
-        schema as Schema.Schema.AnyNoContext,
-      )(kv[type]);
+      const decoded = ParseResult.decodeUnknownEither(schema as Schema.Schema.AnyNoContext)(kv[type]);
       if (Either.isLeft(decoded)) return ParseResult.fail(decoded.left);
       return ParseResult.succeed({ type, value: decoded.right });
     },
 
     encode: (tv, _options, ast) => {
       const { type, value } = tv;
-      if (!(type in variants))
-        return fail(ast, tv, `Unknown variant "${type}"`);
+      if (!(type in variants)) return fail(ast, tv, `Unknown variant "${type}"`);
 
       const schema = variants[type];
       if (schema === null || schema === undefined) {
         return ParseResult.succeed(bcsMode ? { [type]: [] } : type);
       }
 
-      const encoded = ParseResult.encodeUnknownEither(
-        schema as Schema.Schema.AnyNoContext,
-      )(value);
+      const encoded = ParseResult.encodeUnknownEither(schema as Schema.Schema.AnyNoContext)(value);
       if (Either.isLeft(encoded)) return ParseResult.fail(encoded.left);
       return ParseResult.succeed({ [type]: encoded.right });
     },

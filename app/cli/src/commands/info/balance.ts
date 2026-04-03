@@ -62,7 +62,12 @@ export const infoBalance = Command.make(
         senderBytes = fromFastAddress(fastAddress);
       }
 
-      const accountInfo = yield* rpc.getAccountInfo({ sender: senderBytes });
+      const accountInfo = yield* rpc.getAccountInfo({
+        address: senderBytes,
+        tokenBalancesFilter: null,
+        stateKeyFilter: null,
+        certificateByNonce: null,
+      });
 
       // Extract balances from account info
       const balances: Array<{

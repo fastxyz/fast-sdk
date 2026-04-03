@@ -3,5 +3,11 @@
     "composite": true
   },
   "files": [],
-  "references": [{ "path": "packages/bcs" }, { "path": "packages/schemas" }, { "path": "packages/sdk" }, { "path": "packages/cli" }]
+  "references": [
+    { "path": "packages/fast-schema" },
+    { "path": "packages/fast-sdk" },
+    { "path": "packages/allset-sdk" },
+    { "path": "packages/x402-sdk" },
+    { "path": "app/cli" }
+  ]
 }

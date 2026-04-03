@@ -1,0 +1,39 @@
+{
+  "name": "@fastxyz/x402-client",
+  "version": "0.1.0",
+  "description": "Client SDK for the x402 HTTP Payment Protocol — pay for x402-protected content",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run"
+  },
+  "author": "Fast.xyz",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@fastxyz/allset-sdk": "workspace:*",
+    "@fastxyz/fast-schema": "workspace:*",
+    "@fastxyz/fast-sdk": "workspace:*",
+    "@fastxyz/x402-types": "workspace:*",
+    "viem": "^2.46.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.15",
+    "typescript": "^6.0.2",
+    "vitest": "^1.6.0"
+  }
+}

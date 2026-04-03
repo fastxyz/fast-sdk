@@ -1,3 +1,4 @@
+import * as fs from "node:fs"
 import { Command, Options } from "@effect/cli"
 import { Effect, Option } from "effect"
 import { AccountStore } from "../../services/account-store.js"
@@ -56,7 +57,6 @@ export const accountImport = Command.make(
           )
         }
       } else if (Option.isSome(args.keyFile)) {
-        const fs = require("node:fs") as typeof import("node:fs")
         const content = fs.readFileSync(args.keyFile.value, "utf-8")
         const parsed = JSON.parse(content) as { privateKey?: string }
         if (!parsed.privateKey) {

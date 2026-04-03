@@ -1,4 +1,5 @@
 import { Args, Command, Options } from "@effect/cli"
+import { bech32m } from "bech32"
 import { Effect, Option } from "effect"
 import { Signer, TransactionBuilder } from "@fastxyz/fast-sdk"
 import { AccountStore } from "../services/account-store.js"
@@ -103,7 +104,7 @@ export const sendCommand = Command.make(
       const signer = new Signer(seed)
 
       // Get account nonce
-      const { bech32m } = require("bech32") as typeof import("bech32")
+
       const senderBytes = new Uint8Array(
         bech32m.fromWords(bech32m.decode(accountInfo.fastAddress).words),
       )

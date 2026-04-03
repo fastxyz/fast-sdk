@@ -1,6 +1,7 @@
 import { Command } from "@effect/cli"
 import { NodeContext, NodeRuntime } from "@effect/platform-node"
 import { Effect, Option } from "effect"
+
 import { rootCommand } from "./cli.js"
 import { type CliError, toErrorCode, toExitCode } from "./errors/index.js"
 import { Output } from "./services/output.js"

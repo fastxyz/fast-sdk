@@ -1,3 +1,4 @@
+import * as readline from "node:readline"
 import { Context, Effect, Layer, Option } from "effect"
 import { PasswordRequiredError } from "../errors/index.js"
 import { CliConfig } from "./cli-config.js"
@@ -15,8 +16,6 @@ const promptPassword = (
   prompt: string,
 ): Effect.Effect<string, PasswordRequiredError> =>
   Effect.async<string, PasswordRequiredError>((resume) => {
-    const readline =
-      require("node:readline") as typeof import("node:readline")
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stderr,

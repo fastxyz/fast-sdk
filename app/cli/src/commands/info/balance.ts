@@ -1,4 +1,5 @@
 import { Command, Options } from "@effect/cli";
+import { bech32m } from "bech32";
 import { Effect, Option } from "effect";
 import { InvalidAddressError } from "../../errors/index.js";
 import { AccountStore } from "../../services/account-store.js";
@@ -17,8 +18,6 @@ const tokenOption = Options.text("token").pipe(
 );
 
 const fromFastAddress = (address: string): Uint8Array => {
-  // Using bech32m decode — import from the SDK
-  const { bech32m } = require("bech32") as typeof import("bech32");
   const { prefix, words } = bech32m.decode(address);
   if (prefix !== "fast")
     throw new Error(`Expected "fast" prefix, got "${prefix}"`);

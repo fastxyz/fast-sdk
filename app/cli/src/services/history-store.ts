@@ -134,9 +134,9 @@ export const HistoryStoreLive = Layer.effect(
 
       updateStatus: (hash, status) =>
         Effect.gen(function* () {
-          const exists = yield* fs.exists(HISTORY_FILE).pipe(
-            Effect.mapError((e) => new StorageError({ message: 'Failed to check history file', cause: e })),
-          );
+          const exists = yield* fs
+            .exists(HISTORY_FILE)
+            .pipe(Effect.mapError((e) => new StorageError({ message: 'Failed to check history file', cause: e })));
           if (!exists) return;
           yield* withLock(
             Effect.gen(function* () {

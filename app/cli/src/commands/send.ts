@@ -26,7 +26,10 @@ const addressArg = Args.text({ name: 'address' }).pipe(Args.withDescription('Rec
 
 const amountArg = Args.text({ name: 'amount' }).pipe(Args.withDescription('Human-readable amount (e.g., 10.5)'));
 
-const tokenOption = Options.text('token').pipe(Options.optional, Options.withDescription('Token to send (e.g., testUSDC, USDC). Defaults to the first token available on the current network.'));
+const tokenOption = Options.text('token').pipe(
+  Options.optional,
+  Options.withDescription('Token to send (e.g., testUSDC, USDC). Defaults to the first token available on the current network.'),
+);
 
 const fromChainOption = Options.text('from-chain').pipe(
   Options.optional,

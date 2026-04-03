@@ -1,4 +1,5 @@
-import { createPublicClient, createWalletClient, http, parseAbi, type Account, type Chain, type PublicClient, type WalletClient } from 'viem';import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import { createPublicClient, createWalletClient, http, parseAbi, type Account, type Chain, type PublicClient, type WalletClient } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, arbitrumSepolia, base, mainnet as ethereum, sepolia } from 'viem/chains';
 
 /**
@@ -117,11 +118,7 @@ function resolveChain(chainId: number): Chain {
  * @param ownerAddress - Account to query
  * @returns Raw balance as bigint (in token's smallest unit)
  */
-export async function getEvmErc20Balance(
-  rpcUrl: string,
-  tokenAddress: string,
-  ownerAddress: string,
-): Promise<bigint> {
+export async function getEvmErc20Balance(rpcUrl: string, tokenAddress: string, ownerAddress: string): Promise<bigint> {
   const client = createPublicClient({ transport: http(rpcUrl) });
   return client.readContract({
     address: tokenAddress as `0x${string}`,

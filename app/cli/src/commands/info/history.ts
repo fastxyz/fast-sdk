@@ -25,11 +25,7 @@ interface PortalActivityListResponse {
 }
 
 /** Infer bridge route from addresses for entries that pre-date the route field. */
-function inferRoute(entry: {
-  route: 'fast' | 'evm-to-fast' | 'fast-to-evm';
-  from: string;
-  to: string;
-}): 'fast' | 'evm-to-fast' | 'fast-to-evm' {
+function inferRoute(entry: { route: 'fast' | 'evm-to-fast' | 'fast-to-evm'; from: string; to: string }): 'fast' | 'evm-to-fast' | 'fast-to-evm' {
   if (entry.route !== 'fast') return entry.route;
   if (entry.from.startsWith('0x') && entry.to.startsWith('fast1')) return 'evm-to-fast';
   if (entry.from.startsWith('fast1') && entry.to.startsWith('0x')) return 'fast-to-evm';

@@ -17,26 +17,23 @@ npm install @fastxyz/sdk
 ```
 
 ```ts
-import { FastProvider, Signer, TransactionBuilder } from "@fastxyz/sdk";
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
 
-const signer = new Signer("abcdef0123456789...");
-const provider = new FastProvider({ rpcUrl: "https://api.fast.xyz/proxy" });
-const account = await provider.getAccountInfo({
-  address: await signer.getPublicKey(),
-  tokenBalancesFilter: null,
-  stateKeyFilter: null,
-  certificateByNonce: null,
+// 1. Create provider
+const provider = new FastProvider({ network: 'testnet' });
+
+// 2. Create wallet
+const wallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+// 3. Send tokens
+const result = await wallet.send({
+  to: 'fast1recipient...',
+  amount: '1.5',
+  token: 'testUSDC'
 });
 
-const envelope = await new TransactionBuilder({
-  networkId: "fast:mainnet",
-  signer,
-  nonce: account.nextNonce,
-})
-  .addBurn({ tokenId: "11".repeat(32), amount: 100n })
-  .sign();
-
-await provider.submitTransaction(envelope);
+console.log('TX:', result.txHash);
+console.log('Explorer:', result.explorerUrl);
 ```
 
 See the [fast-sdk README](packages/fast-sdk/README.md) for full API documentation.

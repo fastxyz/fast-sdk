@@ -13,11 +13,11 @@ Official TypeScript SDK monorepo for the Fast network.
 ## Quick start
 
 ```bash
-npm install @fastxyz/fast-sdk
+npm install @fastxyz/sdk
 ```
 
 ```ts
-import { FastProvider, Signer, TransactionBuilder } from "@fastxyz/fast-sdk";
+import { FastProvider, Signer, TransactionBuilder } from "@fastxyz/sdk";
 
 const signer = new Signer("abcdef0123456789...");
 const provider = new FastProvider({ rpcUrl: "https://api.fast.xyz/proxy" });

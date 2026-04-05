@@ -1,13 +1,21 @@
-import { Command } from '@effect/cli';
+import { defineCommand } from 'citty';
 import { accountCreate } from './create.js';
+import { accountDelete } from './delete.js';
+import { accountExport } from './export.js';
 import { accountImport } from './import.js';
+import { accountInfo } from './info.js';
 import { accountList } from './list.js';
 import { accountSetDefault } from './set-default.js';
-import { accountInfo } from './info.js';
-import { accountExport } from './export.js';
-import { accountDelete } from './delete.js';
 
-export const accountCommand = Command.make('account').pipe(
-  Command.withDescription('Manage accounts'),
-  Command.withSubcommands([accountCreate, accountImport, accountList, accountSetDefault, accountInfo, accountExport, accountDelete]),
-);
+export const accountCommand = defineCommand({
+  meta: { name: 'account', description: 'Manage accounts' },
+  subCommands: {
+    create: accountCreate,
+    import: accountImport,
+    list: accountList,
+    'set-default': accountSetDefault,
+    info: accountInfo,
+    export: accountExport,
+    delete: accountDelete,
+  },
+});

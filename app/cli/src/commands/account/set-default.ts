@@ -1,12 +1,21 @@
-import { Args, Command } from '@effect/cli';
+import { defineCommand } from 'citty';
 import { Effect } from 'effect';
+import { globalArgs } from '../../cli-globals.js';
+import { runHandler } from '../../cli-runner.js';
 import { AccountStore } from '../../services/account-store.js';
 import { Output } from '../../services/output.js';
 
-const nameArg = Args.text({ name: 'name' }).pipe(Args.withDescription('Alias of an existing account'));
-
-export const accountSetDefault = Command.make('set-default', { name: nameArg }, (args) =>
-  Effect.gen(function* () {
+export const accountSetDefault = defineCommand({
+  meta: { name: 'set-default', description: 'Set the default account' },
+  args: {
+    ...globalArgs,
+    name: {
+      type: 'positional',
+      description: 'Alias of an existing account',
+      required: true,
+    },
+  },
+  run: ({ args }) => runHandler(args, Effect.gen(function* () {
     const accounts = yield* AccountStore;
     const output = yield* Output;
 
@@ -18,5 +27,5 @@ export const accountSetDefault = Command.make('set-default', { name: nameArg }, 
       name: info.name,
       fastAddress: info.fastAddress,
     });
-  }),
-).pipe(Command.withDescription('Set the default account'));
+  })),
+});

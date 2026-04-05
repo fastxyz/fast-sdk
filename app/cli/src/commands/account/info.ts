@@ -1,18 +1,27 @@
-import { Args, Command } from '@effect/cli';
-import { Effect, Option } from 'effect';
+import { defineCommand } from 'citty';
+import { Effect } from 'effect';
+import { globalArgs } from '../../cli-globals.js';
+import { runHandler } from '../../cli-runner.js';
 import { AccountStore } from '../../services/account-store.js';
-import { Output } from '../../services/output.js';
 import { CliConfig } from '../../services/cli-config.js';
+import { Output } from '../../services/output.js';
 
-const nameArg = Args.text({ name: 'name' }).pipe(Args.withDescription('Account alias. Defaults to the default account.'), Args.optional);
-
-export const accountInfo = Command.make('info', { name: nameArg }, (args) =>
-  Effect.gen(function* () {
+export const accountInfo = defineCommand({
+  meta: { name: 'info', description: 'Show account addresses' },
+  args: {
+    ...globalArgs,
+    name: {
+      type: 'positional',
+      description: 'Account alias. Defaults to the default account.',
+      required: false,
+    },
+  },
+  run: ({ args }) => runHandler(args, Effect.gen(function* () {
     const accounts = yield* AccountStore;
     const output = yield* Output;
     const config = yield* CliConfig;
 
-    const info = Option.isSome(args.name) ? yield* accounts.get(args.name.value) : yield* accounts.resolveAccount(config.account);
+    const info = args.name ? yield* accounts.get(args.name) : yield* accounts.resolveAccount(config.account);
 
     const defaultLabel = info.isDefault ? ' (default)' : '';
     yield* output.humanLine(`Account: ${info.name}${defaultLabel}`);
@@ -24,5 +33,5 @@ export const accountInfo = Command.make('info', { name: nameArg }, (args) =>
       evmAddress: info.evmAddress,
       isDefault: info.isDefault,
     });
-  }),
-).pipe(Command.withDescription('Show account addresses'));
+  })),
+});

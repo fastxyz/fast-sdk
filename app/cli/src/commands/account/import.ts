@@ -39,9 +39,18 @@ export const accountImport = defineCommand({
           );
         }
 
+        const parseHexSeed = (hex: string) =>
+          Effect.try({
+            try: () => fromHex(hex),
+            catch: (e) =>
+              new InvalidUsageError({
+                message: `Invalid hex in private key: ${e instanceof Error ? e.message : String(e)}`,
+              }),
+          });
+
         let seed: Uint8Array;
         if (args["private-key"]) {
-          seed = fromHex(args["private-key"]);
+          seed = yield* parseHexSeed(args["private-key"]);
           if (seed.length !== 32) {
             return yield* Effect.fail(
               new InvalidUsageError({
@@ -70,7 +79,7 @@ export const accountImport = defineCommand({
               }),
             );
           }
-          seed = fromHex(parsed.privateKey);
+          seed = yield* parseHexSeed(parsed.privateKey);
           if (seed.length !== 32) {
             return yield* Effect.fail(
               new InvalidUsageError({

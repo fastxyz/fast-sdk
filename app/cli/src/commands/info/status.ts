@@ -16,15 +16,19 @@ export const infoStatus = defineCommand({
     const config = yield* CliConfig;
     const networkConfig = yield* NetworkConfigService;
 
-    const network = yield* networkConfig.resolve(config.network).pipe(Effect.mapError((e) => e));
+    const network = yield* networkConfig.resolve(config.network);
 
-    let healthy = false;
-    try {
-      yield* rpc.getAccountInfo({ sender: new Uint8Array(32) });
-      healthy = true;
-    } catch {
-      // unreachable, report in UI
-    }
+    const healthy = yield* rpc
+      .getAccountInfo({
+        address: new Uint8Array(32),
+        tokenBalancesFilter: null,
+        stateKeyFilter: null,
+        certificateByNonce: null,
+      } as never)
+      .pipe(
+        Effect.map(() => true),
+        Effect.catchAll(() => Effect.succeed(false)),
+      );
 
     const defaultNetwork = yield* networkConfig.getDefault();
     const isDefault = config.network === defaultNetwork;

@@ -1,9 +1,7 @@
-import { existsSync } from 'node:fs';
 import { defineCommand } from 'citty';
 import { Effect } from 'effect';
 import { globalArgs } from '../../cli-globals.js';
 import { runHandler } from '../../cli-runner.js';
-import { InvalidUsageError } from '../../errors/index.js';
 import { NetworkConfigService } from '../../services/network-config.js';
 import { Output } from '../../services/output.js';
 
@@ -23,10 +21,6 @@ export const networkAdd = defineCommand({
     },
   },
   run: ({ args }) => runHandler(args, Effect.gen(function* () {
-    if (!existsSync(args.config)) {
-      return yield* Effect.fail(new InvalidUsageError({ message: `Config file not found: ${args.config}` }));
-    }
-
     const networkConfig = yield* NetworkConfigService;
     const output = yield* Output;
 

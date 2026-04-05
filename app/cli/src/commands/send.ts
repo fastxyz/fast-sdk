@@ -117,9 +117,7 @@ export const sendCommand = defineCommand({
       }
 
       // Resolve network
-      const network = yield* networkConfig
-        .resolve(config.network)
-        .pipe(Effect.mapError((e) => new TransactionFailedError({ message: e.message, cause: e })));
+      const network = yield* networkConfig.resolve(config.network);
 
       // Resolve token name: use provided value or default to first token on the network
       const tokenChain = fromChain ?? toChain;

@@ -25,7 +25,7 @@ const NETWORKS_DIR = join(FAST_DIR, "networks");
 export interface NetworkConfigShape {
   readonly resolve: (
     name: string,
-  ) => Effect.Effect<NetworkConfig, NetworkNotFoundError | StorageError>;
+  ) => Effect.Effect<NetworkConfig, NetworkNotFoundError | StorageError | InvalidConfigError>;
   readonly list: () => Effect.Effect<
     Array<{ name: string; type: "bundled" | "custom"; isDefault: boolean }>,
     StorageError
@@ -108,7 +108,11 @@ export const NetworkConfigLive = Layer.effect(
           );
           const custom = yield* Schema.decodeUnknown(CustomNetworkConfig)(
             JSON.parse(content),
-          ).pipe(mapToStorageError(`decode network config: ${name}`));
+          ).pipe(
+            Effect.mapError(
+              () => new InvalidConfigError({ message: `Invalid network config: ${name}` }),
+            ),
+          );
 
           return {
             rpcUrl: custom.fast.rpcUrl,

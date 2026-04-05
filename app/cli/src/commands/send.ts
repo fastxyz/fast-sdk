@@ -1,9 +1,11 @@
-import { Args, Command, Options } from '@effect/cli';
-import { Effect, Option, Schema } from 'effect';
+import { defineCommand } from 'citty';
 import { bech32m } from 'bech32';
+import { Effect, Schema } from 'effect';
 import { Signer, TransactionBuilder, FastProvider, hashHex, toHex } from '@fastxyz/fast-sdk';
 import { bcsSchema, VersionedTransactionFromBcs } from '@fastxyz/fast-schema';
 import { executeDeposit, executeWithdraw, createEvmWallet, createEvmExecutor } from '@fastxyz/allset-sdk';
+import { globalArgs } from '../cli-globals.js';
+import { runHandler } from '../cli-runner.js';
 import { AccountStore } from '../services/account-store.js';
 import { PasswordService } from '../services/password-service.js';
 import { FastRpc } from '../services/fast-rpc.js';
@@ -22,36 +24,34 @@ import {
 } from '../errors/index.js';
 import { HistoryEntry } from '../schemas/history.js';
 
-const addressArg = Args.text({ name: 'address' }).pipe(Args.withDescription('Recipient address (fast1... for Fast, 0x... for EVM)'));
-
-const amountArg = Args.text({ name: 'amount' }).pipe(Args.withDescription('Human-readable amount (e.g., 10.5)'));
-
-const tokenOption = Options.text('token').pipe(
-  Options.optional,
-  Options.withDescription('Token to send (e.g., testUSDC, USDC). Defaults to the first token available on the current network.'),
-);
-
-const fromChainOption = Options.text('from-chain').pipe(
-  Options.optional,
-  Options.withDescription('Source EVM chain for bridge-in (e.g., arbitrum-sepolia)'),
-);
-
-const toChainOption = Options.text('to-chain').pipe(
-  Options.optional,
-  Options.withDescription('Destination EVM chain for bridge-out (e.g., arbitrum-sepolia)'),
-);
-
-export const sendCommand = Command.make(
-  'send',
-  {
-    address: addressArg,
-    amount: amountArg,
-    token: tokenOption,
-    fromChain: fromChainOption,
-    toChain: toChainOption,
+export const sendCommand = defineCommand({
+  meta: { name: 'send', description: 'Send tokens (Fast→Fast, EVM→Fast, or Fast→EVM)' },
+  args: {
+    ...globalArgs,
+    address: {
+      type: 'positional',
+      description: 'Recipient address (fast1... for Fast, 0x... for EVM)',
+      required: true,
+    },
+    amount: {
+      type: 'positional',
+      description: 'Human-readable amount (e.g., 10.5)',
+      required: true,
+    },
+    token: {
+      type: 'string',
+      description: 'Token to send (e.g., testUSDC, USDC). Defaults to the first token available on the current network.',
+    },
+    'from-chain': {
+      type: 'string',
+      description: 'Source EVM chain for bridge-in (e.g., arbitrum-sepolia)',
+    },
+    'to-chain': {
+      type: 'string',
+      description: 'Destination EVM chain for bridge-out (e.g., arbitrum-sepolia)',
+    },
   },
-  (args) =>
-    Effect.gen(function* () {
+  run: ({ args }) => runHandler(args, Effect.gen(function* () {
       const accounts = yield* AccountStore;
       const passwordService = yield* PasswordService;
       const rpc = yield* FastRpc;
@@ -60,8 +60,8 @@ export const sendCommand = Command.make(
       const historyStore = yield* HistoryStore;
       const networkConfig = yield* NetworkConfigService;
 
-      const fromChain = Option.getOrUndefined(args.fromChain);
-      const toChain = Option.getOrUndefined(args.toChain);
+      const fromChain = args['from-chain'];
+      const toChain = args['to-chain'];
 
       // Determine route
       const isFastAddress = args.address.startsWith('fast1');
@@ -123,11 +123,11 @@ export const sendCommand = Command.make(
 
       // Resolve token name: use provided value or default to first token on the network
       const tokenChain = fromChain ?? toChain;
-      const resolvedTokenName = Option.getOrElse(args.token, () => {
+      const resolvedTokenName = args.token ?? (() => {
         const chains = network.allset?.chains ?? {};
         const firstChain = Object.values(chains)[0];
         return firstChain ? (Object.keys(firstChain.tokens)[0] ?? 'USDC') : 'USDC';
-      });
+      })();
 
       // Resolve token using the appropriate chain context
       const tokenInfo = yield* Effect.try({
@@ -362,5 +362,5 @@ export const sendCommand = Command.make(
         explorerUrl,
         estimatedTime,
       });
-    }),
-).pipe(Command.withDescription('Send tokens (Fast→Fast, EVM→Fast, or Fast→EVM)'));
+  })),
+});

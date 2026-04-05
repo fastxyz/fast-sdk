@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { FileSystem } from '@effect/platform';
 import { Context, Effect, Layer, Schema } from 'effect';
 import lockfile from 'proper-lockfile';
-import { StorageError, TxNotFoundError } from '../errors/index.js';
+import { StorageError, TxNotFoundError, mapToStorageError } from '../errors/index.js';
 import { HistoryEntry, HistoryFile } from '../schemas/history.js';
 
 const FAST_DIR = join(homedir(), '.fast');
@@ -32,15 +32,7 @@ const ensureDir = (fs: FileSystem.FileSystem, path: string) =>
     if (!exists) {
       yield* fs.makeDirectory(path, { recursive: true });
     }
-  }).pipe(
-    Effect.mapError(
-      (e) =>
-        new StorageError({
-          message: `Failed to create directory: ${path}`,
-          cause: e,
-        }),
-    ),
-  );
+  }).pipe(mapToStorageError(`create directory: ${path}`));
 
 const readHistory = (fs: FileSystem.FileSystem): Effect.Effect<HistoryEntry[], StorageError> =>
   Effect.gen(function* () {
@@ -49,13 +41,13 @@ const readHistory = (fs: FileSystem.FileSystem): Effect.Effect<HistoryEntry[], S
     const content = yield* fs.readFileString(HISTORY_FILE);
     const parsed = JSON.parse(content);
     return yield* Schema.decodeUnknown(HistoryFile)(parsed);
-  }).pipe(Effect.mapError((e) => new StorageError({ message: 'Failed to read history.json', cause: e })));
+  }).pipe(mapToStorageError('read history.json'));
 
 const writeHistory = (fs: FileSystem.FileSystem, entries: HistoryEntry[]) =>
   Effect.gen(function* () {
     yield* ensureDir(fs, FAST_DIR);
     yield* fs.writeFileString(HISTORY_FILE, JSON.stringify(entries, null, 2));
-  }).pipe(Effect.mapError((e) => new StorageError({ message: 'Failed to write history.json', cause: e })));
+  }).pipe(mapToStorageError('write history.json'));
 
 const withLock = <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, E | StorageError> =>
   Effect.acquireUseRelease(
@@ -81,13 +73,7 @@ export const HistoryStoreLive = Layer.effect(
         Effect.gen(function* () {
           yield* ensureDir(fs, FAST_DIR);
           const exists = yield* fs.exists(HISTORY_FILE).pipe(
-            Effect.mapError(
-              (e) =>
-                new StorageError({
-                  message: 'Failed to check history file',
-                  cause: e,
-                }),
-            ),
+            mapToStorageError('check history file'),
           );
           if (!exists) {
             yield* writeHistory(fs, []);
@@ -136,7 +122,7 @@ export const HistoryStoreLive = Layer.effect(
         Effect.gen(function* () {
           const exists = yield* fs
             .exists(HISTORY_FILE)
-            .pipe(Effect.mapError((e) => new StorageError({ message: 'Failed to check history file', cause: e })));
+            .pipe(mapToStorageError('check history file'));
           if (!exists) return;
           yield* withLock(
             Effect.gen(function* () {

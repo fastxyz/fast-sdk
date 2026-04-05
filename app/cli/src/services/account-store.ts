@@ -13,6 +13,7 @@ import {
   NoAccountsError,
   StorageError,
   type WrongPasswordError,
+  mapToStorageError,
 } from "../errors/index.js";
 import { AccountEntry, AccountsFile } from "../schemas/accounts.js";
 import { KeyfileV3 } from "../schemas/keyfile.js";
@@ -94,15 +95,7 @@ const ensureDir = (fs: FileSystem.FileSystem, path: string, mode?: number) =>
         catch: () => undefined,
       }).pipe(Effect.ignore);
     }
-  }).pipe(
-    Effect.mapError(
-      (e) =>
-        new StorageError({
-          message: `Failed to create directory: ${path}`,
-          cause: e,
-        }),
-    ),
-  );
+  }).pipe(mapToStorageError(`create directory: ${path}`));
 
 const readAccountsFile = (
   fs: FileSystem.FileSystem,
@@ -114,29 +107,13 @@ const readAccountsFile = (
     }
     const content = yield* fs.readFileString(ACCOUNTS_FILE);
     return yield* Schema.decodeUnknown(AccountsFile)(JSON.parse(content));
-  }).pipe(
-    Effect.mapError(
-      (e) =>
-        new StorageError({
-          message: "Failed to read accounts.json",
-          cause: e,
-        }),
-    ),
-  );
+  }).pipe(mapToStorageError('read accounts.json'));
 
 const writeAccountsFile = (fs: FileSystem.FileSystem, data: AccountsFile) =>
   Effect.gen(function* () {
     yield* ensureDir(fs, FAST_DIR, 0o700);
     yield* fs.writeFileString(ACCOUNTS_FILE, JSON.stringify(data, null, 2));
-  }).pipe(
-    Effect.mapError(
-      (e) =>
-        new StorageError({
-          message: "Failed to write accounts.json",
-          cause: e,
-        }),
-    ),
-  );
+  }).pipe(mapToStorageError('write accounts.json'));
 
 const readKeyfile = (
   fs: FileSystem.FileSystem,
@@ -146,15 +123,7 @@ const readKeyfile = (
     const path = join(KEYS_DIR, `${name}.json`);
     const content = yield* fs.readFileString(path);
     return yield* Schema.decodeUnknown(KeyfileV3)(JSON.parse(content));
-  }).pipe(
-    Effect.mapError(
-      (e) =>
-        new StorageError({
-          message: `Failed to read keyfile for "${name}"`,
-          cause: e,
-        }),
-    ),
-  );
+  }).pipe(mapToStorageError(`read keyfile for "${name}"`));
 
 const writeKeyfile = (
   fs: FileSystem.FileSystem,
@@ -172,15 +141,7 @@ const writeKeyfile = (
       },
       catch: () => undefined,
     }).pipe(Effect.ignore);
-  }).pipe(
-    Effect.mapError(
-      (e) =>
-        new StorageError({
-          message: `Failed to write keyfile for "${name}"`,
-          cause: e,
-        }),
-    ),
-  );
+  }).pipe(mapToStorageError(`write keyfile for "${name}"`));
 
 const withAccountLock = <A, E>(
   fs: FileSystem.FileSystem,
@@ -189,13 +150,7 @@ const withAccountLock = <A, E>(
   Effect.gen(function* () {
     yield* ensureDir(fs, FAST_DIR, 0o700);
     const exists = yield* fs.exists(ACCOUNTS_FILE).pipe(
-      Effect.mapError(
-        (e) =>
-          new StorageError({
-            message: "Failed to check accounts file",
-            cause: e,
-          }),
-      ),
+      mapToStorageError('check accounts file'),
     );
     if (!exists) {
       yield* writeAccountsFile(
@@ -276,15 +231,7 @@ export const AccountStoreLive = Layer.effect(
           const { fastAddress, evmAddress } = yield* deriveAddresses(seed);
           const keyfile = yield* keystore
             .encrypt(seed, password, fastAddress, evmAddress)
-            .pipe(
-              Effect.mapError(
-                (e) =>
-                  new StorageError({
-                    message: "Failed to encrypt keyfile",
-                    cause: e,
-                  }),
-              ),
-            );
+            .pipe(mapToStorageError('encrypt keyfile'));
           yield* writeKeyfile(fs, name, keyfile);
 
           const newDefault = data.default ?? name;
@@ -377,15 +324,7 @@ export const AccountStoreLive = Layer.effect(
             }
 
             const keyPath = join(KEYS_DIR, `${name}.json`);
-            yield* fs.remove(keyPath).pipe(
-              Effect.mapError(
-                (e) =>
-                  new StorageError({
-                    message: `Failed to delete keyfile for "${name}"`,
-                    cause: e,
-                  }),
-              ),
-            );
+            yield* fs.remove(keyPath).pipe(mapToStorageError(`delete keyfile for "${name}"`));
 
             const remaining = data.accounts.filter((a) => a.name !== name);
             const newDefault =

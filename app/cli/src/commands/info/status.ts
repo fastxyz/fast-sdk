@@ -1,12 +1,16 @@
-import { Command } from '@effect/cli';
+import { defineCommand } from 'citty';
 import { Effect } from 'effect';
-import { FastRpc } from '../../services/fast-rpc.js';
-import { Output } from '../../services/output.js';
+import { globalArgs } from '../../cli-globals.js';
+import { runHandler } from '../../cli-runner.js';
 import { CliConfig } from '../../services/cli-config.js';
+import { FastRpc } from '../../services/fast-rpc.js';
 import { NetworkConfigService } from '../../services/network-config.js';
+import { Output } from '../../services/output.js';
 
-export const infoStatus = Command.make('status', {}, () =>
-  Effect.gen(function* () {
+export const infoStatus = defineCommand({
+  meta: { name: 'status', description: 'Health check for current network' },
+  args: { ...globalArgs },
+  run: ({ args }) => runHandler(args, Effect.gen(function* () {
     const rpc = yield* FastRpc;
     const output = yield* Output;
     const config = yield* CliConfig;
@@ -14,15 +18,12 @@ export const infoStatus = Command.make('status', {}, () =>
 
     const network = yield* networkConfig.resolve(config.network).pipe(Effect.mapError((e) => e));
 
-    // Try a simple RPC call to check health
     let healthy = false;
-    let blockHeight: number | null = null;
     try {
-      // getAccountInfo with a dummy address to test connectivity
       yield* rpc.getAccountInfo({ sender: new Uint8Array(32) });
       healthy = true;
     } catch {
-      // If it fails, still report the network info but mark as unhealthy
+      // unreachable, report in UI
     }
 
     const defaultNetwork = yield* networkConfig.getDefault();
@@ -41,5 +42,5 @@ export const infoStatus = Command.make('status', {}, () =>
         healthy,
       },
     });
-  }),
-).pipe(Command.withDescription('Health check for current network'));
+  })),
+});

@@ -1,12 +1,21 @@
-import { Args, Command } from '@effect/cli';
+import { defineCommand } from 'citty';
 import { Effect } from 'effect';
+import { globalArgs } from '../../cli-globals.js';
+import { runHandler } from '../../cli-runner.js';
 import { HistoryStore } from '../../services/history-store.js';
 import { Output } from '../../services/output.js';
 
-const hashArg = Args.text({ name: 'hash' }).pipe(Args.withDescription('Transaction hash (hex)'));
-
-export const infoTx = Command.make('tx', { hash: hashArg }, (args) =>
-  Effect.gen(function* () {
+export const infoTx = defineCommand({
+  meta: { name: 'tx', description: 'Look up a transaction by hash' },
+  args: {
+    ...globalArgs,
+    hash: {
+      type: 'positional',
+      description: 'Transaction hash (hex)',
+      required: true,
+    },
+  },
+  run: ({ args }) => runHandler(args, Effect.gen(function* () {
     const history = yield* HistoryStore;
     const output = yield* Output;
 
@@ -23,5 +32,5 @@ export const infoTx = Command.make('tx', { hash: hashArg }, (args) =>
       yield* output.humanLine(`  Explorer:  ${entry.explorerUrl}`);
     }
     yield* output.success(entry);
-  }),
-).pipe(Command.withDescription('Look up a transaction by hash'));
+  })),
+});

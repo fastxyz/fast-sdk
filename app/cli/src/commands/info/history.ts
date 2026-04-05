@@ -2,6 +2,7 @@ import { defineCommand } from 'citty';
 import { Effect, Option } from 'effect';
 import { globalArgs } from '../../cli-globals.js';
 import { runHandler } from '../../cli-runner.js';
+import { InvalidUsageError } from '../../errors/index.js';
 import { HistoryStore } from '../../services/history-store.js';
 import { NetworkConfigService } from '../../services/network-config.js';
 import { Output } from '../../services/output.js';
@@ -62,6 +63,13 @@ export const infoHistory = defineCommand({
 
     const limit = Number(args.limit);
     const offset = Number(args.offset);
+
+    if (!Number.isFinite(limit) || !Number.isInteger(limit) || limit < 0) {
+      return yield* Effect.fail(new InvalidUsageError({ message: '--limit must be a non-negative integer' }));
+    }
+    if (!Number.isFinite(offset) || !Number.isInteger(offset) || offset < 0) {
+      return yield* Effect.fail(new InvalidUsageError({ message: '--offset must be a non-negative integer' }));
+    }
 
     let entries = yield* history.list({
       from: args.from,

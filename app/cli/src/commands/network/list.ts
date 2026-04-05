@@ -1,10 +1,14 @@
-import { Command } from '@effect/cli';
+import { defineCommand } from 'citty';
 import { Effect } from 'effect';
+import { globalArgs } from '../../cli-globals.js';
+import { runHandler } from '../../cli-runner.js';
 import { NetworkConfigService } from '../../services/network-config.js';
 import { Output } from '../../services/output.js';
 
-export const networkList = Command.make('list', {}, () =>
-  Effect.gen(function* () {
+export const networkList = defineCommand({
+  meta: { name: 'list', description: 'List available networks' },
+  args: { ...globalArgs },
+  run: ({ args }) => runHandler(args, Effect.gen(function* () {
     const networkConfig = yield* NetworkConfigService;
     const output = yield* Output;
 
@@ -21,5 +25,5 @@ export const networkList = Command.make('list', {}, () =>
         isDefault: n.isDefault,
       })),
     });
-  }),
-).pipe(Command.withDescription('List available networks'));
+  })),
+});

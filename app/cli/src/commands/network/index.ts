@@ -1,10 +1,15 @@
-import { Command } from '@effect/cli';
-import { networkList } from './list.js';
-import { networkSetDefault } from './set-default.js';
+import { defineCommand } from 'citty';
 import { networkAdd } from './add.js';
+import { networkList } from './list.js';
 import { networkRemove } from './remove.js';
+import { networkSetDefault } from './set-default.js';
 
-export const networkCommand = Command.make('network').pipe(
-  Command.withDescription('Manage networks'),
-  Command.withSubcommands([networkList, networkSetDefault, networkAdd, networkRemove]),
-);
+export const networkCommand = defineCommand({
+  meta: { name: 'network', description: 'Manage networks' },
+  subCommands: {
+    list: networkList,
+    'set-default': networkSetDefault,
+    add: networkAdd,
+    remove: networkRemove,
+  },
+});

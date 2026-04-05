@@ -51,8 +51,18 @@ export const accountImport = defineCommand({
             );
           }
         } else if (args["key-file"]) {
-          const content = readFileSync(args["key-file"], "utf-8");
-          const parsed = JSON.parse(content) as { privateKey?: string };
+          const keyFilePath = args["key-file"];
+          const content = yield* Effect.try({
+            try: () => readFileSync(keyFilePath, "utf-8"),
+            catch: (e) =>
+              new InvalidUsageError({
+                message: `Cannot read key file: ${e instanceof Error ? e.message : String(e)}`,
+              }),
+          });
+          const parsed = yield* Effect.try({
+            try: () => JSON.parse(content) as { privateKey?: string },
+            catch: () => new InvalidUsageError({ message: "Key file is not valid JSON" }),
+          });
           if (!parsed.privateKey) {
             return yield* Effect.fail(
               new InvalidUsageError({

@@ -1,7 +1,7 @@
 import { Args, Command, Options } from '@effect/cli';
 import { Effect, Option, Schema } from 'effect';
 import { bech32m } from 'bech32';
-import { Signer, TransactionBuilder, FastProvider, hashHex } from '@fastxyz/fast-sdk';
+import { Signer, TransactionBuilder, FastProvider, hashHex, toHex } from '@fastxyz/fast-sdk';
 import { bcsSchema, VersionedTransactionFromBcs } from '@fastxyz/fast-schema';
 import { executeDeposit, executeWithdraw, createEvmWallet, createEvmExecutor } from '@fastxyz/allset-sdk';
 import { AccountStore } from '../services/account-store.js';
@@ -40,8 +40,6 @@ const toChainOption = Options.text('to-chain').pipe(
   Options.optional,
   Options.withDescription('Destination EVM chain for bridge-out (e.g., arbitrum-sepolia)'),
 );
-
-const bytesToHex = (bytes: Uint8Array): string => `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
 
 export const sendCommand = Command.make(
   'send',
@@ -196,7 +194,7 @@ export const sendCommand = Command.make(
           return yield* Effect.fail(new UnsupportedChainError({ chain: fromChain! }));
         }
 
-        const evmAccount = createEvmWallet(bytesToHex(seed));
+        const evmAccount = createEvmWallet(toHex(seed));
         const evmClients = createEvmExecutor(evmAccount, chainCfg.evmRpcUrl, chainCfg.chainId);
 
         const bridgeResult = yield* Effect.tryPromise({
@@ -246,7 +244,7 @@ export const sendCommand = Command.make(
               relayerUrl: chainCfg.relayerUrl,
               crossSignUrl: allset.crossSignUrl,
               tokenEvmAddress: tokenInfo.evmAddress!,
-              tokenFastTokenId: tokenInfo.fastTokenId.reduce((s, b) => s + b.toString(16).padStart(2, '0'), ''),
+              tokenFastTokenId: toHex(tokenInfo.fastTokenId).slice(2),
               amount: amountRaw.toString(),
               receiverEvmAddress: args.address,
               signer,
@@ -327,7 +325,7 @@ export const sendCommand = Command.make(
           amount: amountRaw.toString(),
           formatted: args.amount,
           tokenName: resolvedTokenName,
-          tokenId: bytesToHex(tokenInfo.fastTokenId),
+          tokenId: toHex(tokenInfo.fastTokenId),
           network: config.network,
           status: route === 'fast' ? 'confirmed' : 'pending',
           timestamp: new Date().toISOString(),

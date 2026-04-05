@@ -1,3 +1,4 @@
+import { fromHex } from '@fastxyz/fast-sdk';
 import type { NetworkConfig } from '../config/bundled.js';
 import { TokenNotFoundError, UnsupportedChainError } from '../errors/index.js';
 
@@ -5,15 +6,6 @@ export interface ResolvedToken {
   readonly fastTokenId: Uint8Array;
   readonly decimals: number;
   readonly evmAddress?: string;
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
-  const bytes = new Uint8Array(clean.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
 }
 
 /**
@@ -38,7 +30,7 @@ export function resolveToken(tokenName: string, networkConfig: NetworkConfig, ch
       throw new TokenNotFoundError({ name: tokenName });
     }
     return {
-      fastTokenId: hexToBytes(token.fastTokenId),
+      fastTokenId: fromHex(token.fastTokenId),
       decimals: token.decimals,
       evmAddress: token.evmAddress,
     };
@@ -49,7 +41,7 @@ export function resolveToken(tokenName: string, networkConfig: NetworkConfig, ch
     const token = chainConfig.tokens[tokenName];
     if (token) {
       return {
-        fastTokenId: hexToBytes(token.fastTokenId),
+        fastTokenId: fromHex(token.fastTokenId),
         decimals: token.decimals,
       };
     }

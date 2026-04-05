@@ -1,4 +1,5 @@
 import { Args, Command } from '@effect/cli';
+import { toHex } from '@fastxyz/fast-sdk';
 import { Effect, Option } from 'effect';
 import { AccountStore } from '../../services/account-store.js';
 import { PasswordService } from '../../services/password-service.js';
@@ -7,8 +8,6 @@ import { CliConfig } from '../../services/cli-config.js';
 import { UserCancelledError } from '../../errors/index.js';
 
 const nameArg = Args.text({ name: 'name' }).pipe(Args.withDescription('Account alias. Defaults to the default account.'), Args.optional);
-
-const bytesToHex = (bytes: Uint8Array): string => `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
 
 export const accountExport = Command.make('export', { name: nameArg }, (args) =>
   Effect.gen(function* () {
@@ -29,7 +28,7 @@ export const accountExport = Command.make('export', { name: nameArg }, (args) =>
 
     const pwd = yield* passwordService.resolve();
     const { seed, entry } = yield* accounts.export_(accountName, pwd);
-    const privateKeyHex = bytesToHex(seed);
+    const privateKeyHex = toHex(seed);
 
     yield* output.humanLine(`⚠ Private key for "${entry.name}":`);
     yield* output.humanLine(privateKeyHex);

@@ -1,11 +1,11 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { FileSystem } from '@effect/platform';
-import { Signer } from '@fastxyz/fast-sdk';
-import { secp256k1 } from '@noble/curves/secp256k1.js';
-import { keccak_256 } from '@noble/hashes/sha3.js';
-import { Context, Effect, Layer, Option, Schema } from 'effect';
-import lockfile from 'proper-lockfile';
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { FileSystem } from "@effect/platform";
+import { Signer, toHex } from "@fastxyz/fast-sdk";
+import { secp256k1 } from "@noble/curves/secp256k1.js";
+import { keccak_256 } from "@noble/hashes/sha3.js";
+import { Context, Effect, Layer, Option, Schema } from "effect";
+import lockfile from "proper-lockfile";
 import {
   AccountExistsError,
   AccountNotFoundError,
@@ -13,14 +13,14 @@ import {
   NoAccountsError,
   StorageError,
   type WrongPasswordError,
-} from '../errors/index.js';
-import { AccountEntry, AccountsFile } from '../schemas/accounts.js';
-import { KeyfileV3 } from '../schemas/keyfile.js';
-import { KeystoreV3 } from './keystore-v3.js';
+} from "../errors/index.js";
+import { AccountEntry, AccountsFile } from "../schemas/accounts.js";
+import { KeyfileV3 } from "../schemas/keyfile.js";
+import { KeystoreV3 } from "./keystore-v3.js";
 
-const FAST_DIR = join(homedir(), '.fast');
-const ACCOUNTS_FILE = join(FAST_DIR, 'accounts.json');
-const KEYS_DIR = join(FAST_DIR, 'keys');
+const FAST_DIR = join(homedir(), ".fast");
+const ACCOUNTS_FILE = join(FAST_DIR, "accounts.json");
+const KEYS_DIR = join(FAST_DIR, "keys");
 
 export interface AccountInfo {
   readonly name: string;
@@ -32,21 +32,52 @@ export interface AccountInfo {
 
 export interface AccountStoreShape {
   readonly list: () => Effect.Effect<AccountInfo[], StorageError>;
-  readonly get: (name: string) => Effect.Effect<AccountInfo, AccountNotFoundError | StorageError>;
-  readonly getDefault: () => Effect.Effect<AccountInfo, NoAccountsError | StorageError>;
-  readonly create: (name: string, seed: Uint8Array, password: string) => Effect.Effect<AccountInfo, AccountExistsError | StorageError>;
-  readonly import_: (name: string, seed: Uint8Array, password: string) => Effect.Effect<AccountInfo, AccountExistsError | StorageError>;
-  readonly setDefault: (name: string) => Effect.Effect<void, AccountNotFoundError | StorageError>;
-  readonly delete_: (name: string) => Effect.Effect<void, AccountNotFoundError | DefaultAccountError | StorageError>;
+  readonly get: (
+    name: string,
+  ) => Effect.Effect<AccountInfo, AccountNotFoundError | StorageError>;
+  readonly getDefault: () => Effect.Effect<
+    AccountInfo,
+    NoAccountsError | StorageError
+  >;
+  readonly create: (
+    name: string,
+    seed: Uint8Array,
+    password: string,
+  ) => Effect.Effect<AccountInfo, AccountExistsError | StorageError>;
+  readonly import_: (
+    name: string,
+    seed: Uint8Array,
+    password: string,
+  ) => Effect.Effect<AccountInfo, AccountExistsError | StorageError>;
+  readonly setDefault: (
+    name: string,
+  ) => Effect.Effect<void, AccountNotFoundError | StorageError>;
+  readonly delete_: (
+    name: string,
+  ) => Effect.Effect<
+    void,
+    AccountNotFoundError | DefaultAccountError | StorageError
+  >;
   readonly export_: (
     name: string,
     password: string,
-  ) => Effect.Effect<{ seed: Uint8Array; entry: AccountInfo }, AccountNotFoundError | WrongPasswordError | StorageError>;
-  readonly resolveAccount: (flag: Option.Option<string>) => Effect.Effect<AccountInfo, AccountNotFoundError | NoAccountsError | StorageError>;
+  ) => Effect.Effect<
+    { seed: Uint8Array; entry: AccountInfo },
+    AccountNotFoundError | WrongPasswordError | StorageError
+  >;
+  readonly resolveAccount: (
+    flag: Option.Option<string>,
+  ) => Effect.Effect<
+    AccountInfo,
+    AccountNotFoundError | NoAccountsError | StorageError
+  >;
   readonly nextAutoName: () => Effect.Effect<string, StorageError>;
 }
 
-export class AccountStore extends Context.Tag('AccountStore')<AccountStore, AccountStoreShape>() {}
+export class AccountStore extends Context.Tag("AccountStore")<
+  AccountStore,
+  AccountStoreShape
+>() {}
 
 const ensureDir = (fs: FileSystem.FileSystem, path: string, mode?: number) =>
   Effect.gen(function* () {
@@ -57,7 +88,7 @@ const ensureDir = (fs: FileSystem.FileSystem, path: string, mode?: number) =>
     if (mode !== undefined) {
       yield* Effect.tryPromise({
         try: async () => {
-          const nodeFs = await import('node:fs');
+          const nodeFs = await import("node:fs");
           await nodeFs.promises.chmod(path, mode);
         },
         catch: () => undefined,
@@ -73,7 +104,9 @@ const ensureDir = (fs: FileSystem.FileSystem, path: string, mode?: number) =>
     ),
   );
 
-const readAccountsFile = (fs: FileSystem.FileSystem): Effect.Effect<AccountsFile, StorageError> =>
+const readAccountsFile = (
+  fs: FileSystem.FileSystem,
+): Effect.Effect<AccountsFile, StorageError> =>
   Effect.gen(function* () {
     const exists = yield* fs.exists(ACCOUNTS_FILE);
     if (!exists) {
@@ -85,7 +118,7 @@ const readAccountsFile = (fs: FileSystem.FileSystem): Effect.Effect<AccountsFile
     Effect.mapError(
       (e) =>
         new StorageError({
-          message: 'Failed to read accounts.json',
+          message: "Failed to read accounts.json",
           cause: e,
         }),
     ),
@@ -99,13 +132,16 @@ const writeAccountsFile = (fs: FileSystem.FileSystem, data: AccountsFile) =>
     Effect.mapError(
       (e) =>
         new StorageError({
-          message: 'Failed to write accounts.json',
+          message: "Failed to write accounts.json",
           cause: e,
         }),
     ),
   );
 
-const readKeyfile = (fs: FileSystem.FileSystem, name: string): Effect.Effect<KeyfileV3, StorageError> =>
+const readKeyfile = (
+  fs: FileSystem.FileSystem,
+  name: string,
+): Effect.Effect<KeyfileV3, StorageError> =>
   Effect.gen(function* () {
     const path = join(KEYS_DIR, `${name}.json`);
     const content = yield* fs.readFileString(path);
@@ -120,14 +156,18 @@ const readKeyfile = (fs: FileSystem.FileSystem, name: string): Effect.Effect<Key
     ),
   );
 
-const writeKeyfile = (fs: FileSystem.FileSystem, name: string, keyfile: KeyfileV3) =>
+const writeKeyfile = (
+  fs: FileSystem.FileSystem,
+  name: string,
+  keyfile: KeyfileV3,
+) =>
   Effect.gen(function* () {
     yield* ensureDir(fs, KEYS_DIR);
     const path = join(KEYS_DIR, `${name}.json`);
     yield* fs.writeFileString(path, JSON.stringify(keyfile, null, 2));
     yield* Effect.tryPromise({
       try: async () => {
-        const nodeFs = await import('node:fs');
+        const nodeFs = await import("node:fs");
         await nodeFs.promises.chmod(path, 0o600);
       },
       catch: () => undefined,
@@ -142,27 +182,34 @@ const writeKeyfile = (fs: FileSystem.FileSystem, name: string, keyfile: KeyfileV
     ),
   );
 
-const withAccountLock = <A, E>(fs: FileSystem.FileSystem, effect: Effect.Effect<A, E>): Effect.Effect<A, E | StorageError> =>
+const withAccountLock = <A, E>(
+  fs: FileSystem.FileSystem,
+  effect: Effect.Effect<A, E>,
+): Effect.Effect<A, E | StorageError> =>
   Effect.gen(function* () {
     yield* ensureDir(fs, FAST_DIR, 0o700);
     const exists = yield* fs.exists(ACCOUNTS_FILE).pipe(
       Effect.mapError(
         (e) =>
           new StorageError({
-            message: 'Failed to check accounts file',
+            message: "Failed to check accounts file",
             cause: e,
           }),
       ),
     );
     if (!exists) {
-      yield* writeAccountsFile(fs, new AccountsFile({ default: null, accounts: [] }));
+      yield* writeAccountsFile(
+        fs,
+        new AccountsFile({ default: null, accounts: [] }),
+      );
     }
     return yield* Effect.acquireUseRelease(
       Effect.tryPromise({
-        try: () => lockfile.lock(ACCOUNTS_FILE, { realpath: false, retries: 3 }),
+        try: () =>
+          lockfile.lock(ACCOUNTS_FILE, { realpath: false, retries: 3 }),
         catch: (cause) =>
           new StorageError({
-            message: 'Failed to acquire account lock',
+            message: "Failed to acquire account lock",
             cause,
           }),
       }),
@@ -170,7 +217,8 @@ const withAccountLock = <A, E>(fs: FileSystem.FileSystem, effect: Effect.Effect<
       (release) =>
         Effect.tryPromise({
           try: () => release(),
-          catch: () => new StorageError({ message: 'Failed to release account lock' }),
+          catch: () =>
+            new StorageError({ message: "Failed to release account lock" }),
         }).pipe(Effect.orDie),
     );
   });
@@ -179,7 +227,7 @@ const deriveEvmAddress = (seed: Uint8Array): string => {
   const pubkey = secp256k1.getPublicKey(seed, false);
   const hash = keccak_256(pubkey.slice(1));
   const addressBytes = hash.slice(-20);
-  return `0x${Array.from(addressBytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
+  return toHex(addressBytes);
 };
 
 const deriveAddresses = (seed: Uint8Array) =>
@@ -187,7 +235,8 @@ const deriveAddresses = (seed: Uint8Array) =>
     const signer = new Signer(seed);
     const fastAddress = yield* Effect.tryPromise({
       try: () => signer.getFastAddress(),
-      catch: (cause) => new StorageError({ message: 'Failed to derive Fast address', cause }),
+      catch: (cause) =>
+        new StorageError({ message: "Failed to derive Fast address", cause }),
     });
     const evmAddress = deriveEvmAddress(seed);
     return { fastAddress, evmAddress };
@@ -199,7 +248,11 @@ export const AccountStoreLive = Layer.effect(
     const fs = yield* FileSystem.FileSystem;
     const keystore = yield* KeystoreV3;
 
-    const toAccountInfo = (entry: AccountEntry, keyfile: KeyfileV3, defaultName: string | null): AccountInfo => ({
+    const toAccountInfo = (
+      entry: AccountEntry,
+      keyfile: KeyfileV3,
+      defaultName: string | null,
+    ): AccountInfo => ({
       name: entry.name,
       fastAddress: keyfile.fastAddress,
       evmAddress: keyfile.evmAddress,
@@ -207,7 +260,11 @@ export const AccountStoreLive = Layer.effect(
       createdAt: entry.createdAt,
     });
 
-    const storeAccount = (name: string, seed: Uint8Array, password: string): Effect.Effect<AccountInfo, AccountExistsError | StorageError> =>
+    const storeAccount = (
+      name: string,
+      seed: Uint8Array,
+      password: string,
+    ): Effect.Effect<AccountInfo, AccountExistsError | StorageError> =>
       withAccountLock(
         fs,
         Effect.gen(function* () {
@@ -217,15 +274,17 @@ export const AccountStoreLive = Layer.effect(
           }
 
           const { fastAddress, evmAddress } = yield* deriveAddresses(seed);
-          const keyfile = yield* keystore.encrypt(seed, password, fastAddress, evmAddress).pipe(
-            Effect.mapError(
-              (e) =>
-                new StorageError({
-                  message: 'Failed to encrypt keyfile',
-                  cause: e,
-                }),
-            ),
-          );
+          const keyfile = yield* keystore
+            .encrypt(seed, password, fastAddress, evmAddress)
+            .pipe(
+              Effect.mapError(
+                (e) =>
+                  new StorageError({
+                    message: "Failed to encrypt keyfile",
+                    cause: e,
+                  }),
+              ),
+            );
           yield* writeKeyfile(fs, name, keyfile);
 
           const newDefault = data.default ?? name;
@@ -297,7 +356,10 @@ export const AccountStoreLive = Layer.effect(
             if (!data.accounts.some((a) => a.name === name)) {
               return yield* Effect.fail(new AccountNotFoundError({ name }));
             }
-            yield* writeAccountsFile(fs, new AccountsFile({ ...data, default: name }));
+            yield* writeAccountsFile(
+              fs,
+              new AccountsFile({ ...data, default: name }),
+            );
           }),
         ),
 
@@ -326,8 +388,16 @@ export const AccountStoreLive = Layer.effect(
             );
 
             const remaining = data.accounts.filter((a) => a.name !== name);
-            const newDefault = remaining.length === 0 ? null : data.default === name ? null : data.default;
-            yield* writeAccountsFile(fs, new AccountsFile({ default: newDefault, accounts: remaining }));
+            const newDefault =
+              remaining.length === 0
+                ? null
+                : data.default === name
+                  ? null
+                  : data.default;
+            yield* writeAccountsFile(
+              fs,
+              new AccountsFile({ default: newDefault, accounts: remaining }),
+            );
           }),
         ),
 
@@ -352,7 +422,9 @@ export const AccountStoreLive = Layer.effect(
             const data = yield* readAccountsFile(fs);
             const entry = data.accounts.find((a) => a.name === flag.value);
             if (!entry) {
-              return yield* Effect.fail(new AccountNotFoundError({ name: flag.value }));
+              return yield* Effect.fail(
+                new AccountNotFoundError({ name: flag.value }),
+              );
             }
             const keyfile = yield* readKeyfile(fs, entry.name);
             return toAccountInfo(entry, keyfile, data.default);

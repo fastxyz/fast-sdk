@@ -1,4 +1,5 @@
 import { Command, Options } from '@effect/cli';
+import { fromHex } from '@fastxyz/fast-sdk';
 import { Effect, Option } from 'effect';
 import { readFileSync } from 'node:fs';
 import { InvalidUsageError } from '../../errors/index.js';
@@ -11,15 +12,6 @@ const nameOption = Options.text('name').pipe(Options.optional, Options.withDescr
 const privateKeyOption = Options.text('private-key').pipe(Options.optional, Options.withDescription('Hex-encoded Ed25519 seed (0x-prefixed or raw)'));
 
 const keyFileOption = Options.text('key-file').pipe(Options.optional, Options.withDescription('Path to a JSON file containing a privateKey field'));
-
-const hexToBytes = (hex: string): Uint8Array => {
-  const stripped = hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
-  const bytes = new Uint8Array(stripped.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = Number.parseInt(stripped.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
-};
 
 export const accountImport = Command.make('import', { name: nameOption, privateKey: privateKeyOption, keyFile: keyFileOption }, (args) =>
   Effect.gen(function* () {
@@ -36,7 +28,7 @@ export const accountImport = Command.make('import', { name: nameOption, privateK
     let seed: Uint8Array;
     if (Option.isSome(args.privateKey)) {
       const hex = args.privateKey.value;
-      seed = hexToBytes(hex);
+      seed = fromHex(hex);
       if (seed.length !== 32) {
         return yield* Effect.fail(new InvalidUsageError({ message: 'Private key must be exactly 32 bytes (64 hex characters)' }));
       }
@@ -46,7 +38,7 @@ export const accountImport = Command.make('import', { name: nameOption, privateK
       if (!parsed.privateKey) {
         return yield* Effect.fail(new InvalidUsageError({ message: "Key file must contain a 'privateKey' field" }));
       }
-      seed = hexToBytes(parsed.privateKey);
+      seed = fromHex(parsed.privateKey);
       if (seed.length !== 32) {
         return yield* Effect.fail(new InvalidUsageError({ message: 'Private key must be exactly 32 bytes (64 hex characters)' }));
       }

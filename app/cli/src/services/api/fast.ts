@@ -39,7 +39,12 @@ const mapFastSdkError = <A, E>(
   effect: Effect.Effect<A, E>,
 ): Effect.Effect<A, FastSdkError> =>
   effect.pipe(
-    Effect.mapError((e) => new FastSdkError({ message: String(e), cause: e })),
+    Effect.mapError((e) =>
+      new FastSdkError({
+        message: e instanceof Error ? e.message : String(e),
+        cause: e,
+      }),
+    ),
   );
 
 export const FastRpcLive = Layer.effect(

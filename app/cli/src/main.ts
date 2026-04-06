@@ -1,36 +1,69 @@
 /**
  * Unified CLI entrypoint.
  *
- * Parses argv with optique's runParserSync (handles --help, --version,
- * and parse errors automatically), dispatches to command handlers.
+ * Two-pass parse: first lenient pass extracts global flags (--json, --help,
+ * --version) via a parser with passThrough. Second pass parses the full
+ * command tree. ZERO raw argv parsing — all flag detection goes through optique.
  */
 
-import { runParserSync } from "@optique/core/facade";
-import type { Effect } from "effect";
+import { formatDocPage } from "@optique/core/doc";
+import { formatMessage } from "@optique/core/message";
+import { getDocPageSync, parse } from "@optique/core/parser";
 import { Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
-import { type CommandName, type ParsedArgs, parser } from "./cli.js";
+import { globalPreParser, parser } from "./cli.js";
+import { commands } from "./commands/index.js";
 import { InternalError, InvalidUsageError } from "./errors/index.js";
 import { writeFail } from "./services/output.js";
 
 const VERSION = "0.1.0";
-const rawArgs = process.argv.slice(2);
-const isJson = rawArgs.includes("--json");
+const argv = process.argv.slice(2);
 
-const parsed: ParsedArgs = runParserSync(parser, "fast", rawArgs, {
-  colors: process.stdout.isTTY ?? false,
-  help: { onShow: () => process.exit(0) },
-  version: { value: VERSION, onShow: () => process.exit(0) },
-  onError: (exitCode) => {
-    // runParserSync already printed the error to stderr.
-    // For --json callers, also write a structured envelope.
-    if (isJson) {
-      writeFail(new InvalidUsageError({ message: "Invalid arguments" }), true);
-    }
-    process.exit(exitCode);
-  },
-});
+// ---------------------------------------------------------------------------
+// Pass 1: lenient parse — extract --json, --help, --version
+// Always succeeds thanks to passThrough absorbing unknown tokens.
+// ---------------------------------------------------------------------------
+const pre = parse(globalPreParser, argv);
+const isJson = pre.success && pre.value.json;
+const isHelp = argv.length === 0 || (pre.success && pre.value.help);
+const isVersion = pre.success && pre.value.version;
+
+// ---------------------------------------------------------------------------
+// --version
+// ---------------------------------------------------------------------------
+if (isVersion) {
+  process.stdout.write(`${VERSION}\n`);
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// --help
+// ---------------------------------------------------------------------------
+if (isHelp) {
+  const docPage = getDocPageSync(parser);
+  if (docPage) {
+    process.stdout.write(
+      `${formatDocPage("fast", docPage, { colors: process.stdout.isTTY ?? false })}\n`,
+    );
+  }
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Pass 2: parse full command tree
+// ---------------------------------------------------------------------------
+const result = parse(parser, argv);
+
+if (!result.success) {
+  writeFail(
+    new InvalidUsageError({ message: formatMessage(result.error) }),
+    isJson,
+  );
+  process.exit(1);
+}
+
+const parsed = result.value;
 
 // ---------------------------------------------------------------------------
 // Build GlobalOptions
@@ -46,54 +79,19 @@ const globalOpts: GlobalOptions = {
 };
 
 // ---------------------------------------------------------------------------
-// Dispatch to command handler
+// Dispatch via command registry
 // ---------------------------------------------------------------------------
-type Handler = (args: any) => Effect.Effect<void, any, any>;
+type AnyEntry = { cmd: string; handler: (args: typeof parsed) => ReturnType<(typeof commands)[number]["handler"]> };
+const entry = (commands as readonly AnyEntry[]).find((c) => c.cmd === parsed.cmd);
+if (!entry) {
+  writeFail(
+    new InternalError({ message: `Unknown command: ${parsed.cmd}` }),
+    isJson,
+  );
+  process.exit(1);
+}
 
-const handlers: Record<CommandName, () => Promise<Handler>> = {
-  "account-create": () =>
-    import("./commands/account/create.js").then((m) => m.accountCreateHandler),
-  "account-delete": () =>
-    import("./commands/account/delete.js").then((m) => m.accountDeleteHandler),
-  "account-export": () =>
-    import("./commands/account/export.js").then((m) => m.accountExportHandler),
-  "account-import": () =>
-    import("./commands/account/import.js").then((m) => m.accountImportHandler),
-  "account-info": () =>
-    import("./commands/account/info.js").then((m) => m.accountInfoHandler),
-  "account-list": () =>
-    import("./commands/account/list.js").then((m) => m.accountListHandler),
-  "account-set-default": () =>
-    import("./commands/account/set-default.js").then(
-      (m) => m.accountSetDefaultHandler,
-    ),
-  "info-balance": () =>
-    import("./commands/info/balance.js").then((m) => m.infoBalanceHandler),
-  "info-history": () =>
-    import("./commands/info/history.js").then((m) => m.infoHistoryHandler),
-  "info-status": () =>
-    import("./commands/info/status.js").then((m) => m.infoStatusHandler),
-  "info-tx": () =>
-    import("./commands/info/tx.js").then((m) => m.infoTxHandler),
-  "network-add": () =>
-    import("./commands/network/add.js").then((m) => m.networkAddHandler),
-  "network-list": () =>
-    import("./commands/network/list.js").then((m) => m.networkListHandler),
-  "network-remove": () =>
-    import("./commands/network/remove.js").then((m) => m.networkRemoveHandler),
-  "network-set-default": () =>
-    import("./commands/network/set-default.js").then(
-      (m) => m.networkSetDefaultHandler,
-    ),
-  send: () => import("./commands/send.js").then((m) => m.sendHandler),
-};
-
-const dispatch = async (): Promise<void> => {
-  const handler = await handlers[parsed.cmd]();
-  return runHandler(globalOpts, handler(parsed));
-};
-
-dispatch().catch((err: unknown) => {
+runHandler(globalOpts, entry.handler(parsed)).catch((err: unknown) => {
   writeFail(
     new InternalError({
       message: err instanceof Error ? err.message : String(err),

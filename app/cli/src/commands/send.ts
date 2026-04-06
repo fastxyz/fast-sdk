@@ -25,7 +25,7 @@ import {
   UnsupportedChainError,
   UserCancelledError,
 } from "../errors/index.js";
-import { HistoryEntry } from "../schemas/history.js";
+import { makeHistoryEntry } from "../schemas/history.js";
 import { AccountStore } from "../services/account/account-store.js";
 import { Config } from "../services/cli-config.js";
 import { FastRpc } from "../services/fast-rpc.js";
@@ -390,7 +390,7 @@ export const sendCommand = defineCommand({
 
         // Record in local history
         yield* historyStore.record(
-          new HistoryEntry({
+          makeHistoryEntry({
             hash: txHash,
             type: "transfer",
             from:

@@ -1,8 +1,10 @@
 import { mkdirSync, chmodSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { Context, Layer } from "effect";
 import * as schema from "../db/schema.js";
 
@@ -34,49 +36,15 @@ export const DatabaseLive = Layer.sync(DatabaseService, () => {
 
   const db = drizzle(sqlite, { schema });
 
-  // Schema bootstrap: create tables if they don't exist.
-  // drizzle-kit push is for dev workflow; this ensures the CLI works standalone.
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS accounts (
-      name          TEXT PRIMARY KEY,
-      fast_address  TEXT NOT NULL,
-      evm_address   TEXT NOT NULL,
-      encrypted_key BLOB NOT NULL,
-      is_default    INTEGER NOT NULL DEFAULT 0,
-      created_at    TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS history (
-      hash         TEXT PRIMARY KEY,
-      type         TEXT NOT NULL DEFAULT 'transfer',
-      "from"       TEXT NOT NULL,
-      "to"         TEXT NOT NULL,
-      amount       TEXT NOT NULL,
-      formatted    TEXT NOT NULL,
-      token_name   TEXT NOT NULL,
-      token_id     TEXT NOT NULL,
-      network      TEXT NOT NULL,
-      status       TEXT NOT NULL,
-      timestamp    TEXT NOT NULL,
-      explorer_url TEXT,
-      route        TEXT NOT NULL DEFAULT 'fast',
-      chain_id     INTEGER
-    );
-    CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp DESC);
-    CREATE TABLE IF NOT EXISTS custom_networks (
-      name   TEXT PRIMARY KEY,
-      config TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS metadata (
-      key   TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-  `);
+  // Apply migrations from the generated drizzle/ folder.
+  // drizzle-kit generate creates these from db/schema.ts.
+  migrate(db, { migrationsFolder: join(dirname(fileURLToPath(import.meta.url)), "../drizzle") });
 
   // Seed defaults
-  sqlite.prepare("INSERT OR IGNORE INTO metadata (key, value) VALUES (?, ?)").run(
-    "default_network",
-    "testnet",
-  );
+  db.insert(schema.metadata)
+    .values({ key: "default_network", value: "testnet" })
+    .onConflictDoNothing()
+    .run();
 
   return { db };
 });

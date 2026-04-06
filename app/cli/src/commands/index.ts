@@ -18,7 +18,7 @@ import { networkRemove } from "./network/remove.js";
 import { networkSetDefault } from "./network/set-default.js";
 import { send } from "./send.js";
 
-export const commands: Command[] = [
+export const commands = [
   accountCreate,
   accountDelete,
   accountExport,
@@ -45,7 +45,7 @@ export const commands: Command[] = [
  * the commands array where heterogeneous commands are collected — type safety
  * is guaranteed by the optique parser matching the right args to the right cmd.
  */
-export interface Command<TArgs = never> {
+export interface Command<TArgs = unknown> {
   readonly cmd: CommandName;
   readonly handler: (args: TArgs) => Effect.Effect<void, ClientError, unknown>;
 }

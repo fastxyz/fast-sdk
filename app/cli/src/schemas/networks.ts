@@ -1,9 +1,4 @@
-import { Schema } from 'effect';
-
-export class NetworksFile extends Schema.Class<NetworksFile>('NetworksFile')({
-  default: Schema.String,
-  networks: Schema.Array(Schema.String),
-}) {}
+import { Schema } from "effect";
 
 const AllsetChainTokenSchema = Schema.Struct({
   evmAddress: Schema.String,
@@ -17,18 +12,20 @@ const AllsetChainSchema = Schema.Struct({
   fastBridgeAddress: Schema.String,
   relayerUrl: Schema.String,
   evmRpcUrl: Schema.String,
+  evmExplorerUrl: Schema.String,
   tokens: Schema.Record({ key: Schema.String, value: AllsetChainTokenSchema }),
 });
 
 const AllsetConfigSchema = Schema.Struct({
   crossSignUrl: Schema.String,
+  portalApiUrl: Schema.String,
   chains: Schema.Record({ key: Schema.String, value: AllsetChainSchema }),
 });
 
-export class CustomNetworkConfig extends Schema.Class<CustomNetworkConfig>('CustomNetworkConfig')({
+export class CustomNetworkConfig extends Schema.Class<CustomNetworkConfig>("CustomNetworkConfig")({
   fast: Schema.Struct({
     rpcUrl: Schema.String,
     explorerUrl: Schema.String,
   }),
-  allset: Schema.optionalWith(AllsetConfigSchema, { as: 'Option' }),
+  allset: Schema.optionalWith(AllsetConfigSchema, { as: "Option" }),
 }) {}

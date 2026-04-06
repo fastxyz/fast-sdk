@@ -1,6 +1,4 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { FileSystem } from "@effect/platform";
+import { readFileSync } from "node:fs";
 import { Context, Effect, Layer, Option, Schema } from "effect";
 import {
   bundledNetworks,
@@ -10,17 +8,13 @@ import {
 import {
   DefaultNetworkError,
   InvalidConfigError,
-  mapToStorageError,
   NetworkExistsError,
   NetworkNotFoundError,
   ReservedNameError,
-  type StorageError,
+  StorageError,
 } from "../errors/index.js";
-import { CustomNetworkConfig, NetworksFile } from "../schemas/networks.js";
-
-const FAST_DIR = join(homedir(), ".fast");
-const NETWORKS_FILE = join(FAST_DIR, "networks.json");
-const NETWORKS_DIR = join(FAST_DIR, "networks");
+import { CustomNetworkConfig } from "../schemas/networks.js";
+import { DatabaseService } from "./database.js";
 
 export interface NetworkConfigShape {
   readonly resolve: (
@@ -55,42 +49,35 @@ export interface NetworkConfigShape {
   readonly getDefault: () => Effect.Effect<string, StorageError>;
 }
 
-export class NetworkConfigService extends Context.Tag("NetworkConfig")<
+export class NetworkConfigService extends Context.Tag("NetworkConfigService")<
   NetworkConfigService,
   NetworkConfigShape
 >() {}
 
-const ensureDir = (fs: FileSystem.FileSystem, path: string) =>
-  Effect.gen(function* () {
-    const exists = yield* fs.exists(path);
-    if (!exists) {
-      yield* fs.makeDirectory(path, { recursive: true });
-    }
-  }).pipe(mapToStorageError(`create directory: ${path}`));
-
-const readNetworksFile = (fs: FileSystem.FileSystem) =>
-  Effect.gen(function* () {
-    const exists = yield* fs.exists(NETWORKS_FILE);
-    if (!exists) {
-      return new NetworksFile({
-        default: "testnet",
-        networks: ["testnet", "mainnet"],
-      });
-    }
-    const content = yield* fs.readFileString(NETWORKS_FILE);
-    return yield* Schema.decodeUnknown(NetworksFile)(JSON.parse(content));
-  }).pipe(mapToStorageError("read networks.json"));
-
-const writeNetworksFile = (fs: FileSystem.FileSystem, data: NetworksFile) =>
-  Effect.gen(function* () {
-    yield* ensureDir(fs, FAST_DIR);
-    yield* fs.writeFileString(NETWORKS_FILE, JSON.stringify(data, null, 2));
-  }).pipe(mapToStorageError("write networks.json"));
-
 export const NetworkConfigLive = Layer.effect(
   NetworkConfigService,
   Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
+    const { db } = yield* DatabaseService;
+
+    const stmts = {
+      getConfig: db.prepare<[string], { config: string }>(
+        "SELECT config FROM custom_networks WHERE name = ?",
+      ),
+      listCustom: db.prepare<[], { name: string }>("SELECT name FROM custom_networks"),
+      insertConfig: db.prepare(
+        "INSERT INTO custom_networks (name, config) VALUES (?, ?)",
+      ),
+      deleteConfig: db.prepare("DELETE FROM custom_networks WHERE name = ?"),
+      getMeta: db.prepare<[string], { value: string }>(
+        "SELECT value FROM metadata WHERE key = ?",
+      ),
+      setMeta: db.prepare(
+        "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+      ),
+    };
+
+    const getDefaultNetwork = (): string =>
+      stmts.getMeta.get("default_network")?.value ?? "testnet";
 
     return {
       resolve: (name) =>
@@ -98,25 +85,16 @@ export const NetworkConfigLive = Layer.effect(
           const bundled = bundledNetworks[name];
           if (bundled) return bundled;
 
-          const configPath = join(NETWORKS_DIR, `${name}.json`);
-          const exists = yield* fs
-            .exists(configPath)
-            .pipe(mapToStorageError("check network config"));
-          if (!exists) {
+          const row = stmts.getConfig.get(name);
+          if (!row) {
             return yield* Effect.fail(new NetworkNotFoundError({ name }));
           }
 
-          const content = yield* fs
-            .readFileString(configPath)
-            .pipe(mapToStorageError(`read network config: ${name}`));
           const custom = yield* Schema.decodeUnknown(CustomNetworkConfig)(
-            JSON.parse(content),
+            JSON.parse(row.config),
           ).pipe(
             Effect.mapError(
-              () =>
-                new InvalidConfigError({
-                  message: `Invalid network config: ${name}`,
-                }),
+              () => new InvalidConfigError({ message: `Invalid network config: ${name}` }),
             ),
           );
 
@@ -131,27 +109,38 @@ export const NetworkConfigLive = Layer.effect(
         }),
 
       list: () =>
-        Effect.gen(function* () {
-          const data = yield* readNetworksFile(fs);
-          return data.networks.map((name) => ({
-            name,
-            type: (isBundledNetwork(name) ? "bundled" : "custom") as
-              | "bundled"
-              | "custom",
-            isDefault: name === data.default,
-          }));
+        Effect.try({
+          try: () => {
+            const defaultName = getDefaultNetwork();
+            const customNames = stmts.listCustom.all().map((r) => r.name);
+            const allNames = [
+              ...Object.keys(bundledNetworks),
+              ...customNames,
+            ];
+            return allNames.map((name) => ({
+              name,
+              type: (isBundledNetwork(name) ? "bundled" : "custom") as
+                | "bundled"
+                | "custom",
+              isDefault: name === defaultName,
+            }));
+          },
+          catch: (cause) =>
+            new StorageError({ message: "Failed to list networks", cause }),
         }),
 
       setDefault: (name) =>
-        Effect.gen(function* () {
-          const data = yield* readNetworksFile(fs);
-          if (!data.networks.includes(name)) {
-            return yield* Effect.fail(new NetworkNotFoundError({ name }));
-          }
-          yield* writeNetworksFile(
-            fs,
-            new NetworksFile({ ...data, default: name }),
-          );
+        Effect.try({
+          try: () => {
+            if (!isBundledNetwork(name) && !stmts.getConfig.get(name)) {
+              throw new NetworkNotFoundError({ name });
+            }
+            stmts.setMeta.run("default_network", name);
+          },
+          catch: (e) =>
+            e instanceof NetworkNotFoundError
+              ? e
+              : new StorageError({ message: "Failed to set default network", cause: e }),
         }),
 
       add: (name, configPath) =>
@@ -159,19 +148,18 @@ export const NetworkConfigLive = Layer.effect(
           if (isBundledNetwork(name)) {
             return yield* Effect.fail(new ReservedNameError({ name }));
           }
-          const data = yield* readNetworksFile(fs);
-          if (data.networks.includes(name)) {
+          if (stmts.getConfig.get(name)) {
             return yield* Effect.fail(new NetworkExistsError({ name }));
           }
 
-          const content = yield* fs.readFileString(configPath).pipe(
-            Effect.mapError(
-              () =>
-                new InvalidConfigError({
-                  message: `Cannot read config file: ${configPath}`,
-                }),
-            ),
-          );
+          const content = yield* Effect.try({
+            try: () => readFileSync(configPath, "utf-8"),
+            catch: () =>
+              new InvalidConfigError({
+                message: `Cannot read config file: ${configPath}`,
+              }),
+          });
+
           yield* Schema.decodeUnknown(CustomNetworkConfig)(
             JSON.parse(content),
           ).pipe(
@@ -183,51 +171,40 @@ export const NetworkConfigLive = Layer.effect(
             ),
           );
 
-          yield* ensureDir(fs, NETWORKS_DIR);
-          yield* fs
-            .writeFileString(join(NETWORKS_DIR, `${name}.json`), content)
-            .pipe(mapToStorageError("write network config"));
-
-          yield* writeNetworksFile(
-            fs,
-            new NetworksFile({
-              ...data,
-              networks: [...data.networks, name],
-            }),
-          );
+          yield* Effect.try({
+            try: () => stmts.insertConfig.run(name, content),
+            catch: (cause) =>
+              new StorageError({ message: "Failed to save network config", cause }),
+          });
         }),
 
       remove: (name) =>
-        Effect.gen(function* () {
-          if (isBundledNetwork(name)) {
-            return yield* Effect.fail(new ReservedNameError({ name }));
-          }
-          const data = yield* readNetworksFile(fs);
-          if (!data.networks.includes(name)) {
-            return yield* Effect.fail(new NetworkNotFoundError({ name }));
-          }
-          if (data.default === name) {
-            return yield* Effect.fail(new DefaultNetworkError({ name }));
-          }
-
-          const configPath = join(NETWORKS_DIR, `${name}.json`);
-          yield* fs
-            .remove(configPath)
-            .pipe(mapToStorageError("remove network config"));
-
-          yield* writeNetworksFile(
-            fs,
-            new NetworksFile({
-              ...data,
-              networks: data.networks.filter((n) => n !== name),
-            }),
-          );
+        Effect.try({
+          try: () => {
+            if (isBundledNetwork(name)) {
+              throw new ReservedNameError({ name });
+            }
+            if (!stmts.getConfig.get(name)) {
+              throw new NetworkNotFoundError({ name });
+            }
+            if (getDefaultNetwork() === name) {
+              throw new DefaultNetworkError({ name });
+            }
+            stmts.deleteConfig.run(name);
+          },
+          catch: (e) =>
+            e instanceof ReservedNameError ||
+            e instanceof NetworkNotFoundError ||
+            e instanceof DefaultNetworkError
+              ? e
+              : new StorageError({ message: "Failed to remove network", cause: e }),
         }),
 
       getDefault: () =>
-        Effect.gen(function* () {
-          const data = yield* readNetworksFile(fs);
-          return data.default;
+        Effect.try({
+          try: () => getDefaultNetwork(),
+          catch: (cause) =>
+            new StorageError({ message: "Failed to get default network", cause }),
         }),
     };
   }),

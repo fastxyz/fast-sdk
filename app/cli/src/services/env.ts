@@ -1,11 +1,11 @@
-import { Context, Layer } from "effect";
+import { Context, Layer, Option } from "effect";
 
 export interface EnvShape {
-  readonly fastPassword: string | undefined;
+  readonly fastPassword: Option.Option<string>;
 }
 
 export class Env extends Context.Tag("Env")<Env, EnvShape>() {}
 
 export const EnvLive = Layer.sync(Env, () => ({
-  fastPassword: process.env.FAST_PASSWORD,
+  fastPassword: Option.fromNullable(process.env.FAST_PASSWORD),
 }));

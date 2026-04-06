@@ -33,8 +33,8 @@ const passwordPrompt = (config: ConfigShape, env: EnvShape, label: string): Pass
     return Effect.succeed(config.password.value);
   }
 
-  if (env.fastPassword !== undefined) {
-    return Effect.succeed(env.fastPassword);
+  if (Option.isSome(env.fastPassword)) {
+    return Effect.succeed(env.fastPassword.value);
   }
 
   if (config.nonInteractive) {

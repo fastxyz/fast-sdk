@@ -1,13 +1,13 @@
-import { NodeContext } from '@effect/platform-node';
-import { Layer, type Option } from 'effect';
-import { AccountStoreLive } from './services/account-store.js';
-import { makeCliConfigLayer } from './services/cli-config.js';
-import { FastRpcLive } from './services/fast-rpc.js';
-import { HistoryStoreLive } from './services/history-store.js';
-import { KeystoreV3Live } from './services/keystore-v3.js';
-import { NetworkConfigLive } from './services/network-config.js';
-import { OutputLive } from './services/output.js';
-import { PasswordServiceLive } from './services/password-service.js';
+import { NodeContext } from "@effect/platform-node";
+import { Layer, type Option } from "effect";
+import { AccountStoreLive } from "./services/account/account-store.js";
+import { makeConfigLayer } from "./services/cli-config.js";
+import { FastRpcLive } from "./services/fast-rpc.js";
+import { HistoryStoreLive } from "./services/history-store.js";
+import { KeystoreV3Live } from "./services/keystore-v3.js";
+import { NetworkConfigLive } from "./services/network-config.js";
+import { OutputLive } from "./services/output.js";
+import { PasswordLive } from "./services/password.js";
 
 interface ParsedOptions {
   readonly json: boolean;
@@ -19,7 +19,7 @@ interface ParsedOptions {
 }
 
 export const makeAppLayer = (parsed: ParsedOptions) => {
-  const cliConfigLayer = makeCliConfigLayer({
+  const cliConfigLayer = makeConfigLayer({
     json: parsed.json,
     debug: parsed.debug,
     nonInteractive: parsed.nonInteractive || parsed.json,
@@ -29,10 +29,19 @@ export const makeAppLayer = (parsed: ParsedOptions) => {
   });
 
   // Foundation: platform services + config
-  const foundation = Layer.mergeAll(NodeContext.layer, cliConfigLayer, KeystoreV3Live);
+  const foundation = Layer.mergeAll(
+    NodeContext.layer,
+    cliConfigLayer,
+    KeystoreV3Live,
+  );
 
   // Services that depend only on foundation
-  const tier1 = Layer.mergeAll(OutputLive, PasswordServiceLive, NetworkConfigLive, HistoryStoreLive).pipe(Layer.provide(foundation));
+  const tier1 = Layer.mergeAll(
+    OutputLive,
+    PasswordLive,
+    NetworkConfigLive,
+    HistoryStoreLive,
+  ).pipe(Layer.provide(foundation));
 
   // Services that depend on tier1
   const tier2 = Layer.mergeAll(

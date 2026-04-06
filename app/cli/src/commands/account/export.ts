@@ -4,10 +4,10 @@ import { Effect } from "effect";
 import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
 import { UserCancelledError } from "../../errors/index.js";
-import { AccountStore } from "../../services/account-store.js";
-import { CliConfig } from "../../services/cli-config.js";
+import { AccountStore } from "../../services/account/account-store.js";
+import { Config } from "../../services/cli-config.js";
 import { Output } from "../../services/output.js";
-import { PasswordService } from "../../services/password-service.js";
+import { Password } from "../../services/password.js";
 
 export const accountExport = defineCommand({
   meta: { name: "export", description: "Export (decrypt) the private key" },
@@ -24,9 +24,9 @@ export const accountExport = defineCommand({
       args,
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
-        const passwordService = yield* PasswordService;
+        const passwordService = yield* Password;
         const output = yield* Output;
-        const config = yield* CliConfig;
+        const config = yield* Config;
 
         const accountName =
           args.name ?? (yield* accounts.resolveAccount(config.account)).name;

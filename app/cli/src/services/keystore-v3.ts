@@ -1,8 +1,9 @@
+import { timingSafeEqual } from "node:crypto";
+import { fromHex, toHex } from "@fastxyz/fast-sdk";
 import { ctr } from "@noble/ciphers/aes";
 import { scryptAsync } from "@noble/hashes/scrypt.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { randomBytes } from "@noble/hashes/utils.js";
-import { fromHex, toHex } from "@fastxyz/fast-sdk";
 import { Context, Effect, Layer } from "effect";
 import { v4 as uuidv4 } from "uuid";
 import { WrongPasswordError } from "../errors/index.js";
@@ -37,14 +38,8 @@ const computeMac = (
 ): Uint8Array =>
   keccak_256(new Uint8Array([...derivedKey.slice(16, 32), ...ciphertext]));
 
-const constantTimeEqual = (a: Uint8Array, b: Uint8Array): boolean => {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    diff |= a[i]! ^ b[i]!;
-  }
-  return diff === 0;
-};
+const constantTimeEqual = (a: Uint8Array, b: Uint8Array): boolean =>
+  a.length === b.length && timingSafeEqual(a, b);
 
 export const KeystoreV3Live = Layer.succeed(KeystoreV3, {
   encrypt: (seed, password, fastAddress, evmAddress) =>

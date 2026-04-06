@@ -10,14 +10,14 @@ import {
   AccountExistsError,
   AccountNotFoundError,
   DefaultAccountError,
+  mapToStorageError,
   NoAccountsError,
   StorageError,
   type WrongPasswordError,
-  mapToStorageError,
-} from "../errors/index.js";
-import { AccountEntry, AccountsFile } from "../schemas/accounts.js";
-import { KeyfileV3 } from "../schemas/keyfile.js";
-import { KeystoreV3 } from "./keystore-v3.js";
+} from "../../errors/index.js";
+import { AccountEntry, AccountsFile } from "../../schemas/accounts.js";
+import { KeyfileV3 } from "../../schemas/keyfile.js";
+import { KeystoreV3 } from "../keystore-v3.js";
 
 const FAST_DIR = join(homedir(), ".fast");
 const ACCOUNTS_FILE = join(FAST_DIR, "accounts.json");
@@ -107,13 +107,13 @@ const readAccountsFile = (
     }
     const content = yield* fs.readFileString(ACCOUNTS_FILE);
     return yield* Schema.decodeUnknown(AccountsFile)(JSON.parse(content));
-  }).pipe(mapToStorageError('read accounts.json'));
+  }).pipe(mapToStorageError("read accounts.json"));
 
 const writeAccountsFile = (fs: FileSystem.FileSystem, data: AccountsFile) =>
   Effect.gen(function* () {
     yield* ensureDir(fs, FAST_DIR, 0o700);
     yield* fs.writeFileString(ACCOUNTS_FILE, JSON.stringify(data, null, 2));
-  }).pipe(mapToStorageError('write accounts.json'));
+  }).pipe(mapToStorageError("write accounts.json"));
 
 const readKeyfile = (
   fs: FileSystem.FileSystem,
@@ -149,9 +149,9 @@ const withAccountLock = <A, E>(
 ): Effect.Effect<A, E | StorageError> =>
   Effect.gen(function* () {
     yield* ensureDir(fs, FAST_DIR, 0o700);
-    const exists = yield* fs.exists(ACCOUNTS_FILE).pipe(
-      mapToStorageError('check accounts file'),
-    );
+    const exists = yield* fs
+      .exists(ACCOUNTS_FILE)
+      .pipe(mapToStorageError("check accounts file"));
     if (!exists) {
       yield* writeAccountsFile(
         fs,
@@ -231,7 +231,7 @@ export const AccountStoreLive = Layer.effect(
           const { fastAddress, evmAddress } = yield* deriveAddresses(seed);
           const keyfile = yield* keystore
             .encrypt(seed, password, fastAddress, evmAddress)
-            .pipe(mapToStorageError('encrypt keyfile'));
+            .pipe(mapToStorageError("encrypt keyfile"));
           yield* writeKeyfile(fs, name, keyfile);
 
           const newDefault = data.default ?? name;
@@ -324,7 +324,9 @@ export const AccountStoreLive = Layer.effect(
             }
 
             const keyPath = join(KEYS_DIR, `${name}.json`);
-            yield* fs.remove(keyPath).pipe(mapToStorageError(`delete keyfile for "${name}"`));
+            yield* fs
+              .remove(keyPath)
+              .pipe(mapToStorageError(`delete keyfile for "${name}"`));
 
             const remaining = data.accounts.filter((a) => a.name !== name);
             const newDefault =

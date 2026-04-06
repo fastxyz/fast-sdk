@@ -10,11 +10,11 @@ import {
 import {
   DefaultNetworkError,
   InvalidConfigError,
+  mapToStorageError,
   NetworkExistsError,
   NetworkNotFoundError,
   ReservedNameError,
-  StorageError,
-  mapToStorageError,
+  type StorageError,
 } from "../errors/index.js";
 import { CustomNetworkConfig, NetworksFile } from "../schemas/networks.js";
 
@@ -25,7 +25,10 @@ const NETWORKS_DIR = join(FAST_DIR, "networks");
 export interface NetworkConfigShape {
   readonly resolve: (
     name: string,
-  ) => Effect.Effect<NetworkConfig, NetworkNotFoundError | StorageError | InvalidConfigError>;
+  ) => Effect.Effect<
+    NetworkConfig,
+    NetworkNotFoundError | StorageError | InvalidConfigError
+  >;
   readonly list: () => Effect.Effect<
     Array<{ name: string; type: "bundled" | "custom"; isDefault: boolean }>,
     StorageError
@@ -76,13 +79,13 @@ const readNetworksFile = (fs: FileSystem.FileSystem) =>
     }
     const content = yield* fs.readFileString(NETWORKS_FILE);
     return yield* Schema.decodeUnknown(NetworksFile)(JSON.parse(content));
-  }).pipe(mapToStorageError('read networks.json'));
+  }).pipe(mapToStorageError("read networks.json"));
 
 const writeNetworksFile = (fs: FileSystem.FileSystem, data: NetworksFile) =>
   Effect.gen(function* () {
     yield* ensureDir(fs, FAST_DIR);
     yield* fs.writeFileString(NETWORKS_FILE, JSON.stringify(data, null, 2));
-  }).pipe(mapToStorageError('write networks.json'));
+  }).pipe(mapToStorageError("write networks.json"));
 
 export const NetworkConfigLive = Layer.effect(
   NetworkConfigService,
@@ -96,21 +99,24 @@ export const NetworkConfigLive = Layer.effect(
           if (bundled) return bundled;
 
           const configPath = join(NETWORKS_DIR, `${name}.json`);
-          const exists = yield* fs.exists(configPath).pipe(
-            mapToStorageError('check network config'),
-          );
+          const exists = yield* fs
+            .exists(configPath)
+            .pipe(mapToStorageError("check network config"));
           if (!exists) {
             return yield* Effect.fail(new NetworkNotFoundError({ name }));
           }
 
-          const content = yield* fs.readFileString(configPath).pipe(
-            mapToStorageError(`read network config: ${name}`),
-          );
+          const content = yield* fs
+            .readFileString(configPath)
+            .pipe(mapToStorageError(`read network config: ${name}`));
           const custom = yield* Schema.decodeUnknown(CustomNetworkConfig)(
             JSON.parse(content),
           ).pipe(
             Effect.mapError(
-              () => new InvalidConfigError({ message: `Invalid network config: ${name}` }),
+              () =>
+                new InvalidConfigError({
+                  message: `Invalid network config: ${name}`,
+                }),
             ),
           );
 
@@ -180,7 +186,7 @@ export const NetworkConfigLive = Layer.effect(
           yield* ensureDir(fs, NETWORKS_DIR);
           yield* fs
             .writeFileString(join(NETWORKS_DIR, `${name}.json`), content)
-            .pipe(mapToStorageError('write network config'));
+            .pipe(mapToStorageError("write network config"));
 
           yield* writeNetworksFile(
             fs,
@@ -205,7 +211,9 @@ export const NetworkConfigLive = Layer.effect(
           }
 
           const configPath = join(NETWORKS_DIR, `${name}.json`);
-          yield* fs.remove(configPath).pipe(mapToStorageError('remove network config'));
+          yield* fs
+            .remove(configPath)
+            .pipe(mapToStorageError("remove network config"));
 
           yield* writeNetworksFile(
             fs,

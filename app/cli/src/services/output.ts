@@ -1,29 +1,34 @@
-import * as readline from 'node:readline';
-import { Context, Effect, Layer } from 'effect';
-import { type CliError, toErrorCode } from '../errors/index.js';
-import { CliConfig } from './cli-config.js';
+import * as readline from "node:readline";
+import { Context, Effect, Layer } from "effect";
+import { type CliError, toErrorCode } from "../errors/index.js";
+import { Config } from "./cli-config.js";
 
 export interface OutputShape {
   readonly success: (data: unknown) => Effect.Effect<void>;
   readonly error: (err: CliError) => Effect.Effect<void>;
   readonly humanLine: (text: string) => Effect.Effect<void>;
-  readonly humanTable: (headers: string[], rows: string[][]) => Effect.Effect<void>;
+  readonly humanTable: (
+    headers: string[],
+    rows: string[][],
+  ) => Effect.Effect<void>;
   readonly confirm: (message: string) => Effect.Effect<boolean>;
   readonly debug: (message: string) => Effect.Effect<void>;
 }
 
-export class Output extends Context.Tag('Output')<Output, OutputShape>() {}
+export class Output extends Context.Tag("Output")<Output, OutputShape>() {}
 
 export const OutputLive = Layer.effect(
   Output,
   Effect.gen(function* () {
-    const config = yield* CliConfig;
+    const config = yield* Config;
 
     return {
       success: (data) =>
         Effect.sync(() => {
           if (config.json) {
-            process.stdout.write(`${JSON.stringify({ ok: true, data }, null, 2)}\n`);
+            process.stdout.write(
+              `${JSON.stringify({ ok: true, data }, null, 2)}\n`,
+            );
           }
         }),
 
@@ -55,12 +60,18 @@ export const OutputLive = Layer.effect(
       humanTable: (headers, rows) =>
         Effect.sync(() => {
           if (config.json) return;
-          const colWidths = headers.map((h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? '').length)));
+          const colWidths = headers.map((h, i) =>
+            Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length)),
+          );
           const pad = (s: string, w: number) => s.padEnd(w);
-          const headerLine = headers.map((h, i) => pad(h, colWidths[i]!)).join('  ');
+          const headerLine = headers
+            .map((h, i) => pad(h, colWidths[i]!))
+            .join("  ");
           process.stdout.write(`  ${headerLine}\n`);
           for (const row of rows) {
-            const line = row.map((cell, i) => pad(cell, colWidths[i]!)).join('  ');
+            const line = row
+              .map((cell, i) => pad(cell, colWidths[i]!))
+              .join("  ");
             process.stdout.write(`  ${line}\n`);
           }
         }),
@@ -74,7 +85,7 @@ export const OutputLive = Layer.effect(
           });
           rl.question(`${message} [y/N] `, (answer: string) => {
             rl.close();
-            resume(Effect.succeed(answer.toLowerCase() === 'y'));
+            resume(Effect.succeed(answer.toLowerCase() === "y"));
           });
         });
       },

@@ -1,6 +1,6 @@
-import { Data } from 'effect';
+import { Data } from "effect";
 
-export class AccountExistsError extends Data.TaggedError('AccountExistsError')<{
+export class AccountExistsError extends Data.TaggedError("AccountExistsError")<{
   readonly name: string;
 }> {
   get message() {
@@ -8,7 +8,9 @@ export class AccountExistsError extends Data.TaggedError('AccountExistsError')<{
   }
 }
 
-export class AccountNotFoundError extends Data.TaggedError('AccountNotFoundError')<{
+export class AccountNotFoundError extends Data.TaggedError(
+  "AccountNotFoundError",
+)<{
   readonly name: string;
 }> {
   get message() {
@@ -16,13 +18,15 @@ export class AccountNotFoundError extends Data.TaggedError('AccountNotFoundError
   }
 }
 
-export class NoAccountsError extends Data.TaggedError('NoAccountsError')<{}> {
+export class NoAccountsError extends Data.TaggedError("NoAccountsError")<{}> {
   get message() {
-    return 'No accounts found. Create one with `fast account create`.';
+    return "No accounts found. Create one with `fast account create`.";
   }
 }
 
-export class DefaultAccountError extends Data.TaggedError('DefaultAccountError')<{
+export class DefaultAccountError extends Data.TaggedError(
+  "DefaultAccountError",
+)<{
   readonly name: string;
 }> {
   get message() {
@@ -30,14 +34,18 @@ export class DefaultAccountError extends Data.TaggedError('DefaultAccountError')
   }
 }
 
-export class PasswordRequiredError extends Data.TaggedError('PasswordRequiredError')<{}> {
+export class PasswordRequiredError extends Data.TaggedError(
+  "PasswordRequiredError",
+)<{}> {
   get message() {
-    return 'Password required. Use --password, FAST_PASSWORD env var, or run in interactive mode.';
+    return "Password required. Use --password, FAST_PASSWORD env var, or run in interactive mode.";
   }
 }
 
-export class WrongPasswordError extends Data.TaggedError('WrongPasswordError')<{}> {
+export class WrongPasswordError extends Data.TaggedError(
+  "WrongPasswordError",
+)<{}> {
   get message() {
-    return 'Incorrect password';
+    return "Incorrect password";
   }
 }

@@ -5,9 +5,9 @@ import { Effect } from "effect";
 import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
 import { InvalidUsageError } from "../../errors/index.js";
-import { AccountStore } from "../../services/account-store.js";
+import { AccountStore } from "../../services/account/account-store.js";
 import { Output } from "../../services/output.js";
-import { PasswordService } from "../../services/password-service.js";
+import { Password } from "../../services/password.js";
 
 export const accountImport = defineCommand({
   meta: { name: "import", description: "Import an existing private key" },
@@ -28,7 +28,7 @@ export const accountImport = defineCommand({
       args,
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
-        const password = yield* PasswordService;
+        const password = yield* Password;
         const output = yield* Output;
 
         if (args["private-key"] && args["key-file"]) {
@@ -70,7 +70,8 @@ export const accountImport = defineCommand({
           });
           const parsed = yield* Effect.try({
             try: () => JSON.parse(content) as { privateKey?: string },
-            catch: () => new InvalidUsageError({ message: "Key file is not valid JSON" }),
+            catch: () =>
+              new InvalidUsageError({ message: "Key file is not valid JSON" }),
           });
           if (!parsed.privateKey) {
             return yield* Effect.fail(

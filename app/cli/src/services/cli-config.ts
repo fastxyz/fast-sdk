@@ -1,8 +1,6 @@
 import { Context, Layer, type Option } from "effect";
 
-// --- CliConfig service ---
-
-export interface CliConfigShape {
+export interface ConfigShape {
   readonly json: boolean;
   readonly debug: boolean;
   readonly nonInteractive: boolean;
@@ -11,11 +9,7 @@ export interface CliConfigShape {
   readonly password: Option.Option<string>;
 }
 
-export class CliConfig extends Context.Tag("CliConfig")<
-  CliConfig,
-  CliConfigShape
->() {}
+export class Config extends Context.Tag("Config")<Config, ConfigShape>() {}
 
-export const makeCliConfigLayer = (
-  config: CliConfigShape,
-): Layer.Layer<CliConfig> => Layer.succeed(CliConfig, config);
+export const makeConfigLayer = (config: ConfigShape): Layer.Layer<Config> =>
+  Layer.succeed(Config, config);

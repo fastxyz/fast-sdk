@@ -12,7 +12,7 @@ import {
 } from "@fastxyz/fast-sdk/core";
 import { Context, Effect, Layer } from "effect";
 import { NetworkError } from "../errors/index.js";
-import { CliConfig } from "./cli-config.js";
+import { Config } from "./cli-config.js";
 import { NetworkConfigService } from "./network-config.js";
 
 export interface FastRpcShape {
@@ -44,7 +44,7 @@ export const FastRpcLive = Layer.effect(
   FastRpc,
   Effect.gen(function* () {
     const networkConfig = yield* NetworkConfigService;
-    const config = yield* CliConfig;
+    const config = yield* Config;
 
     const getRpcUrl = () =>
       networkConfig.resolve(config.network).pipe(

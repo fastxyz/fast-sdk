@@ -18,9 +18,6 @@ const VERSION = "0.1.0";
 const rawArgs = process.argv.slice(2);
 const isJson = rawArgs.includes("--json");
 
-// ---------------------------------------------------------------------------
-// Parse argv (--help, --version, and errors handled by runParserSync)
-// ---------------------------------------------------------------------------
 const parsed: ParsedArgs = runParserSync(parser, "fast", rawArgs, {
   colors: process.stdout.isTTY ?? false,
   help: { onShow: () => process.exit(0) },

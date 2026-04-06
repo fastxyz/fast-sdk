@@ -2,13 +2,17 @@ import { mkdirSync, chmodSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { Context, Effect, Layer } from "effect";
+import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { Context, Layer } from "effect";
+import * as schema from "../db/schema.js";
 
 const FAST_DIR = join(homedir(), ".fast");
 const DB_PATH = join(FAST_DIR, "fast.db");
 
+export type DrizzleDB = BetterSQLite3Database<typeof schema>;
+
 export interface DatabaseShape {
-  readonly db: Database.Database;
+  readonly db: DrizzleDB;
 }
 
 export class DatabaseService extends Context.Tag("Database")<
@@ -16,8 +20,23 @@ export class DatabaseService extends Context.Tag("Database")<
   DatabaseShape
 >() {}
 
-const initSchema = (db: Database.Database): void => {
-  db.exec(`
+export const DatabaseLive = Layer.sync(DatabaseService, () => {
+  mkdirSync(FAST_DIR, { recursive: true, mode: 0o700 });
+  try {
+    chmodSync(FAST_DIR, 0o700);
+  } catch {
+    // ignore chmod failures (some filesystems don't support it)
+  }
+
+  const sqlite = new Database(DB_PATH);
+  sqlite.pragma("journal_mode = WAL");
+  sqlite.pragma("foreign_keys = ON");
+
+  const db = drizzle(sqlite, { schema });
+
+  // Schema bootstrap: create tables if they don't exist.
+  // drizzle-kit push is for dev workflow; this ensures the CLI works standalone.
+  sqlite.exec(`
     CREATE TABLE IF NOT EXISTS accounts (
       name          TEXT PRIMARY KEY,
       fast_address  TEXT NOT NULL,
@@ -26,7 +45,6 @@ const initSchema = (db: Database.Database): void => {
       is_default    INTEGER NOT NULL DEFAULT 0,
       created_at    TEXT NOT NULL
     );
-
     CREATE TABLE IF NOT EXISTS history (
       hash         TEXT PRIMARY KEY,
       type         TEXT NOT NULL DEFAULT 'transfer',
@@ -43,14 +61,11 @@ const initSchema = (db: Database.Database): void => {
       route        TEXT NOT NULL DEFAULT 'fast',
       chain_id     INTEGER
     );
-
     CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp DESC);
-
     CREATE TABLE IF NOT EXISTS custom_networks (
       name   TEXT PRIMARY KEY,
       config TEXT NOT NULL
     );
-
     CREATE TABLE IF NOT EXISTS metadata (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -58,22 +73,10 @@ const initSchema = (db: Database.Database): void => {
   `);
 
   // Seed defaults
-  db.prepare("INSERT OR IGNORE INTO metadata (key, value) VALUES (?, ?)").run(
+  sqlite.prepare("INSERT OR IGNORE INTO metadata (key, value) VALUES (?, ?)").run(
     "default_network",
     "testnet",
   );
-};
 
-export const DatabaseLive = Layer.sync(DatabaseService, () => {
-  mkdirSync(FAST_DIR, { recursive: true, mode: 0o700 });
-  try {
-    chmodSync(FAST_DIR, 0o700);
-  } catch {
-    // ignore chmod failures (some filesystems don't support it)
-  }
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  initSchema(db);
   return { db };
 });

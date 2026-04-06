@@ -13,46 +13,32 @@ import { Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
 import { globalPreParser, parser } from "./cli.js";
-import { commands } from "./commands/index.js";
+import { type Command, commands } from "./commands/index.js";
 import { InternalError, InvalidUsageError } from "./errors/index.js";
+import { PROGRAM_NAME, VERSION } from "./services/config/constants.js";
 import { writeFail } from "./services/output.js";
-
-const VERSION = "0.1.0";
 const argv = process.argv.slice(2);
 
-// ---------------------------------------------------------------------------
-// Pass 1: lenient parse — extract --json, --help, --version
-// Always succeeds thanks to passThrough absorbing unknown tokens.
-// ---------------------------------------------------------------------------
 const pre = parse(globalPreParser, argv);
 const isJson = pre.success && pre.value.json;
 const isHelp = argv.length === 0 || (pre.success && pre.value.help);
 const isVersion = pre.success && pre.value.version;
 
-// ---------------------------------------------------------------------------
-// --version
-// ---------------------------------------------------------------------------
 if (isVersion) {
   process.stdout.write(`${VERSION}\n`);
   process.exit(0);
 }
 
-// ---------------------------------------------------------------------------
-// --help
-// ---------------------------------------------------------------------------
 if (isHelp) {
   const docPage = getDocPageSync(parser);
   if (docPage) {
     process.stdout.write(
-      `${formatDocPage("fast", docPage, { colors: process.stdout.isTTY ?? false })}\n`,
+      `${formatDocPage(PROGRAM_NAME, docPage, { colors: process.stdout.isTTY ?? false })}\n`,
     );
   }
   process.exit(0);
 }
 
-// ---------------------------------------------------------------------------
-// Pass 2: parse full command tree
-// ---------------------------------------------------------------------------
 const result = parse(parser, argv);
 
 if (!result.success) {
@@ -65,24 +51,16 @@ if (!result.success) {
 
 const parsed = result.value;
 
-// ---------------------------------------------------------------------------
-// Build GlobalOptions
-// ---------------------------------------------------------------------------
 const globalOpts: GlobalOptions = {
   json: parsed.json,
   debug: parsed.debug,
   nonInteractive: parsed.nonInteractive,
   network: parsed.network,
-  account: parsed.account != null ? Option.some(parsed.account) : Option.none(),
-  password:
-    parsed.password != null ? Option.some(parsed.password) : Option.none(),
+  account: Option.fromNullable(parsed.account),
+  password: Option.fromNullable(parsed.password),
 };
 
-// ---------------------------------------------------------------------------
-// Dispatch via command registry
-// ---------------------------------------------------------------------------
-type AnyEntry = { cmd: string; handler: (args: typeof parsed) => ReturnType<(typeof commands)[number]["handler"]> };
-const entry = (commands as readonly AnyEntry[]).find((c) => c.cmd === parsed.cmd);
+const entry = (commands as readonly Command[]).find((c) => c.cmd === parsed.cmd);
 if (!entry) {
   writeFail(
     new InternalError({ message: `Unknown command: ${parsed.cmd}` }),

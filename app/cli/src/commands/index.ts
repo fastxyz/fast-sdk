@@ -1,3 +1,6 @@
+import type { Effect } from "effect";
+import type { CommandName, ParsedArgs } from "../cli.js";
+import type { ClientError } from "../errors/index.js";
 import { accountCreate } from "./account/create.js";
 import { accountDelete } from "./account/delete.js";
 import { accountExport } from "./account/export.js";
@@ -33,3 +36,11 @@ export const commands = [
   networkSetDefault,
   send,
 ] as const;
+
+/** A command entry: a discriminant + an Effect handler that accepts parsed args. */
+export interface Command {
+  readonly cmd: CommandName;
+  readonly handler: (
+    args: ParsedArgs,
+  ) => Effect.Effect<void, ClientError, unknown>;
+}

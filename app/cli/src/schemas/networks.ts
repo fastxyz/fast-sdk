@@ -1,12 +1,13 @@
 import { Schema } from "effect";
 
-const AllSetChainTokenSchema = Schema.Struct({
+export const AllSetChainTokenSchema = Schema.Struct({
   evmAddress: Schema.String,
   fastTokenId: Schema.String,
   decimals: Schema.Number,
 });
+export type AllSetChainTokenConfig = typeof AllSetChainTokenSchema.Type;
 
-const AllSetChainSchema = Schema.Struct({
+export const AllSetChainSchema = Schema.Struct({
   chainId: Schema.Number,
   bridgeContract: Schema.String,
   fastBridgeAddress: Schema.String,
@@ -15,23 +16,25 @@ const AllSetChainSchema = Schema.Struct({
   evmExplorerUrl: Schema.String,
   tokens: Schema.Record({ key: Schema.String, value: AllSetChainTokenSchema }),
 });
+export type AllSetChainConfig = typeof AllSetChainSchema.Type;
 
-const AllSetConfigSchema = Schema.Struct({
+export const AllSetConfigSchema = Schema.Struct({
   crossSignUrl: Schema.String,
   portalApiUrl: Schema.String,
   chains: Schema.Record({ key: Schema.String, value: AllSetChainSchema }),
 });
+export type AllSetConfig = typeof AllSetConfigSchema.Type;
 
-/**
- * Schema for validating network config — matches the NetworkConfig interface
- * in config/bundled.ts. Used for both user-provided configs (network add)
- * and stored configs in the database.
- */
-export class NetworkConfigSchema extends Schema.Class<NetworkConfigSchema>(
-  "NetworkConfigSchema",
-)({
+export const NetworkConfigSchema = Schema.Struct({
   rpcUrl: Schema.String,
   explorerUrl: Schema.String,
   networkId: Schema.String,
-  allSet: Schema.optionalWith(AllSetConfigSchema, { as: "Option" }),
-}) {}
+  allSet: Schema.optional(AllSetConfigSchema),
+});
+export type NetworkConfig = typeof NetworkConfigSchema.Type;
+
+export const BundledNetworksSchema = Schema.Record({
+  key: Schema.String,
+  value: NetworkConfigSchema,
+});
+export type BundledNetworks = typeof BundledNetworksSchema.Type;

@@ -1,7 +1,9 @@
 import { Signer, toHex } from "@fastxyz/fast-sdk";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
+import { eq, count } from "drizzle-orm";
 import { Context, Effect, Layer, Option } from "effect";
+import { accounts } from "../../db/schema.js";
 import {
   AccountExistsError,
   AccountNotFoundError,
@@ -70,21 +72,12 @@ export class AccountStore extends Context.Tag("AccountStore")<
   AccountStoreShape
 >() {}
 
-interface AccountRow {
-  name: string;
-  fast_address: string;
-  evm_address: string;
-  encrypted_key: Buffer;
-  is_default: number;
-  created_at: string;
-}
-
-const rowToInfo = (row: AccountRow): AccountInfo => ({
+const rowToInfo = (row: typeof accounts.$inferSelect): AccountInfo => ({
   name: row.name,
-  fastAddress: row.fast_address,
-  evmAddress: row.evm_address,
-  isDefault: row.is_default === 1,
-  createdAt: row.created_at,
+  fastAddress: row.fastAddress,
+  evmAddress: row.evmAddress,
+  isDefault: row.isDefault,
+  createdAt: row.createdAt,
 });
 
 const deriveEvmAddress = (seed: Uint8Array): string => {
@@ -110,27 +103,13 @@ export const AccountStoreLive = Layer.effect(
   Effect.gen(function* () {
     const { db } = yield* DatabaseService;
 
-    const stmts = {
-      listAll: db.prepare<[], AccountRow>("SELECT * FROM accounts ORDER BY created_at"),
-      getByName: db.prepare<[string], AccountRow>("SELECT * FROM accounts WHERE name = ?"),
-      getDefault: db.prepare<[], AccountRow>("SELECT * FROM accounts WHERE is_default = 1"),
-      countAll: db.prepare<[], { cnt: number }>("SELECT COUNT(*) as cnt FROM accounts"),
-      insert: db.prepare(
-        "INSERT INTO accounts (name, fast_address, evm_address, encrypted_key, is_default, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-      ),
-      clearDefault: db.prepare("UPDATE accounts SET is_default = 0 WHERE is_default = 1"),
-      setDefault: db.prepare("UPDATE accounts SET is_default = 1 WHERE name = ?"),
-      deleteByName: db.prepare("DELETE FROM accounts WHERE name = ?"),
-      allNames: db.prepare<[], { name: string }>("SELECT name FROM accounts"),
-    };
-
     const storeAccount = (
       name: string,
       seed: Uint8Array,
       password: string,
     ): Effect.Effect<AccountInfo, AccountExistsError | StorageError> =>
       Effect.gen(function* () {
-        const existing = stmts.getByName.get(name);
+        const existing = db.select().from(accounts).where(eq(accounts.name, name)).get();
         if (existing) {
           return yield* Effect.fail(new AccountExistsError({ name }));
         }
@@ -142,33 +121,26 @@ export const AccountStoreLive = Layer.effect(
             new StorageError({ message: "Failed to encrypt seed", cause }),
         });
 
-        const isFirst = stmts.countAll.get()!.cnt === 0;
+        const isFirst = db.select({ cnt: count() }).from(accounts).get()!.cnt === 0;
         const createdAt = new Date().toISOString();
 
-        db.transaction(() => {
-          stmts.insert.run(
-            name,
-            fastAddress,
-            evmAddress,
-            Buffer.from(encrypted),
-            isFirst ? 1 : 0,
-            createdAt,
-          );
-        })();
-
-        return {
+        db.insert(accounts).values({
           name,
           fastAddress,
           evmAddress,
+          encryptedKey: Buffer.from(encrypted),
           isDefault: isFirst,
           createdAt,
-        };
+        }).run();
+
+        return { name, fastAddress, evmAddress, isDefault: isFirst, createdAt };
       });
 
     return {
       list: () =>
         Effect.try({
-          try: () => stmts.listAll.all().map(rowToInfo),
+          try: () =>
+            db.select().from(accounts).orderBy(accounts.createdAt).all().map(rowToInfo),
           catch: (cause) =>
             new StorageError({ message: "Failed to list accounts", cause }),
         }),
@@ -176,7 +148,7 @@ export const AccountStoreLive = Layer.effect(
       get: (name) =>
         Effect.try({
           try: () => {
-            const row = stmts.getByName.get(name);
+            const row = db.select().from(accounts).where(eq(accounts.name, name)).get();
             if (!row) throw new AccountNotFoundError({ name });
             return rowToInfo(row);
           },
@@ -189,7 +161,7 @@ export const AccountStoreLive = Layer.effect(
       getDefault: () =>
         Effect.try({
           try: () => {
-            const row = stmts.getDefault.get();
+            const row = db.select().from(accounts).where(eq(accounts.isDefault, true)).get();
             if (!row) throw new NoAccountsError();
             return rowToInfo(row);
           },
@@ -205,12 +177,10 @@ export const AccountStoreLive = Layer.effect(
       setDefault: (name) =>
         Effect.try({
           try: () => {
-            const row = stmts.getByName.get(name);
+            const row = db.select().from(accounts).where(eq(accounts.name, name)).get();
             if (!row) throw new AccountNotFoundError({ name });
-            db.transaction(() => {
-              stmts.clearDefault.run();
-              stmts.setDefault.run(name);
-            })();
+            db.update(accounts).set({ isDefault: false }).where(eq(accounts.isDefault, true)).run();
+            db.update(accounts).set({ isDefault: true }).where(eq(accounts.name, name)).run();
           },
           catch: (e) =>
             e instanceof AccountNotFoundError
@@ -221,12 +191,12 @@ export const AccountStoreLive = Layer.effect(
       delete_: (name) =>
         Effect.try({
           try: () => {
-            const row = stmts.getByName.get(name);
+            const row = db.select().from(accounts).where(eq(accounts.name, name)).get();
             if (!row) throw new AccountNotFoundError({ name });
-            if (row.is_default === 1 && stmts.countAll.get()!.cnt > 1) {
+            if (row.isDefault && db.select({ cnt: count() }).from(accounts).get()!.cnt > 1) {
               throw new DefaultAccountError({ name });
             }
-            stmts.deleteByName.run(name);
+            db.delete(accounts).where(eq(accounts.name, name)).run();
           },
           catch: (e) =>
             e instanceof AccountNotFoundError || e instanceof DefaultAccountError
@@ -238,7 +208,7 @@ export const AccountStoreLive = Layer.effect(
         Effect.gen(function* () {
           const row = yield* Effect.try({
             try: () => {
-              const r = stmts.getByName.get(name);
+              const r = db.select().from(accounts).where(eq(accounts.name, name)).get();
               if (!r) throw new AccountNotFoundError({ name });
               return r;
             },
@@ -249,7 +219,7 @@ export const AccountStoreLive = Layer.effect(
           });
 
           const seed = yield* Effect.tryPromise({
-            try: () => decryptSeed(new Uint8Array(row.encrypted_key), password),
+            try: () => decryptSeed(new Uint8Array(row.encryptedKey), password),
             catch: (cause) => {
               if (cause instanceof WrongPasswordError) return cause;
               return new StorageError({ message: "Failed to decrypt seed", cause });
@@ -262,15 +232,13 @@ export const AccountStoreLive = Layer.effect(
       resolveAccount: (flag) =>
         Effect.gen(function* () {
           if (Option.isSome(flag)) {
-            const row = stmts.getByName.get(flag.value);
+            const row = db.select().from(accounts).where(eq(accounts.name, flag.value)).get();
             if (!row) {
-              return yield* Effect.fail(
-                new AccountNotFoundError({ name: flag.value }),
-              );
+              return yield* Effect.fail(new AccountNotFoundError({ name: flag.value }));
             }
             return rowToInfo(row);
           }
-          const row = stmts.getDefault.get();
+          const row = db.select().from(accounts).where(eq(accounts.isDefault, true)).get();
           if (!row) {
             return yield* Effect.fail(new NoAccountsError());
           }
@@ -280,7 +248,8 @@ export const AccountStoreLive = Layer.effect(
       nextAutoName: () =>
         Effect.try({
           try: () => {
-            const names = new Set(stmts.allNames.all().map((r) => r.name));
+            const rows = db.select({ name: accounts.name }).from(accounts).all();
+            const names = new Set(rows.map((r) => r.name));
             let n = 1;
             while (names.has(`account-${n}`)) n++;
             return `account-${n}`;

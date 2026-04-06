@@ -1,4 +1,6 @@
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
+import { history } from "../db/schema.js";
 import { StorageError, TxNotFoundError } from "../errors/index.js";
 import type { HistoryEntry } from "../schemas/history.js";
 import { DatabaseService } from "./database.js";
@@ -20,38 +22,21 @@ export interface HistoryStoreShape {
 
 export class HistoryStore extends Context.Tag("HistoryStore")<HistoryStore, HistoryStoreShape>() {}
 
-interface HistoryRow {
-  hash: string;
-  type: string;
-  from: string;
-  to: string;
-  amount: string;
-  formatted: string;
-  token_name: string;
-  token_id: string;
-  network: string;
-  status: string;
-  timestamp: string;
-  explorer_url: string | null;
-  route: string;
-  chain_id: number | null;
-}
-
-const rowToEntry = (row: HistoryRow): HistoryEntry => ({
+const rowToEntry = (row: typeof history.$inferSelect): HistoryEntry => ({
   hash: row.hash,
   type: row.type as "transfer",
   from: row.from,
   to: row.to,
   amount: row.amount,
   formatted: row.formatted,
-  tokenName: row.token_name,
-  tokenId: row.token_id,
+  tokenName: row.tokenName,
+  tokenId: row.tokenId,
   network: row.network,
   status: row.status,
   timestamp: row.timestamp,
-  explorerUrl: row.explorer_url,
+  explorerUrl: row.explorerUrl,
   route: row.route as "fast" | "evm-to-fast" | "fast-to-evm",
-  chainId: row.chain_id,
+  chainId: row.chainId,
 });
 
 export const HistoryStoreLive = Layer.effect(
@@ -59,36 +44,29 @@ export const HistoryStoreLive = Layer.effect(
   Effect.gen(function* () {
     const { db } = yield* DatabaseService;
 
-    const stmts = {
-      insert: db.prepare(
-        `INSERT OR REPLACE INTO history
-         (hash, type, "from", "to", amount, formatted, token_name, token_id, network, status, timestamp, explorer_url, route, chain_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ),
-      getByHash: db.prepare<[string], HistoryRow>("SELECT * FROM history WHERE hash = ?"),
-      updateStatus: db.prepare("UPDATE history SET status = ? WHERE hash = ?"),
-    };
-
     return {
       record: (entry) =>
         Effect.try({
           try: () => {
-            stmts.insert.run(
-              entry.hash,
-              entry.type,
-              entry.from,
-              entry.to,
-              entry.amount,
-              entry.formatted,
-              entry.tokenName,
-              entry.tokenId,
-              entry.network,
-              entry.status,
-              entry.timestamp,
-              entry.explorerUrl,
-              entry.route,
-              entry.chainId,
-            );
+            db.insert(history).values({
+              hash: entry.hash,
+              type: entry.type,
+              from: entry.from,
+              to: entry.to,
+              amount: entry.amount,
+              formatted: entry.formatted,
+              tokenName: entry.tokenName,
+              tokenId: entry.tokenId,
+              network: entry.network,
+              status: entry.status,
+              timestamp: entry.timestamp,
+              explorerUrl: entry.explorerUrl,
+              route: entry.route,
+              chainId: entry.chainId,
+            }).onConflictDoUpdate({
+              target: history.hash,
+              set: { status: entry.status },
+            }).run();
           },
           catch: (cause) =>
             new StorageError({ message: "Failed to record history entry", cause }),
@@ -97,30 +75,35 @@ export const HistoryStoreLive = Layer.effect(
       list: (filters) =>
         Effect.try({
           try: () => {
-            const conditions: string[] = [];
-            const params: unknown[] = [];
+            const conditions = [];
 
             if (filters.from) {
-              conditions.push('"from" = ?');
-              params.push(filters.from);
+              conditions.push(eq(history.from, filters.from));
             }
             if (filters.to) {
-              conditions.push('"to" = ?');
-              params.push(filters.to);
+              conditions.push(eq(history.to, filters.to));
             }
             if (filters.token) {
-              conditions.push("(LOWER(token_name) = LOWER(?) OR token_id = ?)");
-              params.push(filters.token, filters.token);
+              conditions.push(
+                or(
+                  eq(sql`LOWER(${history.tokenName})`, filters.token.toLowerCase()),
+                  eq(history.tokenId, filters.token),
+                )!,
+              );
             }
 
-            const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-            const limit = filters.limit ?? 20;
-            const offset = filters.offset ?? 0;
+            const query = db
+              .select()
+              .from(history)
+              .orderBy(desc(history.timestamp))
+              .limit(filters.limit ?? 20)
+              .offset(filters.offset ?? 0);
 
-            const sql = `SELECT * FROM history ${where} ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
-            params.push(limit, offset);
+            const rows = conditions.length > 0
+              ? query.where(and(...conditions)).all()
+              : query.all();
 
-            return db.prepare(sql).all(...params).map((row) => rowToEntry(row as HistoryRow));
+            return rows.map(rowToEntry);
           },
           catch: (cause) =>
             new StorageError({ message: "Failed to list history", cause }),
@@ -130,7 +113,7 @@ export const HistoryStoreLive = Layer.effect(
         Effect.try({
           try: () => {
             const normalized = hash.startsWith("0x") ? hash : `0x${hash}`;
-            const row = stmts.getByHash.get(normalized);
+            const row = db.select().from(history).where(eq(history.hash, normalized)).get();
             if (!row) throw new TxNotFoundError({ hash: normalized });
             return rowToEntry(row);
           },
@@ -143,7 +126,7 @@ export const HistoryStoreLive = Layer.effect(
       updateStatus: (hash, status) =>
         Effect.try({
           try: () => {
-            stmts.updateStatus.run(status, hash);
+            db.update(history).set({ status }).where(eq(history.hash, hash)).run();
           },
           catch: (cause) =>
             new StorageError({ message: "Failed to update history status", cause }),

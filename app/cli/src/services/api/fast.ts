@@ -15,8 +15,6 @@ import { FastSdkError } from "../../errors/index.js";
 import { Config } from "../config/config.js";
 import { NetworkConfigService } from "../storage/network.js";
 
-
-
 export interface FastRpcShape {
   readonly getAccountInfo: (
     params: GetAccountInfoParams,
@@ -37,15 +35,13 @@ export class FastRpc extends Context.Tag("FastRpc")<FastRpc, FastRpcShape>() {}
 
 const mapFastSdkError = <A, E>(
   effect: Effect.Effect<A, E>,
-): Effect.Effect<A, FastSdkError> =>
-  effect.pipe(
-    Effect.mapError((e) =>
-      new FastSdkError({
-        message: e instanceof Error ? e.message : String(e),
-        cause: e,
-      }),
-    ),
-  );
+): Effect.Effect<A, FastSdkError> => {
+  const error = (e: E) =>
+    e instanceof Error
+      ? new FastSdkError({ message: e.message, cause: e })
+      : new FastSdkError({ message: String(e) });
+  return effect.pipe(Effect.mapError((e) => error(e)));
+};
 
 export const FastRpcLive = Layer.effect(
   FastRpc,

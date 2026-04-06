@@ -22,12 +22,16 @@ const AllSetConfigSchema = Schema.Struct({
   chains: Schema.Record({ key: Schema.String, value: AllSetChainSchema }),
 });
 
-export class CustomNetworkConfig extends Schema.Class<CustomNetworkConfig>(
-  "CustomNetworkConfig",
+/**
+ * Schema for validating network config — matches the NetworkConfig interface
+ * in config/bundled.ts. Used for both user-provided configs (network add)
+ * and stored configs in the database.
+ */
+export class NetworkConfigSchema extends Schema.Class<NetworkConfigSchema>(
+  "NetworkConfigSchema",
 )({
-  fast: Schema.Struct({
-    rpcUrl: Schema.String,
-    explorerUrl: Schema.String,
-  }),
+  rpcUrl: Schema.String,
+  explorerUrl: Schema.String,
+  networkId: Schema.String,
   allSet: Schema.optionalWith(AllSetConfigSchema, { as: "Option" }),
 }) {}

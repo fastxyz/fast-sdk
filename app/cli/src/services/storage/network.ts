@@ -12,19 +12,21 @@ import {
   InvalidConfigError,
   NetworkExistsError,
   NetworkNotFoundError,
+  NoDefaultNetworkError,
   ReservedNameError,
   StorageError,
 } from "../../errors/index.js";
-import { CustomNetworkConfig } from "../../schemas/networks.js";
-import { DatabaseService, DrizzleDB } from "./database.js";
+import { NetworkConfigSchema } from "../../schemas/networks.js";
+import { DatabaseService, type DrizzleDB } from "./database.js";
+
+type GetDefaultEffect = Effect.Effect<string, NoDefaultNetworkError>;
+type ResolveEffect = Effect.Effect<
+  NetworkConfig,
+  NetworkNotFoundError | StorageError | InvalidConfigError
+>;
 
 export interface NetworkConfigShape {
-  readonly resolve: (
-    name: string,
-  ) => Effect.Effect<
-    NetworkConfig,
-    NetworkNotFoundError | StorageError | InvalidConfigError
-  >;
+  readonly resolve: (name: string) => ResolveEffect;
   readonly list: () => Effect.Effect<
     Array<{ name: string; type: "bundled" | "custom"; isDefault: boolean }>,
     StorageError
@@ -48,7 +50,7 @@ export interface NetworkConfigShape {
     | DefaultNetworkError
     | StorageError
   >;
-  readonly getDefault: () => Effect.Effect<string, StorageError>;
+  readonly getDefault: () => GetDefaultEffect;
 }
 
 export class NetworkConfigService extends Context.Tag("NetworkConfigService")<
@@ -56,19 +58,24 @@ export class NetworkConfigService extends Context.Tag("NetworkConfigService")<
   NetworkConfigShape
 >() {}
 
+const getDefault = (db: DrizzleDB): GetDefaultEffect => {
+  const row = db
+    .select()
+    .from(metadata)
+    .where(eq(metadata.key, "default_network"))
+    .get();
+
+  if (row?.value === undefined) {
+    return Effect.fail(new NoDefaultNetworkError());
+  }
+
+  return Effect.succeed(row.value);
+};
+
 export const NetworkConfigLive = Layer.effect(
   NetworkConfigService,
   Effect.gen(function* () {
     const { db } = yield* DatabaseService;
-
-    const getDefaultNetwork = (): string => {
-      const row = db
-        .select()
-        .from(metadata)
-        .where(eq(metadata.key, "default_network"))
-        .get();
-      return row?.value ?? "testnet";
-    };
 
     return {
       resolve: (name) =>
@@ -85,7 +92,7 @@ export const NetworkConfigLive = Layer.effect(
             return yield* Effect.fail(new NetworkNotFoundError({ name }));
           }
 
-          const custom = yield* Schema.decodeUnknown(CustomNetworkConfig)(
+          const config = yield* Schema.decodeUnknown(NetworkConfigSchema)(
             JSON.parse(row.config),
           ).pipe(
             Effect.mapError(
@@ -97,11 +104,11 @@ export const NetworkConfigLive = Layer.effect(
           );
 
           return {
-            rpcUrl: custom.fast.rpcUrl,
-            explorerUrl: custom.fast.explorerUrl,
-            networkId: `fast:${name}`,
-            ...(Option.isSome(custom.allSet)
-              ? { allSet: custom.allSet.value }
+            rpcUrl: config.rpcUrl,
+            explorerUrl: config.explorerUrl,
+            networkId: config.networkId,
+            ...(Option.isSome(config.allSet)
+              ? { allSet: config.allSet.value }
               : {}),
           } satisfies NetworkConfig;
         }),
@@ -109,7 +116,7 @@ export const NetworkConfigLive = Layer.effect(
       list: () =>
         Effect.try({
           try: () => {
-            const defaultName = getDefaultNetwork();
+            const defaultName = getDefault(db);
             const customRows = db
               .select({ name: customNetworks.name })
               .from(customNetworks)
@@ -175,7 +182,7 @@ export const NetworkConfigLive = Layer.effect(
             return yield* Effect.fail(new NetworkExistsError({ name }));
           }
 
-          const content = yield* Effect.try({
+          const raw = yield* Effect.try({
             try: () => readFileSync(configPath, "utf-8"),
             catch: () =>
               new InvalidConfigError({
@@ -183,8 +190,9 @@ export const NetworkConfigLive = Layer.effect(
               }),
           });
 
-          yield* Schema.decodeUnknown(CustomNetworkConfig)(
-            JSON.parse(content),
+          // Validate against NetworkConfigSchema (same shape as NetworkConfig)
+          yield* Schema.decodeUnknown(NetworkConfigSchema)(
+            JSON.parse(raw),
           ).pipe(
             Effect.mapError(
               () =>
@@ -194,9 +202,10 @@ export const NetworkConfigLive = Layer.effect(
             ),
           );
 
+          // Store the validated JSON as-is — resolve() reads it back directly
           yield* Effect.try({
             try: () =>
-              db.insert(customNetworks).values({ name, config: content }).run(),
+              db.insert(customNetworks).values({ name, config: raw }).run(),
             catch: (cause) =>
               new StorageError({
                 message: "Failed to save network config",
@@ -218,8 +227,7 @@ export const NetworkConfigLive = Layer.effect(
             ) {
               throw new NetworkNotFoundError({ name });
             }
-            if (getDefaultNetwork() === name)
-              throw new DefaultNetworkError({ name });
+            if (getDefault() === name) throw new DefaultNetworkError({ name });
             db.delete(customNetworks)
               .where(eq(customNetworks.name, name))
               .run();
@@ -235,15 +243,7 @@ export const NetworkConfigLive = Layer.effect(
                 }),
         }),
 
-      getDefault: () =>
-        Effect.try({
-          try: () => getDefaultNetwork(),
-          catch: (cause) =>
-            new StorageError({
-              message: "Failed to get default network",
-              cause,
-            }),
-        }),
+      getDefault: () => getDefault(db),
     };
   }),
 );

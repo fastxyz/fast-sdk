@@ -3,7 +3,7 @@ import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { count, eq } from "drizzle-orm";
 import { Context, Effect, Layer, Option } from "effect";
-import { accounts } from "../db/schema.js";
+import { accounts } from "../../db/schema.js";
 import {
   AccountExistsError,
   AccountNotFoundError,
@@ -11,8 +11,8 @@ import {
   NoAccountsError,
   StorageError,
   WrongPasswordError,
-} from "../errors/index.js";
-import { decryptSeed, encryptSeed } from "./crypto.js";
+} from "../../errors/index.js";
+import { decryptSeed, encryptSeed } from "../crypto.js";
 import { DatabaseService } from "./database.js";
 
 export interface AccountInfo {

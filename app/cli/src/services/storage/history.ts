@@ -1,8 +1,8 @@
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
-import { history } from "../db/schema.js";
-import { StorageError, TxNotFoundError } from "../errors/index.js";
-import type { HistoryEntry } from "../schemas/history.js";
+import { history } from "../../db/schema.js";
+import { StorageError, TxNotFoundError } from "../../errors/index.js";
+import type { HistoryEntry } from "../../schemas/history.js";
 import { DatabaseService } from "./database.js";
 
 export interface HistoryFilters {

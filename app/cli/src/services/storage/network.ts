@@ -5,8 +5,8 @@ import {
   bundledNetworks,
   isBundledNetwork,
   type NetworkConfig,
-} from "../config/bundled.js";
-import { customNetworks, metadata } from "../db/schema.js";
+} from "../../config/bundled.js";
+import { customNetworks, metadata } from "../../db/schema.js";
 import {
   DefaultNetworkError,
   InvalidConfigError,
@@ -14,8 +14,8 @@ import {
   NetworkNotFoundError,
   ReservedNameError,
   StorageError,
-} from "../errors/index.js";
-import { CustomNetworkConfig } from "../schemas/networks.js";
+} from "../../errors/index.js";
+import { CustomNetworkConfig } from "../../schemas/networks.js";
 import { DatabaseService } from "./database.js";
 
 export interface NetworkConfigShape {
@@ -62,7 +62,11 @@ export const NetworkConfigLive = Layer.effect(
     const { db } = yield* DatabaseService;
 
     const getDefaultNetwork = (): string => {
-      const row = db.select().from(metadata).where(eq(metadata.key, "default_network")).get();
+      const row = db
+        .select()
+        .from(metadata)
+        .where(eq(metadata.key, "default_network"))
+        .get();
       return row?.value ?? "testnet";
     };
 
@@ -72,7 +76,11 @@ export const NetworkConfigLive = Layer.effect(
           const bundled = bundledNetworks[name];
           if (bundled) return bundled;
 
-          const row = db.select().from(customNetworks).where(eq(customNetworks.name, name)).get();
+          const row = db
+            .select()
+            .from(customNetworks)
+            .where(eq(customNetworks.name, name))
+            .get();
           if (!row) {
             return yield* Effect.fail(new NetworkNotFoundError({ name }));
           }
@@ -81,7 +89,10 @@ export const NetworkConfigLive = Layer.effect(
             JSON.parse(row.config),
           ).pipe(
             Effect.mapError(
-              () => new InvalidConfigError({ message: `Invalid network config: ${name}` }),
+              () =>
+                new InvalidConfigError({
+                  message: `Invalid network config: ${name}`,
+                }),
             ),
           );
 
@@ -99,14 +110,19 @@ export const NetworkConfigLive = Layer.effect(
         Effect.try({
           try: () => {
             const defaultName = getDefaultNetwork();
-            const customRows = db.select({ name: customNetworks.name }).from(customNetworks).all();
+            const customRows = db
+              .select({ name: customNetworks.name })
+              .from(customNetworks)
+              .all();
             const allNames = [
               ...Object.keys(bundledNetworks),
               ...customRows.map((r) => r.name),
             ];
             return allNames.map((name) => ({
               name,
-              type: (isBundledNetwork(name) ? "bundled" : "custom") as "bundled" | "custom",
+              type: (isBundledNetwork(name) ? "bundled" : "custom") as
+                | "bundled"
+                | "custom",
               isDefault: name === defaultName,
             }));
           },
@@ -117,16 +133,31 @@ export const NetworkConfigLive = Layer.effect(
       setDefault: (name) =>
         Effect.try({
           try: () => {
-            if (!isBundledNetwork(name) && !db.select().from(customNetworks).where(eq(customNetworks.name, name)).get()) {
+            if (
+              !isBundledNetwork(name) &&
+              !db
+                .select()
+                .from(customNetworks)
+                .where(eq(customNetworks.name, name))
+                .get()
+            ) {
               throw new NetworkNotFoundError({ name });
             }
-            db.insert(metadata).values({ key: "default_network", value: name })
-              .onConflictDoUpdate({ target: metadata.key, set: { value: name } }).run();
+            db.insert(metadata)
+              .values({ key: "default_network", value: name })
+              .onConflictDoUpdate({
+                target: metadata.key,
+                set: { value: name },
+              })
+              .run();
           },
           catch: (e) =>
             e instanceof NetworkNotFoundError
               ? e
-              : new StorageError({ message: "Failed to set default network", cause: e }),
+              : new StorageError({
+                  message: "Failed to set default network",
+                  cause: e,
+                }),
         }),
 
       add: (name, configPath) =>
@@ -134,26 +165,43 @@ export const NetworkConfigLive = Layer.effect(
           if (isBundledNetwork(name)) {
             return yield* Effect.fail(new ReservedNameError({ name }));
           }
-          if (db.select().from(customNetworks).where(eq(customNetworks.name, name)).get()) {
+          if (
+            db
+              .select()
+              .from(customNetworks)
+              .where(eq(customNetworks.name, name))
+              .get()
+          ) {
             return yield* Effect.fail(new NetworkExistsError({ name }));
           }
 
           const content = yield* Effect.try({
             try: () => readFileSync(configPath, "utf-8"),
             catch: () =>
-              new InvalidConfigError({ message: `Cannot read config file: ${configPath}` }),
+              new InvalidConfigError({
+                message: `Cannot read config file: ${configPath}`,
+              }),
           });
 
-          yield* Schema.decodeUnknown(CustomNetworkConfig)(JSON.parse(content)).pipe(
+          yield* Schema.decodeUnknown(CustomNetworkConfig)(
+            JSON.parse(content),
+          ).pipe(
             Effect.mapError(
-              () => new InvalidConfigError({ message: "Invalid network config format" }),
+              () =>
+                new InvalidConfigError({
+                  message: "Invalid network config format",
+                }),
             ),
           );
 
           yield* Effect.try({
-            try: () => db.insert(customNetworks).values({ name, config: content }).run(),
+            try: () =>
+              db.insert(customNetworks).values({ name, config: content }).run(),
             catch: (cause) =>
-              new StorageError({ message: "Failed to save network config", cause }),
+              new StorageError({
+                message: "Failed to save network config",
+                cause,
+              }),
           });
         }),
 
@@ -161,25 +209,40 @@ export const NetworkConfigLive = Layer.effect(
         Effect.try({
           try: () => {
             if (isBundledNetwork(name)) throw new ReservedNameError({ name });
-            if (!db.select().from(customNetworks).where(eq(customNetworks.name, name)).get()) {
+            if (
+              !db
+                .select()
+                .from(customNetworks)
+                .where(eq(customNetworks.name, name))
+                .get()
+            ) {
               throw new NetworkNotFoundError({ name });
             }
-            if (getDefaultNetwork() === name) throw new DefaultNetworkError({ name });
-            db.delete(customNetworks).where(eq(customNetworks.name, name)).run();
+            if (getDefaultNetwork() === name)
+              throw new DefaultNetworkError({ name });
+            db.delete(customNetworks)
+              .where(eq(customNetworks.name, name))
+              .run();
           },
           catch: (e) =>
             e instanceof ReservedNameError ||
             e instanceof NetworkNotFoundError ||
             e instanceof DefaultNetworkError
               ? e
-              : new StorageError({ message: "Failed to remove network", cause: e }),
+              : new StorageError({
+                  message: "Failed to remove network",
+                  cause: e,
+                }),
         }),
 
       getDefault: () =>
         Effect.try({
           try: () => getDefaultNetwork(),
           catch: (cause) =>
-            new StorageError({ message: "Failed to get default network", cause }),
+            new StorageError({
+              message: "Failed to get default network",
+              cause,
+            }),
         }),
     };
   }),

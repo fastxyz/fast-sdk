@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { Context, Layer } from "effect";
-import * as schema from "../db/schema.js";
+import * as schema from "../../db/schema.js";
 
 const FAST_DIR = join(homedir(), ".fast");
 const DB_PATH = join(FAST_DIR, "fast.db");

@@ -5,9 +5,9 @@ import { Effect } from "effect";
 import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
 import { InvalidUsageError } from "../../errors/index.js";
-import { AccountStore } from "../../services/account-store.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
+import { AccountStore } from "../../services/storage/account.js";
 
 export const accountImport = defineCommand({
   meta: { name: "import", description: "Import an existing private key" },

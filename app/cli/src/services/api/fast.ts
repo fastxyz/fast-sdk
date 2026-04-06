@@ -11,9 +11,9 @@ import {
   submitTransaction as sdkSubmitTransaction,
 } from "@fastxyz/fast-sdk/core";
 import { Context, Effect, Layer } from "effect";
-import { NetworkError } from "../errors/index.js";
-import { Config } from "./cli-config.js";
-import { NetworkConfigService } from "./network-config.js";
+import { NetworkError } from "../../errors/index.js";
+import { Config } from "../config.js";
+import { NetworkConfigService } from "../storage/network.js";
 
 export interface FastRpcShape {
   readonly getAccountInfo: (

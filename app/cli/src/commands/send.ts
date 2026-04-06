@@ -25,13 +25,13 @@ import {
   UnsupportedChainError,
 } from "../errors/index.js";
 import { makeHistoryEntry } from "../schemas/history.js";
-import { AccountStore } from "../services/account-store.js";
-import { Config } from "../services/cli-config.js";
-import { FastRpc } from "../services/fast-rpc.js";
-import { HistoryStore } from "../services/history-store.js";
-import { NetworkConfigService } from "../services/network-config.js";
+import { FastRpc } from "../services/api/fast.js";
+import { Config } from "../services/config.js";
 import { Output } from "../services/output.js";
 import { Prompt } from "../services/prompt.js";
+import { AccountStore } from "../services/storage/account.js";
+import { HistoryStore } from "../services/storage/history.js";
+import { NetworkConfigService } from "../services/storage/network.js";
 import { resolveToken } from "../services/token-resolver.js";
 
 export const sendCommand = defineCommand({

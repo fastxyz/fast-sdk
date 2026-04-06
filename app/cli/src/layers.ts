@@ -1,12 +1,12 @@
 import { Layer, type Option } from "effect";
-import { AccountStoreLive } from "./services/account-store.js";
-import { makeConfigLayer } from "./services/cli-config.js";
-import { DatabaseLive } from "./services/database.js";
-import { FastRpcLive } from "./services/fast-rpc.js";
-import { HistoryStoreLive } from "./services/history-store.js";
-import { NetworkConfigLive } from "./services/network-config.js";
+import { FastRpcLive } from "./services/api/fast.js";
+import { makeConfigLayer } from "./services/config.js";
 import { OutputLive } from "./services/output.js";
 import { PromptLive } from "./services/prompt.js";
+import { AccountStoreLive } from "./services/storage/account.js";
+import { DatabaseLive } from "./services/storage/database.js";
+import { HistoryStoreLive } from "./services/storage/history.js";
+import { NetworkConfigLive } from "./services/storage/network.js";
 
 interface ParsedOptions {
   readonly json: boolean;

@@ -1,7 +1,7 @@
 import { ConfirmPrompt, isCancel, PasswordPrompt } from "@clack/core";
 import { Context, Effect, Layer, Option } from "effect";
 import { PasswordRequiredError, UserCancelledError } from "../errors/index.js";
-import { Config, type ConfigShape } from "./cli-config.js";
+import { Config, type ConfigShape } from "./config.js";
 
 type ConfirmEffect = Effect.Effect<boolean, UserCancelledError>;
 type PasswordEffect = Effect.Effect<

@@ -1,13 +1,7 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { FileSystem } from '@effect/platform';
-import { Context, Effect, Layer, Schema } from 'effect';
-import lockfile from 'proper-lockfile';
-import { StorageError, TxNotFoundError, mapToStorageError } from '../errors/index.js';
-import { HistoryEntry, HistoryFile } from '../schemas/history.js';
-
-const FAST_DIR = join(homedir(), '.fast');
-const HISTORY_FILE = join(FAST_DIR, 'history.json');
+import { Context, Effect, Layer } from "effect";
+import { StorageError, TxNotFoundError } from "../errors/index.js";
+import type { HistoryEntry } from "../schemas/history.js";
+import { DatabaseService } from "./database.js";
 
 export interface HistoryFilters {
   readonly from?: string;
@@ -24,116 +18,135 @@ export interface HistoryStoreShape {
   readonly updateStatus: (hash: string, status: string) => Effect.Effect<void, StorageError>;
 }
 
-export class HistoryStore extends Context.Tag('HistoryStore')<HistoryStore, HistoryStoreShape>() {}
+export class HistoryStore extends Context.Tag("HistoryStore")<HistoryStore, HistoryStoreShape>() {}
 
-const ensureDir = (fs: FileSystem.FileSystem, path: string) =>
-  Effect.gen(function* () {
-    const exists = yield* fs.exists(path);
-    if (!exists) {
-      yield* fs.makeDirectory(path, { recursive: true });
-    }
-  }).pipe(mapToStorageError(`create directory: ${path}`));
+interface HistoryRow {
+  hash: string;
+  type: string;
+  from: string;
+  to: string;
+  amount: string;
+  formatted: string;
+  token_name: string;
+  token_id: string;
+  network: string;
+  status: string;
+  timestamp: string;
+  explorer_url: string | null;
+  route: string;
+  chain_id: number | null;
+}
 
-const readHistory = (fs: FileSystem.FileSystem): Effect.Effect<HistoryEntry[], StorageError> =>
-  Effect.gen(function* () {
-    const exists = yield* fs.exists(HISTORY_FILE);
-    if (!exists) return [];
-    const content = yield* fs.readFileString(HISTORY_FILE);
-    const parsed = JSON.parse(content);
-    return yield* Schema.decodeUnknown(HistoryFile)(parsed);
-  }).pipe(mapToStorageError('read history.json'));
-
-const writeHistory = (fs: FileSystem.FileSystem, entries: HistoryEntry[]) =>
-  Effect.gen(function* () {
-    yield* ensureDir(fs, FAST_DIR);
-    yield* fs.writeFileString(HISTORY_FILE, JSON.stringify(entries, null, 2));
-  }).pipe(mapToStorageError('write history.json'));
-
-const withLock = <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, E | StorageError> =>
-  Effect.acquireUseRelease(
-    Effect.tryPromise({
-      try: () => lockfile.lock(HISTORY_FILE, { realpath: false, retries: 3 }),
-      catch: (cause) => new StorageError({ message: 'Failed to acquire history lock', cause }),
-    }),
-    () => effect,
-    (release) =>
-      Effect.tryPromise({
-        try: () => release(),
-        catch: () => new StorageError({ message: 'Failed to release history lock' }),
-      }).pipe(Effect.orDie),
-  );
+const rowToEntry = (row: HistoryRow): HistoryEntry => ({
+  hash: row.hash,
+  type: row.type as "transfer",
+  from: row.from,
+  to: row.to,
+  amount: row.amount,
+  formatted: row.formatted,
+  tokenName: row.token_name,
+  tokenId: row.token_id,
+  network: row.network,
+  status: row.status,
+  timestamp: row.timestamp,
+  explorerUrl: row.explorer_url,
+  route: row.route as "fast" | "evm-to-fast" | "fast-to-evm",
+  chainId: row.chain_id,
+});
 
 export const HistoryStoreLive = Layer.effect(
   HistoryStore,
   Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
+    const { db } = yield* DatabaseService;
+
+    const stmts = {
+      insert: db.prepare(
+        `INSERT OR REPLACE INTO history
+         (hash, type, "from", "to", amount, formatted, token_name, token_id, network, status, timestamp, explorer_url, route, chain_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ),
+      getByHash: db.prepare<[string], HistoryRow>("SELECT * FROM history WHERE hash = ?"),
+      updateStatus: db.prepare("UPDATE history SET status = ? WHERE hash = ?"),
+    };
 
     return {
       record: (entry) =>
-        Effect.gen(function* () {
-          yield* ensureDir(fs, FAST_DIR);
-          const exists = yield* fs.exists(HISTORY_FILE).pipe(
-            mapToStorageError('check history file'),
-          );
-          if (!exists) {
-            yield* writeHistory(fs, []);
-          }
-          yield* withLock(
-            Effect.gen(function* () {
-              const entries = yield* readHistory(fs);
-              entries.unshift(entry);
-              yield* writeHistory(fs, entries);
-            }),
-          );
+        Effect.try({
+          try: () => {
+            stmts.insert.run(
+              entry.hash,
+              entry.type,
+              entry.from,
+              entry.to,
+              entry.amount,
+              entry.formatted,
+              entry.tokenName,
+              entry.tokenId,
+              entry.network,
+              entry.status,
+              entry.timestamp,
+              entry.explorerUrl,
+              entry.route,
+              entry.chainId,
+            );
+          },
+          catch: (cause) =>
+            new StorageError({ message: "Failed to record history entry", cause }),
         }),
 
       list: (filters) =>
-        Effect.gen(function* () {
-          let entries = yield* readHistory(fs);
+        Effect.try({
+          try: () => {
+            const conditions: string[] = [];
+            const params: unknown[] = [];
 
-          if (filters.from) {
-            entries = entries.filter((e) => e.from === filters.from);
-          }
-          if (filters.to) {
-            entries = entries.filter((e) => e.to === filters.to);
-          }
-          if (filters.token) {
-            const t = filters.token.toLowerCase();
-            entries = entries.filter((e) => e.tokenName.toLowerCase() === t || e.tokenId === filters.token);
-          }
+            if (filters.from) {
+              conditions.push('"from" = ?');
+              params.push(filters.from);
+            }
+            if (filters.to) {
+              conditions.push('"to" = ?');
+              params.push(filters.to);
+            }
+            if (filters.token) {
+              conditions.push("(LOWER(token_name) = LOWER(?) OR token_id = ?)");
+              params.push(filters.token, filters.token);
+            }
 
-          const offset = filters.offset ?? 0;
-          const limit = filters.limit ?? 20;
-          return entries.slice(offset, offset + limit);
+            const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+            const limit = filters.limit ?? 20;
+            const offset = filters.offset ?? 0;
+
+            const sql = `SELECT * FROM history ${where} ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
+            params.push(limit, offset);
+
+            return db.prepare(sql).all(...params).map((row) => rowToEntry(row as HistoryRow));
+          },
+          catch: (cause) =>
+            new StorageError({ message: "Failed to list history", cause }),
         }),
 
       getByHash: (hash) =>
-        Effect.gen(function* () {
-          const entries = yield* readHistory(fs);
-          const normalizedHash = hash.startsWith('0x') ? hash : `0x${hash}`;
-          const entry = entries.find((e) => e.hash === normalizedHash);
-          if (!entry) {
-            return yield* Effect.fail(new TxNotFoundError({ hash: normalizedHash }));
-          }
-          return entry;
+        Effect.try({
+          try: () => {
+            const normalized = hash.startsWith("0x") ? hash : `0x${hash}`;
+            const row = stmts.getByHash.get(normalized);
+            if (!row) throw new TxNotFoundError({ hash: normalized });
+            return rowToEntry(row);
+          },
+          catch: (e) =>
+            e instanceof TxNotFoundError
+              ? e
+              : new StorageError({ message: "Failed to get transaction", cause: e }),
         }),
 
       updateStatus: (hash, status) =>
-        Effect.gen(function* () {
-          const exists = yield* fs
-            .exists(HISTORY_FILE)
-            .pipe(mapToStorageError('check history file'));
-          if (!exists) return;
-          yield* withLock(
-            Effect.gen(function* () {
-              const entries = yield* readHistory(fs);
-              const idx = entries.findIndex((e) => e.hash === hash);
-              if (idx !== -1) {
-                entries[idx] = new HistoryEntry({ ...entries[idx]!, status });
-                yield* writeHistory(fs, entries);
-              }
-            }),
-          );
+        Effect.try({
+          try: () => {
+            stmts.updateStatus.run(status, hash);
+          },
+          catch: (cause) =>
+            new StorageError({ message: "Failed to update history status", cause }),
         }),
     };
   }),

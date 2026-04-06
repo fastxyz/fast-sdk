@@ -1,10 +1,12 @@
 import { Effect } from "effect";
-import type { AccountCreateArgs } from "../../cli.js";
+import type { AccountCreateArgs, CommandName } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountCreateHandler = (args: AccountCreateArgs) =>
+export const accountCreate = {
+  cmd: "account-create" as CommandName,
+  handler: (args: AccountCreateArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;
     const prompt = yield* Prompt;
@@ -24,4 +26,5 @@ export const accountCreateHandler = (args: AccountCreateArgs) =>
       fastAddress: entry.fastAddress,
       evmAddress: entry.evmAddress,
     });
-  });
+  }),
+};

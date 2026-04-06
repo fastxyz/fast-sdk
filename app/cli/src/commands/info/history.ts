@@ -1,5 +1,5 @@
 import { Effect, Option } from "effect";
-import type { InfoHistoryArgs } from "../../cli.js";
+import type { CommandName, InfoHistoryArgs } from "../../cli.js";
 import { InvalidUsageError } from "../../errors/index.js";
 import { Output } from "../../services/output.js";
 import { HistoryStore } from "../../services/storage/history.js";
@@ -69,7 +69,9 @@ async function isWithdrawConfirmed(
   return records.some((r) => r.transferFastTxId?.toLowerCase() === normalized);
 }
 
-export const infoHistoryHandler = (args: InfoHistoryArgs) =>
+export const infoHistory = {
+  cmd: "info-history" as CommandName,
+  handler: (args: InfoHistoryArgs) =>
   Effect.gen(function* () {
     const history = yield* HistoryStore;
     const networkConfig = yield* NetworkConfigService;
@@ -158,4 +160,5 @@ export const infoHistoryHandler = (args: InfoHistoryArgs) =>
       ]),
     );
     yield* output.ok({ transactions: entries });
-  });
+  }),
+};

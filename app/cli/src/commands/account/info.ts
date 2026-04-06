@@ -1,10 +1,12 @@
 import { Effect } from "effect";
-import type { AccountInfoArgs } from "../../cli.js";
+import type { AccountInfoArgs, CommandName } from "../../cli.js";
 import { Config } from "../../services/config/config.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountInfoHandler = (args: AccountInfoArgs) =>
+export const accountInfo = {
+  cmd: "account-info" as CommandName,
+  handler: (args: AccountInfoArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;
     const output = yield* Output;
@@ -24,4 +26,5 @@ export const accountInfoHandler = (args: AccountInfoArgs) =>
       evmAddress: info.evmAddress,
       isDefault: info.isDefault,
     });
-  });
+  }),
+};

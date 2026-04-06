@@ -1,9 +1,11 @@
 import { Effect } from "effect";
-import type { InfoTxArgs } from "../../cli.js";
+import type { CommandName, InfoTxArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { HistoryStore } from "../../services/storage/history.js";
 
-export const infoTxHandler = (args: InfoTxArgs) =>
+export const infoTx = {
+  cmd: "info-tx" as CommandName,
+  handler: (args: InfoTxArgs) =>
   Effect.gen(function* () {
     const history = yield* HistoryStore;
     const output = yield* Output;
@@ -23,4 +25,5 @@ export const infoTxHandler = (args: InfoTxArgs) =>
       yield* output.humanLine(`  Explorer:  ${entry.explorerUrl}`);
     }
     yield* output.ok(entry);
-  });
+  }),
+};

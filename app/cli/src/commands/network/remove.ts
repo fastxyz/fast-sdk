@@ -1,9 +1,11 @@
 import { Effect } from "effect";
-import type { NetworkRemoveArgs } from "../../cli.js";
+import type { CommandName, NetworkRemoveArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const networkRemoveHandler = (args: NetworkRemoveArgs) =>
+export const networkRemove = {
+  cmd: "network-remove" as CommandName,
+  handler: (args: NetworkRemoveArgs) =>
   Effect.gen(function* () {
     const networkConfig = yield* NetworkConfigService;
     const output = yield* Output;
@@ -12,4 +14,5 @@ export const networkRemoveHandler = (args: NetworkRemoveArgs) =>
 
     yield* output.humanLine(`Removed network "${args.name}"`);
     yield* output.ok({ name: args.name, removed: true });
-  });
+  }),
+};

@@ -14,7 +14,7 @@ import {
 } from "@fastxyz/fast-sdk";
 import { bech32m } from "bech32";
 import { Effect, Schema } from "effect";
-import type { SendArgs } from "../cli.js";
+import type { CommandName, SendArgs } from "../cli.js";
 import {
   InvalidAddressError,
   InvalidAmountError,
@@ -32,7 +32,9 @@ import { HistoryStore } from "../services/storage/history.js";
 import { NetworkConfigService } from "../services/storage/network.js";
 import { resolveToken } from "../services/token-resolver.js";
 
-export const sendHandler = (args: SendArgs) =>
+export const send = {
+  cmd: "send" as CommandName,
+  handler: (args: SendArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;
     const prompt = yield* Prompt;
@@ -406,4 +408,5 @@ export const sendHandler = (args: SendArgs) =>
       explorerUrl,
       estimatedTime,
     });
-  });
+  }),
+};

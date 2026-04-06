@@ -1,6 +1,6 @@
 import { bech32m } from "bech32";
 import { Effect } from "effect";
-import type { InfoBalanceArgs } from "../../cli.js";
+import type { CommandName, InfoBalanceArgs } from "../../cli.js";
 import { InvalidAddressError } from "../../errors/index.js";
 import { FastRpc } from "../../services/api/fast.js";
 import { Config } from "../../services/config/config.js";
@@ -22,7 +22,9 @@ const formatAmount = (amountStr: string, decimals: number): string => {
   return fracPart ? `${intPart}.${fracPart}` : intPart;
 };
 
-export const infoBalanceHandler = (args: InfoBalanceArgs) =>
+export const infoBalance = {
+  cmd: "info-balance" as CommandName,
+  handler: (args: InfoBalanceArgs) =>
   Effect.gen(function* () {
     const rpc = yield* FastRpc;
     const accounts = yield* AccountStore;
@@ -113,4 +115,5 @@ export const infoBalanceHandler = (args: InfoBalanceArgs) =>
       balances.map((b) => [b.tokenName, b.formatted, b.tokenId]),
     );
     yield* output.ok({ address: fastAddress, balances });
-  });
+  }),
+};

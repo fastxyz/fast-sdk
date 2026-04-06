@@ -1,10 +1,12 @@
 import { Effect } from "effect";
-import type { AccountDeleteArgs } from "../../cli.js";
+import type { AccountDeleteArgs, CommandName } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountDeleteHandler = (args: AccountDeleteArgs) =>
+export const accountDelete = {
+  cmd: "account-delete" as CommandName,
+  handler: (args: AccountDeleteArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;
     const output = yield* Output;
@@ -19,4 +21,5 @@ export const accountDeleteHandler = (args: AccountDeleteArgs) =>
 
     yield* output.humanLine(`Deleted account "${args.name}"`);
     yield* output.ok({ name: args.name, deleted: true });
-  });
+  }),
+};

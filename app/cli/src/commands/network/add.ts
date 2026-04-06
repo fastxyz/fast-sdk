@@ -1,9 +1,11 @@
 import { Effect } from "effect";
-import type { NetworkAddArgs } from "../../cli.js";
+import type { CommandName, NetworkAddArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const networkAddHandler = (args: NetworkAddArgs) =>
+export const networkAdd = {
+  cmd: "network-add" as CommandName,
+  handler: (args: NetworkAddArgs) =>
   Effect.gen(function* () {
     const networkConfig = yield* NetworkConfigService;
     const output = yield* Output;
@@ -12,4 +14,5 @@ export const networkAddHandler = (args: NetworkAddArgs) =>
 
     yield* output.humanLine(`Added network "${args.name}"`);
     yield* output.ok({ name: args.name });
-  });
+  }),
+};

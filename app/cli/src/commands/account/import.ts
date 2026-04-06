@@ -1,13 +1,15 @@
 import { readFileSync } from "node:fs";
 import { fromHex } from "@fastxyz/fast-sdk";
 import { Effect } from "effect";
-import type { AccountImportArgs } from "../../cli.js";
+import type { AccountImportArgs, CommandName } from "../../cli.js";
 import { InvalidUsageError } from "../../errors/index.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountImportHandler = (args: AccountImportArgs) =>
+export const accountImport = {
+  cmd: "account-import" as CommandName,
+  handler: (args: AccountImportArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;
     const prompt = yield* Prompt;
@@ -92,4 +94,5 @@ export const accountImportHandler = (args: AccountImportArgs) =>
       fastAddress: entry.fastAddress,
       evmAddress: entry.evmAddress,
     });
-  });
+  }),
+};

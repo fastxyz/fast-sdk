@@ -1,9 +1,11 @@
 import { Effect } from "effect";
-import type { NetworkListArgs } from "../../cli.js";
+import type { CommandName, NetworkListArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const networkListHandler = (_args: NetworkListArgs) =>
+export const networkList = {
+  cmd: "network-list" as CommandName,
+  handler: (_args: NetworkListArgs) =>
   Effect.gen(function* () {
     const networkConfig = yield* NetworkConfigService;
     const output = yield* Output;
@@ -21,4 +23,5 @@ export const networkListHandler = (_args: NetworkListArgs) =>
         isDefault: n.isDefault,
       })),
     });
-  });
+  }),
+};

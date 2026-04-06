@@ -1,11 +1,13 @@
 import { Effect } from "effect";
-import type { InfoStatusArgs } from "../../cli.js";
+import type { CommandName, InfoStatusArgs } from "../../cli.js";
 import { FastRpc } from "../../services/api/fast.js";
 import { Config } from "../../services/config/config.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const infoStatusHandler = (_args: InfoStatusArgs) =>
+export const infoStatus = {
+  cmd: "info-status" as CommandName,
+  handler: (_args: InfoStatusArgs) =>
   Effect.gen(function* () {
     const rpc = yield* FastRpc;
     const output = yield* Output;
@@ -44,4 +46,5 @@ export const infoStatusHandler = (_args: InfoStatusArgs) =>
         healthy,
       },
     });
-  });
+  }),
+};

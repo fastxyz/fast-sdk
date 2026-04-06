@@ -1,13 +1,11 @@
 /**
  * Unified CLI entrypoint.
  *
- * Parses argv with optique, dispatches to command handlers, and handles all
- * errors in one place.
+ * Parses argv with optique's runParserSync (handles --help, --version,
+ * and parse errors automatically), dispatches to command handlers.
  */
 
-import { formatDocPage } from "@optique/core/doc";
-import { formatMessage } from "@optique/core/message";
-import { getDocPageSync, parse } from "@optique/core/parser";
+import { runParserSync } from "@optique/core/facade";
 import { Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
@@ -15,7 +13,7 @@ import { type ParsedArgs, parser } from "./cli.js";
 import { InternalError, InvalidUsageError } from "./errors/index.js";
 import { writeFail } from "./services/output.js";
 
-// Command handlers (will be updated in Task 5 to export Effect programs)
+// Command handlers
 import { accountCreateHandler } from "./commands/account/create.js";
 import { accountDeleteHandler } from "./commands/account/delete.js";
 import { accountExportHandler } from "./commands/account/export.js";
@@ -34,56 +32,37 @@ import { networkSetDefaultHandler } from "./commands/network/set-default.js";
 import { sendHandler } from "./commands/send.js";
 
 const VERSION = "0.1.0";
-
 const rawArgs = process.argv.slice(2);
 const isJson = rawArgs.includes("--json");
 
 // ---------------------------------------------------------------------------
-// --version
+// Parse argv (--help, --version, and errors handled by runParserSync)
 // ---------------------------------------------------------------------------
-if (rawArgs.includes("--version") || rawArgs.includes("-v")) {
-  process.stdout.write(`${VERSION}\n`);
-  process.exit(0);
-}
-
-// ---------------------------------------------------------------------------
-// --help (show generated doc page)
-// ---------------------------------------------------------------------------
-if (
-  rawArgs.length === 0 ||
-  rawArgs.includes("--help") ||
-  rawArgs.includes("-h")
-) {
-  const docPage = getDocPageSync(parser);
-  if (docPage) {
-    const text = formatDocPage("fast", docPage, {
-      colors: process.stdout.isTTY ?? false,
-    });
-    process.stdout.write(`${text}\n`);
-  } else {
-    process.stdout.write("fast-cli v0.1.0\n");
-  }
-  process.exit(0);
-}
-
-// ---------------------------------------------------------------------------
-// Parse argv
-// ---------------------------------------------------------------------------
-const result = parse(parser, rawArgs);
-
-if (!result.success) {
-  writeFail(
-    new InvalidUsageError({ message: formatMessage(result.error) }),
-    isJson,
-  );
-  process.exit(1);
-}
+const parsed: ParsedArgs = runParserSync(
+  parser,
+  "fast",
+  rawArgs,
+  {
+    colors: process.stdout.isTTY ?? false,
+    help: { onShow: () => process.exit(0) },
+    version: { value: VERSION, onShow: () => process.exit(0) },
+    onError: (exitCode) => {
+      // runParserSync already printed the error to stderr.
+      // For --json callers, also write a structured envelope.
+      if (isJson) {
+        writeFail(
+          new InvalidUsageError({ message: "Invalid arguments" }),
+          true,
+        );
+      }
+      process.exit(exitCode);
+    },
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Build GlobalOptions
 // ---------------------------------------------------------------------------
-const parsed: ParsedArgs = result.value;
-
 const globalOpts: GlobalOptions = {
   json: parsed.json,
   debug: parsed.debug,
@@ -134,7 +113,6 @@ const dispatch = (): Promise<void> => {
     case "send":
       return runHandler(globalOpts, sendHandler(parsed));
     default: {
-      // TypeScript exhaustiveness check
       const _: never = cmd;
       throw new Error(`Unknown command: ${_}`);
     }

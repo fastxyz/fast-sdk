@@ -5,7 +5,7 @@ import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountDelete: Command = {
+export const accountDelete: Command<AccountDeleteArgs> = {
   cmd: "account-delete",
   handler: (args: AccountDeleteArgs) =>
   Effect.gen(function* () {

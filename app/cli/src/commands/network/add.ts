@@ -4,7 +4,7 @@ import type { NetworkAddArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const networkAdd: Command = {
+export const networkAdd: Command<NetworkAddArgs> = {
   cmd: "network-add",
   handler: (args: NetworkAddArgs) =>
   Effect.gen(function* () {

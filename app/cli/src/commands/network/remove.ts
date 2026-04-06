@@ -4,7 +4,7 @@ import type { NetworkRemoveArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const networkRemove: Command = {
+export const networkRemove: Command<NetworkRemoveArgs> = {
   cmd: "network-remove",
   handler: (args: NetworkRemoveArgs) =>
   Effect.gen(function* () {

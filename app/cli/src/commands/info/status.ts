@@ -6,7 +6,7 @@ import { Config } from "../../services/config/config.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const infoStatus: Command = {
+export const infoStatus: Command<InfoStatusArgs> = {
   cmd: "info-status",
   handler: (_args: InfoStatusArgs) =>
   Effect.gen(function* () {

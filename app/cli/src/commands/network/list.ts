@@ -4,7 +4,7 @@ import type { NetworkListArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const networkList: Command = {
+export const networkList: Command<NetworkListArgs> = {
   cmd: "network-list",
   handler: (_args: NetworkListArgs) =>
   Effect.gen(function* () {

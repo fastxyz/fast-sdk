@@ -1,5 +1,6 @@
 import type { Effect } from "effect";
 import type { CommandName } from "../cli.js";
+import type { ClientError } from "../errors/index.js";
 import { accountCreate } from "./account/create.js";
 import { accountDelete } from "./account/delete.js";
 import { accountExport } from "./account/export.js";
@@ -38,13 +39,13 @@ export const commands: Command[] = [
 
 /**
  * A command entry: a discriminant + an Effect handler.
- * Uses `any` for args because each handler accepts its own narrow arg type
- * (e.g., AccountCreateArgs), while the dispatcher passes ParsedArgs.
- * Type safety is guaranteed by the optique parser — args are always valid
- * for the matched command.
+ *
+ * Generic `TArgs` narrows the handler's argument type at the definition site
+ * (e.g., `Command<AccountCreateArgs>`). The default `unknown` is used in
+ * the commands array where heterogeneous commands are collected — type safety
+ * is guaranteed by the optique parser matching the right args to the right cmd.
  */
-export interface Command {
+export interface Command<TArgs = never> {
   readonly cmd: CommandName;
-  // biome-ignore lint/suspicious/noExplicitAny: handlers use narrow arg types; safety comes from the parser
-  readonly handler: (args: any) => Effect.Effect<void, any, any>;
+  readonly handler: (args: TArgs) => Effect.Effect<void, ClientError, unknown>;
 }

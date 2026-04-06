@@ -8,7 +8,7 @@ import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountImport: Command = {
+export const accountImport: Command<AccountImportArgs> = {
   cmd: "account-import",
   handler: (args: AccountImportArgs) =>
   Effect.gen(function* () {

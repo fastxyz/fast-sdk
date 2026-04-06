@@ -33,7 +33,7 @@ import { HistoryStore } from "../services/storage/history.js";
 import { NetworkConfigService } from "../services/storage/network.js";
 import { resolveToken } from "../services/token-resolver.js";
 
-export const send: Command = {
+export const send: Command<SendArgs> = {
   cmd: "send",
   handler: (args: SendArgs) =>
   Effect.gen(function* () {

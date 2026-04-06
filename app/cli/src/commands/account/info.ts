@@ -5,7 +5,7 @@ import { Config } from "../../services/config/config.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountInfo: Command = {
+export const accountInfo: Command<AccountInfoArgs> = {
   cmd: "account-info",
   handler: (args: AccountInfoArgs) =>
   Effect.gen(function* () {

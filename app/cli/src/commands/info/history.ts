@@ -70,7 +70,7 @@ async function isWithdrawConfirmed(
   return records.some((r) => r.transferFastTxId?.toLowerCase() === normalized);
 }
 
-export const infoHistory: Command = {
+export const infoHistory: Command<InfoHistoryArgs> = {
   cmd: "info-history",
   handler: (args: InfoHistoryArgs) =>
   Effect.gen(function* () {

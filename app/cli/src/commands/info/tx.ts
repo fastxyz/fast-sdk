@@ -4,7 +4,7 @@ import type { InfoTxArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { HistoryStore } from "../../services/storage/history.js";
 
-export const infoTx: Command = {
+export const infoTx: Command<InfoTxArgs> = {
   cmd: "info-tx",
   handler: (args: InfoTxArgs) =>
   Effect.gen(function* () {

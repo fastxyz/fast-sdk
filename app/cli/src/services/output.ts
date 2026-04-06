@@ -8,11 +8,10 @@ import { Config } from "./config/config.js";
 // ---------------------------------------------------------------------------
 
 export const writeOk = (data: unknown, json: boolean): void => {
-  if (json) {
-    process.stdout.write(
-      `${JSON.stringify({ ok: true, data }, null, 2)}\n`,
-    );
-  }
+  if (!json) return;
+
+  const message = JSON.stringify({ ok: true, data }, null, 2);
+  process.stdout.write(`${message}\n`);
 };
 
 export const writeFail = (err: ClientError, json: boolean): void => {

@@ -4,7 +4,7 @@ import type { AccountSetDefaultArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountSetDefault: Command = {
+export const accountSetDefault: Command<AccountSetDefaultArgs> = {
   cmd: "account-set-default",
   handler: (args: AccountSetDefaultArgs) =>
   Effect.gen(function* () {

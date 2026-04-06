@@ -4,7 +4,7 @@ import type { NetworkSetDefaultArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const networkSetDefault: Command = {
+export const networkSetDefault: Command<NetworkSetDefaultArgs> = {
   cmd: "network-set-default",
   handler: (args: NetworkSetDefaultArgs) =>
   Effect.gen(function* () {

@@ -23,7 +23,7 @@ const formatAmount = (amountStr: string, decimals: number): string => {
   return fracPart ? `${intPart}.${fracPart}` : intPart;
 };
 
-export const infoBalance: Command = {
+export const infoBalance: Command<InfoBalanceArgs> = {
   cmd: "info-balance",
   handler: (args: InfoBalanceArgs) =>
   Effect.gen(function* () {

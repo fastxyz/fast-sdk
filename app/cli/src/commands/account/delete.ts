@@ -1,11 +1,12 @@
+import type { Command } from "../index.js";
 import { Effect } from "effect";
-import type { AccountDeleteArgs, CommandName } from "../../cli.js";
+import type { AccountDeleteArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountDelete = {
-  cmd: "account-delete" as CommandName,
+export const accountDelete: Command = {
+  cmd: "account-delete",
   handler: (args: AccountDeleteArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;

@@ -1,10 +1,11 @@
+import type { Command } from "../index.js";
 import { Effect } from "effect";
-import type { AccountSetDefaultArgs, CommandName } from "../../cli.js";
+import type { AccountSetDefaultArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountSetDefault = {
-  cmd: "account-set-default" as CommandName,
+export const accountSetDefault: Command = {
+  cmd: "account-set-default",
   handler: (args: AccountSetDefaultArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;

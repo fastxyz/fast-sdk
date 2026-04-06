@@ -1,14 +1,15 @@
+import type { Command } from "../index.js";
 import { readFileSync } from "node:fs";
 import { fromHex } from "@fastxyz/fast-sdk";
 import { Effect } from "effect";
-import type { AccountImportArgs, CommandName } from "../../cli.js";
+import type { AccountImportArgs } from "../../cli.js";
 import { InvalidUsageError } from "../../errors/index.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountImport = {
-  cmd: "account-import" as CommandName,
+export const accountImport: Command = {
+  cmd: "account-import",
   handler: (args: AccountImportArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;

@@ -13,10 +13,11 @@ import { Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
 import { globalPreParser, parser } from "./cli.js";
-import { type Command, commands } from "./commands/index.js";
+import { commands } from "./commands/index.js";
+import { PROGRAM_NAME, VERSION } from "./config/constants.js";
 import { InternalError, InvalidUsageError } from "./errors/index.js";
-import { PROGRAM_NAME, VERSION } from "./services/config/constants.js";
 import { writeFail } from "./services/output.js";
+
 const argv = process.argv.slice(2);
 
 const pre = parse(globalPreParser, argv);
@@ -60,7 +61,7 @@ const globalOpts: GlobalOptions = {
   password: Option.fromNullable(parsed.password),
 };
 
-const entry = (commands as readonly Command[]).find((c) => c.cmd === parsed.cmd);
+const entry = commands.find((c) => c.cmd === parsed.cmd);
 if (!entry) {
   writeFail(
     new InternalError({ message: `Unknown command: ${parsed.cmd}` }),

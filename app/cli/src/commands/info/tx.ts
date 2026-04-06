@@ -1,10 +1,11 @@
+import type { Command } from "../index.js";
 import { Effect } from "effect";
-import type { CommandName, InfoTxArgs } from "../../cli.js";
+import type { InfoTxArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { HistoryStore } from "../../services/storage/history.js";
 
-export const infoTx = {
-  cmd: "info-tx" as CommandName,
+export const infoTx: Command = {
+  cmd: "info-tx",
   handler: (args: InfoTxArgs) =>
   Effect.gen(function* () {
     const history = yield* HistoryStore;

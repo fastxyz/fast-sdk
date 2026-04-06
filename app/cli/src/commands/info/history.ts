@@ -1,5 +1,6 @@
+import type { Command } from "../index.js";
 import { Effect, Option } from "effect";
-import type { CommandName, InfoHistoryArgs } from "../../cli.js";
+import type { InfoHistoryArgs } from "../../cli.js";
 import { InvalidUsageError } from "../../errors/index.js";
 import { Output } from "../../services/output.js";
 import { HistoryStore } from "../../services/storage/history.js";
@@ -69,8 +70,8 @@ async function isWithdrawConfirmed(
   return records.some((r) => r.transferFastTxId?.toLowerCase() === normalized);
 }
 
-export const infoHistory = {
-  cmd: "info-history" as CommandName,
+export const infoHistory: Command = {
+  cmd: "info-history",
   handler: (args: InfoHistoryArgs) =>
   Effect.gen(function* () {
     const history = yield* HistoryStore;

@@ -18,7 +18,7 @@ import { networkRemove } from "./network/remove.js";
 import { networkSetDefault } from "./network/set-default.js";
 import { send } from "./send.js";
 
-export const commands = [
+export const commands: Command[] = [
   accountCreate,
   accountDelete,
   accountExport,
@@ -35,12 +35,12 @@ export const commands = [
   networkRemove,
   networkSetDefault,
   send,
-] as const;
+];
 
 /** A command entry: a discriminant + an Effect handler that accepts parsed args. */
 export interface Command {
   readonly cmd: CommandName;
-  readonly handler: (
-    args: ParsedArgs,
-  ) => Effect.Effect<void, ClientError, unknown>;
+  // Method signature (not property) so TypeScript uses bivariant checking,
+  // allowing each command to narrow its args to the specific subtype.
+  handler(args: ParsedArgs): Effect.Effect<void, ClientError, unknown>;
 }

@@ -1,12 +1,13 @@
+import type { Command } from "../index.js";
 import { Effect } from "effect";
-import type { CommandName, InfoStatusArgs } from "../../cli.js";
+import type { InfoStatusArgs } from "../../cli.js";
 import { FastRpc } from "../../services/api/fast.js";
 import { Config } from "../../services/config/config.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const infoStatus = {
-  cmd: "info-status" as CommandName,
+export const infoStatus: Command = {
+  cmd: "info-status",
   handler: (_args: InfoStatusArgs) =>
   Effect.gen(function* () {
     const rpc = yield* FastRpc;

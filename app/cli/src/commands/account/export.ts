@@ -1,13 +1,14 @@
+import type { Command } from "../index.js";
 import { toHex } from "@fastxyz/fast-sdk";
 import { Effect } from "effect";
-import type { AccountExportArgs, CommandName } from "../../cli.js";
+import type { AccountExportArgs } from "../../cli.js";
 import { Config } from "../../services/config/config.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountExport = {
-  cmd: "account-export" as CommandName,
+export const accountExport: Command = {
+  cmd: "account-export",
   handler: (args: AccountExportArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;

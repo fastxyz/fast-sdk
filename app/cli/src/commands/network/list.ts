@@ -1,10 +1,11 @@
+import type { Command } from "../index.js";
 import { Effect } from "effect";
-import type { CommandName, NetworkListArgs } from "../../cli.js";
+import type { NetworkListArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const networkList = {
-  cmd: "network-list" as CommandName,
+export const networkList: Command = {
+  cmd: "network-list",
   handler: (_args: NetworkListArgs) =>
   Effect.gen(function* () {
     const networkConfig = yield* NetworkConfigService;

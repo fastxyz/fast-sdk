@@ -1,11 +1,12 @@
+import type { Command } from "../index.js";
 import { Effect } from "effect";
-import type { AccountInfoArgs, CommandName } from "../../cli.js";
+import type { AccountInfoArgs } from "../../cli.js";
 import { Config } from "../../services/config/config.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 
-export const accountInfo = {
-  cmd: "account-info" as CommandName,
+export const accountInfo: Command = {
+  cmd: "account-info",
   handler: (args: AccountInfoArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;

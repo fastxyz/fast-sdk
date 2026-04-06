@@ -1,10 +1,11 @@
+import type { Command } from "../index.js";
 import { Effect } from "effect";
-import type { CommandName, NetworkSetDefaultArgs } from "../../cli.js";
+import type { NetworkSetDefaultArgs } from "../../cli.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
-export const networkSetDefault = {
-  cmd: "network-set-default" as CommandName,
+export const networkSetDefault: Command = {
+  cmd: "network-set-default",
   handler: (args: NetworkSetDefaultArgs) =>
   Effect.gen(function* () {
     const networkConfig = yield* NetworkConfigService;

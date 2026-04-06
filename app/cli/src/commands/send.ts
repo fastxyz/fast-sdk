@@ -1,3 +1,4 @@
+import type { Command } from "./index.js";
 import {
   createEvmExecutor,
   createEvmWallet,
@@ -14,7 +15,7 @@ import {
 } from "@fastxyz/fast-sdk";
 import { bech32m } from "bech32";
 import { Effect, Schema } from "effect";
-import type { CommandName, SendArgs } from "../cli.js";
+import type { SendArgs } from "../cli.js";
 import {
   InvalidAddressError,
   InvalidAmountError,
@@ -32,8 +33,8 @@ import { HistoryStore } from "../services/storage/history.js";
 import { NetworkConfigService } from "../services/storage/network.js";
 import { resolveToken } from "../services/token-resolver.js";
 
-export const send = {
-  cmd: "send" as CommandName,
+export const send: Command = {
+  cmd: "send",
   handler: (args: SendArgs) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;

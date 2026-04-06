@@ -1,6 +1,7 @@
+import type { Command } from "../index.js";
 import { bech32m } from "bech32";
 import { Effect } from "effect";
-import type { CommandName, InfoBalanceArgs } from "../../cli.js";
+import type { InfoBalanceArgs } from "../../cli.js";
 import { InvalidAddressError } from "../../errors/index.js";
 import { FastRpc } from "../../services/api/fast.js";
 import { Config } from "../../services/config/config.js";
@@ -22,8 +23,8 @@ const formatAmount = (amountStr: string, decimals: number): string => {
   return fracPart ? `${intPart}.${fracPart}` : intPart;
 };
 
-export const infoBalance = {
-  cmd: "info-balance" as CommandName,
+export const infoBalance: Command = {
+  cmd: "info-balance",
   handler: (args: InfoBalanceArgs) =>
   Effect.gen(function* () {
     const rpc = yield* FastRpc;

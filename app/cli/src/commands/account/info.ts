@@ -1,7 +1,7 @@
 import type { Command } from "../index.js";
 import { Effect } from "effect";
 import type { AccountInfoArgs } from "../../cli.js";
-import { Config } from "../../services/config/config.js";
+import { ClientConfig } from "../../services/config/client.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 
@@ -11,7 +11,7 @@ export const accountInfo: Command<AccountInfoArgs> = {
   Effect.gen(function* () {
     const accounts = yield* AccountStore;
     const output = yield* Output;
-    const config = yield* Config;
+    const config = yield* ClientConfig;
 
     const info = args.name
       ? yield* accounts.get(args.name)

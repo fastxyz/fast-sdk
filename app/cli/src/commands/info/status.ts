@@ -2,7 +2,7 @@ import type { Command } from "../index.js";
 import { Effect } from "effect";
 import type { InfoStatusArgs } from "../../cli.js";
 import { FastRpc } from "../../services/api/fast.js";
-import { Config } from "../../services/config/config.js";
+import { ClientConfig } from "../../services/config/client.js";
 import { Output } from "../../services/output.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 
@@ -12,7 +12,7 @@ export const infoStatus: Command<InfoStatusArgs> = {
   Effect.gen(function* () {
     const rpc = yield* FastRpc;
     const output = yield* Output;
-    const config = yield* Config;
+    const config = yield* ClientConfig;
     const networkConfig = yield* NetworkConfigService;
 
     const network = yield* networkConfig.resolve(config.network);

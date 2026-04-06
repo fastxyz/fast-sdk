@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import type { InfoBalanceArgs } from "../../cli.js";
 import { InvalidAddressError } from "../../errors/index.js";
 import { FastRpc } from "../../services/api/fast.js";
-import { Config } from "../../services/config/config.js";
+import { ClientConfig } from "../../services/config/client.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 
@@ -30,7 +30,7 @@ export const infoBalance: Command<InfoBalanceArgs> = {
     const rpc = yield* FastRpc;
     const accounts = yield* AccountStore;
     const output = yield* Output;
-    const config = yield* Config;
+    const config = yield* ClientConfig;
 
     let fastAddress: string;
     let senderBytes: Uint8Array;

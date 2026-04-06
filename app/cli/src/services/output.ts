@@ -1,7 +1,7 @@
 import Table from "cli-table3";
 import { Context, Effect, Layer } from "effect";
 import type { ClientError } from "../errors/index.js";
-import { Config } from "./config/config.js";
+import { ClientConfig } from "./config/client.js";
 
 // ---------------------------------------------------------------------------
 // Pure functions — no Effect, no service. Can be called from anywhere.
@@ -53,7 +53,7 @@ export class Output extends Context.Tag("Output")<Output, OutputShape>() {}
 export const OutputLive = Layer.effect(
   Output,
   Effect.gen(function* () {
-    const config = yield* Config;
+    const config = yield* ClientConfig;
 
     return {
       ok: (data) => Effect.sync(() => writeOk(data, config.json)),

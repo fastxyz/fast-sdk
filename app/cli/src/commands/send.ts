@@ -18,7 +18,7 @@ import {
 } from "../errors/index.js";
 import { makeHistoryEntry } from "../schemas/history.js";
 import { FastRpc } from "../services/api/fast.js";
-import { Config } from "../services/config/config.js";
+import { ClientConfig } from "../services/config/client.js";
 import { Output } from "../services/output.js";
 import { Prompt } from "../services/prompt.js";
 import { AccountStore } from "../services/storage/account.js";
@@ -37,7 +37,7 @@ export const send: Command<SendArgs> = {
       const prompt = yield* Prompt;
       const rpc = yield* FastRpc;
       const output = yield* Output;
-      const config = yield* Config;
+      const config = yield* ClientConfig;
       const historyStore = yield* HistoryStore;
       const networkConfig = yield* NetworkConfigService;
 

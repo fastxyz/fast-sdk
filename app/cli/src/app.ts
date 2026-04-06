@@ -2,7 +2,7 @@ import { Effect, Layer, type Option } from "effect";
 import { type ClientError, InternalError } from "./errors/index.js";
 import { AllSetLive } from "./services/api/allset.js";
 import { FastRpcLive } from "./services/api/fast.js";
-import { makeConfigLayer } from "./services/config/config.js";
+import { makeClientConfigLayer } from "./services/config/client.js";
 import { Output, OutputLive } from "./services/output.js";
 import { PromptLive } from "./services/prompt.js";
 import { AccountStoreLive } from "./services/storage/account.js";
@@ -21,7 +21,7 @@ export interface GlobalOptions {
 }
 
 export const makeAppLayer = (opts: GlobalOptions) => {
-  const cliConfigLayer = makeConfigLayer({
+  const cliConfigLayer = makeClientConfigLayer({
     json: opts.json,
     debug: opts.debug,
     nonInteractive: opts.nonInteractive || opts.json,

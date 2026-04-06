@@ -2,7 +2,7 @@ import type { Command } from "../index.js";
 import { toHex } from "@fastxyz/fast-sdk";
 import { Effect } from "effect";
 import type { AccountExportArgs } from "../../cli.js";
-import { Config } from "../../services/config/config.js";
+import { ClientConfig } from "../../services/config/client.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
@@ -14,7 +14,7 @@ export const accountExport: Command<AccountExportArgs> = {
     const accounts = yield* AccountStore;
     const prompt = yield* Prompt;
     const output = yield* Output;
-    const config = yield* Config;
+    const config = yield* ClientConfig;
 
     const accountName =
       args.name ?? (yield* accounts.resolveAccount(config.account)).name;

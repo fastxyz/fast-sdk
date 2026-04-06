@@ -23,7 +23,6 @@ import {
   InvalidConfigError,
   TransactionFailedError,
   UnsupportedChainError,
-  UserCancelledError,
 } from "../errors/index.js";
 import { makeHistoryEntry } from "../schemas/history.js";
 import { AccountStore } from "../services/account-store.js";
@@ -204,9 +203,7 @@ export const sendCommand = defineCommand({
           yield* output.humanLine(`  Token: ${resolvedTokenName}`);
           yield* output.humanLine("");
           const confirmed = yield* prompt.confirm("Confirm?");
-          if (!confirmed) {
-            return yield* Effect.fail(new UserCancelledError());
-          }
+          if (!confirmed) return;
         }
 
         let txHash: string;

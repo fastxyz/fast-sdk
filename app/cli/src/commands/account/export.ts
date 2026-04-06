@@ -3,7 +3,6 @@ import { defineCommand } from "citty";
 import { Effect } from "effect";
 import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
-import { UserCancelledError } from "../../errors/index.js";
 import { AccountStore } from "../../services/account-store.js";
 import { Config } from "../../services/cli-config.js";
 import { Output } from "../../services/output.js";
@@ -32,9 +31,7 @@ export const accountExport = defineCommand({
           args.name ?? (yield* accounts.resolveAccount(config.account)).name;
 
         const confirmed = yield* prompt.confirm("⚠ This will display the private key. Continue?");
-        if (!confirmed) {
-          return yield* Effect.fail(new UserCancelledError());
-        }
+        if (!confirmed) return;
 
         const pwd = yield* prompt.password();
         const { seed, entry } = yield* accounts.export_(accountName, pwd);

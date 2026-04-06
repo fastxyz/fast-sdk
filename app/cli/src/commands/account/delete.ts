@@ -2,7 +2,6 @@ import { defineCommand } from "citty";
 import { Effect } from "effect";
 import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
-import { UserCancelledError } from "../../errors/index.js";
 import { AccountStore } from "../../services/account-store.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
@@ -26,9 +25,7 @@ export const accountDelete = defineCommand({
         const prompt = yield* Prompt;
 
         const confirmed = yield* prompt.confirm(`Delete account "${args.name}"?`);
-        if (!confirmed) {
-          return yield* Effect.fail(new UserCancelledError());
-        }
+        if (!confirmed) return;
 
         yield* accounts.delete_(args.name);
 

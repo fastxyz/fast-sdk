@@ -3,7 +3,7 @@ import { Context, Effect, Layer, Option } from "effect";
 import { PasswordRequiredError, UserCancelledError } from "../errors/index.js";
 import { Config, type ConfigShape } from "./cli-config.js";
 
-type ConfirmEffect = Effect.Effect<boolean>;
+type ConfirmEffect = Effect.Effect<boolean, UserCancelledError>;
 type PasswordEffect = Effect.Effect<
   string,
   PasswordRequiredError | UserCancelledError
@@ -53,14 +53,14 @@ const passwordPrompt = (config: ConfigShape, label: string): PasswordEffect => {
 
 const createConfirmPrompter = (message: string) => {
   return new ConfirmPrompt({
-    active: "Yes",
-    inactive: "No",
+    active: "y",
+    inactive: "n",
     initialValue: false,
     render() {
-      if (this.state === "cancel") return `${message} No`;
-      if (this.state === "submit")
-        return `${message} ${this.value ? "Yes" : "No"}`;
-      return `${message} (y/N)`;
+      let suffix = "(y/N)";
+      if (this.state === "cancel") suffix = "(cancelled)";
+      if (this.state === "submit") suffix = this.value ? "(y)" : "(n)";
+      return `${message} ${suffix}`;
     },
   });
 };
@@ -71,7 +71,11 @@ const confirmPrompt = (config: ConfigShape, message: string): ConfirmEffect => {
   const prompter = createConfirmPrompter(message);
 
   return Effect.promise(() => prompter.prompt()).pipe(
-    Effect.map((value) => !isCancel(value) && value === true),
+    Effect.flatMap((value) =>
+      isCancel(value)
+        ? Effect.fail(new UserCancelledError())
+        : Effect.succeed(value === true),
+    ),
   );
 };
 

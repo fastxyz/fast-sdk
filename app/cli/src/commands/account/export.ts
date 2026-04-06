@@ -27,7 +27,7 @@ export const accountExportHandler = (args: AccountExportArgs) =>
 
     yield* output.humanLine(`⚠ Private key for "${entry.name}":`);
     yield* output.humanLine(privateKeyHex);
-    yield* output.success({
+    yield* output.ok({
       name: entry.name,
       privateKey: privateKeyHex,
       fastAddress: entry.fastAddress,

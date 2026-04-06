@@ -2,7 +2,6 @@ import { ConfirmPrompt, isCancel, PasswordPrompt } from "@clack/core";
 import { Context, Effect, Layer, Option } from "effect";
 import { PasswordRequiredError, UserCancelledError } from "../errors/index.js";
 import { Config, type ConfigShape } from "./config/config.js";
-import { Env, type EnvShape } from "./env.js";
 
 type ConfirmEffect = Effect.Effect<boolean, UserCancelledError>;
 type PasswordEffect = Effect.Effect<
@@ -28,13 +27,9 @@ const createPasswordPrompter = (label: string) => {
   });
 };
 
-const passwordPrompt = (config: ConfigShape, env: EnvShape, label: string): PasswordEffect => {
+const passwordPrompt = (config: ConfigShape, label: string): PasswordEffect => {
   if (Option.isSome(config.password)) {
     return Effect.succeed(config.password.value);
-  }
-
-  if (Option.isSome(env.fastPassword)) {
-    return Effect.succeed(env.fastPassword.value);
   }
 
   if (config.nonInteractive) {
@@ -83,10 +78,9 @@ export const PromptLive = Layer.effect(
   Prompt,
   Effect.gen(function* () {
     const config = yield* Config;
-    const env = yield* Env;
 
     return {
-      password: () => passwordPrompt(config, env, "Password:"),
+      password: () => passwordPrompt(config, "Password:"),
       confirm: (message) => confirmPrompt(config, message),
     };
   }),

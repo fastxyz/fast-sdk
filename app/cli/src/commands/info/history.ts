@@ -157,5 +157,5 @@ export const infoHistoryHandler = (args: InfoHistoryArgs) =>
         e.timestamp,
       ]),
     );
-    yield* output.success({ transactions: entries });
+    yield* output.ok({ transactions: entries });
   });

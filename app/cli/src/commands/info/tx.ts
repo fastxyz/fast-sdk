@@ -22,5 +22,5 @@ export const infoTxHandler = (args: InfoTxArgs) =>
     if (entry.explorerUrl) {
       yield* output.humanLine(`  Explorer:  ${entry.explorerUrl}`);
     }
-    yield* output.success(entry);
+    yield* output.ok(entry);
   });

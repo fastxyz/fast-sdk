@@ -4,8 +4,8 @@ import { type CliError, toErrorCode } from "../errors/index.js";
 import { Config } from "./config/config.js";
 
 export interface OutputShape {
-  readonly success: (data: unknown) => Effect.Effect<void>;
-  readonly error: (err: CliError) => Effect.Effect<void>;
+  readonly ok: (data: unknown) => Effect.Effect<void>;
+  readonly fail: (err: CliError) => Effect.Effect<void>;
   readonly humanLine: (text: string) => Effect.Effect<void>;
   readonly humanTable: (
     headers: string[],
@@ -22,7 +22,7 @@ export const OutputLive = Layer.effect(
     const config = yield* Config;
 
     return {
-      success: (data) =>
+      ok: (data) =>
         Effect.sync(() => {
           if (config.json) {
             process.stdout.write(
@@ -31,7 +31,7 @@ export const OutputLive = Layer.effect(
           }
         }),
 
-      error: (err) =>
+      fail: (err) =>
         Effect.sync(() => {
           if (config.json) {
             process.stdout.write(

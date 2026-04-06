@@ -11,5 +11,5 @@ export const networkSetDefaultHandler = (args: NetworkSetDefaultArgs) =>
     yield* networkConfig.setDefault(args.name);
 
     yield* output.humanLine(`Default network set to "${args.name}"`);
-    yield* output.success({ name: args.name });
+    yield* output.ok({ name: args.name });
   });

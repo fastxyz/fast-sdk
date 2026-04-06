@@ -11,5 +11,5 @@ export const networkRemoveHandler = (args: NetworkRemoveArgs) =>
     yield* networkConfig.remove(args.name);
 
     yield* output.humanLine(`Removed network "${args.name}"`);
-    yield* output.success({ name: args.name, removed: true });
+    yield* output.ok({ name: args.name, removed: true });
   });

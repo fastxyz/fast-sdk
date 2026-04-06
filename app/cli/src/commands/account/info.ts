@@ -18,7 +18,7 @@ export const accountInfoHandler = (args: AccountInfoArgs) =>
     yield* output.humanLine(`Account: ${info.name}${defaultLabel}`);
     yield* output.humanLine(`  Fast address: ${info.fastAddress}`);
     yield* output.humanLine(`  EVM address:  ${info.evmAddress}`);
-    yield* output.success({
+    yield* output.ok({
       name: info.name,
       fastAddress: info.fastAddress,
       evmAddress: info.evmAddress,

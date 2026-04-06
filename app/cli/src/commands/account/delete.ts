@@ -18,5 +18,5 @@ export const accountDeleteHandler = (args: AccountDeleteArgs) =>
     yield* accounts.delete_(args.name);
 
     yield* output.humanLine(`Deleted account "${args.name}"`);
-    yield* output.success({ name: args.name, deleted: true });
+    yield* output.ok({ name: args.name, deleted: true });
   });

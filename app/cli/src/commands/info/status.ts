@@ -36,7 +36,7 @@ export const infoStatusHandler = (_args: InfoStatusArgs) =>
     );
     yield* output.humanLine(`  Explorer:      ${network.explorerUrl}`);
 
-    yield* output.success({
+    yield* output.ok({
       network: config.network,
       fast: {
         rpcUrl: network.rpcUrl,

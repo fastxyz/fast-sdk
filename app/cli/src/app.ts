@@ -2,7 +2,6 @@ import { Effect, Layer, type Option } from "effect";
 import { FastRpcLive } from "./services/api/fast.js";
 import { makeConfigLayer } from "./services/config/config.js";
 import { type CliError, toErrorCode, toExitCode } from "./errors/index.js";
-import { EnvLive } from "./services/env.js";
 import { OutputLive, Output } from "./services/output.js";
 import { PromptLive } from "./services/prompt.js";
 import { AccountStoreLive } from "./services/storage/account.js";
@@ -10,10 +9,7 @@ import { DatabaseLive } from "./services/storage/database.js";
 import { HistoryStoreLive } from "./services/storage/history.js";
 import { NetworkConfigLive } from "./services/storage/network.js";
 
-/**
- * Parsed global CLI options. Merges the former `ParsedOptions` (layers.ts)
- * and `GlobalArgsParsed` (cli-runner.ts) into a single canonical type.
- */
+/** Parsed global CLI options passed from main.ts into command handlers. */
 export interface GlobalOptions {
   readonly json: boolean;
   readonly debug: boolean;
@@ -33,8 +29,8 @@ export const makeAppLayer = (opts: GlobalOptions) => {
     password: opts.password,
   });
 
-  // Foundation: database + config + env
-  const foundation = Layer.mergeAll(DatabaseLive, cliConfigLayer, EnvLive);
+  // Foundation: database + config
+  const foundation = Layer.mergeAll(DatabaseLive, cliConfigLayer);
 
   // Services that depend only on foundation
   const tier1 = Layer.mergeAll(
@@ -71,7 +67,7 @@ export const runHandler = <A, R>(
     Effect.catchAll((err: CliError) =>
       Effect.gen(function* () {
         const output = yield* Output;
-        yield* output.error(err);
+        yield* output.fail(err);
         // biome-ignore lint/suspicious/useIsNan: process.exit never returns
         process.exit(toExitCode(err));
       }),

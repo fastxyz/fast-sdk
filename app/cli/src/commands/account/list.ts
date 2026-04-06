@@ -19,7 +19,7 @@ export const accountListHandler = (_args: AccountListArgs) =>
         e.isDefault ? "✓" : "",
       ]),
     );
-    yield* output.success({
+    yield* output.ok({
       accounts: entries.map((e) => ({
         name: e.name,
         fastAddress: e.fastAddress,

@@ -11,5 +11,5 @@ export const networkAddHandler = (args: NetworkAddArgs) =>
     yield* networkConfig.add(args.name, args.config);
 
     yield* output.humanLine(`Added network "${args.name}"`);
-    yield* output.success({ name: args.name });
+    yield* output.ok({ name: args.name });
   });

@@ -392,7 +392,7 @@ export const sendHandler = (args: SendArgs) =>
       yield* output.humanLine(`  Explorer:    ${explorerUrl}`);
     }
 
-    yield* output.success({
+    yield* output.ok({
       txHash,
       from:
         route === "evm-to-fast"

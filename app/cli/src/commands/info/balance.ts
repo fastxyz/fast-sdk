@@ -112,5 +112,5 @@ export const infoBalanceHandler = (args: InfoBalanceArgs) =>
       ["TOKEN", "BALANCE", "TOKEN ID"],
       balances.map((b) => [b.tokenName, b.formatted, b.tokenId]),
     );
-    yield* output.success({ address: fastAddress, balances });
+    yield* output.ok({ address: fastAddress, balances });
   });

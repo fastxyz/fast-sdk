@@ -87,7 +87,7 @@ export const accountImportHandler = (args: AccountImportArgs) =>
     yield* output.humanLine(`Imported account "${entry.name}"`);
     yield* output.humanLine(`  Fast address: ${entry.fastAddress}`);
     yield* output.humanLine(`  EVM address:  ${entry.evmAddress}`);
-    yield* output.success({
+    yield* output.ok({
       name: entry.name,
       fastAddress: entry.fastAddress,
       evmAddress: entry.evmAddress,

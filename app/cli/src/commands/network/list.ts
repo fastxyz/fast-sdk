@@ -14,7 +14,7 @@ export const networkListHandler = (_args: NetworkListArgs) =>
       ["NAME", "TYPE", "DEFAULT"],
       networks.map((n) => [n.name, n.type, n.isDefault ? "✓" : ""]),
     );
-    yield* output.success({
+    yield* output.ok({
       networks: networks.map((n) => ({
         name: n.name,
         type: n.type,

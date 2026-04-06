@@ -12,7 +12,7 @@ export const accountSetDefaultHandler = (args: AccountSetDefaultArgs) =>
     const info = yield* accounts.get(args.name);
 
     yield* output.humanLine(`Default account set to "${args.name}"`);
-    yield* output.success({
+    yield* output.ok({
       name: info.name,
       fastAddress: info.fastAddress,
     });

@@ -1,5 +1,5 @@
 import { Effect, Layer, type Option } from "effect";
-import { type ClientError, InternalError, toExitCode } from "./errors/index.js";
+import { type ClientError, InternalError } from "./errors/index.js";
 import { AllSetLive } from "./services/api/allset.js";
 import { FastRpcLive } from "./services/api/fast.js";
 import { makeConfigLayer } from "./services/config/config.js";
@@ -69,7 +69,7 @@ export const runHandler = <A, R>(
       Effect.gen(function* () {
         const output = yield* Output;
         yield* output.fail(err);
-        process.exit(toExitCode(err));
+        process.exit(err.exitCode);
       }),
     ),
     Effect.catchAllDefect((defect) =>

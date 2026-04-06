@@ -1,6 +1,6 @@
 import Table from "cli-table3";
 import { Context, Effect, Layer } from "effect";
-import { type ClientError, toErrorCode } from "../errors/index.js";
+import type { ClientError } from "../errors/index.js";
 import { Config } from "./config/config.js";
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ export const writeFail = (err: ClientError, json: boolean): void => {
   const message = {
     ok: false,
     error: {
-      code: toErrorCode(err),
+      code: err.errorCode,
       message: err.message,
     },
   };

@@ -3,37 +3,31 @@ import { Context, Effect, Layer, Option } from "effect";
 import { PasswordRequiredError, UserCancelledError } from "../errors/index.js";
 import { Config, type ConfigShape } from "./cli-config.js";
 
+type ConfirmEffect = Effect.Effect<boolean>;
+type PasswordEffect = Effect.Effect<
+  string,
+  PasswordRequiredError | UserCancelledError
+>;
+
 export interface PromptShape {
-  readonly password: () => Effect.Effect<
-    string,
-    PasswordRequiredError | UserCancelledError
-  >;
-  readonly confirm: (message: string) => Effect.Effect<boolean>;
+  readonly password: () => PasswordEffect;
+  readonly confirm: (message: string) => ConfirmEffect;
 }
 
 export class Prompt extends Context.Tag("Prompt")<Prompt, PromptShape>() {}
 
-const promptPassword = (label: string) =>
-  Effect.promise(() =>
-    new PasswordPrompt({
-      mask: "*",
-      output: process.stderr,
-      render() {
-        if (this.state === "cancel") return `${label}`;
-        return `${label} ${this.masked}`;
-      },
-    }).prompt(),
-  ).pipe(
-    Effect.flatMap((value) =>
-      isCancel(value) || value === undefined
-        ? Effect.fail(new UserCancelledError())
-        : Effect.succeed(value),
-    ),
-  );
+const createPasswordPrompter = (label: string) => {
+  return new PasswordPrompt({
+    mask: "*",
+    output: process.stderr,
+    render() {
+      if (this.state === "cancel") return `${label}`;
+      return `${label} ${this.masked}`;
+    },
+  });
+};
 
-const passwordResolve = (
-  config: ConfigShape,
-): Effect.Effect<string, PasswordRequiredError | UserCancelledError> => {
+const passwordPrompt = (config: ConfigShape, label: string): PasswordEffect => {
   if (Option.isSome(config.password)) {
     return Effect.succeed(config.password.value);
   }
@@ -47,28 +41,38 @@ const passwordResolve = (
     return Effect.fail(new PasswordRequiredError());
   }
 
-  return promptPassword("Password:");
+  const prompter = createPasswordPrompter(label);
+  return Effect.promise(() => prompter.prompt()).pipe(
+    Effect.flatMap((value) =>
+      isCancel(value) || value === undefined
+        ? Effect.fail(new UserCancelledError())
+        : Effect.succeed(value),
+    ),
+  );
 };
 
-const confirmPrompt = (
-  config: ConfigShape,
-  message: string,
-): Effect.Effect<boolean> => {
-  if (config.nonInteractive || config.json) return Effect.succeed(true);
+const createConfirmPrompter = (message: string) => {
+  return new ConfirmPrompt({
+    active: "Yes",
+    inactive: "No",
+    initialValue: false,
+    render() {
+      if (this.state === "cancel") return `${message} No`;
+      if (this.state === "submit")
+        return `${message} ${this.value ? "Yes" : "No"}`;
+      return `${message} (y/N)`;
+    },
+  });
+};
 
-  return Effect.promise(() =>
-    new ConfirmPrompt({
-      active: "Yes",
-      inactive: "No",
-      initialValue: false,
-      render() {
-        if (this.state === "cancel") return `${message} No`;
-        if (this.state === "submit")
-          return `${message} ${this.value ? "Yes" : "No"}`;
-        return `${message} (y/N)`;
-      },
-    }).prompt(),
-  ).pipe(Effect.map((value) => !isCancel(value) && value === true));
+const confirmPrompt = (config: ConfigShape, message: string): ConfirmEffect => {
+  if (config.nonInteractive) return Effect.succeed(true);
+
+  const prompter = createConfirmPrompter(message);
+
+  return Effect.promise(() => prompter.prompt()).pipe(
+    Effect.map((value) => !isCancel(value) && value === true),
+  );
 };
 
 export const PromptLive = Layer.effect(
@@ -77,7 +81,7 @@ export const PromptLive = Layer.effect(
     const config = yield* Config;
 
     return {
-      password: () => passwordResolve(config),
+      password: () => passwordPrompt(config, "Password:"),
       confirm: (message) => confirmPrompt(config, message),
     };
   }),

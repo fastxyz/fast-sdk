@@ -1,11 +1,8 @@
 import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
-import { Context, Effect, Layer, Option, Schema } from "effect";
-import {
-  bundledNetworks,
-  isBundledNetwork,
-  type NetworkConfig,
-} from "../../config/bundled.js";
+import { Context, Effect, Layer, Schema } from "effect";
+import type { NetworkConfig } from "../../schemas/networks.js";
+import { AppConfig } from "../config/app.js";
 import { customNetworks, metadata } from "../../db/schema.js";
 import {
   DefaultNetworkError,
@@ -76,11 +73,12 @@ export const NetworkConfigLive = Layer.effect(
   NetworkConfigService,
   Effect.gen(function* () {
     const { db } = yield* DatabaseService;
+    const appConfig = yield* AppConfig;
 
     return {
       resolve: (name) =>
         Effect.gen(function* () {
-          const bundled = bundledNetworks[name];
+          const bundled = appConfig.getBundledNetwork(name);
           if (bundled) return bundled;
 
           const row = db
@@ -103,14 +101,7 @@ export const NetworkConfigLive = Layer.effect(
             ),
           );
 
-          return {
-            rpcUrl: config.rpcUrl,
-            explorerUrl: config.explorerUrl,
-            networkId: config.networkId,
-            ...(Option.isSome(config.allSet)
-              ? { allSet: config.allSet.value }
-              : {}),
-          } satisfies NetworkConfig;
+          return config as NetworkConfig;
         }),
 
       list: () =>
@@ -122,12 +113,12 @@ export const NetworkConfigLive = Layer.effect(
               .from(customNetworks)
               .all();
             const allNames = [
-              ...Object.keys(bundledNetworks),
+              ...Object.keys(appConfig.bundledNetworks),
               ...customRows.map((r) => r.name),
             ];
             return allNames.map((name) => ({
               name,
-              type: (isBundledNetwork(name) ? "bundled" : "custom") as
+              type: (appConfig.isBundledNetwork(name) ? "bundled" : "custom") as
                 | "bundled"
                 | "custom",
               isDefault: name === defaultName,
@@ -141,7 +132,7 @@ export const NetworkConfigLive = Layer.effect(
         Effect.try({
           try: () => {
             if (
-              !isBundledNetwork(name) &&
+              !appConfig.isBundledNetwork(name) &&
               !db
                 .select()
                 .from(customNetworks)
@@ -169,7 +160,7 @@ export const NetworkConfigLive = Layer.effect(
 
       add: (name, configPath) =>
         Effect.gen(function* () {
-          if (isBundledNetwork(name)) {
+          if (appConfig.isBundledNetwork(name)) {
             return yield* Effect.fail(new ReservedNameError({ name }));
           }
           if (
@@ -217,7 +208,7 @@ export const NetworkConfigLive = Layer.effect(
       remove: (name) =>
         Effect.try({
           try: () => {
-            if (isBundledNetwork(name)) throw new ReservedNameError({ name });
+            if (appConfig.isBundledNetwork(name)) throw new ReservedNameError({ name });
             if (
               !db
                 .select()

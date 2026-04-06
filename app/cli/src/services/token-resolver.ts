@@ -1,5 +1,5 @@
 import { fromHex } from "@fastxyz/fast-sdk";
-import type { NetworkConfig } from "../config/bundled.js";
+import type { NetworkConfig } from "../schemas/networks.js";
 import { TokenNotFoundError, UnsupportedChainError } from "../errors/index.js";
 
 export interface ResolvedToken {

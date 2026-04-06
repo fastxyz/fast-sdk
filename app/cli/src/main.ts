@@ -14,12 +14,12 @@ import { type Effect, Option } from "effect";
 import { type GlobalOptions, runHandler } from "./app.js";
 import { globalPreParser, parser } from "./cli.js";
 import { commands } from "./commands/index.js";
-import { PROGRAM_NAME, VERSION } from "./config/constants.js";
 import {
   type ClientError,
   InternalError,
   InvalidUsageError,
 } from "./errors/index.js";
+import { getAppName, getVersion } from "./services/config/app.js";
 import { writeFail } from "./services/output.js";
 
 const argv = process.argv.slice(2);
@@ -30,7 +30,7 @@ const isHelp = argv.length === 0 || (pre.success && pre.value.help);
 const isVersion = pre.success && pre.value.version;
 
 if (isVersion) {
-  process.stdout.write(`${VERSION}\n`);
+  process.stdout.write(`${getVersion()}\n`);
   process.exit(0);
 }
 
@@ -38,7 +38,7 @@ if (isHelp) {
   const docPage = getDocPageSync(parser);
   if (docPage) {
     process.stdout.write(
-      `${formatDocPage(PROGRAM_NAME, docPage, { colors: process.stdout.isTTY ?? false })}\n`,
+      `${formatDocPage(getAppName(), docPage, { colors: process.stdout.isTTY ?? false })}\n`,
     );
   }
   process.exit(0);

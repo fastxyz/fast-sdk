@@ -1,5 +1,5 @@
 import { Effect, Layer, type Option } from "effect";
-import { InternalError, type ClientError, toExitCode } from "./errors/index.js";
+import { type ClientError, InternalError, toExitCode } from "./errors/index.js";
 import { FastRpcLive } from "./services/api/fast.js";
 import { makeConfigLayer } from "./services/config/config.js";
 import { Output, OutputLive } from "./services/output.js";

@@ -10,10 +10,6 @@ import { Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
 import { type ParsedArgs, parser } from "./cli.js";
-import { InternalError, InvalidUsageError } from "./errors/index.js";
-import { writeFail } from "./services/output.js";
-
-// Command handlers
 import { accountCreateHandler } from "./commands/account/create.js";
 import { accountDeleteHandler } from "./commands/account/delete.js";
 import { accountExportHandler } from "./commands/account/export.js";
@@ -30,6 +26,8 @@ import { networkListHandler } from "./commands/network/list.js";
 import { networkRemoveHandler } from "./commands/network/remove.js";
 import { networkSetDefaultHandler } from "./commands/network/set-default.js";
 import { sendHandler } from "./commands/send.js";
+import { InternalError, InvalidUsageError } from "./errors/index.js";
+import { writeFail } from "./services/output.js";
 
 const VERSION = "0.1.0";
 const rawArgs = process.argv.slice(2);
@@ -38,27 +36,19 @@ const isJson = rawArgs.includes("--json");
 // ---------------------------------------------------------------------------
 // Parse argv (--help, --version, and errors handled by runParserSync)
 // ---------------------------------------------------------------------------
-const parsed: ParsedArgs = runParserSync(
-  parser,
-  "fast",
-  rawArgs,
-  {
-    colors: process.stdout.isTTY ?? false,
-    help: { onShow: () => process.exit(0) },
-    version: { value: VERSION, onShow: () => process.exit(0) },
-    onError: (exitCode) => {
-      // runParserSync already printed the error to stderr.
-      // For --json callers, also write a structured envelope.
-      if (isJson) {
-        writeFail(
-          new InvalidUsageError({ message: "Invalid arguments" }),
-          true,
-        );
-      }
-      process.exit(exitCode);
-    },
+const parsed: ParsedArgs = runParserSync(parser, "fast", rawArgs, {
+  colors: process.stdout.isTTY ?? false,
+  help: { onShow: () => process.exit(0) },
+  version: { value: VERSION, onShow: () => process.exit(0) },
+  onError: (exitCode) => {
+    // runParserSync already printed the error to stderr.
+    // For --json callers, also write a structured envelope.
+    if (isJson) {
+      writeFail(new InvalidUsageError({ message: "Invalid arguments" }), true);
+    }
+    process.exit(exitCode);
   },
-);
+});
 
 // ---------------------------------------------------------------------------
 // Build GlobalOptions

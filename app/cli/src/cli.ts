@@ -5,9 +5,9 @@
  * so that dispatch in main.ts can be a type-safe `switch`.
  */
 import { merge, object, or } from "@optique/core/constructs";
+import { message } from "@optique/core/message";
 import { optional, withDefault } from "@optique/core/modifiers";
 import type { InferValue } from "@optique/core/parser";
-import { message } from "@optique/core/message";
 import { argument, command, constant, option } from "@optique/core/primitives";
 import { integer, string } from "@optique/core/valueparser";
 
@@ -151,7 +151,12 @@ const networkRemoveParser = command(
 
 const networkGroup = command(
   "network",
-  or(networkListParser, networkAddParser, networkSetDefaultParser, networkRemoveParser),
+  or(
+    networkListParser,
+    networkAddParser,
+    networkSetDefaultParser,
+    networkRemoveParser,
+  ),
   { description: message`Manage networks` },
 );
 

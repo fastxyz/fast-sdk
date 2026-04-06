@@ -1,6 +1,6 @@
-import { Data } from 'effect';
+import { Data } from "effect";
 
-export class NetworkExistsError extends Data.TaggedError('NetworkExistsError')<{
+export class NetworkExistsError extends Data.TaggedError("NetworkExistsError")<{
   readonly name: string;
 }> {
   get message() {
@@ -8,7 +8,9 @@ export class NetworkExistsError extends Data.TaggedError('NetworkExistsError')<{
   }
 }
 
-export class NetworkNotFoundError extends Data.TaggedError('NetworkNotFoundError')<{
+export class NetworkNotFoundError extends Data.TaggedError(
+  "NetworkNotFoundError",
+)<{
   readonly name: string;
 }> {
   get message() {
@@ -16,12 +18,14 @@ export class NetworkNotFoundError extends Data.TaggedError('NetworkNotFoundError
   }
 }
 
-export class NetworkError extends Data.TaggedError('NetworkError')<{
+export class NetworkError extends Data.TaggedError("NetworkError")<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
 
-export class DefaultNetworkError extends Data.TaggedError('DefaultNetworkError')<{
+export class DefaultNetworkError extends Data.TaggedError(
+  "DefaultNetworkError",
+)<{
   readonly name: string;
 }> {
   get message() {
@@ -29,7 +33,15 @@ export class DefaultNetworkError extends Data.TaggedError('DefaultNetworkError')
   }
 }
 
-export class ReservedNameError extends Data.TaggedError('ReservedNameError')<{
+export class NoDefaultNetworkError extends Data.TaggedError(
+  "NoDefaultNetworkError",
+)<Record<string, string>> {
+  get message() {
+    return "No default network set. Use `fast network set-default <name>` to set one.";
+  }
+}
+
+export class ReservedNameError extends Data.TaggedError("ReservedNameError")<{
   readonly name: string;
 }> {
   get message() {
@@ -37,11 +49,13 @@ export class ReservedNameError extends Data.TaggedError('ReservedNameError')<{
   }
 }
 
-export class InvalidConfigError extends Data.TaggedError('InvalidConfigError')<{
+export class InvalidConfigError extends Data.TaggedError("InvalidConfigError")<{
   readonly message: string;
 }> {}
 
-export class UnsupportedChainError extends Data.TaggedError('UnsupportedChainError')<{
+export class UnsupportedChainError extends Data.TaggedError(
+  "UnsupportedChainError",
+)<{
   readonly chain: string;
 }> {
   get message() {

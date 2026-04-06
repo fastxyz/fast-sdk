@@ -20,6 +20,7 @@ import type {
   NetworkError,
   NetworkExistsError,
   NetworkNotFoundError,
+  NoDefaultNetworkError,
   ReservedNameError,
   UnsupportedChainError,
 } from "./network.js";
@@ -63,7 +64,8 @@ export type ClientError =
   | WrongPasswordError
   | DefaultAccountError
   | DefaultNetworkError
-  | NetworkNotFoundError;
+  | NetworkNotFoundError
+  | NoDefaultNetworkError;
 
 const exitCodeMap: Record<string, number> = {
   InternalError: 1,
@@ -91,6 +93,7 @@ const exitCodeMap: Record<string, number> = {
   PasswordRequiredError: 8,
   WrongPasswordError: 8,
   NetworkNotFoundError: 2,
+  NoDefaultNetworkError: 2,
 };
 
 export const toExitCode = (error: { readonly _tag: string }): number =>
@@ -122,6 +125,7 @@ const errorCodeMap: Record<string, string> = {
   PasswordRequiredError: "PASSWORD_REQUIRED",
   WrongPasswordError: "WRONG_PASSWORD",
   NetworkNotFoundError: "NETWORK_NOT_FOUND",
+  NoDefaultNetworkError: "NO_DEFAULT_NETWORK",
 };
 
 export const toErrorCode = (error: { readonly _tag: string }): string =>

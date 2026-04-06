@@ -36,7 +36,7 @@ export class DefaultAccountError extends Data.TaggedError(
 
 export class PasswordRequiredError extends Data.TaggedError(
   "PasswordRequiredError",
-)<{}> {
+) {
   get message() {
     return "Password required. Use --password, FAST_PASSWORD env var, or run in interactive mode.";
   }

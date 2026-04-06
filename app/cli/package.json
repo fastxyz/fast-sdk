@@ -26,12 +26,14 @@
     "bech32": "^2.0.0",
     "better-sqlite3": "^12.8.0",
     "citty": "^0.2.2",
+    "drizzle-orm": "^0.45.2",
     "effect": "^3.21.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.5.0",
-    "@types/uuid": "^10.0.0"
+    "@types/uuid": "^10.0.0",
+    "drizzle-kit": "^0.31.10"
   }
 }

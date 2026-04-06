@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
+import { eq } from "drizzle-orm";
 import { Context, Effect, Layer, Option, Schema } from "effect";
 import {
   bundledNetworks,
   isBundledNetwork,
   type NetworkConfig,
 } from "../config/bundled.js";
+import { customNetworks, metadata } from "../db/schema.js";
 import {
   DefaultNetworkError,
   InvalidConfigError,
@@ -59,25 +61,10 @@ export const NetworkConfigLive = Layer.effect(
   Effect.gen(function* () {
     const { db } = yield* DatabaseService;
 
-    const stmts = {
-      getConfig: db.prepare<[string], { config: string }>(
-        "SELECT config FROM custom_networks WHERE name = ?",
-      ),
-      listCustom: db.prepare<[], { name: string }>("SELECT name FROM custom_networks"),
-      insertConfig: db.prepare(
-        "INSERT INTO custom_networks (name, config) VALUES (?, ?)",
-      ),
-      deleteConfig: db.prepare("DELETE FROM custom_networks WHERE name = ?"),
-      getMeta: db.prepare<[string], { value: string }>(
-        "SELECT value FROM metadata WHERE key = ?",
-      ),
-      setMeta: db.prepare(
-        "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
-      ),
+    const getDefaultNetwork = (): string => {
+      const row = db.select().from(metadata).where(eq(metadata.key, "default_network")).get();
+      return row?.value ?? "testnet";
     };
-
-    const getDefaultNetwork = (): string =>
-      stmts.getMeta.get("default_network")?.value ?? "testnet";
 
     return {
       resolve: (name) =>
@@ -85,7 +72,7 @@ export const NetworkConfigLive = Layer.effect(
           const bundled = bundledNetworks[name];
           if (bundled) return bundled;
 
-          const row = stmts.getConfig.get(name);
+          const row = db.select().from(customNetworks).where(eq(customNetworks.name, name)).get();
           if (!row) {
             return yield* Effect.fail(new NetworkNotFoundError({ name }));
           }
@@ -112,16 +99,14 @@ export const NetworkConfigLive = Layer.effect(
         Effect.try({
           try: () => {
             const defaultName = getDefaultNetwork();
-            const customNames = stmts.listCustom.all().map((r) => r.name);
+            const customRows = db.select({ name: customNetworks.name }).from(customNetworks).all();
             const allNames = [
               ...Object.keys(bundledNetworks),
-              ...customNames,
+              ...customRows.map((r) => r.name),
             ];
             return allNames.map((name) => ({
               name,
-              type: (isBundledNetwork(name) ? "bundled" : "custom") as
-                | "bundled"
-                | "custom",
+              type: (isBundledNetwork(name) ? "bundled" : "custom") as "bundled" | "custom",
               isDefault: name === defaultName,
             }));
           },
@@ -132,10 +117,11 @@ export const NetworkConfigLive = Layer.effect(
       setDefault: (name) =>
         Effect.try({
           try: () => {
-            if (!isBundledNetwork(name) && !stmts.getConfig.get(name)) {
+            if (!isBundledNetwork(name) && !db.select().from(customNetworks).where(eq(customNetworks.name, name)).get()) {
               throw new NetworkNotFoundError({ name });
             }
-            stmts.setMeta.run("default_network", name);
+            db.insert(metadata).values({ key: "default_network", value: name })
+              .onConflictDoUpdate({ target: metadata.key, set: { value: name } }).run();
           },
           catch: (e) =>
             e instanceof NetworkNotFoundError
@@ -148,31 +134,24 @@ export const NetworkConfigLive = Layer.effect(
           if (isBundledNetwork(name)) {
             return yield* Effect.fail(new ReservedNameError({ name }));
           }
-          if (stmts.getConfig.get(name)) {
+          if (db.select().from(customNetworks).where(eq(customNetworks.name, name)).get()) {
             return yield* Effect.fail(new NetworkExistsError({ name }));
           }
 
           const content = yield* Effect.try({
             try: () => readFileSync(configPath, "utf-8"),
             catch: () =>
-              new InvalidConfigError({
-                message: `Cannot read config file: ${configPath}`,
-              }),
+              new InvalidConfigError({ message: `Cannot read config file: ${configPath}` }),
           });
 
-          yield* Schema.decodeUnknown(CustomNetworkConfig)(
-            JSON.parse(content),
-          ).pipe(
+          yield* Schema.decodeUnknown(CustomNetworkConfig)(JSON.parse(content)).pipe(
             Effect.mapError(
-              () =>
-                new InvalidConfigError({
-                  message: "Invalid network config format",
-                }),
+              () => new InvalidConfigError({ message: "Invalid network config format" }),
             ),
           );
 
           yield* Effect.try({
-            try: () => stmts.insertConfig.run(name, content),
+            try: () => db.insert(customNetworks).values({ name, config: content }).run(),
             catch: (cause) =>
               new StorageError({ message: "Failed to save network config", cause }),
           });
@@ -181,16 +160,12 @@ export const NetworkConfigLive = Layer.effect(
       remove: (name) =>
         Effect.try({
           try: () => {
-            if (isBundledNetwork(name)) {
-              throw new ReservedNameError({ name });
-            }
-            if (!stmts.getConfig.get(name)) {
+            if (isBundledNetwork(name)) throw new ReservedNameError({ name });
+            if (!db.select().from(customNetworks).where(eq(customNetworks.name, name)).get()) {
               throw new NetworkNotFoundError({ name });
             }
-            if (getDefaultNetwork() === name) {
-              throw new DefaultNetworkError({ name });
-            }
-            stmts.deleteConfig.run(name);
+            if (getDefaultNetwork() === name) throw new DefaultNetworkError({ name });
+            db.delete(customNetworks).where(eq(customNetworks.name, name)).run();
           },
           catch: (e) =>
             e instanceof ReservedNameError ||

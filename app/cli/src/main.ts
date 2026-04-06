@@ -15,7 +15,11 @@ import { type GlobalOptions, runHandler } from "./app.js";
 import { globalPreParser, parser } from "./cli.js";
 import { commands } from "./commands/index.js";
 import { PROGRAM_NAME, VERSION } from "./config/constants.js";
-import { type ClientError, InternalError, InvalidUsageError } from "./errors/index.js";
+import {
+  type ClientError,
+  InternalError,
+  InvalidUsageError,
+} from "./errors/index.js";
 import { writeFail } from "./services/output.js";
 
 const argv = process.argv.slice(2);
@@ -61,19 +65,19 @@ const globalOpts: GlobalOptions = {
   password: Option.fromNullable(parsed.password),
 };
 
-/** Writes a structured error and exits. Typed as `never` for control flow narrowing. */
-const die = (err: ClientError): never => {
-  writeFail(err, isJson);
-  return process.exit(1) as never;
-};
-
 const dispatch = () => {
   const entry = commands.find((c) => c.cmd === parsed.cmd);
-  if (!entry) return die(new InternalError({ message: `Unknown command: ${parsed.cmd}` }));
-  // Safe cast: the optique parser guarantees `parsed` matches the handler's
-  // arg type for the matched `cmd`. TypeScript can't prove this because
-  // find() erases the correlation (see TypeScript#30581).
-  const handler = entry.handler as (args: typeof parsed) => Effect.Effect<void, ClientError, unknown>;
+  if (!entry) {
+    writeFail(
+      new InternalError({ message: `Unknown command: ${parsed.cmd}` }),
+      isJson,
+    );
+    return process.exit(1);
+  }
+
+  const handler = entry.handler as (
+    args: typeof parsed,
+  ) => Effect.Effect<void, ClientError, unknown>;
   return runHandler(globalOpts, handler(parsed));
 };
 

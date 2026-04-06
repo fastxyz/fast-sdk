@@ -1,5 +1,6 @@
 import { Effect, Layer, type Option } from "effect";
 import { type ClientError, InternalError, toExitCode } from "./errors/index.js";
+import { AllSetLive } from "./services/api/allset.js";
 import { FastRpcLive } from "./services/api/fast.js";
 import { makeConfigLayer } from "./services/config/config.js";
 import { Output, OutputLive } from "./services/output.js";
@@ -30,7 +31,7 @@ export const makeAppLayer = (opts: GlobalOptions) => {
   });
 
   // Foundation: database + config
-  const foundation = Layer.mergeAll(DatabaseLive, cliConfigLayer);
+  const foundation = Layer.mergeAll(DatabaseLive, cliConfigLayer, AllSetLive);
 
   // Services that depend only on foundation
   const tier1 = Layer.mergeAll(

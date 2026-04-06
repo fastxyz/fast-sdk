@@ -10,22 +10,27 @@ import { Config } from "./config/config.js";
 export const writeOk = (data: unknown, json: boolean): void => {
   if (!json) return;
 
-  const message = JSON.stringify({ ok: true, data }, null, 2);
-  process.stdout.write(`${message}\n`);
+  const message = { ok: true, data };
+  const text = JSON.stringify(message, null, 2);
+  process.stdout.write(`${text}\n`);
 };
 
 export const writeFail = (err: ClientError, json: boolean): void => {
-  if (json) {
-    process.stdout.write(
-      `${JSON.stringify(
-        { ok: false, error: { code: toErrorCode(err), message: err.message } },
-        null,
-        2,
-      )}\n`,
-    );
-  } else {
+  if (!json) {
     process.stderr.write(`Error: ${err.message}\n`);
+    return;
   }
+
+  const message = {
+    ok: false,
+    error: {
+      code: toErrorCode(err),
+      message: err.message,
+    },
+  };
+
+  const text = JSON.stringify(message, null, 2);
+  process.stdout.write(`${text}\n`);
 };
 
 // ---------------------------------------------------------------------------
@@ -52,7 +57,6 @@ export const OutputLive = Layer.effect(
 
     return {
       ok: (data) => Effect.sync(() => writeOk(data, config.json)),
-
       fail: (err) => Effect.sync(() => writeFail(err, config.json)),
 
       humanLine: (text) =>

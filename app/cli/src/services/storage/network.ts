@@ -100,8 +100,8 @@ export const NetworkConfigLive = Layer.effect(
             rpcUrl: custom.fast.rpcUrl,
             explorerUrl: custom.fast.explorerUrl,
             networkId: `fast:${name}`,
-            ...(Option.isSome(custom.allset)
-              ? { allset: custom.allset.value }
+            ...(Option.isSome(custom.allSet)
+              ? { allSet: custom.allSet.value }
               : {}),
           } satisfies NetworkConfig;
         }),

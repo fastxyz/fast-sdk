@@ -1,6 +1,6 @@
-import { fromHex } from '@fastxyz/fast-sdk';
-import type { NetworkConfig } from '../config/bundled.js';
-import { TokenNotFoundError, UnsupportedChainError } from '../errors/index.js';
+import { fromHex } from "@fastxyz/fast-sdk";
+import type { NetworkConfig } from "../config/bundled.js";
+import { TokenNotFoundError, UnsupportedChainError } from "../errors/index.js";
 
 export interface ResolvedToken {
   readonly fastTokenId: Uint8Array;
@@ -14,8 +14,12 @@ export interface ResolvedToken {
  * If `chain` is provided (bridge route), look up the token in that specific chain's config.
  * If `chain` is omitted (Fast→Fast route), scan all chains and return the first match.
  */
-export function resolveToken(tokenName: string, networkConfig: NetworkConfig, chain?: string): ResolvedToken {
-  const allset = networkConfig.allset;
+export function resolveToken(
+  tokenName: string,
+  networkConfig: NetworkConfig,
+  chain?: string,
+): ResolvedToken {
+  const allset = networkConfig.allSet;
   if (!allset) {
     throw new TokenNotFoundError({ name: tokenName });
   }

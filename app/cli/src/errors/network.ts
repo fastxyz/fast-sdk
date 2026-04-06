@@ -22,13 +22,6 @@ export class NetworkNotFoundError extends Data.TaggedError(
   }
 }
 
-export class NetworkError extends Data.TaggedError("NetworkError")<{
-  readonly message: string;
-  readonly cause?: unknown;
-}> {
-  readonly exitCode = 1 as const;
-  readonly errorCode = "NETWORK_ERROR" as const;
-}
 
 export class DefaultNetworkError extends Data.TaggedError(
   "DefaultNetworkError",

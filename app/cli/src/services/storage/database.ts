@@ -50,7 +50,7 @@ export const DatabaseLive = Layer.sync(DatabaseService, () => {
 
   // Seed defaults
   db.insert(schema.metadata)
-    .values({ key: "default_network", value: "testnet" })
+    .values({ key: "default_network", value: "mainnet" })
     .onConflictDoNothing()
     .run();
 

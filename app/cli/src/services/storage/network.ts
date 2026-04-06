@@ -16,7 +16,7 @@ import {
   StorageError,
 } from "../../errors/index.js";
 import { CustomNetworkConfig } from "../../schemas/networks.js";
-import { DatabaseService } from "./database.js";
+import { DatabaseService, DrizzleDB } from "./database.js";
 
 export interface NetworkConfigShape {
   readonly resolve: (

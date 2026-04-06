@@ -11,33 +11,35 @@ import {
   submitTransaction as sdkSubmitTransaction,
 } from "@fastxyz/fast-sdk/core";
 import { Context, Effect, Layer } from "effect";
-import { NetworkError } from "../../errors/index.js";
+import { FastSdkError } from "../../errors/index.js";
 import { Config } from "../config/config.js";
 import { NetworkConfigService } from "../storage/network.js";
+
+
 
 export interface FastRpcShape {
   readonly getAccountInfo: (
     params: GetAccountInfoParams,
-  ) => Effect.Effect<unknown, NetworkError>;
+  ) => Effect.Effect<unknown, FastSdkError>;
   readonly submitTransaction: (
     params: TransactionEnvelope,
-  ) => Effect.Effect<unknown, NetworkError>;
+  ) => Effect.Effect<unknown, FastSdkError>;
   readonly getTransactionCertificates: (
     params: GetTransactionCertificatesParams,
-  ) => Effect.Effect<unknown, NetworkError>;
+  ) => Effect.Effect<unknown, FastSdkError>;
   readonly getTokenInfo: (
     params: GetTokenInfoParams,
-  ) => Effect.Effect<unknown, NetworkError>;
-  readonly getRpcUrl: () => Effect.Effect<string, NetworkError>;
+  ) => Effect.Effect<unknown, FastSdkError>;
+  readonly getRpcUrl: () => Effect.Effect<string, FastSdkError>;
 }
 
 export class FastRpc extends Context.Tag("FastRpc")<FastRpc, FastRpcShape>() {}
 
-const mapNetworkError = <A, E>(
+const mapFastSdkError = <A, E>(
   effect: Effect.Effect<A, E>,
-): Effect.Effect<A, NetworkError> =>
+): Effect.Effect<A, FastSdkError> =>
   effect.pipe(
-    Effect.mapError((e) => new NetworkError({ message: String(e), cause: e })),
+    Effect.mapError((e) => new FastSdkError({ message: String(e), cause: e })),
   );
 
 export const FastRpcLive = Layer.effect(
@@ -50,7 +52,7 @@ export const FastRpcLive = Layer.effect(
       networkConfig.resolve(config.network).pipe(
         Effect.map((n) => n.rpcUrl),
         Effect.mapError(
-          (e) => new NetworkError({ message: e.message, cause: e }),
+          (e) => new FastSdkError({ message: e.message, cause: e }),
         ),
       );
 
@@ -60,19 +62,19 @@ export const FastRpcLive = Layer.effect(
       getAccountInfo: (params) =>
         Effect.gen(function* () {
           const rpcUrl = yield* getRpcUrl();
-          return yield* mapNetworkError(sdkGetAccountInfo(rpcUrl, params));
+          return yield* mapFastSdkError(sdkGetAccountInfo(rpcUrl, params));
         }),
 
       submitTransaction: (params) =>
         Effect.gen(function* () {
           const rpcUrl = yield* getRpcUrl();
-          return yield* mapNetworkError(sdkSubmitTransaction(rpcUrl, params));
+          return yield* mapFastSdkError(sdkSubmitTransaction(rpcUrl, params));
         }),
 
       getTransactionCertificates: (params) =>
         Effect.gen(function* () {
           const rpcUrl = yield* getRpcUrl();
-          return yield* mapNetworkError(
+          return yield* mapFastSdkError(
             sdkGetTransactionCertificates(rpcUrl, params),
           );
         }),
@@ -80,7 +82,7 @@ export const FastRpcLive = Layer.effect(
       getTokenInfo: (params) =>
         Effect.gen(function* () {
           const rpcUrl = yield* getRpcUrl();
-          return yield* mapNetworkError(sdkGetTokenInfo(rpcUrl, params));
+          return yield* mapFastSdkError(sdkGetTokenInfo(rpcUrl, params));
         }),
     };
   }),

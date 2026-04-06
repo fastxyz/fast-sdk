@@ -13,11 +13,10 @@ import type {
   PasswordRequiredError,
   WrongPasswordError,
 } from "./account.js";
-import type { InternalError, StorageError } from "./io.js";
+import type { FastSdkError, InternalError, StorageError } from "./io.js";
 import type {
   DefaultNetworkError,
   InvalidConfigError,
-  NetworkError,
   NetworkExistsError,
   NetworkNotFoundError,
   NoDefaultNetworkError,
@@ -39,7 +38,7 @@ import type {
   UserCancelledError,
 } from "./usage.js";
 
-export interface CliErrorMeta {
+export interface ClientErrorMeta {
   readonly exitCode: 0 | 1 | 2;
   readonly errorCode: string;
   readonly message: string;
@@ -63,7 +62,7 @@ export type ClientError =
   | NoAccountsError
   | InsufficientBalanceError
   | InsufficientGasError
-  | NetworkError
+  | FastSdkError
   | TransactionFailedError
   | UserCancelledError
   | PasswordRequiredError

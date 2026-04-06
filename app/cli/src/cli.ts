@@ -8,14 +8,26 @@ import { merge, object, or } from "@optique/core/constructs";
 import { message } from "@optique/core/message";
 import { optional, withDefault } from "@optique/core/modifiers";
 import type { InferValue } from "@optique/core/parser";
-import { argument, command, constant, option } from "@optique/core/primitives";
+import { argument, command, constant, option, passThrough } from "@optique/core/primitives";
 import { integer, string } from "@optique/core/valueparser";
 
 // ---------------------------------------------------------------------------
 // Global options (shared by every leaf command)
 // ---------------------------------------------------------------------------
 
-const globalOptions = object({
+/**
+ * Lenient pre-parser that extracts global meta-flags (--json, --help, --version)
+ * from argv without failing on unknown tokens. Used by main.ts to determine
+ * output mode before the full parse.
+ */
+export const globalPreParser = object({
+  json: withDefault(option("--json"), false),
+  help: withDefault(option("--help"), false),
+  version: withDefault(option("--version"), false),
+  _rest: passThrough({ format: "greedy" }),
+});
+
+export const globalOptions = object({
   json: withDefault(
     option("--json", { description: message`Emit machine-parseable JSON to stdout` }),
     false,

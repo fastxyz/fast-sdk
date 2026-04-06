@@ -1,9 +1,12 @@
-import { mkdirSync, chmodSync } from "node:fs";
+import { chmodSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
-import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import {
+  type BetterSQLite3Database,
+  drizzle,
+} from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { Context, Layer } from "effect";
 import * as schema from "../db/schema.js";
@@ -38,7 +41,12 @@ export const DatabaseLive = Layer.sync(DatabaseService, () => {
 
   // Apply migrations from the generated drizzle/ folder.
   // drizzle-kit generate creates these from db/schema.ts.
-  migrate(db, { migrationsFolder: join(dirname(fileURLToPath(import.meta.url)), "../drizzle") });
+  migrate(db, {
+    migrationsFolder: join(
+      dirname(fileURLToPath(import.meta.url)),
+      "../drizzle",
+    ),
+  });
 
   // Seed defaults
   db.insert(schema.metadata)

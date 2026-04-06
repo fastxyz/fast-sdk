@@ -1,9 +1,9 @@
 import { Signer, toHex } from "@fastxyz/fast-sdk";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
-import { eq, count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { Context, Effect, Layer, Option } from "effect";
-import { accounts } from "../../db/schema.js";
+import { accounts } from "../db/schema.js";
 import {
   AccountExistsError,
   AccountNotFoundError,
@@ -11,9 +11,9 @@ import {
   NoAccountsError,
   StorageError,
   WrongPasswordError,
-} from "../../errors/index.js";
-import { encryptSeed, decryptSeed } from "../crypto.js";
-import { DatabaseService } from "../database.js";
+} from "../errors/index.js";
+import { decryptSeed, encryptSeed } from "./crypto.js";
+import { DatabaseService } from "./database.js";
 
 export interface AccountInfo {
   readonly name: string;
@@ -109,7 +109,11 @@ export const AccountStoreLive = Layer.effect(
       password: string,
     ): Effect.Effect<AccountInfo, AccountExistsError | StorageError> =>
       Effect.gen(function* () {
-        const existing = db.select().from(accounts).where(eq(accounts.name, name)).get();
+        const existing = db
+          .select()
+          .from(accounts)
+          .where(eq(accounts.name, name))
+          .get();
         if (existing) {
           return yield* Effect.fail(new AccountExistsError({ name }));
         }
@@ -121,17 +125,20 @@ export const AccountStoreLive = Layer.effect(
             new StorageError({ message: "Failed to encrypt seed", cause }),
         });
 
-        const isFirst = db.select({ cnt: count() }).from(accounts).get()!.cnt === 0;
+        const isFirst =
+          db.select({ cnt: count() }).from(accounts).get()!.cnt === 0;
         const createdAt = new Date().toISOString();
 
-        db.insert(accounts).values({
-          name,
-          fastAddress,
-          evmAddress,
-          encryptedKey: Buffer.from(encrypted),
-          isDefault: isFirst,
-          createdAt,
-        }).run();
+        db.insert(accounts)
+          .values({
+            name,
+            fastAddress,
+            evmAddress,
+            encryptedKey: Buffer.from(encrypted),
+            isDefault: isFirst,
+            createdAt,
+          })
+          .run();
 
         return { name, fastAddress, evmAddress, isDefault: isFirst, createdAt };
       });
@@ -140,7 +147,12 @@ export const AccountStoreLive = Layer.effect(
       list: () =>
         Effect.try({
           try: () =>
-            db.select().from(accounts).orderBy(accounts.createdAt).all().map(rowToInfo),
+            db
+              .select()
+              .from(accounts)
+              .orderBy(accounts.createdAt)
+              .all()
+              .map(rowToInfo),
           catch: (cause) =>
             new StorageError({ message: "Failed to list accounts", cause }),
         }),
@@ -148,27 +160,41 @@ export const AccountStoreLive = Layer.effect(
       get: (name) =>
         Effect.try({
           try: () => {
-            const row = db.select().from(accounts).where(eq(accounts.name, name)).get();
+            const row = db
+              .select()
+              .from(accounts)
+              .where(eq(accounts.name, name))
+              .get();
             if (!row) throw new AccountNotFoundError({ name });
             return rowToInfo(row);
           },
           catch: (e) =>
             e instanceof AccountNotFoundError
               ? e
-              : new StorageError({ message: "Failed to get account", cause: e }),
+              : new StorageError({
+                  message: "Failed to get account",
+                  cause: e,
+                }),
         }),
 
       getDefault: () =>
         Effect.try({
           try: () => {
-            const row = db.select().from(accounts).where(eq(accounts.isDefault, true)).get();
+            const row = db
+              .select()
+              .from(accounts)
+              .where(eq(accounts.isDefault, true))
+              .get();
             if (!row) throw new NoAccountsError();
             return rowToInfo(row);
           },
           catch: (e) =>
             e instanceof NoAccountsError
               ? e
-              : new StorageError({ message: "Failed to get default account", cause: e }),
+              : new StorageError({
+                  message: "Failed to get default account",
+                  cause: e,
+                }),
         }),
 
       create: (name, seed, password) => storeAccount(name, seed, password),
@@ -177,52 +203,86 @@ export const AccountStoreLive = Layer.effect(
       setDefault: (name) =>
         Effect.try({
           try: () => {
-            const row = db.select().from(accounts).where(eq(accounts.name, name)).get();
+            const row = db
+              .select()
+              .from(accounts)
+              .where(eq(accounts.name, name))
+              .get();
             if (!row) throw new AccountNotFoundError({ name });
-            db.update(accounts).set({ isDefault: false }).where(eq(accounts.isDefault, true)).run();
-            db.update(accounts).set({ isDefault: true }).where(eq(accounts.name, name)).run();
+            db.update(accounts)
+              .set({ isDefault: false })
+              .where(eq(accounts.isDefault, true))
+              .run();
+            db.update(accounts)
+              .set({ isDefault: true })
+              .where(eq(accounts.name, name))
+              .run();
           },
           catch: (e) =>
             e instanceof AccountNotFoundError
               ? e
-              : new StorageError({ message: "Failed to set default", cause: e }),
+              : new StorageError({
+                  message: "Failed to set default",
+                  cause: e,
+                }),
         }),
 
       delete_: (name) =>
         Effect.try({
           try: () => {
-            const row = db.select().from(accounts).where(eq(accounts.name, name)).get();
+            const row = db
+              .select()
+              .from(accounts)
+              .where(eq(accounts.name, name))
+              .get();
             if (!row) throw new AccountNotFoundError({ name });
-            if (row.isDefault && db.select({ cnt: count() }).from(accounts).get()!.cnt > 1) {
+            if (
+              row.isDefault &&
+              db.select({ cnt: count() }).from(accounts).get()!.cnt > 1
+            ) {
               throw new DefaultAccountError({ name });
             }
             db.delete(accounts).where(eq(accounts.name, name)).run();
           },
           catch: (e) =>
-            e instanceof AccountNotFoundError || e instanceof DefaultAccountError
+            e instanceof AccountNotFoundError ||
+            e instanceof DefaultAccountError
               ? e
-              : new StorageError({ message: "Failed to delete account", cause: e }),
+              : new StorageError({
+                  message: "Failed to delete account",
+                  cause: e,
+                }),
         }),
 
       export_: (name, password) =>
         Effect.gen(function* () {
           const row = yield* Effect.try({
             try: () => {
-              const r = db.select().from(accounts).where(eq(accounts.name, name)).get();
+              const r = db
+                .select()
+                .from(accounts)
+                .where(eq(accounts.name, name))
+                .get();
               if (!r) throw new AccountNotFoundError({ name });
               return r;
             },
             catch: (e) =>
               e instanceof AccountNotFoundError
                 ? e
-                : new StorageError({ message: "Failed to read account", cause: e }),
+                : new StorageError({
+                    message: "Failed to read account",
+                    cause: e,
+                  }),
           });
 
           const seed = yield* Effect.tryPromise({
             try: () => decryptSeed(new Uint8Array(row.encryptedKey), password),
             catch: (cause) => {
               if (cause instanceof WrongPasswordError) return cause;
-              return new StorageError({ message: "Failed to decrypt seed", cause });
+              return new StorageError({
+                message: "Failed to decrypt seed",
+                cause,
+              });
             },
           });
 
@@ -232,13 +292,23 @@ export const AccountStoreLive = Layer.effect(
       resolveAccount: (flag) =>
         Effect.gen(function* () {
           if (Option.isSome(flag)) {
-            const row = db.select().from(accounts).where(eq(accounts.name, flag.value)).get();
+            const row = db
+              .select()
+              .from(accounts)
+              .where(eq(accounts.name, flag.value))
+              .get();
             if (!row) {
-              return yield* Effect.fail(new AccountNotFoundError({ name: flag.value }));
+              return yield* Effect.fail(
+                new AccountNotFoundError({ name: flag.value }),
+              );
             }
             return rowToInfo(row);
           }
-          const row = db.select().from(accounts).where(eq(accounts.isDefault, true)).get();
+          const row = db
+            .select()
+            .from(accounts)
+            .where(eq(accounts.isDefault, true))
+            .get();
           if (!row) {
             return yield* Effect.fail(new NoAccountsError());
           }
@@ -248,14 +318,20 @@ export const AccountStoreLive = Layer.effect(
       nextAutoName: () =>
         Effect.try({
           try: () => {
-            const rows = db.select({ name: accounts.name }).from(accounts).all();
+            const rows = db
+              .select({ name: accounts.name })
+              .from(accounts)
+              .all();
             const names = new Set(rows.map((r) => r.name));
             let n = 1;
             while (names.has(`account-${n}`)) n++;
             return `account-${n}`;
           },
           catch: (cause) =>
-            new StorageError({ message: "Failed to generate account name", cause }),
+            new StorageError({
+              message: "Failed to generate account name",
+              cause,
+            }),
         }),
     };
   }),

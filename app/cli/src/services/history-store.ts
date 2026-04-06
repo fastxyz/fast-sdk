@@ -15,12 +15,22 @@ export interface HistoryFilters {
 
 export interface HistoryStoreShape {
   readonly record: (entry: HistoryEntry) => Effect.Effect<void, StorageError>;
-  readonly list: (filters: HistoryFilters) => Effect.Effect<HistoryEntry[], StorageError>;
-  readonly getByHash: (hash: string) => Effect.Effect<HistoryEntry, TxNotFoundError | StorageError>;
-  readonly updateStatus: (hash: string, status: string) => Effect.Effect<void, StorageError>;
+  readonly list: (
+    filters: HistoryFilters,
+  ) => Effect.Effect<HistoryEntry[], StorageError>;
+  readonly getByHash: (
+    hash: string,
+  ) => Effect.Effect<HistoryEntry, TxNotFoundError | StorageError>;
+  readonly updateStatus: (
+    hash: string,
+    status: string,
+  ) => Effect.Effect<void, StorageError>;
 }
 
-export class HistoryStore extends Context.Tag("HistoryStore")<HistoryStore, HistoryStoreShape>() {}
+export class HistoryStore extends Context.Tag("HistoryStore")<
+  HistoryStore,
+  HistoryStoreShape
+>() {}
 
 const rowToEntry = (row: typeof history.$inferSelect): HistoryEntry => ({
   hash: row.hash,
@@ -48,28 +58,34 @@ export const HistoryStoreLive = Layer.effect(
       record: (entry) =>
         Effect.try({
           try: () => {
-            db.insert(history).values({
-              hash: entry.hash,
-              type: entry.type,
-              from: entry.from,
-              to: entry.to,
-              amount: entry.amount,
-              formatted: entry.formatted,
-              tokenName: entry.tokenName,
-              tokenId: entry.tokenId,
-              network: entry.network,
-              status: entry.status,
-              timestamp: entry.timestamp,
-              explorerUrl: entry.explorerUrl,
-              route: entry.route,
-              chainId: entry.chainId,
-            }).onConflictDoUpdate({
-              target: history.hash,
-              set: { status: entry.status },
-            }).run();
+            db.insert(history)
+              .values({
+                hash: entry.hash,
+                type: entry.type,
+                from: entry.from,
+                to: entry.to,
+                amount: entry.amount,
+                formatted: entry.formatted,
+                tokenName: entry.tokenName,
+                tokenId: entry.tokenId,
+                network: entry.network,
+                status: entry.status,
+                timestamp: entry.timestamp,
+                explorerUrl: entry.explorerUrl,
+                route: entry.route,
+                chainId: entry.chainId,
+              })
+              .onConflictDoUpdate({
+                target: history.hash,
+                set: { status: entry.status },
+              })
+              .run();
           },
           catch: (cause) =>
-            new StorageError({ message: "Failed to record history entry", cause }),
+            new StorageError({
+              message: "Failed to record history entry",
+              cause,
+            }),
         }),
 
       list: (filters) =>
@@ -86,7 +102,10 @@ export const HistoryStoreLive = Layer.effect(
             if (filters.token) {
               conditions.push(
                 or(
-                  eq(sql`LOWER(${history.tokenName})`, filters.token.toLowerCase()),
+                  eq(
+                    sql`LOWER(${history.tokenName})`,
+                    filters.token.toLowerCase(),
+                  ),
                   eq(history.tokenId, filters.token),
                 )!,
               );
@@ -99,9 +118,10 @@ export const HistoryStoreLive = Layer.effect(
               .limit(filters.limit ?? 20)
               .offset(filters.offset ?? 0);
 
-            const rows = conditions.length > 0
-              ? query.where(and(...conditions)).all()
-              : query.all();
+            const rows =
+              conditions.length > 0
+                ? query.where(and(...conditions)).all()
+                : query.all();
 
             return rows.map(rowToEntry);
           },
@@ -113,23 +133,36 @@ export const HistoryStoreLive = Layer.effect(
         Effect.try({
           try: () => {
             const normalized = hash.startsWith("0x") ? hash : `0x${hash}`;
-            const row = db.select().from(history).where(eq(history.hash, normalized)).get();
+            const row = db
+              .select()
+              .from(history)
+              .where(eq(history.hash, normalized))
+              .get();
             if (!row) throw new TxNotFoundError({ hash: normalized });
             return rowToEntry(row);
           },
           catch: (e) =>
             e instanceof TxNotFoundError
               ? e
-              : new StorageError({ message: "Failed to get transaction", cause: e }),
+              : new StorageError({
+                  message: "Failed to get transaction",
+                  cause: e,
+                }),
         }),
 
       updateStatus: (hash, status) =>
         Effect.try({
           try: () => {
-            db.update(history).set({ status }).where(eq(history.hash, hash)).run();
+            db.update(history)
+              .set({ status })
+              .where(eq(history.hash, hash))
+              .run();
           },
           catch: (cause) =>
-            new StorageError({ message: "Failed to update history status", cause }),
+            new StorageError({
+              message: "Failed to update history status",
+              cause,
+            }),
         }),
     };
   }),

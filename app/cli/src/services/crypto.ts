@@ -11,7 +11,7 @@ const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const DKLEN = 32;
 
-interface EncryptedBlob {
+interface EncryptionJson {
   v: 1;
   salt: string;
   iv: string;
@@ -20,11 +20,17 @@ interface EncryptedBlob {
   kdf: { n: number; r: number; p: number };
 }
 
-const computeMac = (
-  derivedKey: Uint8Array,
-  ciphertext: Uint8Array,
-): Uint8Array =>
-  keccak_256(new Uint8Array([...derivedKey.slice(16, 32), ...ciphertext]));
+const computeMac = (key: Uint8Array, text: Uint8Array): Uint8Array =>
+  keccak_256(new Uint8Array([...key.slice(16, 32), ...text]));
+
+const encryptJson = (blob: EncryptionJson): Uint8Array =>
+  new TextEncoder().encode(JSON.stringify(blob));
+
+const decryptJson = (data: Uint8Array): EncryptionJson =>
+  JSON.parse(new TextDecoder().decode(data));
+
+const encodePassword = (password: string): Uint8Array =>
+  new TextEncoder().encode(password);
 
 /**
  * Encrypt a seed with a password. Returns an opaque blob (JSON bytes)
@@ -36,16 +42,17 @@ export const encryptSeed = async (
 ): Promise<Uint8Array> => {
   const salt = randomBytes(32);
   const iv = randomBytes(16);
-  const derivedKey = await scryptAsync(
-    new TextEncoder().encode(password),
-    salt,
-    { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, dkLen: DKLEN },
-  );
+  const derivedKey = await scryptAsync(encodePassword(password), salt, {
+    N: SCRYPT_N,
+    r: SCRYPT_R,
+    p: SCRYPT_P,
+    dkLen: DKLEN,
+  });
   const cipher = ctr(derivedKey.slice(0, 16), iv);
   const ciphertext = cipher.encrypt(seed);
   const mac = computeMac(derivedKey, ciphertext);
 
-  const blob: EncryptedBlob = {
+  const blob: EncryptionJson = {
     v: 1,
     salt: toHex(salt),
     iv: toHex(iv),
@@ -53,7 +60,7 @@ export const encryptSeed = async (
     ct: toHex(ciphertext),
     kdf: { n: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P },
   };
-  return new TextEncoder().encode(JSON.stringify(blob));
+  return encryptJson(blob);
 };
 
 /**
@@ -64,17 +71,18 @@ export const decryptSeed = async (
   blob: Uint8Array,
   password: string,
 ): Promise<Uint8Array> => {
-  const parsed: EncryptedBlob = JSON.parse(new TextDecoder().decode(blob));
+  const parsed: EncryptionJson = decryptJson(blob);
   const salt = fromHex(parsed.salt);
   const iv = fromHex(parsed.iv);
   const ciphertext = fromHex(parsed.ct);
   const storedMac = fromHex(parsed.mac);
 
-  const derivedKey = await scryptAsync(
-    new TextEncoder().encode(password),
-    salt,
-    { N: parsed.kdf.n, r: parsed.kdf.r, p: parsed.kdf.p, dkLen: DKLEN },
-  );
+  const derivedKey = await scryptAsync(encodePassword(password), salt, {
+    N: parsed.kdf.n,
+    r: parsed.kdf.r,
+    p: parsed.kdf.p,
+    dkLen: DKLEN,
+  });
 
   const computedMac = computeMac(derivedKey, ciphertext);
   if (!timingSafeEqual(computedMac, storedMac)) {

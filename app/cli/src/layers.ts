@@ -1,5 +1,5 @@
 import { Layer, type Option } from "effect";
-import { AccountStoreLive } from "./services/account/account-store.js";
+import { AccountStoreLive } from "./services/account-store.js";
 import { makeConfigLayer } from "./services/cli-config.js";
 import { DatabaseLive } from "./services/database.js";
 import { FastRpcLive } from "./services/fast-rpc.js";
@@ -40,9 +40,9 @@ export const makeAppLayer = (parsed: ParsedOptions) => {
   ).pipe(Layer.provide(foundation));
 
   // Services that depend on tier1
-  const tier2 = Layer.mergeAll(
-    FastRpcLive,
-  ).pipe(Layer.provide(Layer.merge(foundation, tier1)));
+  const tier2 = Layer.mergeAll(FastRpcLive).pipe(
+    Layer.provide(Layer.merge(foundation, tier1)),
+  );
 
   return Layer.mergeAll(foundation, tier1, tier2);
 };

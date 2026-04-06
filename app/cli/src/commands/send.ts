@@ -26,7 +26,7 @@ import {
   UserCancelledError,
 } from "../errors/index.js";
 import { makeHistoryEntry } from "../schemas/history.js";
-import { AccountStore } from "../services/account/account-store.js";
+import { AccountStore } from "../services/account-store.js";
 import { Config } from "../services/cli-config.js";
 import { FastRpc } from "../services/fast-rpc.js";
 import { HistoryStore } from "../services/history-store.js";

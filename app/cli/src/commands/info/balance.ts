@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
 import { InvalidAddressError } from "../../errors/index.js";
-import { AccountStore } from "../../services/account/account-store.js";
+import { AccountStore } from "../../services/account-store.js";
 import { Config } from "../../services/cli-config.js";
 import { FastRpc } from "../../services/fast-rpc.js";
 import { Output } from "../../services/output.js";

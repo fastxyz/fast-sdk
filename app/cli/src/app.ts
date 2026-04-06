@@ -2,6 +2,7 @@ import { Effect, Layer, type Option } from "effect";
 import { FastRpcLive } from "./services/api/fast.js";
 import { makeConfigLayer } from "./services/config/config.js";
 import { type CliError, toErrorCode, toExitCode } from "./errors/index.js";
+import { EnvLive } from "./services/env.js";
 import { OutputLive, Output } from "./services/output.js";
 import { PromptLive } from "./services/prompt.js";
 import { AccountStoreLive } from "./services/storage/account.js";
@@ -32,8 +33,8 @@ export const makeAppLayer = (opts: GlobalOptions) => {
     password: opts.password,
   });
 
-  // Foundation: database + config
-  const foundation = Layer.mergeAll(DatabaseLive, cliConfigLayer);
+  // Foundation: database + config + env
+  const foundation = Layer.mergeAll(DatabaseLive, cliConfigLayer, EnvLive);
 
   // Services that depend only on foundation
   const tier1 = Layer.mergeAll(

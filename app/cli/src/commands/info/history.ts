@@ -1,7 +1,5 @@
-import { defineCommand } from "citty";
 import { Effect, Option } from "effect";
-import { globalArgs } from "../../cli-globals.js";
-import { runHandler } from "../../cli-runner.js";
+import type { InfoHistoryArgs } from "../../cli.js";
 import { InvalidUsageError } from "../../errors/index.js";
 import { Output } from "../../services/output.js";
 import { HistoryStore } from "../../services/storage/history.js";
@@ -71,118 +69,93 @@ async function isWithdrawConfirmed(
   return records.some((r) => r.transferFastTxId?.toLowerCase() === normalized);
 }
 
-export const infoHistory = defineCommand({
-  meta: { name: "history", description: "Show transaction history" },
-  args: {
-    ...globalArgs,
-    from: {
-      type: "string",
-      description: "Filter by sender account name or address",
-    },
-    to: { type: "string", description: "Filter by recipient address" },
-    token: { type: "string", description: "Filter by token" },
-    limit: {
-      type: "string",
-      description: "Max number of records to return",
-      default: "20",
-    },
-    offset: {
-      type: "string",
-      description: "Number of records to skip",
-      default: "0",
-    },
-  },
-  run: ({ args }) =>
-    runHandler(
-      args,
-      Effect.gen(function* () {
-        const history = yield* HistoryStore;
-        const networkConfig = yield* NetworkConfigService;
-        const output = yield* Output;
+export const infoHistoryHandler = (args: InfoHistoryArgs) =>
+  Effect.gen(function* () {
+    const history = yield* HistoryStore;
+    const networkConfig = yield* NetworkConfigService;
+    const output = yield* Output;
 
-        const limit = Number(args.limit);
-        const offset = Number(args.offset);
+    const limit = args.limit;
+    const offset = args.offset;
 
-        if (!Number.isFinite(limit) || !Number.isInteger(limit) || limit < 0) {
-          return yield* Effect.fail(
-            new InvalidUsageError({
-              message: "--limit must be a non-negative integer",
-            }),
-          );
-        }
-        if (
-          !Number.isFinite(offset) ||
-          !Number.isInteger(offset) ||
-          offset < 0
-        ) {
-          return yield* Effect.fail(
-            new InvalidUsageError({
-              message: "--offset must be a non-negative integer",
-            }),
-          );
-        }
+    if (!Number.isFinite(limit) || !Number.isInteger(limit) || limit < 0) {
+      return yield* Effect.fail(
+        new InvalidUsageError({
+          message: "--limit must be a non-negative integer",
+        }),
+      );
+    }
+    if (
+      !Number.isFinite(offset) ||
+      !Number.isInteger(offset) ||
+      offset < 0
+    ) {
+      return yield* Effect.fail(
+        new InvalidUsageError({
+          message: "--offset must be a non-negative integer",
+        }),
+      );
+    }
 
-        let entries = yield* history.list({
-          from: args.from,
-          to: args.to,
-          token: args.token,
-          limit,
-          offset,
-        });
+    let entries = yield* history.list({
+      from: args.from,
+      to: args.to,
+      token: args.token,
+      limit,
+      offset,
+    });
 
-        const pendingBridge = entries.filter((e) => {
-          if (e.status !== "pending") return false;
-          const route = inferRoute(e);
-          return route === "evm-to-fast" || route === "fast-to-evm";
-        });
-        if (pendingBridge.length > 0) {
-          yield* Effect.forEach(
-            pendingBridge,
-            (entry) =>
-              Effect.gen(function* () {
-                const networkCfg = yield* networkConfig
-                  .resolve(entry.network)
-                  .pipe(Effect.option);
-                if (Option.isNone(networkCfg) || !networkCfg.value.allset)
-                  return;
-                const portalApiUrl = networkCfg.value.allset.portalApiUrl;
-                const route = inferRoute(entry);
+    const pendingBridge = entries.filter((e) => {
+      if (e.status !== "pending") return false;
+      const route = inferRoute(e);
+      return route === "evm-to-fast" || route === "fast-to-evm";
+    });
+    if (pendingBridge.length > 0) {
+      yield* Effect.forEach(
+        pendingBridge,
+        (entry) =>
+          Effect.gen(function* () {
+            const networkCfg = yield* networkConfig
+              .resolve(entry.network)
+              .pipe(Effect.option);
+            if (Option.isNone(networkCfg) || !networkCfg.value.allset)
+              return;
+            const portalApiUrl = networkCfg.value.allset.portalApiUrl;
+            const route = inferRoute(entry);
 
-                const confirmed = yield* Effect.promise(() =>
-                  route === "evm-to-fast"
-                    ? isDepositConfirmed(portalApiUrl, entry.from, entry.hash)
-                    : isWithdrawConfirmed(portalApiUrl, entry.from, entry.hash),
-                );
-                if (confirmed) {
-                  yield* history.updateStatus(entry.hash, "confirmed");
-                }
-              }),
-            { concurrency: 3 },
-          );
+            const confirmed = yield* Effect.promise(() =>
+              route === "evm-to-fast"
+                ? isDepositConfirmed(portalApiUrl, entry.from, entry.hash)
+                : isWithdrawConfirmed(portalApiUrl, entry.from, entry.hash),
+            );
+            if (confirmed) {
+              yield* history.updateStatus(entry.hash, "confirmed");
+            }
+          }),
+        { concurrency: 3 },
+      );
 
-          entries = yield* history.list({
-            from: args.from,
-            to: args.to,
-            token: args.token,
-            limit,
-            offset,
-          });
-        }
+      entries = yield* history.list({
+        from: args.from,
+        to: args.to,
+        token: args.token,
+        limit,
+        offset,
+      });
+    }
 
-        yield* output.humanTable(
-          ["HASH", "TYPE", "FROM", "TO", "AMOUNT", "TOKEN", "STATUS", "TIME"],
-          entries.map((e) => [
-            `${e.hash.slice(0, 10)}...`,
-            e.type,
-            `${e.from.slice(0, 10)}...`,
-            `${e.to.slice(0, 10)}...`,
-            e.formatted,
-            e.tokenName,
-            e.status,
-            e.timestamp,
-          ]),
-        );
-        yield* output.success({ transactions: entries });
-      }),
-    ),
-});
+    yield* output.humanTable(
+      ["HASH", "TYPE", "FROM", "TO", "AMOUNT", "TOKEN", "STATUS", "TIME"],
+      entries.map((e) => [
+        `${e.hash.slice(0, 10)}...`,
+        e.type,
+        `${e.from.slice(0, 10)}...`,
+        `${e.to.slice(0, 10)}...`,
+        e.formatted,
+        e.tokenName,
+        e.status,
+        e.timestamp,
+      ]),
+    );
+    yield* output.success({ transactions: entries });
+  });

@@ -26,7 +26,7 @@ import {
 } from "../errors/index.js";
 import { makeHistoryEntry } from "../schemas/history.js";
 import { FastRpc } from "../services/api/fast.js";
-import { Config } from "../services/config.js";
+import { Config } from "../services/config/config.js";
 import { Output } from "../services/output.js";
 import { Prompt } from "../services/prompt.js";
 import { AccountStore } from "../services/storage/account.js";

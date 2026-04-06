@@ -2,7 +2,7 @@ import { defineCommand } from "citty";
 import { Effect } from "effect";
 import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
-import { Config } from "../../services/config.js";
+import { Config } from "../../services/config/config.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 

@@ -1,7 +1,7 @@
 import Table from "cli-table3";
 import { Context, Effect, Layer } from "effect";
 import { type CliError, toErrorCode } from "../errors/index.js";
-import { Config } from "./config.js";
+import { Config } from "./config/config.js";
 
 export interface OutputShape {
   readonly success: (data: unknown) => Effect.Effect<void>;

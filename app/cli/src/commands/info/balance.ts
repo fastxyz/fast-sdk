@@ -5,7 +5,7 @@ import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
 import { InvalidAddressError } from "../../errors/index.js";
 import { FastRpc } from "../../services/api/fast.js";
-import { Config } from "../../services/config.js";
+import { Config } from "../../services/config/config.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 

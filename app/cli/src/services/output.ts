@@ -1,11 +1,41 @@
 import Table from "cli-table3";
 import { Context, Effect, Layer } from "effect";
-import { type CliError, toErrorCode } from "../errors/index.js";
+import { type ClientError, toErrorCode } from "../errors/index.js";
 import { Config } from "./config/config.js";
+
+// ---------------------------------------------------------------------------
+// Pure functions — no Effect, no service. Can be called from anywhere.
+// ---------------------------------------------------------------------------
+
+export const writeOk = (data: unknown, json: boolean): void => {
+  if (json) {
+    process.stdout.write(
+      `${JSON.stringify({ ok: true, data }, null, 2)}\n`,
+    );
+  }
+};
+
+export const writeFail = (err: ClientError, json: boolean): void => {
+  if (json) {
+    process.stdout.write(
+      `${JSON.stringify(
+        { ok: false, error: { code: toErrorCode(err), message: err.message } },
+        null,
+        2,
+      )}\n`,
+    );
+  } else {
+    process.stderr.write(`Error: ${err.message}\n`);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Effect service — delegates to the pure functions above.
+// ---------------------------------------------------------------------------
 
 export interface OutputShape {
   readonly ok: (data: unknown) => Effect.Effect<void>;
-  readonly fail: (err: CliError) => Effect.Effect<void>;
+  readonly fail: (err: ClientError) => Effect.Effect<void>;
   readonly humanLine: (text: string) => Effect.Effect<void>;
   readonly humanTable: (
     headers: string[],
@@ -22,32 +52,9 @@ export const OutputLive = Layer.effect(
     const config = yield* Config;
 
     return {
-      ok: (data) =>
-        Effect.sync(() => {
-          if (config.json) {
-            process.stdout.write(
-              `${JSON.stringify({ ok: true, data }, null, 2)}\n`,
-            );
-          }
-        }),
+      ok: (data) => Effect.sync(() => writeOk(data, config.json)),
 
-      fail: (err) =>
-        Effect.sync(() => {
-          if (config.json) {
-            process.stdout.write(
-              `${JSON.stringify(
-                {
-                  ok: false,
-                  error: { code: toErrorCode(err), message: err.message },
-                },
-                null,
-                2,
-              )}\n`,
-            );
-          } else {
-            process.stderr.write(`Error: ${err.message}\n`);
-          }
-        }),
+      fail: (err) => Effect.sync(() => writeFail(err, config.json)),
 
       humanLine: (text) =>
         Effect.sync(() => {

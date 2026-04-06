@@ -1,8 +1,8 @@
 import { Effect, Layer, type Option } from "effect";
+import { InternalError, type ClientError, toExitCode } from "./errors/index.js";
 import { FastRpcLive } from "./services/api/fast.js";
 import { makeConfigLayer } from "./services/config/config.js";
-import { type CliError, toErrorCode, toExitCode } from "./errors/index.js";
-import { OutputLive, Output } from "./services/output.js";
+import { Output, OutputLive } from "./services/output.js";
 import { PromptLive } from "./services/prompt.js";
 import { AccountStoreLive } from "./services/storage/account.js";
 import { DatabaseLive } from "./services/storage/database.js";
@@ -54,35 +54,32 @@ export const makeAppLayer = (opts: GlobalOptions) => {
  *
  * - Builds the app layer from parsed global options
  * - Provides it to the program
- * - Catches CliErrors, prints via Output, and exits with the mapped code
+ * - Catches ClientErrors, prints via Output, and exits with the mapped code
  * - Catches defects (unexpected throws) and writes a fallback message to stderr
  */
 export const runHandler = <A, R>(
   opts: GlobalOptions,
-  program: Effect.Effect<A, CliError, R>,
+  program: Effect.Effect<A, ClientError, R>,
 ): Promise<void> => {
   const layer = makeAppLayer(opts);
 
   const handled = program.pipe(
-    Effect.catchAll((err: CliError) =>
+    Effect.catchAll((err: ClientError) =>
       Effect.gen(function* () {
         const output = yield* Output;
         yield* output.fail(err);
-        // biome-ignore lint/suspicious/useIsNan: process.exit never returns
         process.exit(toExitCode(err));
       }),
     ),
     Effect.catchAllDefect((defect) =>
-      Effect.sync(() => {
-        const message =
-          defect instanceof Error ? defect.message : String(defect);
-        if (opts.json) {
-          process.stdout.write(
-            `${JSON.stringify({ ok: false, error: { code: "UNKNOWN_ERROR", message } }, null, 2)}\n`,
-          );
-        } else {
-          process.stderr.write(`Error: ${message}\n`);
-        }
+      Effect.gen(function* () {
+        const output = yield* Output;
+        yield* output.fail(
+          new InternalError({
+            message: defect instanceof Error ? defect.message : String(defect),
+            cause: defect,
+          }),
+        );
         process.exit(1);
       }),
     ),
@@ -95,6 +92,3 @@ export const runHandler = <A, R>(
   // for generic handler signatures.
   return Effect.runPromise(handled as Effect.Effect<void, never, never>);
 };
-
-// Re-export for use inside handlers that need to inspect the raw error code
-export { toErrorCode };

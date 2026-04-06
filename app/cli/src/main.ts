@@ -4,13 +4,16 @@
  * Parses argv with optique, dispatches to command handlers, and handles all
  * errors in one place.
  */
-import { Option } from "effect";
+
 import { formatDocPage } from "@optique/core/doc";
 import { formatMessage } from "@optique/core/message";
 import { getDocPageSync, parse } from "@optique/core/parser";
+import { Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
-import { parser, type ParsedArgs } from "./cli.js";
+import { type ParsedArgs, parser } from "./cli.js";
+import { InternalError, InvalidUsageError } from "./errors/index.js";
+import { writeFail } from "./services/output.js";
 
 // Command handlers (will be updated in Task 5 to export Effect programs)
 import { accountCreateHandler } from "./commands/account/create.js";
@@ -46,7 +49,11 @@ if (rawArgs.includes("--version") || rawArgs.includes("-v")) {
 // ---------------------------------------------------------------------------
 // --help (show generated doc page)
 // ---------------------------------------------------------------------------
-if (rawArgs.length === 0 || rawArgs.includes("--help") || rawArgs.includes("-h")) {
+if (
+  rawArgs.length === 0 ||
+  rawArgs.includes("--help") ||
+  rawArgs.includes("-h")
+) {
   const docPage = getDocPageSync(parser);
   if (docPage) {
     const text = formatDocPage("fast", docPage, {
@@ -65,14 +72,10 @@ if (rawArgs.length === 0 || rawArgs.includes("--help") || rawArgs.includes("-h")
 const result = parse(parser, rawArgs);
 
 if (!result.success) {
-  const message = formatMessage(result.error);
-  if (isJson) {
-    process.stdout.write(
-      `${JSON.stringify({ ok: false, error: { code: "INVALID_USAGE", message } }, null, 2)}\n`,
-    );
-  } else {
-    process.stderr.write(`${message}\n`);
-  }
+  writeFail(
+    new InvalidUsageError({ message: formatMessage(result.error) }),
+    isJson,
+  );
   process.exit(1);
 }
 
@@ -87,7 +90,8 @@ const globalOpts: GlobalOptions = {
   nonInteractive: parsed.nonInteractive,
   network: parsed.network,
   account: parsed.account != null ? Option.some(parsed.account) : Option.none(),
-  password: parsed.password != null ? Option.some(parsed.password) : Option.none(),
+  password:
+    parsed.password != null ? Option.some(parsed.password) : Option.none(),
 };
 
 // ---------------------------------------------------------------------------
@@ -138,13 +142,12 @@ const dispatch = (): Promise<void> => {
 };
 
 dispatch().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  if (isJson) {
-    process.stdout.write(
-      `${JSON.stringify({ ok: false, error: { code: "UNKNOWN_ERROR", message } }, null, 2)}\n`,
-    );
-  } else {
-    process.stderr.write(`Error: ${message}\n`);
-  }
+  writeFail(
+    new InternalError({
+      message: err instanceof Error ? err.message : String(err),
+      cause: err,
+    }),
+    isJson,
+  );
   process.exit(1);
 });

@@ -7,6 +7,7 @@
 import { merge, object, or } from "@optique/core/constructs";
 import { optional, withDefault } from "@optique/core/modifiers";
 import type { InferValue } from "@optique/core/parser";
+import { message } from "@optique/core/message";
 import { argument, command, constant, option } from "@optique/core/primitives";
 import { integer, string } from "@optique/core/valueparser";
 
@@ -36,6 +37,7 @@ const accountCreateParser = command(
     cmd: constant("account-create" as const),
     name: optional(option("--name", string())),
   }),
+  { description: message`Create a new account` },
 );
 
 const accountImportParser = command(
@@ -46,6 +48,7 @@ const accountImportParser = command(
     privateKey: optional(option("--private-key", string())),
     keyFile: optional(option("--key-file", string())),
   }),
+  { description: message`Import an existing private key` },
 );
 
 const accountListParser = command(
@@ -53,6 +56,7 @@ const accountListParser = command(
   object({
     cmd: constant("account-list" as const),
   }),
+  { description: message`List all accounts` },
 );
 
 const accountSetDefaultParser = command(
@@ -61,6 +65,7 @@ const accountSetDefaultParser = command(
     cmd: constant("account-set-default" as const),
     name: argument(string()),
   }),
+  { description: message`Set the default account` },
 );
 
 const accountInfoParser = command(
@@ -69,6 +74,7 @@ const accountInfoParser = command(
     cmd: constant("account-info" as const),
     name: optional(argument(string())),
   }),
+  { description: message`Show account addresses` },
 );
 
 const accountExportParser = command(
@@ -77,6 +83,7 @@ const accountExportParser = command(
     cmd: constant("account-export" as const),
     name: optional(argument(string())),
   }),
+  { description: message`Export (decrypt) the private key` },
 );
 
 const accountDeleteParser = command(
@@ -85,6 +92,7 @@ const accountDeleteParser = command(
     cmd: constant("account-delete" as const),
     name: argument(string()),
   }),
+  { description: message`Delete an account` },
 );
 
 const accountGroup = command(
@@ -98,6 +106,7 @@ const accountGroup = command(
     accountExportParser,
     accountDeleteParser,
   ),
+  { description: message`Manage accounts` },
 );
 
 // ---------------------------------------------------------------------------
@@ -109,6 +118,7 @@ const networkListParser = command(
   object({
     cmd: constant("network-list" as const),
   }),
+  { description: message`List available networks` },
 );
 
 const networkAddParser = command(
@@ -118,6 +128,7 @@ const networkAddParser = command(
     name: argument(string()),
     config: option("--config", string()),
   }),
+  { description: message`Add a custom network config` },
 );
 
 const networkSetDefaultParser = command(
@@ -126,6 +137,7 @@ const networkSetDefaultParser = command(
     cmd: constant("network-set-default" as const),
     name: argument(string()),
   }),
+  { description: message`Set the default network` },
 );
 
 const networkRemoveParser = command(
@@ -134,11 +146,13 @@ const networkRemoveParser = command(
     cmd: constant("network-remove" as const),
     name: argument(string()),
   }),
+  { description: message`Remove a custom network` },
 );
 
 const networkGroup = command(
   "network",
   or(networkListParser, networkAddParser, networkSetDefaultParser, networkRemoveParser),
+  { description: message`Manage networks` },
 );
 
 // ---------------------------------------------------------------------------
@@ -150,6 +164,7 @@ const infoStatusParser = command(
   object({
     cmd: constant("info-status" as const),
   }),
+  { description: message`Health check for current network` },
 );
 
 const infoBalanceParser = command(
@@ -159,6 +174,7 @@ const infoBalanceParser = command(
     address: optional(option("--address", string())),
     token: optional(option("--token", string())),
   }),
+  { description: message`Show token balances for an address` },
 );
 
 const infoTxParser = command(
@@ -167,6 +183,7 @@ const infoTxParser = command(
     cmd: constant("info-tx" as const),
     hash: argument(string()),
   }),
+  { description: message`Look up a transaction by hash` },
 );
 
 const infoHistoryParser = command(
@@ -179,11 +196,13 @@ const infoHistoryParser = command(
     limit: withDefault(option("--limit", integer()), 20),
     offset: withDefault(option("--offset", integer()), 0),
   }),
+  { description: message`Show transaction history` },
 );
 
 const infoGroup = command(
   "info",
   or(infoStatusParser, infoBalanceParser, infoTxParser, infoHistoryParser),
+  { description: message`Query network and account information` },
 );
 
 // ---------------------------------------------------------------------------
@@ -200,6 +219,7 @@ const sendParser = command(
     fromChain: optional(option("--from-chain", string())),
     toChain: optional(option("--to-chain", string())),
   }),
+  { description: message`Send tokens (Fast→Fast, EVM→Fast, or Fast→EVM)` },
 );
 
 // ---------------------------------------------------------------------------

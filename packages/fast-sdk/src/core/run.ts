@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Option } from 'effect';
+import { Cause, Effect, Exit, Option } from "effect";
 
 /** Run an Effect, throwing typed errors directly (not wrapped in FiberFailure). */
 export const run = <A>(effect: Effect.Effect<A, unknown>): Promise<A> =>

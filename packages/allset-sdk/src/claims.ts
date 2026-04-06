@@ -8,15 +8,15 @@
  * These were previously inlined in bridge.ts executeIntent().
  */
 
-import { encodeAbiParameters, keccak256, type Hex } from 'viem';
-import type { Intent } from './intents.js';
+import { encodeAbiParameters, type Hex, keccak256 } from "viem";
+import type { Intent } from "./intents.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function hexToUint8Array(hex: string): Uint8Array {
-  const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
   const bytes = new Uint8Array(clean.length / 2);
   for (let i = 0; i < bytes.length; i++) {
     bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
@@ -30,30 +30,30 @@ function hexToUint8Array(hex: string): Uint8Array {
 
 const TRANSFER_CLAIM_ABI_PARAMS = [
   {
-    type: 'tuple' as const,
+    type: "tuple" as const,
     components: [
-      { name: 'from', type: 'string' as const },
-      { name: 'nonce', type: 'uint256' as const },
-      { name: 'asset', type: 'string' as const },
-      { name: 'amount', type: 'uint256' as const },
-      { name: 'to', type: 'string' as const },
+      { name: "from", type: "string" as const },
+      { name: "nonce", type: "uint256" as const },
+      { name: "asset", type: "string" as const },
+      { name: "amount", type: "uint256" as const },
+      { name: "to", type: "string" as const },
     ],
   },
 ] as const;
 
 const INTENT_CLAIM_ABI_PARAMS = [
   {
-    type: 'tuple' as const,
+    type: "tuple" as const,
     components: [
-      { name: 'transferFastTxId', type: 'bytes32' as const },
-      { name: 'deadline', type: 'uint256' as const },
+      { name: "transferFastTxId", type: "bytes32" as const },
+      { name: "deadline", type: "uint256" as const },
       {
-        name: 'intents',
-        type: 'tuple[]' as const,
+        name: "intents",
+        type: "tuple[]" as const,
         components: [
-          { name: 'action', type: 'uint8' as const },
-          { name: 'payload', type: 'bytes' as const },
-          { name: 'value', type: 'uint256' as const },
+          { name: "action", type: "uint8" as const },
+          { name: "payload", type: "bytes" as const },
+          { name: "value", type: "uint256" as const },
         ],
       },
     ],
@@ -162,8 +162,13 @@ export function encodeIntentClaim(params: IntentClaimParams): Hex {
  * });
  * ```
  */
-export function buildIntentClaimBytes(params: { transferFastTxId: string; intents: Intent[]; deadline?: bigint }): Uint8Array {
-  const deadline = params.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 3600);
+export function buildIntentClaimBytes(params: {
+  transferFastTxId: string;
+  intents: Intent[];
+  deadline?: bigint;
+}): Uint8Array {
+  const deadline =
+    params.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 3600);
   const encoded = encodeIntentClaim({
     transferFastTxId: params.transferFastTxId,
     deadline,
@@ -195,6 +200,6 @@ export function buildIntentClaimBytes(params: { transferFastTxId: string; intent
 export function extractClaimId(crossSignTransaction: number[]): Hex {
   const bytes = new Uint8Array(crossSignTransaction.slice(32, 64));
   return `0x${Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')}` as Hex;
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")}` as Hex;
 }

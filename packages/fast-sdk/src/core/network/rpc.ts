@@ -1,12 +1,12 @@
-import { Effect, Schema } from 'effect';
-import { JSONParse, JSONStringify } from 'json-with-bigint';
-import { RpcTimeoutError } from '../error/network';
-import { parseRpcError } from './error';
+import { Effect, Schema } from "effect";
+import { JSONParse, JSONStringify } from "json-with-bigint";
+import { RpcTimeoutError } from "../error/network";
+import { parseRpcError } from "./error";
 
 let nextId = 1;
 
 const RpcResponse = Schema.Struct({
-  jsonrpc: Schema.Literal('2.0'),
+  jsonrpc: Schema.Literal("2.0"),
   id: Schema.Number,
   result: Schema.optional(Schema.Unknown),
   error: Schema.optional(
@@ -19,14 +19,19 @@ const RpcResponse = Schema.Struct({
 });
 
 /** JSON-RPC 2.0 call as an Effect. */
-export const rpcCallEffect = (url: string, method: string, params: unknown, timeoutMs = 15_000) =>
+export const rpcCallEffect = (
+  url: string,
+  method: string,
+  params: unknown,
+  timeoutMs = 15_000,
+) =>
   Effect.gen(function* () {
     const id = nextId++;
-    const body = JSONStringify({ jsonrpc: '2.0', id, method, params });
+    const body = JSONStringify({ jsonrpc: "2.0", id, method, params });
     const res = yield* Effect.tryPromise(() =>
       fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body,
       }),
     );
@@ -38,5 +43,8 @@ export const rpcCallEffect = (url: string, method: string, params: unknown, time
     return json.result;
   }).pipe(
     Effect.timeout(`${timeoutMs} millis`),
-    Effect.catchTag('TimeoutException', () => new RpcTimeoutError({ method, timeoutMs })),
+    Effect.catchTag(
+      "TimeoutException",
+      () => new RpcTimeoutError({ method, timeoutMs }),
+    ),
   );

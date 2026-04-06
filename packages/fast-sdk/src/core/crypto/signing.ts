@@ -1,8 +1,8 @@
-import type { BcsType } from '@mysten/bcs';
-import * as ed from '@noble/ed25519';
-import { Effect } from 'effect';
-import { PublicKeyError, SigningError, VerifyError } from '../error/crypto';
-import { domainEncode } from './bcs';
+import type { BcsType } from "@mysten/bcs";
+import * as ed from "@noble/ed25519";
+import { Effect } from "effect";
+import { PublicKeyError, SigningError, VerifyError } from "../error/crypto";
+import { domainEncode } from "./bcs";
 
 /** Sign a raw message with an Ed25519 private key. */
 export const signMessage = (privateKey: Uint8Array, message: Uint8Array) =>
@@ -12,7 +12,11 @@ export const signMessage = (privateKey: Uint8Array, message: Uint8Array) =>
   });
 
 /** Sign BCS-encoded typed data with domain prefix. */
-export const signTypedData = <T>(privateKey: Uint8Array, type: BcsType<T>, data: T) =>
+export const signTypedData = <T>(
+  privateKey: Uint8Array,
+  type: BcsType<T>,
+  data: T,
+) =>
   Effect.gen(function* () {
     const message = yield* domainEncode(type, data);
     return yield* signMessage(privateKey, message);
@@ -26,14 +30,23 @@ export const getPublicKey = (privateKey: Uint8Array) =>
   });
 
 /** Verify an Ed25519 signature against a raw message. */
-export const verify = (signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array) =>
+export const verify = (
+  signature: Uint8Array,
+  message: Uint8Array,
+  publicKey: Uint8Array,
+) =>
   Effect.tryPromise({
     try: () => ed.verifyAsync(signature, message, publicKey),
     catch: (cause) => new VerifyError({ cause }),
   });
 
 /** Verify an Ed25519 signature against BCS-encoded typed data. */
-export const verifyTypedData = <T>(signature: Uint8Array, type: BcsType<T>, data: T, publicKey: Uint8Array) =>
+export const verifyTypedData = <T>(
+  signature: Uint8Array,
+  type: BcsType<T>,
+  data: T,
+  publicKey: Uint8Array,
+) =>
   Effect.gen(function* () {
     const message = yield* domainEncode(type, data);
     return yield* verify(signature, message, publicKey);

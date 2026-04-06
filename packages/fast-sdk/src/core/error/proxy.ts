@@ -1,4 +1,4 @@
-import { Data } from 'effect';
+import { Data } from "effect";
 
 /**
  * Proxy-level errors (ProxyError, codes -32000 to -32015).
@@ -16,7 +16,7 @@ import { Data } from 'effect';
  *
  * Code: -32000
  */
-export class GeneralError extends Data.TaggedError('GeneralError')<{
+export class GeneralError extends Data.TaggedError("GeneralError")<{
   readonly message: string;
 }> {}
 
@@ -30,7 +30,9 @@ export class GeneralError extends Data.TaggedError('GeneralError')<{
  *
  * Code: -32001
  */
-export class FaucetDisabledError extends Data.TaggedError('FaucetDisabledError')<{
+export class FaucetDisabledError extends Data.TaggedError(
+  "FaucetDisabledError",
+)<{
   readonly message: string;
 }> {}
 
@@ -44,7 +46,9 @@ export class FaucetDisabledError extends Data.TaggedError('FaucetDisabledError')
  *
  * Code: -32003
  */
-export class FaucetThrottledError extends Data.TaggedError('FaucetThrottledError')<{
+export class FaucetThrottledError extends Data.TaggedError(
+  "FaucetThrottledError",
+)<{
   readonly message: string;
 }> {}
 
@@ -59,7 +63,9 @@ export class FaucetThrottledError extends Data.TaggedError('FaucetThrottledError
  *
  * Code: -32004
  */
-export class FaucetTxnFailedError extends Data.TaggedError('FaucetTxnFailedError')<{
+export class FaucetTxnFailedError extends Data.TaggedError(
+  "FaucetTxnFailedError",
+)<{
   readonly message: string;
 }> {}
 
@@ -71,7 +77,9 @@ export class FaucetTxnFailedError extends Data.TaggedError('FaucetTxnFailedError
  *
  * Code: -32005
  */
-export class FaucetThresholdExceededError extends Data.TaggedError('FaucetThresholdExceededError')<{
+export class FaucetThresholdExceededError extends Data.TaggedError(
+  "FaucetThresholdExceededError",
+)<{
   readonly message: string;
 }> {}
 
@@ -85,7 +93,9 @@ export class FaucetThresholdExceededError extends Data.TaggedError('FaucetThresh
  *
  * Code: -32006
  */
-export class VerifierSigsInvalidError extends Data.TaggedError('VerifierSigsInvalidError')<{
+export class VerifierSigsInvalidError extends Data.TaggedError(
+  "VerifierSigsInvalidError",
+)<{
   readonly message: string;
 }> {}
 
@@ -98,7 +108,7 @@ export class VerifierSigsInvalidError extends Data.TaggedError('VerifierSigsInva
  *
  * Code: -32012
  */
-export class DatabaseError extends Data.TaggedError('DatabaseError')<{
+export class DatabaseError extends Data.TaggedError("DatabaseError")<{
   readonly message: string;
 }> {}
 
@@ -109,7 +119,9 @@ export class DatabaseError extends Data.TaggedError('DatabaseError')<{
  *
  * Code: -32013
  */
-export class TooManyCertificatesRequestedError extends Data.TaggedError('TooManyCertificatesRequestedError')<{
+export class TooManyCertificatesRequestedError extends Data.TaggedError(
+  "TooManyCertificatesRequestedError",
+)<{
   readonly message: string;
 }> {}
 
@@ -124,7 +136,9 @@ export class TooManyCertificatesRequestedError extends Data.TaggedError('TooMany
  *
  * Code: -32014
  */
-export class ProxyUnexpectedNonceError extends Data.TaggedError('ProxyUnexpectedNonceError')<{
+export class ProxyUnexpectedNonceError extends Data.TaggedError(
+  "ProxyUnexpectedNonceError",
+)<{
   readonly message: string;
   readonly txNonce: bigint;
   readonly expectedNonce: bigint;
@@ -142,6 +156,8 @@ export class ProxyUnexpectedNonceError extends Data.TaggedError('ProxyUnexpected
  *
  * Code: -32015
  */
-export class InvalidRequestError extends Data.TaggedError('InvalidRequestError')<{
+export class InvalidRequestError extends Data.TaggedError(
+  "InvalidRequestError",
+)<{
   readonly message: string;
 }> {}

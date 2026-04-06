@@ -14,10 +14,10 @@ import {
   type TokenInfoResponse,
   type TransactionCertificate,
   type TransactionEnvelope,
-} from '@fastxyz/fast-schema';
-import { Schema } from 'effect';
-import * as proxy from '../core/proxy';
-import { run } from '../core/run';
+} from "@fastxyz/fast-schema";
+import { Schema } from "effect";
+import * as proxy from "../core/proxy";
+import { run } from "../core/run";
 
 /** Options for constructing a {@link FastProvider}. */
 export interface ProviderOptions {
@@ -59,7 +59,9 @@ export class FastProvider {
    * Submit a signed transaction envelope to the network.
    * The envelope should be produced by {@link TransactionBuilder.sign}.
    */
-  async submitTransaction(params: TransactionEnvelope): Promise<SubmitTransactionResult> {
+  async submitTransaction(
+    params: TransactionEnvelope,
+  ): Promise<SubmitTransactionResult> {
     return run(proxy.submitTransaction(this._rpcUrl, params));
   }
 
@@ -73,19 +75,25 @@ export class FastProvider {
    * Fetch account information including balance, nonce, token balances, and state.
    * Use filters to request specific token balances or state keys.
    */
-  async getAccountInfo(params: GetAccountInfoInputParams): Promise<AccountInfoResponse> {
+  async getAccountInfo(
+    params: GetAccountInfoInputParams,
+  ): Promise<AccountInfoResponse> {
     const internal = Schema.decodeUnknownSync(GetAccountInfoInput)(params);
     return run(proxy.getAccountInfo(this._rpcUrl, internal));
   }
 
   /** Fetch pending multisig transactions for the given address. */
-  async getPendingMultisigTransactions(params: GetPendingMultisigInputParams): Promise<readonly TransactionEnvelope[]> {
+  async getPendingMultisigTransactions(
+    params: GetPendingMultisigInputParams,
+  ): Promise<readonly TransactionEnvelope[]> {
     const internal = Schema.decodeUnknownSync(GetPendingMultisigInput)(params);
     return run(proxy.getPendingMultisigTransactions(this._rpcUrl, internal));
   }
 
   /** Fetch metadata for one or more tokens by their IDs. */
-  async getTokenInfo(params: GetTokenInfoInputParams): Promise<TokenInfoResponse> {
+  async getTokenInfo(
+    params: GetTokenInfoInputParams,
+  ): Promise<TokenInfoResponse> {
     const internal = Schema.decodeUnknownSync(GetTokenInfoInput)(params);
     return run(proxy.getTokenInfo(this._rpcUrl, internal));
   }
@@ -94,8 +102,12 @@ export class FastProvider {
    * Fetch finalized transaction certificates for an address.
    * Results are paginated by nonce range.
    */
-  async getTransactionCertificates(params: GetTransactionCertificatesInputParams): Promise<readonly TransactionCertificate[]> {
-    const internal = Schema.decodeUnknownSync(GetTransactionCertificatesInput)(params);
+  async getTransactionCertificates(
+    params: GetTransactionCertificatesInputParams,
+  ): Promise<readonly TransactionCertificate[]> {
+    const internal = Schema.decodeUnknownSync(GetTransactionCertificatesInput)(
+      params,
+    );
     return run(proxy.getTransactionCertificates(this._rpcUrl, internal));
   }
 }

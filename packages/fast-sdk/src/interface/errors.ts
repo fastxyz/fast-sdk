@@ -30,7 +30,12 @@
  * - **Crypto**: `BcsEncodeError`, `SigningError`, `PublicKeyError`, `VerifyError`
  */
 
-export { BcsEncodeError, PublicKeyError, SigningError, VerifyError } from '../core/error/crypto';
+export {
+  BcsEncodeError,
+  PublicKeyError,
+  SigningError,
+  VerifyError,
+} from "../core/error/crypto";
 export {
   CertificateTooYoungError,
   InsufficientFundingError,
@@ -40,8 +45,12 @@ export {
   PreviousTransactionPendingError,
   UnexpectedNonceError,
   ValidatorGenericError,
-} from '../core/error/fastset';
-export { JsonRpcProtocolError, RpcError, RpcTimeoutError } from '../core/error/network';
+} from "../core/error/fastset";
+export {
+  JsonRpcProtocolError,
+  RpcError,
+  RpcTimeoutError,
+} from "../core/error/network";
 export {
   DatabaseError,
   FaucetDisabledError,
@@ -53,4 +62,4 @@ export {
   ProxyUnexpectedNonceError,
   TooManyCertificatesRequestedError,
   VerifierSigsInvalidError,
-} from '../core/error/proxy';
+} from "../core/error/proxy";

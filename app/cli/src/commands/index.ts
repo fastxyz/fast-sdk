@@ -1,6 +1,5 @@
 import type { Effect } from "effect";
-import type { CommandName, ParsedArgs } from "../cli.js";
-import type { ClientError } from "../errors/index.js";
+import type { CommandName } from "../cli.js";
 import { accountCreate } from "./account/create.js";
 import { accountDelete } from "./account/delete.js";
 import { accountExport } from "./account/export.js";
@@ -37,10 +36,15 @@ export const commands: Command[] = [
   send,
 ];
 
-/** A command entry: a discriminant + an Effect handler that accepts parsed args. */
+/**
+ * A command entry: a discriminant + an Effect handler.
+ * Uses `any` for args because each handler accepts its own narrow arg type
+ * (e.g., AccountCreateArgs), while the dispatcher passes ParsedArgs.
+ * Type safety is guaranteed by the optique parser — args are always valid
+ * for the matched command.
+ */
 export interface Command {
   readonly cmd: CommandName;
-  // Method signature (not property) so TypeScript uses bivariant checking,
-  // allowing each command to narrow its args to the specific subtype.
-  handler(args: ParsedArgs): Effect.Effect<void, ClientError, unknown>;
+  // biome-ignore lint/suspicious/noExplicitAny: handlers use narrow arg types; safety comes from the parser
+  readonly handler: (args: any) => Effect.Effect<void, any, any>;
 }

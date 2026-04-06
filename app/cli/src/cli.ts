@@ -16,13 +16,35 @@ import { integer, string } from "@optique/core/valueparser";
 // ---------------------------------------------------------------------------
 
 const globalOptions = object({
-  json: withDefault(option("--json"), false),
-  debug: withDefault(option("--debug"), false),
-  nonInteractive: withDefault(option("--non-interactive"), false),
-  network: withDefault(option("--network", string()), "testnet"),
-  account: optional(option("--account", string())),
+  json: withDefault(
+    option("--json", { description: message`Emit machine-parseable JSON to stdout` }),
+    false,
+  ),
+  debug: withDefault(
+    option("--debug", { description: message`Enable verbose logging to stderr` }),
+    false,
+  ),
+  nonInteractive: withDefault(
+    option("--non-interactive", {
+      description: message`Auto-confirm dangerous operations; fail when input is missing`,
+    }),
+    false,
+  ),
+  network: withDefault(
+    option("--network", string({ metavar: "NAME" }), {
+      description: message`Override the network for this command`,
+    }),
+    "testnet",
+  ),
+  account: optional(
+    option("--account", string({ metavar: "NAME" }), {
+      description: message`Use the named account for signing operations`,
+    }),
+  ),
   password: withDefault(
-    option("--password", string()),
+    option("--password", string({ metavar: "PASSWORD" }), {
+      description: message`Keystore password for decrypting the account key`,
+    }),
     () => process.env.FAST_PASSWORD,
   ),
 });
@@ -35,7 +57,11 @@ const accountCreateParser = command(
   "create",
   object({
     cmd: constant("account-create" as const),
-    name: optional(option("--name", string())),
+    name: optional(
+      option("--name", string({ metavar: "NAME" }), {
+        description: message`Alias for the account`,
+      }),
+    ),
   }),
   { description: message`Create a new account` },
 );
@@ -44,9 +70,21 @@ const accountImportParser = command(
   "import",
   object({
     cmd: constant("account-import" as const),
-    name: optional(option("--name", string())),
-    privateKey: optional(option("--private-key", string())),
-    keyFile: optional(option("--key-file", string())),
+    name: optional(
+      option("--name", string({ metavar: "NAME" }), {
+        description: message`Alias for the account`,
+      }),
+    ),
+    privateKey: optional(
+      option("--private-key", string({ metavar: "HEX" }), {
+        description: message`Hex-encoded Ed25519 seed (0x-prefixed or raw)`,
+      }),
+    ),
+    keyFile: optional(
+      option("--key-file", string({ metavar: "PATH" }), {
+        description: message`Path to a JSON file containing a privateKey field`,
+      }),
+    ),
   }),
   { description: message`Import an existing private key` },
 );
@@ -63,7 +101,9 @@ const accountSetDefaultParser = command(
   "set-default",
   object({
     cmd: constant("account-set-default" as const),
-    name: argument(string()),
+    name: argument(string({ metavar: "NAME" }), {
+      description: message`Alias of an existing account`,
+    }),
   }),
   { description: message`Set the default account` },
 );
@@ -72,7 +112,11 @@ const accountInfoParser = command(
   "info",
   object({
     cmd: constant("account-info" as const),
-    name: optional(argument(string())),
+    name: optional(
+      argument(string({ metavar: "NAME" }), {
+        description: message`Account alias (defaults to default account)`,
+      }),
+    ),
   }),
   { description: message`Show account addresses` },
 );
@@ -81,7 +125,11 @@ const accountExportParser = command(
   "export",
   object({
     cmd: constant("account-export" as const),
-    name: optional(argument(string())),
+    name: optional(
+      argument(string({ metavar: "NAME" }), {
+        description: message`Account alias (defaults to default account)`,
+      }),
+    ),
   }),
   { description: message`Export (decrypt) the private key` },
 );
@@ -90,7 +138,9 @@ const accountDeleteParser = command(
   "delete",
   object({
     cmd: constant("account-delete" as const),
-    name: argument(string()),
+    name: argument(string({ metavar: "NAME" }), {
+      description: message`Account alias to delete`,
+    }),
   }),
   { description: message`Delete an account` },
 );
@@ -125,8 +175,12 @@ const networkAddParser = command(
   "add",
   object({
     cmd: constant("network-add" as const),
-    name: argument(string()),
-    config: option("--config", string()),
+    name: argument(string({ metavar: "NAME" }), {
+      description: message`Name for the custom network`,
+    }),
+    config: option("--config", string({ metavar: "PATH" }), {
+      description: message`Path to network config JSON file`,
+    }),
   }),
   { description: message`Add a custom network config` },
 );
@@ -135,7 +189,9 @@ const networkSetDefaultParser = command(
   "set-default",
   object({
     cmd: constant("network-set-default" as const),
-    name: argument(string()),
+    name: argument(string({ metavar: "NAME" }), {
+      description: message`Network name`,
+    }),
   }),
   { description: message`Set the default network` },
 );
@@ -144,7 +200,9 @@ const networkRemoveParser = command(
   "remove",
   object({
     cmd: constant("network-remove" as const),
-    name: argument(string()),
+    name: argument(string({ metavar: "NAME" }), {
+      description: message`Name of the custom network to remove`,
+    }),
   }),
   { description: message`Remove a custom network` },
 );
@@ -176,8 +234,16 @@ const infoBalanceParser = command(
   "balance",
   object({
     cmd: constant("info-balance" as const),
-    address: optional(option("--address", string())),
-    token: optional(option("--token", string())),
+    address: optional(
+      option("--address", string({ metavar: "ADDRESS" }), {
+        description: message`Any Fast address (fast1...) to query`,
+      }),
+    ),
+    token: optional(
+      option("--token", string({ metavar: "TOKEN" }), {
+        description: message`Filter by token`,
+      }),
+    ),
   }),
   { description: message`Show token balances for an address` },
 );
@@ -186,7 +252,9 @@ const infoTxParser = command(
   "tx",
   object({
     cmd: constant("info-tx" as const),
-    hash: argument(string()),
+    hash: argument(string({ metavar: "HASH" }), {
+      description: message`Transaction hash (hex)`,
+    }),
   }),
   { description: message`Look up a transaction by hash` },
 );
@@ -195,11 +263,33 @@ const infoHistoryParser = command(
   "history",
   object({
     cmd: constant("info-history" as const),
-    from: optional(option("--from", string())),
-    to: optional(option("--to", string())),
-    token: optional(option("--token", string())),
-    limit: withDefault(option("--limit", integer()), 20),
-    offset: withDefault(option("--offset", integer()), 0),
+    from: optional(
+      option("--from", string({ metavar: "ADDRESS" }), {
+        description: message`Filter by sender account name or address`,
+      }),
+    ),
+    to: optional(
+      option("--to", string({ metavar: "ADDRESS" }), {
+        description: message`Filter by recipient address`,
+      }),
+    ),
+    token: optional(
+      option("--token", string({ metavar: "TOKEN" }), {
+        description: message`Filter by token`,
+      }),
+    ),
+    limit: withDefault(
+      option("--limit", integer(), {
+        description: message`Max number of records to return`,
+      }),
+      20,
+    ),
+    offset: withDefault(
+      option("--offset", integer(), {
+        description: message`Number of records to skip`,
+      }),
+      0,
+    ),
   }),
   { description: message`Show transaction history` },
 );
@@ -218,11 +308,27 @@ const sendParser = command(
   "send",
   object({
     cmd: constant("send" as const),
-    address: argument(string()),
-    amount: argument(string()),
-    token: optional(option("--token", string())),
-    fromChain: optional(option("--from-chain", string())),
-    toChain: optional(option("--to-chain", string())),
+    address: argument(string({ metavar: "ADDRESS" }), {
+      description: message`Recipient address (fast1... for Fast, 0x... for EVM)`,
+    }),
+    amount: argument(string({ metavar: "AMOUNT" }), {
+      description: message`Human-readable amount (e.g., 10.5)`,
+    }),
+    token: optional(
+      option("--token", string({ metavar: "TOKEN" }), {
+        description: message`Token to send (e.g., testUSDC, USDC)`,
+      }),
+    ),
+    fromChain: optional(
+      option("--from-chain", string({ metavar: "CHAIN" }), {
+        description: message`Source EVM chain for bridge-in (e.g., arbitrum-sepolia)`,
+      }),
+    ),
+    toChain: optional(
+      option("--to-chain", string({ metavar: "CHAIN" }), {
+        description: message`Destination EVM chain for bridge-out (e.g., arbitrum-sepolia)`,
+      }),
+    ),
   }),
   { description: message`Send tokens (Fast→Fast, EVM→Fast, or Fast→EVM)` },
 );

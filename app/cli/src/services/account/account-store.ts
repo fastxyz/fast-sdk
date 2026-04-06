@@ -1,27 +1,17 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { FileSystem } from "@effect/platform";
 import { Signer, toHex } from "@fastxyz/fast-sdk";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
-import { Context, Effect, Layer, Option, Schema } from "effect";
-import lockfile from "proper-lockfile";
+import { Context, Effect, Layer, Option } from "effect";
 import {
   AccountExistsError,
   AccountNotFoundError,
   DefaultAccountError,
-  mapToStorageError,
   NoAccountsError,
   StorageError,
-  type WrongPasswordError,
+  WrongPasswordError,
 } from "../../errors/index.js";
-import { AccountEntry, AccountsFile } from "../../schemas/accounts.js";
-import { KeyfileV3 } from "../../schemas/keyfile.js";
-import { KeystoreV3 } from "../keystore-v3.js";
-
-const FAST_DIR = join(homedir(), ".fast");
-const ACCOUNTS_FILE = join(FAST_DIR, "accounts.json");
-const KEYS_DIR = join(FAST_DIR, "keys");
+import { encryptSeed, decryptSeed } from "../crypto.js";
+import { DatabaseService } from "../database.js";
 
 export interface AccountInfo {
   readonly name: string;
@@ -80,317 +70,223 @@ export class AccountStore extends Context.Tag("AccountStore")<
   AccountStoreShape
 >() {}
 
-const ensureDir = (fs: FileSystem.FileSystem, path: string, mode?: number) =>
-  Effect.gen(function* () {
-    const exists = yield* fs.exists(path);
-    if (!exists) {
-      yield* fs.makeDirectory(path, { recursive: true });
-    }
-    if (mode !== undefined) {
-      yield* Effect.tryPromise({
-        try: async () => {
-          const nodeFs = await import("node:fs");
-          await nodeFs.promises.chmod(path, mode);
-        },
-        catch: () => undefined,
-      }).pipe(Effect.ignore);
-    }
-  }).pipe(mapToStorageError(`create directory: ${path}`));
+interface AccountRow {
+  name: string;
+  fast_address: string;
+  evm_address: string;
+  encrypted_key: Buffer;
+  is_default: number;
+  created_at: string;
+}
 
-const readAccountsFile = (
-  fs: FileSystem.FileSystem,
-): Effect.Effect<AccountsFile, StorageError> =>
-  Effect.gen(function* () {
-    const exists = yield* fs.exists(ACCOUNTS_FILE);
-    if (!exists) {
-      return new AccountsFile({ default: null, accounts: [] });
-    }
-    const content = yield* fs.readFileString(ACCOUNTS_FILE);
-    return yield* Schema.decodeUnknown(AccountsFile)(JSON.parse(content));
-  }).pipe(mapToStorageError("read accounts.json"));
-
-const writeAccountsFile = (fs: FileSystem.FileSystem, data: AccountsFile) =>
-  Effect.gen(function* () {
-    yield* ensureDir(fs, FAST_DIR, 0o700);
-    yield* fs.writeFileString(ACCOUNTS_FILE, JSON.stringify(data, null, 2));
-  }).pipe(mapToStorageError("write accounts.json"));
-
-const readKeyfile = (
-  fs: FileSystem.FileSystem,
-  name: string,
-): Effect.Effect<KeyfileV3, StorageError> =>
-  Effect.gen(function* () {
-    const path = join(KEYS_DIR, `${name}.json`);
-    const content = yield* fs.readFileString(path);
-    return yield* Schema.decodeUnknown(KeyfileV3)(JSON.parse(content));
-  }).pipe(mapToStorageError(`read keyfile for "${name}"`));
-
-const writeKeyfile = (
-  fs: FileSystem.FileSystem,
-  name: string,
-  keyfile: KeyfileV3,
-) =>
-  Effect.gen(function* () {
-    yield* ensureDir(fs, KEYS_DIR);
-    const path = join(KEYS_DIR, `${name}.json`);
-    yield* fs.writeFileString(path, JSON.stringify(keyfile, null, 2));
-    yield* Effect.tryPromise({
-      try: async () => {
-        const nodeFs = await import("node:fs");
-        await nodeFs.promises.chmod(path, 0o600);
-      },
-      catch: () => undefined,
-    }).pipe(Effect.ignore);
-  }).pipe(mapToStorageError(`write keyfile for "${name}"`));
-
-const withAccountLock = <A, E>(
-  fs: FileSystem.FileSystem,
-  effect: Effect.Effect<A, E>,
-): Effect.Effect<A, E | StorageError> =>
-  Effect.gen(function* () {
-    yield* ensureDir(fs, FAST_DIR, 0o700);
-    const exists = yield* fs
-      .exists(ACCOUNTS_FILE)
-      .pipe(mapToStorageError("check accounts file"));
-    if (!exists) {
-      yield* writeAccountsFile(
-        fs,
-        new AccountsFile({ default: null, accounts: [] }),
-      );
-    }
-    return yield* Effect.acquireUseRelease(
-      Effect.tryPromise({
-        try: () =>
-          lockfile.lock(ACCOUNTS_FILE, { realpath: false, retries: 3 }),
-        catch: (cause) =>
-          new StorageError({
-            message: "Failed to acquire account lock",
-            cause,
-          }),
-      }),
-      () => effect,
-      (release) =>
-        Effect.tryPromise({
-          try: () => release(),
-          catch: () =>
-            new StorageError({ message: "Failed to release account lock" }),
-        }).pipe(Effect.orDie),
-    );
-  });
+const rowToInfo = (row: AccountRow): AccountInfo => ({
+  name: row.name,
+  fastAddress: row.fast_address,
+  evmAddress: row.evm_address,
+  isDefault: row.is_default === 1,
+  createdAt: row.created_at,
+});
 
 const deriveEvmAddress = (seed: Uint8Array): string => {
   const pubkey = secp256k1.getPublicKey(seed, false);
   const hash = keccak_256(pubkey.slice(1));
-  const addressBytes = hash.slice(-20);
-  return toHex(addressBytes);
+  return toHex(hash.slice(-20));
 };
 
 const deriveAddresses = (seed: Uint8Array) =>
-  Effect.gen(function* () {
-    const signer = new Signer(seed);
-    const fastAddress = yield* Effect.tryPromise({
-      try: () => signer.getFastAddress(),
-      catch: (cause) =>
-        new StorageError({ message: "Failed to derive Fast address", cause }),
-    });
-    const evmAddress = deriveEvmAddress(seed);
-    return { fastAddress, evmAddress };
+  Effect.tryPromise({
+    try: async () => {
+      const signer = new Signer(seed);
+      const fastAddress = await signer.getFastAddress();
+      const evmAddress = deriveEvmAddress(seed);
+      return { fastAddress, evmAddress };
+    },
+    catch: (cause) =>
+      new StorageError({ message: "Failed to derive addresses", cause }),
   });
 
 export const AccountStoreLive = Layer.effect(
   AccountStore,
   Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const keystore = yield* KeystoreV3;
+    const { db } = yield* DatabaseService;
 
-    const toAccountInfo = (
-      entry: AccountEntry,
-      keyfile: KeyfileV3,
-      defaultName: string | null,
-    ): AccountInfo => ({
-      name: entry.name,
-      fastAddress: keyfile.fastAddress,
-      evmAddress: keyfile.evmAddress,
-      isDefault: entry.name === defaultName,
-      createdAt: entry.createdAt,
-    });
+    const stmts = {
+      listAll: db.prepare<[], AccountRow>("SELECT * FROM accounts ORDER BY created_at"),
+      getByName: db.prepare<[string], AccountRow>("SELECT * FROM accounts WHERE name = ?"),
+      getDefault: db.prepare<[], AccountRow>("SELECT * FROM accounts WHERE is_default = 1"),
+      countAll: db.prepare<[], { cnt: number }>("SELECT COUNT(*) as cnt FROM accounts"),
+      insert: db.prepare(
+        "INSERT INTO accounts (name, fast_address, evm_address, encrypted_key, is_default, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      ),
+      clearDefault: db.prepare("UPDATE accounts SET is_default = 0 WHERE is_default = 1"),
+      setDefault: db.prepare("UPDATE accounts SET is_default = 1 WHERE name = ?"),
+      deleteByName: db.prepare("DELETE FROM accounts WHERE name = ?"),
+      allNames: db.prepare<[], { name: string }>("SELECT name FROM accounts"),
+    };
 
     const storeAccount = (
       name: string,
       seed: Uint8Array,
       password: string,
     ): Effect.Effect<AccountInfo, AccountExistsError | StorageError> =>
-      withAccountLock(
-        fs,
-        Effect.gen(function* () {
-          const data = yield* readAccountsFile(fs);
-          if (data.accounts.some((a) => a.name === name)) {
-            return yield* Effect.fail(new AccountExistsError({ name }));
-          }
+      Effect.gen(function* () {
+        const existing = stmts.getByName.get(name);
+        if (existing) {
+          return yield* Effect.fail(new AccountExistsError({ name }));
+        }
 
-          const { fastAddress, evmAddress } = yield* deriveAddresses(seed);
-          const keyfile = yield* keystore
-            .encrypt(seed, password, fastAddress, evmAddress)
-            .pipe(mapToStorageError("encrypt keyfile"));
-          yield* writeKeyfile(fs, name, keyfile);
+        const { fastAddress, evmAddress } = yield* deriveAddresses(seed);
+        const encrypted = yield* Effect.tryPromise({
+          try: () => encryptSeed(seed, password),
+          catch: (cause) =>
+            new StorageError({ message: "Failed to encrypt seed", cause }),
+        });
 
-          const newDefault = data.default ?? name;
-          const newEntry = new AccountEntry({
-            name,
-            createdAt: new Date().toISOString(),
-          });
-          const newData = new AccountsFile({
-            default: newDefault,
-            accounts: [...data.accounts, newEntry],
-          });
-          yield* writeAccountsFile(fs, newData);
+        const isFirst = stmts.countAll.get()!.cnt === 0;
+        const createdAt = new Date().toISOString();
 
-          return {
+        db.transaction(() => {
+          stmts.insert.run(
             name,
             fastAddress,
             evmAddress,
-            isDefault: newDefault === name,
-            createdAt: newEntry.createdAt,
-          };
-        }),
-      );
+            Buffer.from(encrypted),
+            isFirst ? 1 : 0,
+            createdAt,
+          );
+        })();
+
+        return {
+          name,
+          fastAddress,
+          evmAddress,
+          isDefault: isFirst,
+          createdAt,
+        };
+      });
 
     return {
       list: () =>
-        Effect.gen(function* () {
-          const data = yield* readAccountsFile(fs);
-          const results: AccountInfo[] = [];
-          for (const entry of data.accounts) {
-            const keyfile = yield* readKeyfile(fs, entry.name);
-            results.push(toAccountInfo(entry, keyfile, data.default));
-          }
-          return results;
+        Effect.try({
+          try: () => stmts.listAll.all().map(rowToInfo),
+          catch: (cause) =>
+            new StorageError({ message: "Failed to list accounts", cause }),
         }),
 
       get: (name) =>
-        Effect.gen(function* () {
-          const data = yield* readAccountsFile(fs);
-          const entry = data.accounts.find((a) => a.name === name);
-          if (!entry) {
-            return yield* Effect.fail(new AccountNotFoundError({ name }));
-          }
-          const keyfile = yield* readKeyfile(fs, name);
-          return toAccountInfo(entry, keyfile, data.default);
+        Effect.try({
+          try: () => {
+            const row = stmts.getByName.get(name);
+            if (!row) throw new AccountNotFoundError({ name });
+            return rowToInfo(row);
+          },
+          catch: (e) =>
+            e instanceof AccountNotFoundError
+              ? e
+              : new StorageError({ message: "Failed to get account", cause: e }),
         }),
 
       getDefault: () =>
-        Effect.gen(function* () {
-          const data = yield* readAccountsFile(fs);
-          if (!data.default || data.accounts.length === 0) {
-            return yield* Effect.fail(new NoAccountsError());
-          }
-          const entry = data.accounts.find((a) => a.name === data.default);
-          if (!entry) {
-            return yield* Effect.fail(new NoAccountsError());
-          }
-          const keyfile = yield* readKeyfile(fs, entry.name);
-          return toAccountInfo(entry, keyfile, data.default);
+        Effect.try({
+          try: () => {
+            const row = stmts.getDefault.get();
+            if (!row) throw new NoAccountsError();
+            return rowToInfo(row);
+          },
+          catch: (e) =>
+            e instanceof NoAccountsError
+              ? e
+              : new StorageError({ message: "Failed to get default account", cause: e }),
         }),
 
       create: (name, seed, password) => storeAccount(name, seed, password),
       import_: (name, seed, password) => storeAccount(name, seed, password),
 
       setDefault: (name) =>
-        withAccountLock(
-          fs,
-          Effect.gen(function* () {
-            const data = yield* readAccountsFile(fs);
-            if (!data.accounts.some((a) => a.name === name)) {
-              return yield* Effect.fail(new AccountNotFoundError({ name }));
-            }
-            yield* writeAccountsFile(
-              fs,
-              new AccountsFile({ ...data, default: name }),
-            );
-          }),
-        ),
+        Effect.try({
+          try: () => {
+            const row = stmts.getByName.get(name);
+            if (!row) throw new AccountNotFoundError({ name });
+            db.transaction(() => {
+              stmts.clearDefault.run();
+              stmts.setDefault.run(name);
+            })();
+          },
+          catch: (e) =>
+            e instanceof AccountNotFoundError
+              ? e
+              : new StorageError({ message: "Failed to set default", cause: e }),
+        }),
 
       delete_: (name) =>
-        withAccountLock(
-          fs,
-          Effect.gen(function* () {
-            const data = yield* readAccountsFile(fs);
-            const entry = data.accounts.find((a) => a.name === name);
-            if (!entry) {
-              return yield* Effect.fail(new AccountNotFoundError({ name }));
+        Effect.try({
+          try: () => {
+            const row = stmts.getByName.get(name);
+            if (!row) throw new AccountNotFoundError({ name });
+            if (row.is_default === 1 && stmts.countAll.get()!.cnt > 1) {
+              throw new DefaultAccountError({ name });
             }
-            if (data.default === name && data.accounts.length > 1) {
-              return yield* Effect.fail(new DefaultAccountError({ name }));
-            }
-
-            const keyPath = join(KEYS_DIR, `${name}.json`);
-            yield* fs
-              .remove(keyPath)
-              .pipe(mapToStorageError(`delete keyfile for "${name}"`));
-
-            const remaining = data.accounts.filter((a) => a.name !== name);
-            const newDefault =
-              remaining.length === 0
-                ? null
-                : data.default === name
-                  ? null
-                  : data.default;
-            yield* writeAccountsFile(
-              fs,
-              new AccountsFile({ default: newDefault, accounts: remaining }),
-            );
-          }),
-        ),
+            stmts.deleteByName.run(name);
+          },
+          catch: (e) =>
+            e instanceof AccountNotFoundError || e instanceof DefaultAccountError
+              ? e
+              : new StorageError({ message: "Failed to delete account", cause: e }),
+        }),
 
       export_: (name, password) =>
         Effect.gen(function* () {
-          const data = yield* readAccountsFile(fs);
-          const entry = data.accounts.find((a) => a.name === name);
-          if (!entry) {
-            return yield* Effect.fail(new AccountNotFoundError({ name }));
-          }
-          const keyfile = yield* readKeyfile(fs, name);
-          const seed = yield* keystore.decrypt(keyfile, password);
-          return {
-            seed,
-            entry: toAccountInfo(entry, keyfile, data.default),
-          };
+          const row = yield* Effect.try({
+            try: () => {
+              const r = stmts.getByName.get(name);
+              if (!r) throw new AccountNotFoundError({ name });
+              return r;
+            },
+            catch: (e) =>
+              e instanceof AccountNotFoundError
+                ? e
+                : new StorageError({ message: "Failed to read account", cause: e }),
+          });
+
+          const seed = yield* Effect.tryPromise({
+            try: () => decryptSeed(new Uint8Array(row.encrypted_key), password),
+            catch: (cause) => {
+              if (cause instanceof WrongPasswordError) return cause;
+              return new StorageError({ message: "Failed to decrypt seed", cause });
+            },
+          });
+
+          return { seed, entry: rowToInfo(row) };
         }),
 
       resolveAccount: (flag) =>
         Effect.gen(function* () {
           if (Option.isSome(flag)) {
-            const data = yield* readAccountsFile(fs);
-            const entry = data.accounts.find((a) => a.name === flag.value);
-            if (!entry) {
+            const row = stmts.getByName.get(flag.value);
+            if (!row) {
               return yield* Effect.fail(
                 new AccountNotFoundError({ name: flag.value }),
               );
             }
-            const keyfile = yield* readKeyfile(fs, entry.name);
-            return toAccountInfo(entry, keyfile, data.default);
+            return rowToInfo(row);
           }
-          const data = yield* readAccountsFile(fs);
-          if (!data.default || data.accounts.length === 0) {
+          const row = stmts.getDefault.get();
+          if (!row) {
             return yield* Effect.fail(new NoAccountsError());
           }
-          const entry = data.accounts.find((a) => a.name === data.default);
-          if (!entry) {
-            return yield* Effect.fail(new NoAccountsError());
-          }
-          const keyfile = yield* readKeyfile(fs, entry.name);
-          return toAccountInfo(entry, keyfile, data.default);
+          return rowToInfo(row);
         }),
 
       nextAutoName: () =>
-        Effect.gen(function* () {
-          const data = yield* readAccountsFile(fs);
-          const existing = new Set(data.accounts.map((a) => a.name));
-          let n = 1;
-          while (existing.has(`account-${n}`)) {
-            n++;
-          }
-          return `account-${n}`;
+        Effect.try({
+          try: () => {
+            const names = new Set(stmts.allNames.all().map((r) => r.name));
+            let n = 1;
+            while (names.has(`account-${n}`)) n++;
+            return `account-${n}`;
+          },
+          catch: (cause) =>
+            new StorageError({ message: "Failed to generate account name", cause }),
         }),
     };
   }),

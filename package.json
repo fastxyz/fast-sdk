@@ -29,5 +29,19 @@
     "typescript": "^6.0.2",
     "vitest": "^4.1.1"
   },
-  "packageManager": "pnpm@10.1.0"
+  "packageManager": "pnpm@10.1.0",
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "esbuild",
+      "msgpackr-extract",
+      "@parcel/watcher",
+      "better-sqlite3",
+      "esbuild",
+      "msgpackr-extract",
+      "@parcel/watcher"
+    ],
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  }
 }

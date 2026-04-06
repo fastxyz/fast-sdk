@@ -7,7 +7,7 @@ import { runHandler } from "../../cli-runner.js";
 import { InvalidUsageError } from "../../errors/index.js";
 import { AccountStore } from "../../services/account-store.js";
 import { Output } from "../../services/output.js";
-import { Password } from "../../services/password.js";
+import { Prompt } from "../../services/prompt.js";
 
 export const accountImport = defineCommand({
   meta: { name: "import", description: "Import an existing private key" },
@@ -28,7 +28,7 @@ export const accountImport = defineCommand({
       args,
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
-        const password = yield* Password;
+        const prompt = yield* Prompt;
         const output = yield* Output;
 
         if (args["private-key"] && args["key-file"]) {
@@ -99,7 +99,7 @@ export const accountImport = defineCommand({
 
         const name = args.name ?? (yield* accounts.nextAutoName());
 
-        const pwd = yield* password.resolve();
+        const pwd = yield* prompt.password();
         const entry = yield* accounts.import_(name, seed, pwd);
 
         yield* output.humanLine(`Imported account "${entry.name}"`);

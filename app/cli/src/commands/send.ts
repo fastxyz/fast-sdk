@@ -32,7 +32,7 @@ import { FastRpc } from "../services/fast-rpc.js";
 import { HistoryStore } from "../services/history-store.js";
 import { NetworkConfigService } from "../services/network-config.js";
 import { Output } from "../services/output.js";
-import { Password } from "../services/password.js";
+import { Prompt } from "../services/prompt.js";
 import { resolveToken } from "../services/token-resolver.js";
 
 export const sendCommand = defineCommand({
@@ -72,7 +72,7 @@ export const sendCommand = defineCommand({
       args,
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
-        const passwordService = yield* Password;
+        const prompt = yield* Prompt;
         const rpc = yield* FastRpc;
         const output = yield* Output;
         const config = yield* Config;
@@ -183,7 +183,7 @@ export const sendCommand = defineCommand({
 
         // Resolve account and password
         const accountInfo = yield* accounts.resolveAccount(config.account);
-        const pwd = yield* passwordService.resolve();
+        const pwd = yield* prompt.password();
         const { seed } = yield* accounts.export_(accountInfo.name, pwd);
 
         // Interactive confirmation
@@ -203,7 +203,7 @@ export const sendCommand = defineCommand({
           yield* output.humanLine(`  Route: ${routeLabel}`);
           yield* output.humanLine(`  Token: ${resolvedTokenName}`);
           yield* output.humanLine("");
-          const confirmed = yield* output.confirm("Confirm?");
+          const confirmed = yield* prompt.confirm("Confirm?");
           if (!confirmed) {
             return yield* Effect.fail(new UserCancelledError());
           }

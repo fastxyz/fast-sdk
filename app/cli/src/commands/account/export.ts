@@ -7,7 +7,7 @@ import { UserCancelledError } from "../../errors/index.js";
 import { AccountStore } from "../../services/account-store.js";
 import { Config } from "../../services/cli-config.js";
 import { Output } from "../../services/output.js";
-import { Password } from "../../services/password.js";
+import { Prompt } from "../../services/prompt.js";
 
 export const accountExport = defineCommand({
   meta: { name: "export", description: "Export (decrypt) the private key" },
@@ -24,23 +24,19 @@ export const accountExport = defineCommand({
       args,
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
-        const passwordService = yield* Password;
+        const prompt = yield* Prompt;
         const output = yield* Output;
         const config = yield* Config;
 
         const accountName =
           args.name ?? (yield* accounts.resolveAccount(config.account)).name;
 
-        if (!config.nonInteractive && !config.json) {
-          const confirmed = yield* output.confirm(
-            "⚠ This will display the private key. Continue?",
-          );
-          if (!confirmed) {
-            return yield* Effect.fail(new UserCancelledError());
-          }
+        const confirmed = yield* prompt.confirm("⚠ This will display the private key. Continue?");
+        if (!confirmed) {
+          return yield* Effect.fail(new UserCancelledError());
         }
 
-        const pwd = yield* passwordService.resolve();
+        const pwd = yield* prompt.password();
         const { seed, entry } = yield* accounts.export_(accountName, pwd);
         const privateKeyHex = toHex(seed);
 

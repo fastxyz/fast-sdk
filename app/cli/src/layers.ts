@@ -6,7 +6,7 @@ import { FastRpcLive } from "./services/fast-rpc.js";
 import { HistoryStoreLive } from "./services/history-store.js";
 import { NetworkConfigLive } from "./services/network-config.js";
 import { OutputLive } from "./services/output.js";
-import { PasswordLive } from "./services/password.js";
+import { PromptLive } from "./services/prompt.js";
 
 interface ParsedOptions {
   readonly json: boolean;
@@ -33,7 +33,7 @@ export const makeAppLayer = (parsed: ParsedOptions) => {
   // Services that depend only on foundation
   const tier1 = Layer.mergeAll(
     OutputLive,
-    PasswordLive,
+    PromptLive,
     NetworkConfigLive,
     HistoryStoreLive,
     AccountStoreLive,

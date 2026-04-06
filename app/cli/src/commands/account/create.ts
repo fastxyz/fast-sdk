@@ -4,7 +4,7 @@ import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
 import { AccountStore } from "../../services/account-store.js";
 import { Output } from "../../services/output.js";
-import { Password } from "../../services/password.js";
+import { Prompt } from "../../services/prompt.js";
 
 export const accountCreate = defineCommand({
   meta: { name: "create", description: "Create a new account" },
@@ -20,12 +20,12 @@ export const accountCreate = defineCommand({
       args,
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
-        const password = yield* Password;
+        const prompt = yield* Prompt;
         const output = yield* Output;
 
         const name = args.name ?? (yield* accounts.nextAutoName());
 
-        const pwd = yield* password.resolve();
+        const pwd = yield* prompt.password();
         const seed = crypto.getRandomValues(new Uint8Array(32));
         const entry = yield* accounts.create(name, seed, pwd);
 

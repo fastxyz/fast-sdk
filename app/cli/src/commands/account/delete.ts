@@ -4,8 +4,8 @@ import { globalArgs } from "../../cli-globals.js";
 import { runHandler } from "../../cli-runner.js";
 import { UserCancelledError } from "../../errors/index.js";
 import { AccountStore } from "../../services/account-store.js";
-import { Config } from "../../services/cli-config.js";
 import { Output } from "../../services/output.js";
+import { Prompt } from "../../services/prompt.js";
 
 export const accountDelete = defineCommand({
   meta: { name: "delete", description: "Delete an account" },
@@ -23,15 +23,11 @@ export const accountDelete = defineCommand({
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
         const output = yield* Output;
-        const config = yield* Config;
+        const prompt = yield* Prompt;
 
-        if (!config.nonInteractive && !config.json) {
-          const confirmed = yield* output.confirm(
-            `Delete account "${args.name}"?`,
-          );
-          if (!confirmed) {
-            return yield* Effect.fail(new UserCancelledError());
-          }
+        const confirmed = yield* prompt.confirm(`Delete account "${args.name}"?`);
+        if (!confirmed) {
+          return yield* Effect.fail(new UserCancelledError());
         }
 
         yield* accounts.delete_(args.name);

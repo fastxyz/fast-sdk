@@ -12,14 +12,10 @@ const bundledNetworks: BundledNetworks = Schema.decodeUnknownSync(
 )(networksRaw);
 
 export const getAppName = (): string => appManifest.name;
-
 export const getVersion = (): string => appManifest.version;
-
 export const getBundledNetworks = (): BundledNetworks => bundledNetworks;
-
 export const isBundledNetwork = (name: string): boolean =>
   Object.hasOwn(bundledNetworks, name);
-
 export const getBundledNetwork = (name: string): NetworkConfig | undefined =>
   bundledNetworks[name];
 

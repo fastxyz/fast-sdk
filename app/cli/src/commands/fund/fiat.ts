@@ -6,7 +6,7 @@ import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
 import type { Command } from "../index.js";
 
-const ALLRAMP_BASE = "https://allramp.fast.xyz";
+const RAMP_BASE = "https://ramp.fast.xyz";
 
 export const fundFiat: Command<FundFiatArgs> = {
   cmd: "fund-fiat",
@@ -31,7 +31,7 @@ export const fundFiat: Command<FundFiatArgs> = {
         address = account.fastAddress;
       }
 
-      const url = `${ALLRAMP_BASE}/?fastAddress=${address}`;
+      const url = `${RAMP_BASE}/?fastAddress=${address}`;
 
       yield* output.humanLine("Open this URL in your browser to fund your account:");
       yield* output.humanLine("");

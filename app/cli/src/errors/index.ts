@@ -1,11 +1,10 @@
 export * from "./account.js";
 export * from "./io.js";
 export * from "./network.js";
-export * from "./transaction.js";
 export * from "./payment.js";
+export * from "./transaction.js";
 export * from "./usage.js";
 
-import type { DatabaseError, FileIOError } from "./io.js";
 import type {
   AccountExistsError,
   AccountNotFoundError,
@@ -14,7 +13,12 @@ import type {
   PasswordRequiredError,
   WrongPasswordError,
 } from "./account.js";
-import type { FastSdkError, InternalError } from "./io.js";
+import type {
+  DatabaseError,
+  FastSdkError,
+  FileIOError,
+  InternalError,
+} from "./io.js";
 import type {
   DefaultNetworkError,
   InvalidNetworkConfigError,
@@ -25,6 +29,12 @@ import type {
   UnsupportedChainError,
 } from "./network.js";
 import type {
+  InsufficientPaymentBalanceError,
+  InvalidPaymentLinkError,
+  PaymentFailedError,
+  PaymentRejectedError,
+} from "./payment.js";
+import type {
   InsufficientBalanceError,
   InsufficientGasError,
   InvalidAddressError,
@@ -33,12 +43,6 @@ import type {
   TransactionFailedError,
   TxNotFoundError,
 } from "./transaction.js";
-import type {
-  InsufficientPaymentBalanceError,
-  InvalidPaymentLinkError,
-  PaymentFailedError,
-  PaymentRejectedError,
-} from "./payment.js";
 import type {
   InvalidUsageError,
   NotImplementedError,

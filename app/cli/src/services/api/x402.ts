@@ -1,7 +1,7 @@
 import {
-  x402Pay,
   parse402Response,
   type X402PayParams,
+  x402Pay,
 } from "@fastxyz/x402-client";
 import { Effect } from "effect";
 import {
@@ -11,8 +11,7 @@ import {
 } from "../../errors/index.js";
 
 const mapX402Error = (cause: unknown) => {
-  const msg =
-    cause instanceof Error ? cause.message : String(cause);
+  const msg = cause instanceof Error ? cause.message : String(cause);
   if (msg.includes("rejected") || msg.includes("denied")) {
     return new PaymentRejectedError({ message: msg, cause });
   }
@@ -25,7 +24,11 @@ const pay = (params: X402PayParams) =>
     catch: mapX402Error,
   });
 
-const dryRun = (url: string, method: string, headers?: Record<string, string>) =>
+const dryRun = (
+  url: string,
+  method: string,
+  headers?: Record<string, string>,
+) =>
   Effect.tryPromise({
     try: async () => {
       const res = await fetch(url, { method, headers });
@@ -41,15 +44,12 @@ const dryRun = (url: string, method: string, headers?: Record<string, string>) =
     catch: (cause) =>
       new InvalidPaymentLinkError({
         message:
-          cause instanceof Error
-            ? cause.message
-            : `Failed to reach ${url}`,
+          cause instanceof Error ? cause.message : `Failed to reach ${url}`,
       }),
   });
 
 const ServiceEffect = Effect.succeed({ pay, dryRun });
 
-export class X402Service extends Effect.Service<X402Service>()(
-  "X402Service",
-  { effect: ServiceEffect },
-) {}
+export class X402Service extends Effect.Service<X402Service>()("X402Service", {
+  effect: ServiceEffect,
+}) {}

@@ -7,6 +7,7 @@ import { FastRpc } from "../../services/api/fast.js";
 import { ClientConfig } from "../../services/config/client.js";
 import { Output } from "../../services/output.js";
 import { AccountStore } from "../../services/storage/account.js";
+import { NetworkConfigService } from "../../services/storage/network.js";
 
 const fromFastAddress = (address: string): Uint8Array => {
   const { prefix, words } = bech32m.decode(address);
@@ -15,9 +16,13 @@ const fromFastAddress = (address: string): Uint8Array => {
   return new Uint8Array(bech32m.fromWords(words));
 };
 
-const formatAmount = (amountStr: string, decimals: number): string => {
-  if (decimals === 0) return amountStr;
-  const padded = amountStr.padStart(decimals + 1, "0");
+const bytesToHex = (bytes: Uint8Array): string =>
+  Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+const formatAmount = (amount: bigint, decimals: number): string => {
+  const s = amount.toString();
+  if (decimals === 0) return s;
+  const padded = s.padStart(decimals + 1, "0");
   const intPart = padded.slice(0, -decimals) || "0";
   const fracPart = padded.slice(-decimals).replace(/0+$/, "");
   return fracPart ? `${intPart}.${fracPart}` : intPart;
@@ -31,6 +36,8 @@ export const infoBalance: Command<InfoBalanceArgs> = {
     const accounts = yield* AccountStore;
     const output = yield* Output;
     const config = yield* ClientConfig;
+    const netService = yield* NetworkConfigService;
+    const networkConfig = yield* netService.resolve(config.network);
 
     let fastAddress: string;
     let senderBytes: Uint8Array;
@@ -61,7 +68,7 @@ export const infoBalance: Command<InfoBalanceArgs> = {
 
     const accountInfo = yield* rpc.getAccountInfo({
       address: senderBytes,
-      tokenBalancesFilter: null,
+      tokenBalancesFilter: [],
       stateKeyFilter: null,
       certificateByNonce: null,
     } as never);
@@ -74,38 +81,38 @@ export const infoBalance: Command<InfoBalanceArgs> = {
       formatted: string;
     }> = [];
 
-    if (
-      accountInfo &&
-      typeof accountInfo === "object" &&
-      "token_balance" in accountInfo
-    ) {
-      const tokenBalances = accountInfo.token_balance as
-        | Record<string, bigint>
-        | undefined;
-      if (tokenBalances) {
-        for (const [tokenId, amount] of Object.entries(tokenBalances)) {
-          const decimals = 6;
-          const amountStr = String(amount);
-          const formatted = formatAmount(amountStr, decimals);
-
-          if (args.token) {
-            const filter = args.token.toLowerCase();
-            if (
-              tokenId !== args.token &&
-              !tokenId.toLowerCase().includes(filter)
-            ) {
-              continue;
-            }
-          }
-
-          balances.push({
-            tokenName: `${tokenId.slice(0, 10)}...`,
-            tokenId,
-            amount: amountStr,
-            decimals,
-            formatted,
-          });
+    // Build tokenId hex → { name, decimals } lookup from network config
+    const tokenLookup = new Map<string, { name: string; decimals: number }>();
+    if (networkConfig.allSet) {
+      for (const chainConfig of Object.values(networkConfig.allSet.chains)) {
+        for (const [name, token] of Object.entries(chainConfig.tokens)) {
+          const hexId = token.fastTokenId.replace(/^0x/, "").toLowerCase();
+          if (!tokenLookup.has(hexId)) tokenLookup.set(hexId, { name, decimals: token.decimals });
         }
+      }
+    }
+
+    if (accountInfo && typeof accountInfo === "object" && "tokenBalance" in accountInfo) {
+      // Decoded via AccountInfoResponseFromRpc: tokenBalance is Array<[Uint8Array, bigint]>
+      const tokenBalances = (accountInfo as { tokenBalance: Array<[Uint8Array, bigint]> }).tokenBalance;
+      for (const [tokenIdBytes, amount] of tokenBalances) {
+        const tokenIdHex = bytesToHex(tokenIdBytes);
+        const known = tokenLookup.get(tokenIdHex);
+        const decimals = known?.decimals ?? 6;
+        const tokenName = known?.name ?? `${tokenIdHex.slice(0, 8)}...`;
+
+        if (args.token) {
+          const filter = args.token.toLowerCase().replace(/^0x/, "");
+          if (tokenName.toLowerCase() !== args.token.toLowerCase() && !tokenIdHex.includes(filter)) continue;
+        }
+
+        balances.push({
+          tokenName,
+          tokenId: `0x${tokenIdHex}`,
+          amount: amount.toString(),
+          decimals,
+          formatted: formatAmount(amount, decimals),
+        });
       }
     }
 

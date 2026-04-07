@@ -35,7 +35,7 @@ const createPasswordPrompter = (label: string) => {
 };
 
 const passwordPrompt = (config: ClientConfigShape, label: string): PasswordEffect => {
-  if (Option.isSome(config.password)) {
+  if (Option.isSome(config.password) && config.password.value !== "") {
     return Effect.succeed(config.password.value);
   }
 
@@ -58,7 +58,8 @@ const optionalPasswordPrompt = (
   label: string,
 ): OptionalPasswordEffect => {
   if (Option.isSome(config.password)) {
-    return Effect.succeed(Option.some(config.password.value));
+    const val = config.password.value;
+    return Effect.succeed(val === "" ? Option.none() : Option.some(val));
   }
   if (config.nonInteractive) {
     return Effect.succeed(Option.none());

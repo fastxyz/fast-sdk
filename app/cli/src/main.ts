@@ -78,7 +78,19 @@ const docPageToJson = (doc: DocPage) => {
   return result;
 };
 
-const argv = process.argv.slice(2);
+// Normalize bare --password (no value) → --password "" so the parser doesn't fail.
+// Empty string is later treated as "no password" in prompt.ts.
+const argv: string[] = [];
+for (let i = 0; i < process.argv.length - 2; i++) {
+  const arg = process.argv[2 + i];
+  argv.push(arg);
+  if (arg === "--password") {
+    const next = process.argv[2 + i + 1];
+    if (next === undefined || next.startsWith("-")) {
+      argv.push("");
+    }
+  }
+}
 const pre = parse(globalPreParser, argv);
 const isJson = argv.includes("--json");
 

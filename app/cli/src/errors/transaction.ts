@@ -63,3 +63,12 @@ export class TokenNotFoundError extends Data.TaggedError("TokenNotFoundError")<{
     return `Unknown token "${this.token}". Run \`fast info bridge-tokens\` to list supported tokens.`;
   }
 }
+
+export class FundingRequiredError extends Data.TaggedError(
+  "FundingRequiredError",
+)<{
+  readonly message: string;
+}> {
+  readonly exitCode = 4 as const;
+  readonly errorCode = "FUNDING_REQUIRED" as const;
+}

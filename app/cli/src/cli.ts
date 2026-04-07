@@ -362,8 +362,19 @@ const fundCryptoParser = command(
   "crypto",
   object({
     cmd: constant("fund-crypto" as const),
+    amount: argument(string({ metavar: "AMOUNT" }), {
+      description: message`Human-readable amount to fund (e.g., 100.00)`,
+    }),
+    chain: option("--chain", string({ metavar: "CHAIN" }), {
+      description: message`EVM chain to bridge from (see fast info bridge-chains)`,
+    }),
+    token: optional(
+      option("--token", string({ metavar: "TOKEN" }), {
+        description: message`Token to bridge (default: USDC / testUSDC)`,
+      }),
+    ),
   }),
-  { description: message`Show EVM address for crypto funding` },
+  { description: message`Fund Fast account by bridging from an EVM chain` },
 );
 
 const fundGroup = command(

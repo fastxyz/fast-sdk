@@ -4,7 +4,7 @@ import { ctr } from "@noble/ciphers/aes";
 import { scryptAsync } from "@noble/hashes/scrypt.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { randomBytes } from "@noble/hashes/utils.js";
-import { WrongPasswordError } from "../errors/index.js";
+import { PasswordRequiredError, WrongPasswordError } from "../errors/index.js";
 
 const SCRYPT_N = 262144;
 const SCRYPT_R = 8;
@@ -64,6 +64,18 @@ export const encryptSeed = async (
 };
 
 /**
+ * Store a seed — encrypt if password provided,
+ * return raw bytes otherwise.
+ */
+export const storeSeed = async (
+  seed: Uint8Array,
+  password: string | null,
+): Promise<Uint8Array> => {
+  if (password === null) return seed;
+  return encryptSeed(seed, password);
+};
+
+/**
  * Decrypt a seed from an encrypted blob. Throws WrongPasswordError if
  * the password is incorrect (MAC mismatch).
  */
@@ -91,4 +103,21 @@ export const decryptSeed = async (
 
   const cipher = ctr(derivedKey.slice(0, 16), iv);
   return cipher.decrypt(ciphertext);
+};
+
+/**
+ * Load a seed — decrypt if encrypted, return raw bytes
+ * otherwise. Throws PasswordRequiredError if encrypted
+ * but no password provided.
+ */
+export const loadSeed = async (
+  blob: Uint8Array,
+  password: string | null,
+  encrypted: boolean,
+): Promise<Uint8Array> => {
+  if (!encrypted) return blob;
+  if (password === null) {
+    throw new PasswordRequiredError();
+  }
+  return decryptSeed(blob, password);
 };

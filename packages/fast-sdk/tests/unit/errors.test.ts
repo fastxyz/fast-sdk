@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { rpcCallEffect } from "../../src/core/network/rpc";
+import { run } from "../../src/core/run";
 import {
   BcsEncodeError,
   FastProvider,
@@ -13,8 +15,6 @@ import {
   UnexpectedNonceError,
   ValidatorGenericError,
 } from "../../src/index";
-import { rpcCallEffect } from "../../src/core/network/rpc";
-import { run } from "../../src/core/run";
 
 function mockRpcError(error: {
   code: number;

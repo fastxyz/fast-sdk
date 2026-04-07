@@ -14,23 +14,23 @@ pnpm add @fastxyz/x402-types
 
 ### Payment Types
 
-| Type | Description |
-|------|-------------|
-| `PaymentRequirement` | Payment requirement returned in a 402 response |
-| `PaymentPayload` | Decoded X-PAYMENT header payload |
-| `FastPayload` | Fast transaction certificate payload |
-| `EvmPayload` | EVM EIP-3009 authorization payload |
-| `VerifyResponse` | Facilitator verify result |
-| `SettleResponse` | Facilitator settle result |
-| `SupportedPaymentKind` | Facilitator /supported descriptor |
-| `NetworkType` | `"evm" \| "fast" \| "svm"` |
+| Type                   | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `PaymentRequirement`   | Payment requirement returned in a 402 response |
+| `PaymentPayload`       | Decoded X-PAYMENT header payload               |
+| `FastPayload`          | Fast transaction certificate payload           |
+| `EvmPayload`           | EVM EIP-3009 authorization payload             |
+| `VerifyResponse`       | Facilitator verify result                      |
+| `SettleResponse`       | Facilitator settle result                      |
+| `SupportedPaymentKind` | Facilitator /supported descriptor              |
+| `NetworkType`          | `"evm" \| "fast" \| "svm"`                     |
 
 ### Network Config Types
 
-| Type | Description |
-|------|-------------|
-| `EvmChainConfig` | EVM chain config: `chainId`, `rpcUrl`, `usdcAddress`, optional `usdcName`/`usdcVersion` |
-| `FastNetworkConfig` | Fast network config: `rpcUrl`, `usdcTokenId` |
+| Type                | Description                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `EvmChainConfig`    | EVM chain config: `chainId`, `rpcUrl`, `usdcAddress`, optional `usdcName`/`usdcVersion` |
+| `FastNetworkConfig` | Fast network config: `rpcUrl`, `usdcTokenId`                                            |
 
 ## Utilities
 
@@ -41,9 +41,9 @@ Parse human-readable price strings into raw token units (default 6 decimals for 
 ```typescript
 import { parsePrice } from '@fastxyz/x402-types';
 
-parsePrice('$0.10');       // "100000"
-parsePrice('0.1 USDC');   // "100000"
-parsePrice('100000');      // "100000" (passthrough)
+parsePrice('$0.10'); // "100000"
+parsePrice('0.1 USDC'); // "100000"
+parsePrice('100000'); // "100000" (passthrough)
 ```
 
 ### `encodePayload(value)` / `decodePayload<T>(encoded)`
@@ -65,7 +65,7 @@ Determine network type from a network name string.
 import { getNetworkType } from '@fastxyz/x402-types';
 
 getNetworkType('arbitrum-sepolia'); // "evm"
-getNetworkType('fast-testnet');     // "fast"
+getNetworkType('fast-testnet'); // "fast"
 ```
 
 ## Design

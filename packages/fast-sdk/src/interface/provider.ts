@@ -91,7 +91,9 @@ export class FastProvider {
   }
 
   /** Fetch metadata for one or more tokens by their IDs. */
-  async getTokenInfo(params: GetTokenInfoInputParams): Promise<TokenInfoResponse> {
+  async getTokenInfo(
+    params: GetTokenInfoInputParams,
+  ): Promise<TokenInfoResponse> {
     const internal = Schema.decodeUnknownSync(GetTokenInfoInput)(params);
     return run(proxy.getTokenInfo(this._rpcUrl, internal));
   }

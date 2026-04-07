@@ -7,7 +7,9 @@ export class RpcTimeoutError extends Data.TaggedError("RpcTimeoutError")<{
 }> {}
 
 /** JSON-RPC protocol errors (-32700 to -32603). */
-export class JsonRpcProtocolError extends Data.TaggedError("JsonRpcProtocolError")<{
+export class JsonRpcProtocolError extends Data.TaggedError(
+  "JsonRpcProtocolError",
+)<{
   readonly code: number;
   readonly message: string;
 }> {}

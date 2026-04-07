@@ -1,19 +1,40 @@
-import { Schema } from "effect";
-import type { S } from "../palette/definition.ts";
-import { CamelCaseStruct, TypedVariant } from "../util/index.ts";
-import { makeClaimType } from "./operations.ts";
+import { Schema } from 'effect';
+import type { S } from '../palette/definition.ts';
+import { CamelCaseStruct, TypedVariant } from '../util/index.ts';
+import { makeClaimType } from './operations.ts';
 
 /** The Release20260319 Transaction struct. */
 export const makeTransaction = <
-  TNetId extends S, TAddr extends S, TNonce extends S, TBi extends S,
-  TId extends S, TAmt extends S, TUd extends S, TKey extends S,
-  TSt extends S, TQ extends S, TCD extends S, TSig extends S,
-  Mode extends "serde" | "bcs" = "serde",
->(p: {
-  NetworkId: TNetId; Address: TAddr; Nonce: TNonce; BigInt: TBi;
-  TokenId: TId; Amount: TAmt; UserData: TUd; StateKey: TKey;
-  State: TSt; Quorum: TQ; ClaimData: TCD; Signature: TSig;
-}, options?: { unitEncoding: Mode }) =>
+  TNetId extends S,
+  TAddr extends S,
+  TNonce extends S,
+  TBi extends S,
+  TId extends S,
+  TAmt extends S,
+  TUd extends S,
+  TKey extends S,
+  TSt extends S,
+  TQ extends S,
+  TCD extends S,
+  TSig extends S,
+  Mode extends 'serde' | 'bcs' = 'serde',
+>(
+  p: {
+    NetworkId: TNetId;
+    Address: TAddr;
+    Nonce: TNonce;
+    BigInt: TBi;
+    TokenId: TId;
+    Amount: TAmt;
+    UserData: TUd;
+    StateKey: TKey;
+    State: TSt;
+    Quorum: TQ;
+    ClaimData: TCD;
+    Signature: TSig;
+  },
+  options?: { unitEncoding: Mode },
+) =>
   CamelCaseStruct({
     network_id: p.NetworkId,
     sender: p.Address,
@@ -26,13 +47,33 @@ export const makeTransaction = <
 
 /** VersionedTransaction — externally tagged, Release20260319 only for now. */
 export const makeVersionedTransaction = <
-  TNetId extends S, TAddr extends S, TNonce extends S, TBi extends S,
-  TId extends S, TAmt extends S, TUd extends S, TKey extends S,
-  TSt extends S, TQ extends S, TCD extends S, TSig extends S,
-  Mode extends "serde" | "bcs" = "serde",
->(p: {
-  NetworkId: TNetId; Address: TAddr; Nonce: TNonce; BigInt: TBi;
-  TokenId: TId; Amount: TAmt; UserData: TUd; StateKey: TKey;
-  State: TSt; Quorum: TQ; ClaimData: TCD; Signature: TSig;
-}, options?: { unitEncoding: Mode }) =>
-  TypedVariant({ Release20260319: makeTransaction(p, options) });
+  TNetId extends S,
+  TAddr extends S,
+  TNonce extends S,
+  TBi extends S,
+  TId extends S,
+  TAmt extends S,
+  TUd extends S,
+  TKey extends S,
+  TSt extends S,
+  TQ extends S,
+  TCD extends S,
+  TSig extends S,
+  Mode extends 'serde' | 'bcs' = 'serde',
+>(
+  p: {
+    NetworkId: TNetId;
+    Address: TAddr;
+    Nonce: TNonce;
+    BigInt: TBi;
+    TokenId: TId;
+    Amount: TAmt;
+    UserData: TUd;
+    StateKey: TKey;
+    State: TSt;
+    Quorum: TQ;
+    ClaimData: TCD;
+    Signature: TSig;
+  },
+  options?: { unitEncoding: Mode },
+) => TypedVariant({ Release20260319: makeTransaction(p, options) });

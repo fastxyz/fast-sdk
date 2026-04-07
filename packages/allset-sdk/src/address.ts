@@ -1,4 +1,4 @@
-import { fromFastAddress, toHex } from '@fastxyz/fast-sdk';
+import { fromFastAddress, toHex } from '@fastxyz/sdk';
 import type { Hex } from 'viem';
 
 export function fastAddressToBytes(address: string): Uint8Array {

@@ -4,7 +4,7 @@
  * Use `instanceof` to match specific errors:
  *
  * ```ts
- * import { UnexpectedNonceError } from "@fastxyz/fast-sdk";
+ * import { UnexpectedNonceError } from "@fastxyz/sdk";
  *
  * try {
  *   await provider.submitTransaction(envelope);
@@ -30,7 +30,12 @@
  * - **Crypto**: `BcsEncodeError`, `SigningError`, `PublicKeyError`, `VerifyError`
  */
 
-export { BcsEncodeError, PublicKeyError, SigningError, VerifyError } from "../core/error/crypto";
+export {
+  BcsEncodeError,
+  PublicKeyError,
+  SigningError,
+  VerifyError,
+} from "../core/error/crypto";
 export {
   CertificateTooYoungError,
   InsufficientFundingError,
@@ -41,7 +46,11 @@ export {
   UnexpectedNonceError,
   ValidatorGenericError,
 } from "../core/error/fastset";
-export { JsonRpcProtocolError, RpcError, RpcTimeoutError } from "../core/error/network";
+export {
+  JsonRpcProtocolError,
+  RpcError,
+  RpcTimeoutError,
+} from "../core/error/network";
 export {
   DatabaseError,
   FaucetDisabledError,

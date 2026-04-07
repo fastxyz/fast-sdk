@@ -141,9 +141,7 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe(
-        "StateInitialization",
-      );
+      expect(envelope.transaction.value.claim.type).toBe("StateInitialization");
     });
 
     it("builds StateUpdate", async () => {
@@ -407,7 +405,11 @@ describe("TransactionBuilder", () => {
     ] as const) {
       it(`accepts ${networkId}`, async () => {
         const signer = new Signer(new Uint8Array(32).fill(1));
-        const builder = new TransactionBuilder({ networkId, signer, nonce: 0n });
+        const builder = new TransactionBuilder({
+          networkId,
+          signer,
+          nonce: 0n,
+        });
         builder.addLeaveCommittee();
         const envelope = await builder.sign();
         expect(envelope.transaction.value.networkId).toBe(networkId);

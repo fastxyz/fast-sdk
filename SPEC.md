@@ -102,6 +102,21 @@ is never stored in plaintext.
 }
 ```
 
+When no password is provided (agent/non-interactive use), the keyfile stores
+the seed in plaintext, protected by file permissions (`0600`) only — the same
+model as SSH keys without a passphrase:
+
+```json
+{
+  "version": 3,
+  "id": "a1b2c3d4-...",
+  "fastAddress": "fast1qw5...x9z",
+  "evmAddress": "0x7a3f...b2c1",
+  "encrypted": false,
+  "seed": "0x<hex>",
+  "createdAt": "2026-03-31T00:00:00Z"
+}
+
 The encrypted payload is an Ed25519 seed (32 bytes). From this single key the
 CLI derives:
 
@@ -116,15 +131,24 @@ encrypted.
 
 ### 3.3 Password handling
 
-The keystore password is required to decrypt keys for signing operations
-(`send`, `pay`) and for `account export`. It can be provided via:
+The keystore password encrypts the private key at rest. It can be provided via:
 
 1. `--password <value>` flag (highest priority)
 2. `FAST_PASSWORD` environment variable
 3. Interactive masked prompt (only in interactive mode)
 
-In `--non-interactive` mode, if no password is available from (1) or (2), the
-CLI exits with code 8 (`PASSWORD_REQUIRED`).
+**When no password is provided:**
+
+- **Interactive mode:** the CLI prompts for a password. The user may press
+  Enter to skip encryption (with a warning).
+- **Non-interactive mode:** the key is stored unencrypted, protected by file
+  permissions (`0600`) only. This is the expected mode for agent-created
+  accounts — the same model as SSH keys without a passphrase.
+
+  In `--non-interactive` mode, signing operations on password-protected accounts
+require the password via (1) or (2). If unavailable, the CLI exits with code 8
+(`PASSWORD_REQUIRED`). Signing operations on unencrypted accounts proceed
+without a password.
 
 The password is **not stored** by the CLI. Users choose their own password at
 account creation time. Different accounts may use different passwords.
@@ -281,7 +305,9 @@ prompt (see section 3.3).
 
 **Behavior**
 
-1. Prompt for a password (interactive) or read from flag/env var.
+1. Read password from flag/env var. In interactive mode, prompt for a password
+   (Enter to skip). In non-interactive mode with no password, store
+   unencrypted.
 2. Generate 32 random bytes via `crypto.getRandomValues` as the Ed25519 seed.
 3. Derive the Fast address (bech32m) and EVM address.
 4. Encrypt the seed using the password (AES-256-CTR + scrypt).
@@ -1127,7 +1153,7 @@ or bank transfer (on-ramp).
 
 ```text
 Fund USDC to fast1qw5...x9z via Swapper:
-  https://ramp.fast.xyz/...
+  https://ramp.fast.xyz/?to=fast1...
 ```
 
 **Output (`--json`)**
@@ -1168,7 +1194,8 @@ The CLI checks the EVM balance of the account's derived EVM address
 - f the EVM balance is sufficient: bridge the requested amount to Fast
 automatically.
 - If the EVM balance is insufficient: print the EVM address and the shortfall
-amount, then exit. The user (or a human) sends the required tokens to that
+amount, with a prompt indicating users to fund the provided EVM address,
+then exit. The user (or a human) sends the required tokens to that
 address on the specified chain, then re-runs the same command.
 
 **Arguments**

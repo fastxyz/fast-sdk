@@ -2,7 +2,13 @@
   "name": "@fastxyz/allset-sdk",
   "version": "0.1.9",
   "description": "AllSet SDK for AllSet bridge flows between Fast and EVM testnets",
-  "keywords": ["allset", "sdk", "bridge", "fast", "blockchain"],
+  "keywords": [
+    "allset",
+    "sdk",
+    "bridge",
+    "fast",
+    "blockchain"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,7 +18,9 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --out-dir dist",
     "clean": "rm -rf dist",
@@ -28,11 +36,13 @@
     "access": "public"
   },
   "dependencies": {
-    "@fastxyz/fast-sdk": "workspace:*",
+    "@fastxyz/fast-schema": "workspace:*",
+    "@fastxyz/sdk": "workspace:*",
     "@mysten/bcs": "^2.0.3",
     "@noble/ed25519": "^3.0.1",
     "@noble/hashes": "^2.0.1",
     "bech32": "^2.0.0",
+    "effect": "^3.21.0",
     "viem": "^2.46.2"
   },
   "devDependencies": {

@@ -3,12 +3,7 @@
  */
 
 import { describe, it, afterEach, expect } from 'vitest';
-import {
-  createPaymentRequirement,
-  createPaymentRequired,
-  parsePaymentHeader,
-  encodePaymentResponse,
-} from '../src/payment.js';
+import { createPaymentRequirement, createPaymentRequired, parsePaymentHeader, encodePaymentResponse } from '../src/payment.js';
 
 const originalFetch = globalThis.fetch;
 
@@ -34,7 +29,7 @@ describe('x402-server payment', () => {
       const req = createPaymentRequirement(
         '0x1234567890abcdef1234567890abcdef12345678',
         { price: '$0.10', network: 'arbitrum-sepolia', networkConfig: ARBITRUM_SEPOLIA_CONFIG },
-        '/api/data'
+        '/api/data',
       );
 
       expect(req.scheme).toBe('exact');
@@ -52,7 +47,7 @@ describe('x402-server payment', () => {
       const req = createPaymentRequirement(
         'fast1abc123xyz',
         { price: '$0.01', network: 'fast-testnet', networkConfig: FAST_TESTNET_CONFIG },
-        '/api/fast-data'
+        '/api/fast-data',
       );
 
       expect(req.scheme).toBe('exact');
@@ -65,13 +60,13 @@ describe('x402-server payment', () => {
     it('should use custom description', () => {
       const req = createPaymentRequirement(
         '0x123',
-        { 
-          price: '$0.10', 
+        {
+          price: '$0.10',
           network: 'arbitrum-sepolia',
           networkConfig: ARBITRUM_SEPOLIA_CONFIG,
-          config: { description: 'Premium weather data' }
+          config: { description: 'Premium weather data' },
         },
-        '/api/weather'
+        '/api/weather',
       );
 
       expect(req.description).toBe('Premium weather data');
@@ -81,13 +76,13 @@ describe('x402-server payment', () => {
       const customAsset = '0xcustomtoken123';
       const req = createPaymentRequirement(
         '0x123',
-        { 
-          price: '$0.10', 
+        {
+          price: '$0.10',
           network: 'arbitrum-sepolia',
           networkConfig: ARBITRUM_SEPOLIA_CONFIG,
-          config: { asset: customAsset }
+          config: { asset: customAsset },
         },
-        '/api/data'
+        '/api/data',
       );
 
       expect(req.asset).toBe(customAsset);
@@ -99,7 +94,7 @@ describe('x402-server payment', () => {
       const response = createPaymentRequired(
         '0x123',
         { price: '$0.10', network: 'arbitrum-sepolia', networkConfig: ARBITRUM_SEPOLIA_CONFIG },
-        '/api/data'
+        '/api/data',
       );
 
       expect(response.error).toBe('X-PAYMENT header is required');
@@ -117,7 +112,7 @@ describe('x402-server payment', () => {
         network: 'arbitrum-sepolia',
         payload: { signature: '0x123' },
       };
-      
+
       const encoded = Buffer.from(JSON.stringify(payload)).toString('base64');
       const decoded = parsePaymentHeader(encoded);
 

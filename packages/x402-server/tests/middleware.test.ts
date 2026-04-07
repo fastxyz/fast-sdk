@@ -26,7 +26,11 @@ const FAST_TESTNET_CONFIG = {
 };
 
 // Mock request
-function mockRequest(path: string, method: string = 'GET', headers: Record<string, string> = {}): {
+function mockRequest(
+  path: string,
+  method: string = 'GET',
+  headers: Record<string, string> = {},
+): {
   method: string;
   path: string;
   header: (name: string) => string | undefined;
@@ -78,14 +82,16 @@ describe('x402-server middleware', () => {
         const middleware = paymentMiddleware(
           '0x123',
           { 'GET /api/protected': { price: '$0.10', network: 'arbitrum-sepolia', networkConfig: ARBITRUM_SEPOLIA_CONFIG } },
-          { url: 'http://localhost:4020' }
+          { url: 'http://localhost:4020' },
         );
 
         const req = mockRequest('/api/public');
         const res = mockResponse();
         let nextCalled = false;
 
-        await middleware(req, res, () => { nextCalled = true; });
+        await middleware(req, res, () => {
+          nextCalled = true;
+        });
 
         expect(nextCalled).toBe(true);
       });
@@ -94,7 +100,7 @@ describe('x402-server middleware', () => {
         const middleware = paymentMiddleware(
           '0x123',
           { '/api/data': { price: '$0.10', network: 'arbitrum-sepolia', networkConfig: ARBITRUM_SEPOLIA_CONFIG } },
-          { url: 'http://localhost:4020' }
+          { url: 'http://localhost:4020' },
         );
 
         const req = mockRequest('/api/data');
@@ -109,7 +115,7 @@ describe('x402-server middleware', () => {
         const middleware = paymentMiddleware(
           '0x123',
           { '/api/premium/*': { price: '$0.10', network: 'arbitrum-sepolia', networkConfig: ARBITRUM_SEPOLIA_CONFIG } },
-          { url: 'http://localhost:4020' }
+          { url: 'http://localhost:4020' },
         );
 
         const req = mockRequest('/api/premium/data/nested');
@@ -124,7 +130,7 @@ describe('x402-server middleware', () => {
         const middleware = paymentMiddleware(
           '0x123',
           { 'POST /api/generate': { price: '$0.10', network: 'arbitrum-sepolia', networkConfig: ARBITRUM_SEPOLIA_CONFIG } },
-          { url: 'http://localhost:4020' }
+          { url: 'http://localhost:4020' },
         );
 
         const postReq = mockRequest('/api/generate', 'POST');
@@ -135,7 +141,9 @@ describe('x402-server middleware', () => {
         const getReq = mockRequest('/api/generate', 'GET');
         const getRes = mockResponse();
         let nextCalled = false;
-        await middleware(getReq, getRes, () => { nextCalled = true; });
+        await middleware(getReq, getRes, () => {
+          nextCalled = true;
+        });
         expect(nextCalled).toBe(true);
       });
     });
@@ -145,7 +153,7 @@ describe('x402-server middleware', () => {
         const middleware = paymentMiddleware(
           '0x123',
           { '/api/data': { price: '$0.10', network: 'arbitrum-sepolia', networkConfig: ARBITRUM_SEPOLIA_CONFIG } },
-          { url: 'http://localhost:4020' }
+          { url: 'http://localhost:4020' },
         );
 
         const req = mockRequest('/api/data');
@@ -163,7 +171,7 @@ describe('x402-server middleware', () => {
         const middleware = paymentMiddleware(
           '0xPaymentAddress123',
           { '/api/data': { price: '$0.50', network: 'base-sepolia', networkConfig: BASE_SEPOLIA_CONFIG } },
-          { url: 'http://localhost:4020' }
+          { url: 'http://localhost:4020' },
         );
 
         const req = mockRequest('/api/data');
@@ -183,7 +191,7 @@ describe('x402-server middleware', () => {
         const middleware = paymentMiddleware(
           { evm: '0xEvmAddress', fast: 'fast1FastAddress' },
           { '/api/evm': { price: '$0.10', network: 'arbitrum-sepolia', networkConfig: ARBITRUM_SEPOLIA_CONFIG } },
-          { url: 'http://localhost:4020' }
+          { url: 'http://localhost:4020' },
         );
 
         const req = mockRequest('/api/evm');
@@ -199,7 +207,7 @@ describe('x402-server middleware', () => {
         const middleware = paymentMiddleware(
           { evm: '0xEvmAddress', fast: 'fast1FastAddress' },
           { '/api/fast': { price: '$0.10', network: 'fast-testnet', networkConfig: FAST_TESTNET_CONFIG } },
-          { url: 'http://localhost:4020' }
+          { url: 'http://localhost:4020' },
         );
 
         const req = mockRequest('/api/fast');
@@ -215,7 +223,7 @@ describe('x402-server middleware', () => {
         const middleware = paymentMiddleware(
           { evm: '0xEvmAddress' },
           { '/api/fast': { price: '$0.10', network: 'fast-testnet', networkConfig: FAST_TESTNET_CONFIG } },
-          { url: 'http://localhost:4020' }
+          { url: 'http://localhost:4020' },
         );
 
         const req = mockRequest('/api/fast');
@@ -235,7 +243,7 @@ describe('x402-server middleware', () => {
       const middleware = paywall(
         '0x123',
         { price: '$0.10', network: 'arbitrum-sepolia', networkConfig: ARBITRUM_SEPOLIA_CONFIG },
-        { url: 'http://localhost:4020' }
+        { url: 'http://localhost:4020' },
       );
 
       const req = mockRequest('/any/path/here');

@@ -80,10 +80,7 @@ export function createFacilitatorRoutes(config: FacilitatorConfig = {}) {
 
         log(`  Network: ${decoded.network}, Scheme: ${decoded.scheme}`, config);
         const result = await verify(decoded, paymentRequirements, config);
-        log(
-          `  ${result.isValid ? '✓' : '✗'} Verify result: ${result.isValid ? 'valid' : result.invalidReason}`,
-          config,
-        );
+        log(`  ${result.isValid ? '✓' : '✗'} Verify result: ${result.isValid ? 'valid' : result.invalidReason}`, config);
         res.json(result);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -132,10 +129,7 @@ export function createFacilitatorRoutes(config: FacilitatorConfig = {}) {
 
         log(`  Network: ${decoded.network}, settling...`, config);
         const result = await settle(decoded, paymentRequirements, config);
-        log(
-          `  ${result.success ? '✓' : '✗'} Settle result: ${result.success ? `tx=${result.txHash?.slice(0, 20)}...` : result.errorReason}`,
-          config,
-        );
+        log(`  ${result.success ? '✓' : '✗'} Settle result: ${result.success ? `tx=${result.txHash?.slice(0, 20)}...` : result.errorReason}`, config);
         res.json(result);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -195,11 +189,7 @@ export function createFacilitatorRoutes(config: FacilitatorConfig = {}) {
 export function createFacilitatorServer(config: FacilitatorConfig = {}) {
   const routes = createFacilitatorRoutes(config);
 
-  return async function facilitatorMiddleware(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) {
+  return async function facilitatorMiddleware(req: Request, res: Response, next: NextFunction) {
     for (const route of routes) {
       if (req.method.toLowerCase() === route.method && req.path === route.path) {
         return route.handler(req, res);

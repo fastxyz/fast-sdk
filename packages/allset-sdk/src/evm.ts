@@ -1,13 +1,4 @@
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseAbi,
-  type Account,
-  type Chain,
-  type PublicClient,
-  type WalletClient,
-} from 'viem';
+import { createPublicClient, createWalletClient, http, parseAbi, type Account, type Chain, type PublicClient, type WalletClient } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, arbitrumSepolia, base, mainnet as ethereum, sepolia } from 'viem/chains';
 
@@ -49,10 +40,11 @@ export function createEvmWallet(privateKey?: string): EvmAccount {
   return Object.assign(privateKeyToAccount(key), { privateKey: key });
 }
 
-/** ERC20 ABI for allowance and approve */
+/** ERC20 ABI for allowance, approve, and balanceOf */
 export const ERC20_ABI = parseAbi([
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
+  'function balanceOf(address owner) view returns (uint256)',
 ]);
 
 /** Bundled supported chain mappings */
@@ -90,13 +82,8 @@ export interface EvmClients {
  * const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, 421614);
  * ```
  */
-export function createEvmExecutor(
-  account: Account,
-  rpcUrl: string,
-  chainOrId: Chain | number,
-): EvmClients {
-  const chain =
-    typeof chainOrId === 'number' ? resolveChain(chainOrId) : chainOrId;
+export function createEvmExecutor(account: Account, rpcUrl: string, chainOrId: Chain | number): EvmClients {
+  const chain = typeof chainOrId === 'number' ? resolveChain(chainOrId) : chainOrId;
 
   const walletClient = createWalletClient({
     account,
@@ -121,4 +108,34 @@ function resolveChain(chainId: number): Chain {
     );
   }
   return chain;
+}
+
+/**
+ * Get the ERC-20 token balance of an EVM address.
+ *
+ * @param rpcUrl - EVM RPC endpoint
+ * @param tokenAddress - ERC-20 contract address
+ * @param ownerAddress - Account to query
+ * @returns Raw balance as bigint (in token's smallest unit)
+ */
+export async function getEvmErc20Balance(rpcUrl: string, tokenAddress: string, ownerAddress: string): Promise<bigint> {
+  const client = createPublicClient({ transport: http(rpcUrl) });
+  return client.readContract({
+    address: tokenAddress as `0x${string}`,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [ownerAddress as `0x${string}`],
+  });
+}
+
+/**
+ * Get the native token (ETH / gas token) balance of an EVM address.
+ *
+ * @param rpcUrl - EVM RPC endpoint
+ * @param address - Account to query
+ * @returns Balance in wei as bigint
+ */
+export async function getEvmNativeBalance(rpcUrl: string, address: string): Promise<bigint> {
+  const client = createPublicClient({ transport: http(rpcUrl) });
+  return client.getBalance({ address: address as `0x${string}` });
 }

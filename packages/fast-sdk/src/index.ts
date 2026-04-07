@@ -6,7 +6,13 @@ export {
   toFastAddress,
   toHex,
 } from "./interface/convert";
-export { domainEncode, encode, getTokenId, hash, hashHex } from "./interface/encode";
+export {
+  domainEncode,
+  encode,
+  getTokenId,
+  hash,
+  hashHex,
+} from "./interface/encode";
 export {
   BcsEncodeError,
   CertificateTooYoungError,

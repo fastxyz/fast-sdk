@@ -15,12 +15,14 @@ metadata:
 ## When to Use This Skill
 
 **USE this skill when the user wants to:**
+
 - Run a payment facilitator service
 - Verify x402 payment proofs on-chain
 - Settle EVM EIP-3009 authorizations or Fast transaction certificates
 - Mount facilitator API routes in an existing Express app
 
 **DO NOT use this skill for:**
+
 - Paying for 402-protected content → use `@fastxyz/x402-client`
 - Protecting API routes → use `@fastxyz/x402-server`
 - Shared x402 types only → use `@fastxyz/x402-types`
@@ -100,7 +102,7 @@ import type { FacilitatorConfig, FacilitatorEvmChainConfig, FacilitatorFastNetwo
 
 // FacilitatorConfig shape
 const config: FacilitatorConfig = {
-  evmPrivateKey: '0x...',                     // For EVM settlement
+  evmPrivateKey: '0x...', // For EVM settlement
   evmChains: { '<network>': { chain, rpcUrl, usdcAddress } },
   fastNetworks: { '<network>': { rpcUrl, committeePublicKeys } },
   debug: true,

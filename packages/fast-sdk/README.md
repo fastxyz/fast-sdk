@@ -1,4 +1,4 @@
-# @fastxyz/fast-sdk
+# @fastxyz/sdk
 
 TypeScript SDK for the Fast network. Provides a high-level API for signing
 transactions, querying the network, and converting addresses and amounts.
@@ -6,33 +6,33 @@ transactions, querying the network, and converting addresses and amounts.
 ## Install
 
 ```bash
-npm install @fastxyz/fast-sdk
+npm install @fastxyz/sdk
 ```
 
 ## Quick start
 
 ```ts
-import { FastProvider, Signer, TransactionBuilder } from "@fastxyz/fast-sdk";
+import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/sdk';
 
 // Create a signer from a 32-byte hex private key
-const signer = new Signer("0xabcdef0123456789...");
+const signer = new Signer('0xabcdef0123456789...');
 const pubKey = await signer.getPublicKey();
 
 // Connect to a proxy RPC endpoint
-const provider = new FastProvider({ rpcUrl: "https://api.fast.xyz/proxy" });
+const provider = new FastProvider({ rpcUrl: 'https://api.fast.xyz/proxy' });
 
 // Fetch account info
 const account = await provider.getAccountInfo({
-  address: pubKey
+  address: pubKey,
 });
 
 // Build and sign a transaction
 const envelope = await new TransactionBuilder({
-  networkId: "fast:mainnet",
+  networkId: 'fast:mainnet',
   signer,
   nonce: account.nextNonce,
 })
-  .addBurn({ tokenId: "11".repeat(32), amount: 100n })
+  .addBurn({ tokenId: '11'.repeat(32), amount: 100n })
   .sign();
 
 // Submit
@@ -47,16 +47,16 @@ Ed25519 signer that accepts private keys as hex strings, `Uint8Array`, or `numbe
 
 ```ts
 const signer = new Signer(privateKey);
-const pubKey = await signer.getPublicKey();            // 32-byte Ed25519 public key
-const address = await signer.getFastAddress();         // "fast1..."
-const sig = await signer.signMessage(message);         // 64-byte signature
+const pubKey = await signer.getPublicKey(); // 32-byte Ed25519 public key
+const address = await signer.getFastAddress(); // "fast1..."
+const sig = await signer.signMessage(message); // 64-byte signature
 const sig = await signer.signTypedData(bcsType, data); // BCS domain-prefixed
 ```
 
 Standalone verification:
 
 ```ts
-import { verify, verifyTypedData } from "@fastxyz/fast-sdk";
+import { verify, verifyTypedData } from '@fastxyz/sdk';
 const valid = await verify(signature, message, publicKey);
 ```
 
@@ -81,9 +81,7 @@ claim type; multiple operations are automatically batched.
 ```ts
 const builder = new TransactionBuilder({ networkId, signer, nonce });
 
-builder
-  .addTokenTransfer({ tokenId, recipient, amount: 1000n, userData: null })
-  .addBurn({ tokenId, amount: 500n });
+builder.addTokenTransfer({ tokenId, recipient, amount: 1000n, userData: null }).addBurn({ tokenId, amount: 500n });
 
 const envelope = await builder.sign(); // Batch of 2 operations
 ```
@@ -96,22 +94,22 @@ Supported operations: `addTokenTransfer`, `addTokenCreation`,
 ### Conversion utilities
 
 ```ts
-import { toHex, fromHex, toFastAddress, fromFastAddress } from "@fastxyz/fast-sdk";
+import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
 
-toHex(bytes);              // "0x..."
-fromHex("0xabcd");         // Uint8Array
-toFastAddress(pubKey);     // "fast1..."
-fromFastAddress("fast1..."); // Uint8Array
+toHex(bytes); // "0x..."
+fromHex('0xabcd'); // Uint8Array
+toFastAddress(pubKey); // "fast1..."
+fromFastAddress('fast1...'); // Uint8Array
 ```
 
 ### BCS encoding
 
 ```ts
-import { encode, hash, hashHex, getTokenId } from "@fastxyz/fast-sdk";
+import { encode, hash, hashHex, getTokenId } from '@fastxyz/sdk';
 
 const bytes = await encode(bcsSchema, data);
-const h = await hashHex(bcsSchema, data);       // "0x..." keccak-256
-const tokenId = getTokenId(sender, nonce, 0n);  // deterministic token ID
+const h = await hashHex(bcsSchema, data); // "0x..." keccak-256
+const tokenId = getTokenId(sender, nonce, 0n); // deterministic token ID
 ```
 
 ### Error handling
@@ -119,13 +117,13 @@ const tokenId = getTokenId(sender, nonce, 0n);  // deterministic token ID
 All errors are typed and can be matched with `instanceof`:
 
 ```ts
-import { UnexpectedNonceError, InsufficientFundingError } from "@fastxyz/fast-sdk";
+import { UnexpectedNonceError, InsufficientFundingError } from '@fastxyz/sdk';
 
 try {
   await provider.submitTransaction(envelope);
 } catch (e) {
   if (e instanceof UnexpectedNonceError) {
-    console.log("Expected nonce:", e.expectedNonce);
+    console.log('Expected nonce:', e.expectedNonce);
   }
 }
 ```

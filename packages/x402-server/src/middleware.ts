@@ -7,20 +7,8 @@
 
 import { getNetworkType } from '@fastxyz/x402-types';
 
-import {
-  createPaymentRequired,
-  createPaymentRequirement,
-  encodePaymentResponse,
-  settlePayment,
-  verifyPayment,
-} from './payment.js';
-import type {
-  FacilitatorConfig,
-  MiddlewareOptions,
-  PayToConfig,
-  RouteConfig,
-  RoutesConfig,
-} from './types.js';
+import { createPaymentRequired, createPaymentRequirement, encodePaymentResponse, settlePayment, verifyPayment } from './payment.js';
+import type { FacilitatorConfig, MiddlewareOptions, PayToConfig, RouteConfig, RoutesConfig } from './types.js';
 
 // Express types (minimal to avoid hard dependency)
 export interface Request {
@@ -56,19 +44,13 @@ function matchRoute(pattern: string, method: string, path: string): boolean {
     return false;
   }
 
-  const regexPattern = routePath
-    .replace(/\*/g, '.*')
-    .replace(/:[\w]+/g, '[^/]+');
+  const regexPattern = routePath.replace(/\*/g, '.*').replace(/:[\w]+/g, '[^/]+');
 
   const regex = new RegExp(`^${regexPattern}$`);
   return regex.test(path);
 }
 
-function findRouteConfig(
-  routes: RoutesConfig,
-  method: string,
-  path: string,
-): RouteConfig | null {
+function findRouteConfig(routes: RoutesConfig, method: string, path: string): RouteConfig | null {
   for (const [pattern, config] of Object.entries(routes)) {
     if (matchRoute(pattern, method, path)) {
       return config;
@@ -89,18 +71,14 @@ function resolvePayTo(payTo: PayToConfig, network: string): string {
 
   if (networkType === 'fast') {
     if (!payTo.fast) {
-      throw new Error(
-        `Fast payment address not configured. Add 'fast' to payTo config for network: ${network}`,
-      );
+      throw new Error(`Fast payment address not configured. Add 'fast' to payTo config for network: ${network}`);
     }
     return payTo.fast;
   }
 
   if (networkType === 'evm') {
     if (!payTo.evm) {
-      throw new Error(
-        `EVM payment address not configured. Add 'evm' to payTo config for network: ${network}`,
-      );
+      throw new Error(`EVM payment address not configured. Add 'evm' to payTo config for network: ${network}`);
     }
     return payTo.evm;
   }
@@ -111,19 +89,10 @@ function resolvePayTo(payTo: PayToConfig, network: string): string {
 /**
  * Create x402 payment middleware for Express.
  */
-export function paymentMiddleware(
-  payTo: PayToConfig,
-  routes: RoutesConfig,
-  facilitator: FacilitatorConfig,
-  options?: MiddlewareOptions,
-) {
+export function paymentMiddleware(payTo: PayToConfig, routes: RoutesConfig, facilitator: FacilitatorConfig, options?: MiddlewareOptions) {
   const opts = { debug: true, ...options };
 
-  return async function x402Middleware(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) {
+  return async function x402Middleware(req: Request, res: Response, next: NextFunction) {
     const routeConfig = findRouteConfig(routes, req.method, req.path);
 
     if (!routeConfig) {
@@ -234,11 +203,6 @@ export function paymentMiddleware(
 /**
  * Simple middleware that returns 402 for all requests without X-PAYMENT.
  */
-export function paywall(
-  payTo: PayToConfig,
-  config: RouteConfig,
-  facilitator: FacilitatorConfig,
-  options?: MiddlewareOptions,
-) {
+export function paywall(payTo: PayToConfig, config: RouteConfig, facilitator: FacilitatorConfig, options?: MiddlewareOptions) {
   return paymentMiddleware(payTo, { '*': config }, facilitator, options);
 }

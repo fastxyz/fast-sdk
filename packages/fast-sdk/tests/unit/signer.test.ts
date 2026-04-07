@@ -1,6 +1,6 @@
+import { bcs } from "@mysten/bcs";
 import { describe, expect, it } from "vitest";
 import { Signer, verify, verifyTypedData } from "../../src/index";
-import { bcs } from "@mysten/bcs";
 
 const HEX_KEY_32 =
   "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";

@@ -1,10 +1,10 @@
 /**
- * Fast BCS helpers using @fastxyz/fast-sdk and @fastxyz/fast-schema.
+ * Fast BCS helpers using @fastxyz/sdk and @fastxyz/fast-schema.
  *
  * Pure BCS serialization/deserialization utilities — no hardcoded network config.
  */
 
-import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/fast-sdk';
+import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
 import { bcsSchema } from '@fastxyz/fast-schema';
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ function bytesToHexString(bytes: Uint8Array | number[]): string {
 
 function toUint8Array(value: unknown): Uint8Array | null {
   if (value instanceof Uint8Array) return value;
-  if (Array.isArray(value) && value.every(v => Number.isInteger(v) && v >= 0 && v <= 255)) {
+  if (Array.isArray(value) && value.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)) {
     return new Uint8Array(value);
   }
   if (typeof value === 'string') {
@@ -70,11 +70,7 @@ function toUint8Array(value: unknown): Uint8Array | null {
 // ─── Public Functions ────────────────────────────────────────────────────────
 
 export function unwrapFastTransaction(transaction: unknown): FastSerializableTransaction {
-  if (
-    isRecord(transaction) &&
-    'Release20260319' in transaction &&
-    isRecord(transaction.Release20260319)
-  ) {
+  if (isRecord(transaction) && 'Release20260319' in transaction && isRecord(transaction.Release20260319)) {
     return transaction.Release20260319 as FastSerializableTransaction;
   }
 
@@ -85,14 +81,8 @@ export function unwrapFastTransaction(transaction: unknown): FastSerializableTra
   throw new Error('unsupported_fast_transaction_format');
 }
 
-export function serializeFastTransaction(
-  transaction: VersionedFastTransaction | FastSerializableTransaction,
-): Uint8Array {
-  if (
-    isRecord(transaction) &&
-    'Release20260319' in transaction &&
-    isRecord(transaction.Release20260319)
-  ) {
+export function serializeFastTransaction(transaction: VersionedFastTransaction | FastSerializableTransaction): Uint8Array {
+  if (isRecord(transaction) && 'Release20260319' in transaction && isRecord(transaction.Release20260319)) {
     return VersionedTransactionBcs.serialize({
       Release20260319: transaction.Release20260319,
     } as any).toBytes();
@@ -101,9 +91,7 @@ export function serializeFastTransaction(
   return serializeVersionedTransaction(transaction as FastSerializableTransaction);
 }
 
-export function serializeVersionedTransaction(
-  transaction: FastSerializableTransaction,
-): Uint8Array {
+export function serializeVersionedTransaction(transaction: FastSerializableTransaction): Uint8Array {
   return VersionedTransactionBcs.serialize({
     Release20260319: transaction,
   } as any).toBytes();
@@ -113,9 +101,7 @@ export function pubkeyToAddress(pubkey: Uint8Array): string {
   return toFastAddress(pubkey);
 }
 
-export function decodeEnvelope(
-  envelope: string | number[] | Uint8Array,
-): DecodedFastTransaction {
+export function decodeEnvelope(envelope: string | number[] | Uint8Array): DecodedFastTransaction {
   let bytes: Uint8Array;
   if (typeof envelope === 'string') {
     const hex = envelope.startsWith('0x') ? envelope.slice(2) : envelope;
@@ -181,9 +167,7 @@ export function getTransferDetails(decoded: DecodedFastTransaction): TransferDet
 }
 
 export function createFastTransactionSigningMessage(transactionBytes: Uint8Array): Uint8Array {
-  const message = new Uint8Array(
-    FAST_TRANSACTION_SIGNING_PREFIX.length + transactionBytes.length,
-  );
+  const message = new Uint8Array(FAST_TRANSACTION_SIGNING_PREFIX.length + transactionBytes.length);
   message.set(FAST_TRANSACTION_SIGNING_PREFIX, 0);
   message.set(transactionBytes, FAST_TRANSACTION_SIGNING_PREFIX.length);
   return message;

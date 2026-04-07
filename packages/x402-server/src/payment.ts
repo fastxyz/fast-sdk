@@ -5,29 +5,15 @@
  * No hardcoded network configs — all asset info comes from RouteConfig.networkConfig.
  */
 
-import type {
-  PaymentRequirement,
-  VerifyResponse,
-  SettleResponse,
-} from '@fastxyz/x402-types';
+import type { PaymentRequirement, VerifyResponse, SettleResponse } from '@fastxyz/x402-types';
 import { parsePrice, encodePayload, decodePayload } from '@fastxyz/x402-types';
 
-import type {
-  PaymentRequiredResponse,
-  FacilitatorConfig,
-  PaymentResponse,
-  XPaymentPayload,
-  RouteConfig,
-} from './types.js';
+import type { PaymentRequiredResponse, FacilitatorConfig, PaymentResponse, XPaymentPayload, RouteConfig } from './types.js';
 
 /**
  * Create a payment requirement for a resource.
  */
-export function createPaymentRequirement(
-  payTo: string,
-  config: RouteConfig,
-  resource: string,
-): PaymentRequirement {
+export function createPaymentRequirement(payTo: string, config: RouteConfig, resource: string): PaymentRequirement {
   const { networkConfig } = config;
   const amount = parsePrice(config.price, networkConfig.decimals);
 
@@ -48,11 +34,7 @@ export function createPaymentRequirement(
 /**
  * Create a 402 Payment Required response body.
  */
-export function createPaymentRequired(
-  payTo: string,
-  config: RouteConfig,
-  resource: string,
-): PaymentRequiredResponse {
+export function createPaymentRequired(payTo: string, config: RouteConfig, resource: string): PaymentRequiredResponse {
   return {
     error: 'X-PAYMENT header is required',
     accepts: [createPaymentRequirement(payTo, config, resource)],
@@ -134,7 +116,7 @@ export async function settlePayment(
   // Normalize txHash field (facilitator might return "transaction" instead)
   return {
     ...result,
-    txHash: result.txHash || (result as unknown as Record<string, unknown>).transaction as string | undefined,
+    txHash: result.txHash || ((result as unknown as Record<string, unknown>).transaction as string | undefined),
   };
 }
 

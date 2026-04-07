@@ -3,6 +3,7 @@
 On-chain payment verification and settlement for the x402 HTTP Payment Protocol.
 
 Supports:
+
 - **EVM** — EIP-3009 `transferWithAuthorization` verification and settlement
 - **Fast** — Ed25519 transaction certificate verification
 
@@ -62,6 +63,7 @@ Create a standalone Express app with facilitator routes.
 Create an Express Router with facilitator routes. Mount into an existing app.
 
 **Routes:**
+
 - `POST /verify` — verify a payment payload against a requirement
 - `POST /settle` — settle a verified payment on-chain
 - `GET /supported` — list supported payment kinds
@@ -85,7 +87,7 @@ interface FacilitatorConfig {
 }
 
 interface FacilitatorEvmChainConfig {
-  chain: Chain;                  // viem Chain object
+  chain: Chain; // viem Chain object
   rpcUrl: string;
   usdcAddress: `0x${string}`;
   usdcName?: string;
@@ -94,7 +96,7 @@ interface FacilitatorEvmChainConfig {
 
 interface FacilitatorFastNetworkConfig {
   rpcUrl: string;
-  committeePublicKeys: string[];  // Ed25519 public keys
+  committeePublicKeys: string[]; // Ed25519 public keys
 }
 ```
 

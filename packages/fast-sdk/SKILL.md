@@ -3,7 +3,7 @@ name: fast-sdk
 description: >
   Fast network SDK for AI agents and Node.js apps. Build and sign
   transactions, query accounts, transfer tokens, and manage keys
-  using @fastxyz/fast-sdk.
+  using @fastxyz/sdk.
 metadata:
   short-description: Fast transaction building, signing, and RPC queries.
   compatibility: Node.js 20+, browsers, workers.
@@ -34,11 +34,11 @@ metadata:
 
 The SDK has three main classes:
 
-| Class | Purpose |
-| --- | --- |
-| `Signer` | Holds an Ed25519 private key, signs messages |
-| `FastProvider` | JSON-RPC client for the Fast proxy API |
-| `TransactionBuilder` | Fluent builder for all transaction types |
+| Class                | Purpose                                      |
+| -------------------- | -------------------------------------------- |
+| `Signer`             | Holds an Ed25519 private key, signs messages |
+| `FastProvider`       | JSON-RPC client for the Fast proxy API       |
+| `TransactionBuilder` | Fluent builder for all transaction types     |
 
 **Typical flow:** Create Signer → Create Provider → Get account
 info → Build transaction → Sign → Submit.
@@ -52,23 +52,23 @@ info → Build transaction → Sign → Submit.
 **When:** Need to sign transactions or derive an address.
 
 ```ts
-import { Signer } from "@fastxyz/fast-sdk";
+import { Signer } from '@fastxyz/sdk';
 
 // From a 32-byte hex private key (0x prefix optional)
-const signer = new Signer("abcdef0123456789...");
+const signer = new Signer('abcdef0123456789...');
 
 // Or from raw bytes
 const signer = new Signer(new Uint8Array(32));
 
 // Or from a number array
-const signer = new Signer([1, 2, 3, /* ...32 bytes */]);
+const signer = new Signer([1, 2, 3 /* ...32 bytes */]);
 ```
 
 **Get address and public key:**
 
 ```ts
-const pubKey = await signer.getPublicKey();     // Uint8Array (32)
-const address = await signer.getFastAddress();  // "fast1..."
+const pubKey = await signer.getPublicKey(); // Uint8Array (32)
+const address = await signer.getFastAddress(); // "fast1..."
 ```
 
 ---
@@ -78,10 +78,10 @@ const address = await signer.getFastAddress();  // "fast1..."
 **When:** Need to query or submit transactions.
 
 ```ts
-import { FastProvider } from "@fastxyz/fast-sdk";
+import { FastProvider } from '@fastxyz/sdk';
 
 const provider = new FastProvider({
-  rpcUrl: "https://api.fast.xyz/proxy",
+  rpcUrl: 'https://api.fast.xyz/proxy',
 });
 ```
 
@@ -95,12 +95,12 @@ There is no default URL — `rpcUrl` is always required.
 
 ```ts
 const account = await provider.getAccountInfo({
-  address: pubKey,  // Uint8Array, hex string, or bech32m
+  address: pubKey, // Uint8Array, hex string, or bech32m
 });
 
-console.log("Balance:", account.balance);      // bigint
-console.log("Next nonce:", account.nextNonce);  // bigint
-console.log("Tokens:", account.tokenBalance);   // [id, amt][]
+console.log('Balance:', account.balance); // bigint
+console.log('Next nonce:', account.nextNonce); // bigint
+console.log('Tokens:', account.tokenBalance); // [id, amt][]
 ```
 
 **Optional filters** (all default to null if omitted):
@@ -121,20 +121,20 @@ const account = await provider.getAccountInfo({
 **When:** Send tokens to another address.
 
 ```ts
-import { TransactionBuilder } from "@fastxyz/fast-sdk";
+import { TransactionBuilder } from '@fastxyz/sdk';
 
 const account = await provider.getAccountInfo({
   address: pubKey,
 });
 
 const envelope = await new TransactionBuilder({
-  networkId: "fast:mainnet",
+  networkId: 'fast:mainnet',
   signer,
   nonce: account.nextNonce,
 })
   .addTokenTransfer({
-    tokenId: "11".repeat(32),
-    recipient: "fast1recipient...",
+    tokenId: '11'.repeat(32),
+    recipient: 'fast1recipient...',
     amount: 1000n,
     userData: null,
   })
@@ -155,17 +155,25 @@ operations are automatically batched.
 
 ```ts
 const builder = new TransactionBuilder({
-  networkId: "fast:mainnet",
+  networkId: 'fast:mainnet',
   signer,
   nonce: account.nextNonce,
 });
 
 // Token operations
 builder.addTokenCreation({
-  tokenName, decimals, initialAmount, mints, userData,
+  tokenName,
+  decimals,
+  initialAmount,
+  mints,
+  userData,
 });
 builder.addTokenManagement({
-  tokenId, updateId, newAdmin, mints, userData,
+  tokenId,
+  updateId,
+  newAdmin,
+  mints,
+  userData,
 });
 builder.addMint({ tokenId, recipient, amount });
 builder.addBurn({ tokenId, amount });
@@ -173,8 +181,11 @@ builder.addBurn({ tokenId, amount });
 // State operations
 builder.addStateInitialization({ key, initialState });
 builder.addStateUpdate({
-  key, previousState, nextState,
-  computeClaimTxHash, computeClaimTxTimestamp,
+  key,
+  previousState,
+  nextState,
+  computeClaimTxHash,
+  computeClaimTxTimestamp,
 });
 builder.addStateReset({ key, resetState });
 
@@ -188,9 +199,7 @@ builder.addExternalClaim({
 builder.addLeaveCommittee();
 
 // Batch multiple operations
-builder
-  .addBurn({ tokenId, amount: 100n })
-  .addBurn({ tokenId, amount: 200n });
+builder.addBurn({ tokenId, amount: 100n }).addBurn({ tokenId, amount: 200n });
 
 const envelope = await builder.sign();
 ```
@@ -212,12 +221,10 @@ const sig = await signer.signMessage(messageBytes);
 const sig = await signer.signTypedData(bcsType, data);
 
 // Verify
-import { verify, verifyTypedData } from "@fastxyz/fast-sdk";
+import { verify, verifyTypedData } from '@fastxyz/sdk';
 
 const valid = await verify(sig, messageBytes, pubKey);
-const valid = await verifyTypedData(
-  sig, bcsType, data, pubKey,
-);
+const valid = await verifyTypedData(sig, bcsType, data, pubKey);
 ```
 
 ---
@@ -248,18 +255,14 @@ const pending = await provider.getPendingMultisigTransactions({
 ### 8. Address and Hex Conversions
 
 ```ts
-import {
-  toHex, fromHex,
-  toFastAddress, fromFastAddress,
-  bigintToHex, bigintFromHex,
-} from "@fastxyz/fast-sdk";
+import { toHex, fromHex, toFastAddress, fromFastAddress, bigintToHex, bigintFromHex } from '@fastxyz/sdk';
 
-toHex(bytes);                 // "0xabcd..."
-fromHex("0xabcd");            // Uint8Array
-toFastAddress(pubKeyBytes);   // "fast1..."
-fromFastAddress("fast1...");  // Uint8Array
-bigintToHex(255n);            // "0xff"
-bigintFromHex("0xff");        // 255n
+toHex(bytes); // "0xabcd..."
+fromHex('0xabcd'); // Uint8Array
+toFastAddress(pubKeyBytes); // "fast1..."
+fromFastAddress('fast1...'); // Uint8Array
+bigintToHex(255n); // "0xff"
+bigintFromHex('0xff'); // 255n
 ```
 
 ---
@@ -269,26 +272,23 @@ bigintFromHex("0xff");        // 255n
 Errors are typed and matchable with `instanceof`. They are
 organized in 4 layers:
 
-| Layer | Error Classes | When |
-| --- | --- | --- |
-| Network | `RpcTimeoutError` | Connection timeout |
-| JSON-RPC | `JsonRpcProtocolError` | Protocol errors |
-| Proxy | `InvalidRequestError`, `ProxyUnexpectedNonceError`, etc. | Proxy rejects |
-| Validator | `UnexpectedNonceError`, etc. | Validator rejects |
+| Layer     | Error Classes                                            | When               |
+| --------- | -------------------------------------------------------- | ------------------ |
+| Network   | `RpcTimeoutError`                                        | Connection timeout |
+| JSON-RPC  | `JsonRpcProtocolError`                                   | Protocol errors    |
+| Proxy     | `InvalidRequestError`, `ProxyUnexpectedNonceError`, etc. | Proxy rejects      |
+| Validator | `UnexpectedNonceError`, etc.                             | Validator rejects  |
 
 ```ts
-import {
-  UnexpectedNonceError,
-  InsufficientFundingError,
-} from "@fastxyz/fast-sdk";
+import { UnexpectedNonceError, InsufficientFundingError } from '@fastxyz/sdk';
 
 try {
   await provider.submitTransaction(envelope);
 } catch (e) {
   if (e instanceof UnexpectedNonceError) {
-    console.log("Expected:", e.expectedNonce);
+    console.log('Expected:', e.expectedNonce);
   } else if (e instanceof InsufficientFundingError) {
-    console.log("Balance:", e.currentBalance);
+    console.log('Balance:', e.currentBalance);
   }
 }
 ```
@@ -317,21 +317,12 @@ try {
 ## Quick Reference
 
 ```ts
-import {
-  Signer,
-  FastProvider,
-  TransactionBuilder,
-  verify,
-  toHex,
-  fromHex,
-  toFastAddress,
-  fromFastAddress,
-} from "@fastxyz/fast-sdk";
+import { Signer, FastProvider, TransactionBuilder, verify, toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
 
 // Setup
 const signer = new Signer(privateKeyHex);
 const provider = new FastProvider({
-  rpcUrl: "https://api.fast.xyz/proxy",
+  rpcUrl: 'https://api.fast.xyz/proxy',
 });
 
 // Read
@@ -341,12 +332,15 @@ const account = await provider.getAccountInfo({
 
 // Write
 const envelope = await new TransactionBuilder({
-  networkId: "fast:mainnet",
+  networkId: 'fast:mainnet',
   signer,
   nonce: account.nextNonce,
 })
   .addTokenTransfer({
-    tokenId, recipient, amount: 1000n, userData: null,
+    tokenId,
+    recipient,
+    amount: 1000n,
+    userData: null,
   })
   .sign();
 

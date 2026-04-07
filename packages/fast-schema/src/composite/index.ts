@@ -5,16 +5,16 @@ export {
   makeTransactionCertificate,
   makeTransactionEnvelope,
   makeValidatedTransaction,
-} from "./envelope.ts";
+} from './envelope.ts';
 export {
   AddressChange,
   makeBurn,
+  makeClaimType,
   makeCommitteeChange,
   makeCommitteeConfig,
   makeExternalClaim,
   makeExternalClaimBody,
   makeMint,
-  makeClaimType,
   makeOperation,
   makeStateInitialization,
   makeStateReset,
@@ -24,7 +24,7 @@ export {
   makeTokenTransfer,
   makeValidatorConfig,
   makeVerifierSig,
-} from "./operations.ts";
+} from './operations.ts';
 export {
   makeAccountInfoResponse,
   makeConfirmTransactionResponse,
@@ -35,8 +35,5 @@ export {
   makeSubmitTransactionResponse,
   makeTokenInfoResponse,
   makeTokenMetadata,
-} from "./response.ts";
-export {
-  makeTransaction,
-  makeVersionedTransaction,
-} from "./transaction.ts";
+} from './response.ts';
+export { makeTransaction, makeVersionedTransaction } from './transaction.ts';

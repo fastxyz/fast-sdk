@@ -11,14 +11,13 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "test": "turbo test",
-    "cli": "tsx packages/cli/src/index.ts",
+    "cli": "tsx app/cli/src/main.ts",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "clean": "turbo clean && rm -rf node_modules",
     "version-packages": "changeset version",
     "release": "pnpm build && changeset publish",
     "prepare": "husky"
   },
-  
   "devDependencies": {
     "@changesets/cli": "^2.30.0",
     "eslint": "^10.1.0",
@@ -30,5 +29,19 @@
     "typescript": "^6.0.2",
     "vitest": "^4.1.1"
   },
-  "packageManager": "pnpm@10.1.0"
+  "packageManager": "pnpm@10.1.0",
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "esbuild",
+      "msgpackr-extract",
+      "@parcel/watcher",
+      "better-sqlite3",
+      "esbuild",
+      "msgpackr-extract",
+      "@parcel/watcher"
+    ],
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  }
 }

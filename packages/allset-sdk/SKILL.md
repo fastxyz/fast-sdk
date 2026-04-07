@@ -15,6 +15,7 @@ metadata:
 ## When to Use This Skill
 
 **USE this skill when the user wants to:**
+
 - Bridge tokens from EVM to Fast network (deposit / EVM → Fast)
 - Bridge tokens from Fast to EVM (withdrawal / Fast → EVM)
 - Execute custom intents on EVM via AllSet bridge
@@ -22,7 +23,8 @@ metadata:
 - Set up EVM wallets for bridging
 
 **DO NOT use this skill for:**
-- Fast-only operations (balance, send, sign) → use `@fastxyz/fast-sdk`
+
+- Fast-only operations (balance, send, sign) → use `@fastxyz/sdk`
 - EVM-only operations without bridging
 - Swaps, lending, staking, or yield strategies
 
@@ -47,7 +49,7 @@ import { createEvmWallet, createEvmExecutor } from '@fastxyz/allset-sdk';
 
 // Generate a new wallet (save privateKey to reuse)
 const account = createEvmWallet();
-console.log(account.address);    // 0x...
+console.log(account.address); // 0x...
 console.log(account.privateKey); // persist this
 
 // Or restore from existing private key
@@ -71,17 +73,17 @@ const evmClients = createEvmExecutor(account, rpcUrl, chainId);
 import { executeDeposit } from '@fastxyz/allset-sdk';
 
 const result = await executeDeposit({
-  chainId: 421614,                          // Arbitrum Sepolia
-  bridgeContract: '0xb536...',             // AllSet bridge contract on EVM
-  tokenAddress: '0x75fa...',              // ERC-20 token contract
-  isNative: false,                          // true for ETH deposits
-  amount: '1000000',                        // smallest units (e.g. 1 USDC = 1_000_000)
+  chainId: 421614, // Arbitrum Sepolia
+  bridgeContract: '0xb536...', // AllSet bridge contract on EVM
+  tokenAddress: '0x75fa...', // ERC-20 token contract
+  isNative: false, // true for ETH deposits
+  amount: '1000000', // smallest units (e.g. 1 USDC = 1_000_000)
   senderAddress: account.address,
-  receiverAddress: 'fast1abc...',          // Fast network bech32m address
+  receiverAddress: 'fast1abc...', // Fast network bech32m address
   evmClients,
 });
 
-console.log(result.txHash);               // EVM tx hash
+console.log(result.txHash); // EVM tx hash
 ```
 
 For ERC-20 tokens, `executeDeposit` automatically handles `approve` if allowance is insufficient.
@@ -103,14 +105,14 @@ import { executeIntent, buildTransferIntent } from '@fastxyz/allset-sdk';
 const intent = buildTransferIntent(tokenEvmAddress, receiverEvmAddress);
 
 const result = await executeIntent({
-  fastBridgeAddress: 'fast1bridge...',    // AllSet bridge address on Fast network
+  fastBridgeAddress: 'fast1bridge...', // AllSet bridge address on Fast network
   relayerUrl: 'https://relayer.allset...', // AllSet relayer URL for destination chain
-  crossSignUrl: 'https://cross-sign...',  // AllSet cross-sign service URL
-  tokenEvmAddress: '0x75fa...',           // Token contract on EVM
-  tokenFastTokenId: 'abc123...',          // Token ID on Fast network (hex, no 0x)
+  crossSignUrl: 'https://cross-sign...', // AllSet cross-sign service URL
+  tokenEvmAddress: '0x75fa...', // Token contract on EVM
+  tokenFastTokenId: 'abc123...', // Token ID on Fast network (hex, no 0x)
   amount: '1000000',
   intents: [intent],
-  fastWallet,                              // Fast wallet (FastWalletLike)
+  fastWallet, // Fast wallet (FastWalletLike)
 });
 
 console.log(result.txHash);
@@ -152,7 +154,7 @@ const plan = buildDepositTransaction({
   chainId: 421614,
   bridgeContract: '0xb536...',
   tokenAddress: '0x75fa...',
-  amount: 1000000n,       // bigint
+  amount: 1000000n, // bigint
   receiver: 'fast1abc...',
 });
 
@@ -166,8 +168,8 @@ const plan = buildDepositTransaction({
 ```ts
 import { fastAddressToBytes32, fastAddressToBytes } from '@fastxyz/allset-sdk';
 
-const bytes32 = fastAddressToBytes32('fast1abc...');  // Hex<0x...>
-const bytes   = fastAddressToBytes('fast1abc...');    // Uint8Array
+const bytes32 = fastAddressToBytes32('fast1abc...'); // Hex<0x...>
+const bytes = fastAddressToBytes('fast1abc...'); // Uint8Array
 ```
 
 ---
@@ -236,12 +238,12 @@ try {
 
 ## Supported Chains (CHAIN_MAP)
 
-| Chain ID | Network |
-|---|---|
-| 11155111 | Sepolia |
-| 421614 | Arbitrum Sepolia |
-| 42161 | Arbitrum One |
-| 8453 | Base |
+| Chain ID | Network          |
+| -------- | ---------------- |
+| 11155111 | Sepolia          |
+| 421614   | Arbitrum Sepolia |
+| 42161    | Arbitrum One     |
+| 8453     | Base             |
 
 `createEvmExecutor` throws if the chain ID is not in this map.
 
@@ -253,14 +255,12 @@ try {
 
 ```ts
 interface FastWalletLike {
-  readonly address: string;  // fast1... bech32m
-  submit(params: {
-    claim: Record<string, unknown>;
-  }): Promise<{
+  readonly address: string; // fast1... bech32m
+  submit(params: { claim: Record<string, unknown> }): Promise<{
     txHash: string;
     certificate: unknown;
   }>;
 }
 ```
 
-Use `@fastxyz/fast-sdk` to create a conforming Fast wallet.
+Use `@fastxyz/sdk` to create a conforming Fast wallet.

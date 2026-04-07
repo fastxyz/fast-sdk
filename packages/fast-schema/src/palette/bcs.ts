@@ -5,7 +5,7 @@ import {
   makeTransactionCertificate,
   makeTransactionEnvelope,
   makeValidatedTransaction,
-} from "../composite/envelope.ts";
+} from '../composite/envelope.ts';
 import {
   makeBurn,
   makeClaimType,
@@ -23,7 +23,7 @@ import {
   makeTokenTransfer,
   makeValidatorConfig,
   makeVerifierSig,
-} from "../composite/operations.ts";
+} from '../composite/operations.ts';
 import {
   makeAccountInfoResponse,
   makeConfirmTransactionResponse,
@@ -33,12 +33,9 @@ import {
   makeSubmitTransactionResponse,
   makeTokenInfoResponse,
   makeTokenMetadata,
-} from "../composite/response.ts";
-import {
-  makeTransaction,
-  makeVersionedTransaction,
-} from "../composite/transaction.ts";
-import { BcsPalette } from "./definition.ts";
+} from '../composite/response.ts';
+import { makeTransaction, makeVersionedTransaction } from '../composite/transaction.ts';
+import { BcsPalette } from './definition.ts';
 
 const p = BcsPalette;
 
@@ -56,7 +53,7 @@ export const ExternalClaimFromBcs = makeExternalClaim(p);
 export const ValidatorConfigFromBcs = makeValidatorConfig(p);
 export const CommitteeConfigFromBcs = makeCommitteeConfig(p);
 export const CommitteeChangeFromBcs = makeCommitteeChange(p);
-const bcsOpts = { unitEncoding: "bcs" } as const;
+const bcsOpts = { unitEncoding: 'bcs' } as const;
 export const OperationFromBcs = makeOperation(p, bcsOpts);
 export const ClaimTypeFromBcs = makeClaimType(p, bcsOpts);
 export const TransactionFromBcs = makeTransaction(p, bcsOpts);
@@ -72,9 +69,6 @@ export const PageRequestFromBcs = makePageRequest(p);
 export const TokenMetadataFromBcs = makeTokenMetadata(p);
 export const AccountInfoResponseFromBcs = makeAccountInfoResponse(p);
 export const TokenInfoResponseFromBcs = makeTokenInfoResponse(p);
-export const SubmitTransactionResponseFromBcs =
-  makeSubmitTransactionResponse(p);
-export const ConfirmTransactionResponseFromBcs =
-  makeConfirmTransactionResponse(p);
-export const ProxySubmitTransactionResultFromBcs =
-  makeProxySubmitTransactionResult(p);
+export const SubmitTransactionResponseFromBcs = makeSubmitTransactionResponse(p);
+export const ConfirmTransactionResponseFromBcs = makeConfirmTransactionResponse(p);
+export const ProxySubmitTransactionResultFromBcs = makeProxySubmitTransactionResult(p);

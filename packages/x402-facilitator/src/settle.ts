@@ -4,24 +4,11 @@
  * All network config read from FacilitatorConfig — no hardcoded chains.
  */
 
-import {
-  createWalletClient,
-  createPublicClient,
-  http,
-  type Hex,
-  parseAbi,
-  parseSignature,
-} from 'viem';
+import { createWalletClient, createPublicClient, http, type Hex, parseAbi, parseSignature } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { hashHex } from '@fastxyz/fast-sdk';
+import { hashHex } from '@fastxyz/sdk';
 import { bcsSchema } from '@fastxyz/fast-schema';
-import type {
-  PaymentPayload,
-  PaymentRequirement,
-  SettleResponse,
-  EvmPayload,
-  FastPayload,
-} from '@fastxyz/x402-types';
+import type { PaymentPayload, PaymentRequirement, SettleResponse, EvmPayload, FastPayload } from '@fastxyz/x402-types';
 import { getNetworkType } from '@fastxyz/x402-types';
 import type { FacilitatorConfig } from './types.js';
 import { verify } from './verify.js';
@@ -159,8 +146,7 @@ async function settleEvmPayment(
     }
 
     const parsedSig = parseSignature(signature as Hex);
-    const v =
-      parsedSig.v !== undefined ? Number(parsedSig.v) : parsedSig.yParity === 0 ? 27 : 28;
+    const v = parsedSig.v !== undefined ? Number(parsedSig.v) : parsedSig.yParity === 0 ? 27 : 28;
 
     const txHash = await walletClient.writeContract({
       address: chainConfig.usdcAddress,
@@ -239,9 +225,7 @@ async function settleFastPayment(
     };
   }
 
-  const transactionId = await getCertificateHash(
-    payload.transactionCertificate as FastTransactionCertificate,
-  );
+  const transactionId = await getCertificateHash(payload.transactionCertificate as FastTransactionCertificate);
 
   return {
     success: true,

@@ -5,7 +5,7 @@ import {
   makeTransactionCertificate,
   makeTransactionEnvelope,
   makeValidatedTransaction,
-} from "../composite/envelope.ts";
+} from '../composite/envelope.ts';
 import {
   makeBurn,
   makeCommitteeChange,
@@ -23,7 +23,7 @@ import {
   makeTokenTransfer,
   makeValidatorConfig,
   makeVerifierSig,
-} from "../composite/operations.ts";
+} from '../composite/operations.ts';
 import {
   makeAccountInfoResponse,
   makeConfirmTransactionResponse,
@@ -33,12 +33,9 @@ import {
   makeSubmitTransactionResponse,
   makeTokenInfoResponse,
   makeTokenMetadata,
-} from "../composite/response.ts";
-import {
-  makeTransaction,
-  makeVersionedTransaction,
-} from "../composite/transaction.ts";
-import { RestPalette } from "./definition.ts";
+} from '../composite/response.ts';
+import { makeTransaction, makeVersionedTransaction } from '../composite/transaction.ts';
+import { RestPalette } from './definition.ts';
 
 const p = RestPalette;
 
@@ -71,9 +68,6 @@ export const PageRequestFromRest = makePageRequest(p);
 export const TokenMetadataFromRest = makeTokenMetadata(p);
 export const AccountInfoResponseFromRest = makeAccountInfoResponse(p);
 export const TokenInfoResponseFromRest = makeTokenInfoResponse(p);
-export const SubmitTransactionResponseFromRest =
-  makeSubmitTransactionResponse(p);
-export const ConfirmTransactionResponseFromRest =
-  makeConfirmTransactionResponse(p);
-export const ProxySubmitTransactionResultFromRest =
-  makeProxySubmitTransactionResult(p);
+export const SubmitTransactionResponseFromRest = makeSubmitTransactionResponse(p);
+export const ConfirmTransactionResponseFromRest = makeConfirmTransactionResponse(p);
+export const ProxySubmitTransactionResultFromRest = makeProxySubmitTransactionResult(p);

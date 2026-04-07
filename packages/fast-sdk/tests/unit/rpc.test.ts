@@ -42,7 +42,9 @@ describe("rpcCallEffect", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await run(rpcCallEffect("http://localhost:9999", "myMethod", { key: "value" }));
+    await run(
+      rpcCallEffect("http://localhost:9999", "myMethod", { key: "value" }),
+    );
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:9999", {
       method: "POST",
@@ -115,6 +117,7 @@ describe("rpcCallEffect", () => {
     mockFetch({
       jsonrpc: "2.0",
       id: 1,
+      // biome-ignore lint: intentional test of bigint handling
       result: { balance: 999999999999999999 },
     });
 

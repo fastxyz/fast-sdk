@@ -67,7 +67,9 @@ describe("toFastAddress / fromFastAddress", () => {
 
   it("fromFastAddress rejects wrong prefix", () => {
     // Encode with a different bech32m prefix to test rejection
-    expect(() => fromFastAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")).toThrow();
+    expect(() =>
+      fromFastAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"),
+    ).toThrow();
   });
 
   it("fromFastAddress rejects garbage input", () => {

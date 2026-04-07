@@ -18,15 +18,7 @@ export { handleEvmPayment } from './evm.js';
 import { getNetworkType } from '@fastxyz/x402-types';
 import type { EvmChainConfig } from '@fastxyz/x402-types';
 
-import type {
-  X402PayParams,
-  X402PayResult,
-  PaymentRequired,
-  ClientPaymentRequirement,
-  Wallet,
-  FastWallet,
-  EvmWallet,
-} from './types.js';
+import type { X402PayParams, X402PayResult, PaymentRequired, ClientPaymentRequirement, Wallet, FastWallet, EvmWallet } from './types.js';
 
 import { handleFastPayment, stringifyPaymentPayload } from './fast.js';
 import { handleEvmPayment } from './evm.js';
@@ -52,16 +44,7 @@ function isEvmWallet(wallet: Wallet): wallet is EvmWallet {
  * 4. Retries the request with X-PAYMENT header
  */
 export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
-  const {
-    url,
-    method = 'GET',
-    headers: customHeaders = {},
-    body: requestBody,
-    wallet,
-    evmNetworks,
-    bridgeConfig,
-    verbose = false,
-  } = params;
+  const { url, method = 'GET', headers: customHeaders = {}, body: requestBody, wallet, evmNetworks, bridgeConfig, verbose = false } = params;
 
   const logs: string[] = [];
   const log = (msg: string) => {
@@ -92,10 +75,16 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
   if (initialRes.status !== 402) {
     log(`  Not a 402 response, returning as-is`);
     const resHeaders: Record<string, string> = {};
-    initialRes.headers.forEach((v: string, k: string) => { resHeaders[k] = v; });
+    initialRes.headers.forEach((v: string, k: string) => {
+      resHeaders[k] = v;
+    });
 
     let resBody: unknown;
-    try { resBody = await initialRes.json(); } catch { resBody = await initialRes.text(); }
+    try {
+      resBody = await initialRes.json();
+    } catch {
+      resBody = await initialRes.text();
+    }
 
     log(`━━━ x402Pay END (no payment needed) ━━━`);
     return {
@@ -103,16 +92,14 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
       statusCode: initialRes.status,
       headers: resHeaders,
       body: resBody,
-      note: initialRes.ok
-        ? 'Request succeeded without payment.'
-        : `Request failed with status ${initialRes.status}.`,
+      note: initialRes.ok ? 'Request succeeded without payment.' : `Request failed with status ${initialRes.status}.`,
       logs: verbose ? logs : undefined,
     };
   }
 
   // Step 2: Parse 402 response
   log(`[Step 2] Parsing 402 payment requirements...`);
-  const paymentRequired = await initialRes.json() as PaymentRequired;
+  const paymentRequired = (await initialRes.json()) as PaymentRequired;
   log(`  Payment Required: ${JSON.stringify(paymentRequired, null, 2)}`);
 
   if (!paymentRequired.accepts || paymentRequired.accepts.length === 0) {
@@ -122,11 +109,11 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
   // Step 3: Match network to wallet
   log(`[Step 3] Matching network to wallet...`);
   const accepts = paymentRequired.accepts as ClientPaymentRequirement[];
-  const availableNetworks = accepts.map(r => r.network);
+  const availableNetworks = accepts.map((r) => r.network);
   log(`  Available networks: ${availableNetworks.join(', ')}`);
 
-  const fastReq = accepts.find(r => getNetworkType(r.network) === 'fast');
-  const evmReq = accepts.find(r => getNetworkType(r.network) === 'evm');
+  const fastReq = accepts.find((r) => getNetworkType(r.network) === 'fast');
+  const evmReq = accepts.find((r) => getNetworkType(r.network) === 'evm');
 
   log(`  Fast match: ${fastReq?.network ?? 'none'}`);
   log(`  EVM match: ${evmReq?.network ?? 'none'}`);
@@ -134,11 +121,7 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
   // Prioritize Fast (faster, cheaper)
   if (fastReq && fastWallet) {
     log(`  → Using Fast payment path`);
-    return handleFastPayment(
-      url, method, customHeaders, requestBody,
-      paymentRequired, fastReq, fastWallet,
-      verbose, logs,
-    );
+    return handleFastPayment(url, method, customHeaders, requestBody, paymentRequired, fastReq, fastWallet, verbose, logs);
   }
 
   if (evmReq && evmWallet) {
@@ -146,17 +129,20 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
 
     const chainConfig = evmNetworks?.[evmReq.network];
     if (!chainConfig) {
-      throw new Error(
-        `No EVM chain config for network "${evmReq.network}". ` +
-        `Provide it via evmNetworks in X402PayParams.`
-      );
+      throw new Error(`No EVM chain config for network "${evmReq.network}". ` + `Provide it via evmNetworks in X402PayParams.`);
     }
 
     return handleEvmPayment(
-      url, method, customHeaders, requestBody,
-      paymentRequired, evmReq, evmWallet,
+      url,
+      method,
+      customHeaders,
+      requestBody,
+      paymentRequired,
+      evmReq,
+      evmWallet,
       chainConfig,
-      verbose, logs,
+      verbose,
+      logs,
       fastWallet,
       bridgeConfig,
     );
@@ -168,9 +154,7 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
   if (evmReq) supported.push(`EVM (${evmReq.network}) - needs EvmWallet`);
 
   throw new Error(
-    `No matching wallet for available networks.\n` +
-    `Server accepts: ${availableNetworks.join(', ')}\n` +
-    `You need: ${supported.join(' or ')}`
+    `No matching wallet for available networks.\n` + `Server accepts: ${availableNetworks.join(', ')}\n` + `You need: ${supported.join(' or ')}`,
   );
 }
 

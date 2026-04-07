@@ -311,7 +311,7 @@ export async function executeDeposit(
  *
  * @example
  * ```ts
- * import { Signer, FastProvider } from '@fastxyz/fast-sdk';
+ * import { Signer, FastProvider } from '@fastxyz/sdk';
  *
  * const signer = new Signer(privateKeyHex);
  * const provider = new FastProvider({ rpcUrl: 'https://proxy.fast.xyz' });
@@ -510,7 +510,7 @@ export async function executeIntent(
  *
  * @example
  * ```ts
- * import { Signer, FastProvider } from '@fastxyz/fast-sdk';
+ * import { Signer, FastProvider } from '@fastxyz/sdk';
  *
  * const signer = new Signer(privateKeyHex);
  * const provider = new FastProvider({ rpcUrl: 'https://proxy.fast.xyz' });

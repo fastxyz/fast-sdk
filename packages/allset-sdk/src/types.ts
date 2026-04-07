@@ -62,9 +62,9 @@ export interface ExecuteIntentParams {
   externalAddress?: string;
   /** Deadline in seconds from now (default: 3600) */
   deadlineSeconds?: number;
-  /** Ed25519 signer from @fastxyz/fast-sdk */
+  /** Ed25519 signer from @fastxyz/sdk */
   signer: Signer;
-  /** Fast RPC provider from @fastxyz/fast-sdk */
+  /** Fast RPC provider from @fastxyz/sdk */
   provider: FastProvider;
   /** Fast network ID (e.g. 'fast:testnet', 'fast:mainnet') */
   networkId: string;
@@ -91,9 +91,9 @@ export interface ExecuteWithdrawParams {
   receiverEvmAddress: string;
   /** Deadline in seconds from now (default: 3600) */
   deadlineSeconds?: number;
-  /** Ed25519 signer from @fastxyz/fast-sdk */
+  /** Ed25519 signer from @fastxyz/sdk */
   signer: Signer;
-  /** Fast RPC provider from @fastxyz/fast-sdk */
+  /** Fast RPC provider from @fastxyz/sdk */
   provider: FastProvider;
   /** Fast network ID (e.g. 'fast:testnet', 'fast:mainnet') */
   networkId: string;

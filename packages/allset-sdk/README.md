@@ -48,7 +48,7 @@ console.log(result.txHash); // EVM transaction hash
 ### Withdrawal (Fast → EVM)
 
 ```ts
-import { Signer, FastProvider } from '@fastxyz/fast-sdk';
+import { Signer, FastProvider } from '@fastxyz/sdk';
 import { executeWithdraw } from '@fastxyz/allset-sdk';
 
 const signer = new Signer('0xYourPrivateKey');
@@ -73,7 +73,7 @@ console.log(result.txHash);
 ### Withdrawal with custom intents
 
 ```ts
-import { Signer, FastProvider } from '@fastxyz/fast-sdk';
+import { Signer, FastProvider } from '@fastxyz/sdk';
 import { executeIntent, buildTransferIntent } from '@fastxyz/allset-sdk';
 
 const signer = new Signer('0xYourPrivateKey');
@@ -156,8 +156,8 @@ interface ExecuteWithdrawParams {
   receiverEvmAddress: string; // EVM address to receive tokens
   deadlineSeconds?: number; // default: 3600
   networkId: string; // 'fast:testnet' | 'fast:mainnet' | ...
-  signer: Signer; // from @fastxyz/fast-sdk
-  provider: FastProvider; // from @fastxyz/fast-sdk
+  signer: Signer; // from @fastxyz/sdk
+  provider: FastProvider; // from @fastxyz/sdk
 }
 ```
 
@@ -183,8 +183,8 @@ interface ExecuteIntentParams {
   externalAddress?: string; // override EVM target (required for depositBack/revoke flows)
   deadlineSeconds?: number; // default: 3600
   networkId: string; // 'fast:testnet' | 'fast:mainnet' | ...
-  signer: Signer; // from @fastxyz/fast-sdk
-  provider: FastProvider; // from @fastxyz/fast-sdk
+  signer: Signer; // from @fastxyz/sdk
+  provider: FastProvider; // from @fastxyz/sdk
 }
 ```
 
@@ -272,7 +272,7 @@ interface BridgeResult {
 **v0.x (current)**
 
 - `executeWithdraw()` — new convenience function for simple Fast → EVM withdrawals
-- `executeIntent()` / `executeWithdraw()` now accept `signer`, `provider`, `networkId` from `@fastxyz/fast-sdk` (replaces `FastWalletLike`)
+- `executeIntent()` / `executeWithdraw()` now accept `signer`, `provider`, `networkId` from `@fastxyz/sdk` (replaces `FastWalletLike`)
 - Added Ethereum mainnet (chainId 1) support
 - Pure-function API — no `AllSetProvider`, no embedded config, no keyfile loading
 - Single entrypoint `@fastxyz/allset-sdk` (no sub-path exports)

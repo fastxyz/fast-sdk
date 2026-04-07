@@ -9,7 +9,7 @@ single `generate` command. The SPEC.md defines a comprehensive CLI surface for
 account management, network configuration, querying, and token transfers.
 
 This design covers rebuilding the CLI as `fast-cli` using the Effect ecosystem,
-implementing the subset of commands that depend only on `@fastxyz/fast-sdk`
+implementing the subset of commands that depend only on `@fastxyz/sdk`
 (no allset-sdk, no x402-sdk).
 
 ## Scope
@@ -43,7 +43,7 @@ double-wrapping (Effect -> Promise -> Effect).
 | `@noble/curves`         | secp256k1 for EVM address derivation           |
 | `proper-lockfile`       | File locking for concurrent CLI instances      |
 | `uuid`                  | V4 UUIDs for keyfile IDs                       |
-| `@fastxyz/fast-sdk`     | Signer, TransactionBuilder, core RPC functions |
+| `@fastxyz/sdk`     | Signer, TransactionBuilder, core RPC functions |
 | `@fastxyz/fast-schema`  | Schema definitions for RPC codecs              |
 
 ## Project Structure
@@ -426,7 +426,7 @@ Schema.Array(
    secp256k1 private key. EVM address = keccak256(secp256k1_uncompressed_pubkey)
    last 20 bytes. Both addresses stored unencrypted in keyfile.
 
-2. **SDK used via core/ sub-export.** The CLI imports `@fastxyz/fast-sdk/core`
+2. **SDK used via core/ sub-export.** The CLI imports `@fastxyz/sdk/core`
    for effectful functions, avoiding the Promise-wrapping in the public API.
 
 3. **File locking via proper-lockfile.** Protects concurrent CLI instance writes

@@ -5,7 +5,7 @@ import {
   Signer,
   TransactionBuilder,
   toHex,
-} from "@fastxyz/fast-sdk";
+} from "@fastxyz/sdk";
 import { bech32m } from "bech32";
 import { Effect, Schema } from "effect";
 import type { SendArgs } from "../cli.js";

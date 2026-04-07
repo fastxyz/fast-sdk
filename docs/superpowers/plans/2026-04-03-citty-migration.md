@@ -417,7 +417,7 @@ export const accountInfo = defineCommand({
 
 ```typescript
 import { defineCommand } from 'citty';
-import { toHex } from '@fastxyz/fast-sdk';
+import { toHex } from '@fastxyz/sdk';
 import { Effect } from 'effect';
 import { globalArgs } from '../../cli-globals.js';
 import { runHandler } from '../../cli-runner.js';
@@ -472,7 +472,7 @@ export const accountExport = defineCommand({
 
 ```typescript
 import { defineCommand } from 'citty';
-import { fromHex } from '@fastxyz/fast-sdk';
+import { fromHex } from '@fastxyz/sdk';
 import { readFileSync } from 'node:fs';
 import { Effect } from 'effect';
 import { globalArgs } from '../../cli-globals.js';
@@ -1160,7 +1160,7 @@ The top of the file (replace lines 1-55 in the current file) becomes:
 import { defineCommand } from 'citty';
 import { bech32m } from 'bech32';
 import { Effect } from 'effect';
-import { Signer, TransactionBuilder, FastProvider, hashHex, toHex } from '@fastxyz/fast-sdk';
+import { Signer, TransactionBuilder, FastProvider, hashHex, toHex } from '@fastxyz/sdk';
 import { bcsSchema, VersionedTransactionFromBcs } from '@fastxyz/fast-schema';
 import { executeDeposit, executeWithdraw, createEvmWallet, createEvmExecutor } from '@fastxyz/allset-sdk';
 import { globalArgs } from '../cli-globals.js';

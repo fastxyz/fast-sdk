@@ -25,7 +25,7 @@ metadata:
 
 - Protecting API routes with payments → use `@fastxyz/x402-server`
 - Running a facilitator service → use `@fastxyz/x402-facilitator`
-- General wallet operations → use `@fastxyz/fast-sdk`
+- General wallet operations → use `@fastxyz/sdk`
 
 ---
 

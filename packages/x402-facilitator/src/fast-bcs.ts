@@ -1,5 +1,5 @@
 /**
- * Fast BCS helpers using @fastxyz/fast-sdk and @fastxyz/fast-schema.
+ * Fast BCS helpers using @fastxyz/sdk and @fastxyz/fast-schema.
  *
  * Pure BCS serialization/deserialization utilities — no hardcoded network config.
  */

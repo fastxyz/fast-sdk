@@ -24,7 +24,7 @@ metadata:
 
 **DO NOT use this skill for:**
 
-- Fast-only operations (balance, send, sign) → use `@fastxyz/fast-sdk`
+- Fast-only operations (balance, send, sign) → use `@fastxyz/sdk`
 - EVM-only operations without bridging
 - Swaps, lending, staking, or yield strategies
 
@@ -263,4 +263,4 @@ interface FastWalletLike {
 }
 ```
 
-Use `@fastxyz/fast-sdk` to create a conforming Fast wallet.
+Use `@fastxyz/sdk` to create a conforming Fast wallet.

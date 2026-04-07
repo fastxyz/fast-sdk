@@ -1,4 +1,4 @@
-import { toHex } from "@fastxyz/fast-sdk";
+import { toHex } from "@fastxyz/sdk";
 import { Effect } from "effect";
 import type { AccountExportArgs } from "../../cli.js";
 import { ClientConfig } from "../../services/config/client.js";

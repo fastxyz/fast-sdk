@@ -245,7 +245,7 @@ Replace all `stmts.*` raw prepared statements with Drizzle query builder calls. 
 - [ ] **Step 3.1: Rewrite `app/cli/src/services/account/account-store.ts`**
 
 ```typescript
-import { Signer, toHex } from "@fastxyz/fast-sdk";
+import { Signer, toHex } from "@fastxyz/sdk";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { eq, count, sql } from "drizzle-orm";

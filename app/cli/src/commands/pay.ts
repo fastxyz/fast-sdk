@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { Signer, toHex } from "@fastxyz/fast-sdk";
+import { Signer, toHex } from "@fastxyz/sdk";
 import type { EvmChainConfig, EvmWallet, FastWallet } from "@fastxyz/x402-client";
 import { Effect } from "effect";
 import type { PayArgs } from "../cli.js";

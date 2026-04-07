@@ -4,7 +4,7 @@
  * Use `instanceof` to match specific errors:
  *
  * ```ts
- * import { UnexpectedNonceError } from "@fastxyz/fast-sdk";
+ * import { UnexpectedNonceError } from "@fastxyz/sdk";
  *
  * try {
  *   await provider.submitTransaction(envelope);

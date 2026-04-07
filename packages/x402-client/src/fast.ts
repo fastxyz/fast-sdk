@@ -1,7 +1,7 @@
 /**
  * Fast payment handler for x402
  *
- * Uses @fastxyz/fast-sdk TransactionBuilder + FastProvider.
+ * Uses @fastxyz/sdk TransactionBuilder + FastProvider.
  * No hardcoded network configuration — all config from wallet.
  */
 

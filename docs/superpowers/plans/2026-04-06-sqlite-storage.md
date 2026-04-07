@@ -86,7 +86,7 @@ import { ctr } from "@noble/ciphers/aes";
 import { scryptAsync } from "@noble/hashes/scrypt.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { randomBytes } from "@noble/hashes/utils.js";
-import { fromHex, toHex } from "@fastxyz/fast-sdk";
+import { fromHex, toHex } from "@fastxyz/sdk";
 import { WrongPasswordError } from "../errors/index.js";
 
 const SCRYPT_N = 262144;
@@ -291,7 +291,7 @@ The public `AccountStoreShape` interface stays identical. The internal implement
 - [ ] **Step 4.1: Rewrite `app/cli/src/services/account/account-store.ts`**
 
 ```typescript
-import { Signer, toHex } from "@fastxyz/fast-sdk";
+import { Signer, toHex } from "@fastxyz/sdk";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { Context, Effect, Layer, Option } from "effect";

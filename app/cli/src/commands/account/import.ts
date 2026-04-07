@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { fromHex } from "@fastxyz/fast-sdk";
+import { fromHex } from "@fastxyz/sdk";
 import { Effect, Option } from "effect";
 import type { AccountImportArgs } from "../../cli.js";
 import { InvalidUsageError } from "../../errors/index.js";

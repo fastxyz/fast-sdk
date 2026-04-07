@@ -11,6 +11,9 @@ export const accounts = sqliteTable("accounts", {
   fastAddress: text("fast_address").notNull(),
   evmAddress: text("evm_address").notNull(),
   encryptedKey: blob("encrypted_key", { mode: "buffer" }).notNull(),
+  encrypted: integer("encrypted", { mode: "boolean" })
+    .notNull()
+    .default(true),
   isDefault: integer("is_default", { mode: "boolean" })
     .notNull()
     .default(false),

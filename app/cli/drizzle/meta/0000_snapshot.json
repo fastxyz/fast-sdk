@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b95bf857-361d-4161-900e-1bc65bf3dee4",
+  "id": "33abcd0d-44c7-4dbd-8432-da30cf08ca6d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "accounts": {
@@ -34,6 +34,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "encrypted": {
+          "name": "encrypted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         },
         "is_default": {
           "name": "is_default",

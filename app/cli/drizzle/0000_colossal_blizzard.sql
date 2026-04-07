@@ -3,6 +3,7 @@ CREATE TABLE `accounts` (
 	`fast_address` text NOT NULL,
 	`evm_address` text NOT NULL,
 	`encrypted_key` blob NOT NULL,
+	`encrypted` integer DEFAULT true NOT NULL,
 	`is_default` integer DEFAULT false NOT NULL,
 	`created_at` text NOT NULL
 );

@@ -66,11 +66,11 @@ const optionalPasswordPrompt = (
   const prompter = createPasswordPrompter(label);
   return Effect.promise(() => prompter.prompt()).pipe(
     Effect.flatMap((value) => {
-      if (isCancel(value) || value === undefined) {
+      if (isCancel(value)) {
         return Effect.fail(new UserCancelledError());
       }
       return Effect.succeed(
-        value === "" ? Option.none() : Option.some(value),
+        value === "" || value === undefined ? Option.none() : Option.some(value),
       );
     }),
   );

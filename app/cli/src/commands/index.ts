@@ -16,6 +16,8 @@ import { networkAdd } from "./network/add.js";
 import { networkList } from "./network/list.js";
 import { networkRemove } from "./network/remove.js";
 import { networkSetDefault } from "./network/set-default.js";
+import { fundCrypto } from "./fund/crypto.js";
+import { fundFiat } from "./fund/fiat.js";
 import { pay } from "./pay.js";
 import { send } from "./send.js";
 
@@ -27,6 +29,8 @@ export const commands = [
   accountInfo,
   accountList,
   accountSetDefault,
+  fundCrypto,
+  fundFiat,
   infoBalance,
   infoHistory,
   infoStatus,

@@ -8,9 +8,16 @@ type PasswordEffect = Effect.Effect<
   string,
   PasswordRequiredError | UserCancelledError
 >;
+type OptionalPasswordEffect = Effect.Effect<
+  Option.Option<string>,
+  UserCancelledError
+>;
 
 export interface PromptShape {
-  readonly password: () => PasswordEffect;
+  readonly password: {
+    (): PasswordEffect;
+    (opts: { required: false }): OptionalPasswordEffect;
+  };
   readonly confirm: (message: string) => ConfirmEffect;
 }
 
@@ -43,6 +50,29 @@ const passwordPrompt = (config: ClientConfigShape, label: string): PasswordEffec
         ? Effect.fail(new UserCancelledError())
         : Effect.succeed(value),
     ),
+  );
+};
+
+const optionalPasswordPrompt = (
+  config: ClientConfigShape,
+  label: string,
+): OptionalPasswordEffect => {
+  if (Option.isSome(config.password)) {
+    return Effect.succeed(Option.some(config.password.value));
+  }
+  if (config.nonInteractive) {
+    return Effect.succeed(Option.none());
+  }
+  const prompter = createPasswordPrompter(label);
+  return Effect.promise(() => prompter.prompt()).pipe(
+    Effect.flatMap((value) => {
+      if (isCancel(value) || value === undefined) {
+        return Effect.fail(new UserCancelledError());
+      }
+      return Effect.succeed(
+        value === "" ? Option.none() : Option.some(value),
+      );
+    }),
   );
 };
 
@@ -80,7 +110,12 @@ export const PromptLive = Layer.effect(
     const config = yield* ClientConfig;
 
     return {
-      password: () => passwordPrompt(config, "Password:"),
+      password: ((opts?: { required: false }) => {
+        if (opts?.required === false) {
+          return optionalPasswordPrompt(config, "Password (Enter to skip):");
+        }
+        return passwordPrompt(config, "Password:");
+      }) as PromptShape["password"],
       confirm: (message) => confirmPrompt(config, message),
     };
   }),

@@ -21,7 +21,7 @@ export function resolveToken(
 ): ResolvedToken {
   const allset = networkConfig.allSet;
   if (!allset) {
-    throw new TokenNotFoundError({ name: tokenName });
+    throw new TokenNotFoundError({ token: tokenName });
   }
 
   if (chain) {
@@ -31,7 +31,7 @@ export function resolveToken(
     }
     const token = chainConfig.tokens[tokenName];
     if (!token) {
-      throw new TokenNotFoundError({ name: tokenName });
+      throw new TokenNotFoundError({ token: tokenName });
     }
     return {
       fastTokenId: fromHex(token.fastTokenId),
@@ -51,5 +51,5 @@ export function resolveToken(
     }
   }
 
-  throw new TokenNotFoundError({ name: tokenName });
+  throw new TokenNotFoundError({ token: tokenName });
 }

@@ -45,8 +45,10 @@ const mapBridgeError = (operation: string) => (cause: unknown) =>
 
 export const AllSetLive = Layer.succeed(AllSet, {
   createWallet: (privateKey) => sdkCreateEvmWallet(privateKey),
+  // viem version mismatch between workspace and hoisted — cast through unknown
   createExecutor: (account, rpcUrl, chainOrId) =>
-    sdkCreateEvmExecutor(account, rpcUrl, chainOrId),
+    // biome-ignore lint/suspicious/noExplicitAny: duplicate viem versions
+    (sdkCreateEvmExecutor as (...args: any[]) => EvmClients)(account, rpcUrl, chainOrId),
 
   deposit: (params) =>
     Effect.tryPromise({

@@ -1,12 +1,11 @@
 export * from "./account.js";
-export * from "./helpers.js";
 export * from "./io.js";
 export * from "./network.js";
 export * from "./transaction.js";
 export * from "./payment.js";
 export * from "./usage.js";
 
-import type { DatabaseError } from "./io.js";
+import type { DatabaseError, FileIOError } from "./io.js";
 import type {
   AccountExistsError,
   AccountNotFoundError,
@@ -82,4 +81,5 @@ export type ClientError =
   | PaymentRejectedError
   | PaymentFailedError
   | InvalidPaymentLinkError
-  | InsufficientPaymentBalanceError;
+  | InsufficientPaymentBalanceError
+  | FileIOError;

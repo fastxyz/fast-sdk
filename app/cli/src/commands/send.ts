@@ -178,9 +178,7 @@ export const send: Command<SendArgs> = {
         const allset = network.allSet;
         if (!allset) {
           return yield* Effect.fail(
-            new InvalidNetworkConfigError({
-              message: `Network "${config.network}" does not have AllSet bridge config`,
-            }),
+            new InvalidNetworkConfigError({ name: config.network }),
           );
         }
         const chainCfg = allset.chains[fromChain!];
@@ -191,8 +189,9 @@ export const send: Command<SendArgs> = {
         }
 
         const evmAccount = bridge.createWallet(toHex(seed));
+        // Cast needed: viem version mismatch between allset-sdk and cli
         const evmClients = bridge.createExecutor(
-          evmAccount,
+          evmAccount as Parameters<typeof bridge.createExecutor>[0],
           chainCfg.evmRpcUrl,
           chainCfg.chainId,
         );
@@ -216,9 +215,7 @@ export const send: Command<SendArgs> = {
         const allset = network.allSet;
         if (!allset) {
           return yield* Effect.fail(
-            new InvalidNetworkConfigError({
-              message: `Network "${config.network}" does not have AllSet bridge config`,
-            }),
+            new InvalidNetworkConfigError({ name: config.network }),
           );
         }
         const chainCfg = allset.chains[toChain!];

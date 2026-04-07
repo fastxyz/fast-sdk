@@ -153,7 +153,7 @@ const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay"] as 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
   account: ["create", "import", "list", "set-default", "export", "delete"],
   network: ["list", "add", "set-default", "remove"],
-  info: ["status", "balance", "tx", "history"],
+  info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["fiat", "crypto"],
 };
 

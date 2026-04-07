@@ -286,9 +286,25 @@ const infoHistoryParser = command(
   { description: message`Show transaction history` },
 );
 
+const infoBridgeTokensParser = command(
+  "bridge-tokens",
+  object({
+    cmd: constant("info-bridge-tokens" as const),
+  }),
+  { description: message`List tokens available for Fast-EVM transfers` },
+);
+
+const infoBridgeChainsParser = command(
+  "bridge-chains",
+  object({
+    cmd: constant("info-bridge-chains" as const),
+  }),
+  { description: message`List chains available for Fast-EVM transfers` },
+);
+
 const infoGroup = command(
   "info",
-  or(infoStatusParser, infoBalanceParser, infoTxParser, infoHistoryParser),
+  or(infoStatusParser, infoBalanceParser, infoTxParser, infoHistoryParser, infoBridgeTokensParser, infoBridgeChainsParser),
   { description: message`Query network and account information` },
 );
 
@@ -424,6 +440,8 @@ export type InfoStatusArgs = InferValue<typeof infoStatusParser>;
 export type InfoBalanceArgs = InferValue<typeof infoBalanceParser>;
 export type InfoTxArgs = InferValue<typeof infoTxParser>;
 export type InfoHistoryArgs = InferValue<typeof infoHistoryParser>;
+export type InfoBridgeTokensArgs = InferValue<typeof infoBridgeTokensParser>;
+export type InfoBridgeChainsArgs = InferValue<typeof infoBridgeChainsParser>;
 
 export type SendArgs = InferValue<typeof sendParser>;
 

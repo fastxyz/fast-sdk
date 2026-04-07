@@ -213,6 +213,15 @@ const globalOpts: GlobalOptions = {
   password: Option.fromNullable(parsed.password),
 };
 
+if (parsed.debug) {
+  const dbPath = `${process.env.HOME ?? "~"}/.fast/fast.db`;
+  process.stderr.write(`[debug] command:         ${parsed.cmd}\n`);
+  process.stderr.write(`[debug] network:         ${parsed.network}\n`);
+  process.stderr.write(`[debug] account:         ${parsed.account ?? "(default)"}\n`);
+  process.stderr.write(`[debug] non-interactive: ${parsed.nonInteractive}\n`);
+  process.stderr.write(`[debug] db:              ${dbPath}\n`);
+}
+
 const dispatch = () => {
   const entry = commands.find((c) => c.cmd === parsed.cmd);
   if (!entry) {

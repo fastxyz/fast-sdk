@@ -119,19 +119,6 @@ const accountSetDefaultParser = command(
   { description: message`Set the default account` },
 );
 
-const accountInfoParser = command(
-  "info",
-  object({
-    cmd: constant("account-info" as const),
-    name: optional(
-      argument(string({ metavar: "NAME" }), {
-        description: message`Account alias (defaults to default account)`,
-      }),
-    ),
-  }),
-  { description: message`Show account addresses` },
-);
-
 const accountExportParser = command(
   "export",
   object({
@@ -163,7 +150,6 @@ const accountGroup = command(
     accountImportParser,
     accountListParser,
     accountSetDefaultParser,
-    accountInfoParser,
     accountExportParser,
     accountDeleteParser,
   ),
@@ -426,7 +412,6 @@ export type AccountCreateArgs = InferValue<typeof accountCreateParser>;
 export type AccountImportArgs = InferValue<typeof accountImportParser>;
 export type AccountListArgs = InferValue<typeof accountListParser>;
 export type AccountSetDefaultArgs = InferValue<typeof accountSetDefaultParser>;
-export type AccountInfoArgs = InferValue<typeof accountInfoParser>;
 export type AccountExportArgs = InferValue<typeof accountExportParser>;
 export type AccountDeleteArgs = InferValue<typeof accountDeleteParser>;
 

@@ -151,7 +151,7 @@ if (argv.length === 0 || argv.includes("--help")) {
 const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay"] as const;
 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
-  account: ["create", "import", "list", "set-default", "info", "export", "delete"],
+  account: ["create", "import", "list", "set-default", "export", "delete"],
   network: ["list", "add", "set-default", "remove"],
   info: ["status", "balance", "tx", "history"],
   fund: ["fiat", "crypto"],

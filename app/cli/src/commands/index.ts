@@ -5,7 +5,6 @@ import { accountCreate } from "./account/create.js";
 import { accountDelete } from "./account/delete.js";
 import { accountExport } from "./account/export.js";
 import { accountImport } from "./account/import.js";
-import { accountInfo } from "./account/info.js";
 import { accountList } from "./account/list.js";
 import { accountSetDefault } from "./account/set-default.js";
 import { infoBalance } from "./info/balance.js";
@@ -26,7 +25,6 @@ export const commands = [
   accountDelete,
   accountExport,
   accountImport,
-  accountInfo,
   accountList,
   accountSetDefault,
   fundCrypto,

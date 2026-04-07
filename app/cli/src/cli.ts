@@ -246,18 +246,13 @@ const infoBalanceParser = command(
   "balance",
   object({
     cmd: constant("info-balance" as const),
-    address: optional(
-      option("--address", string({ metavar: "ADDRESS" }), {
-        description: message`Any Fast address (fast1...) to query`,
-      }),
-    ),
     token: optional(
       option("--token", string({ metavar: "TOKEN" }), {
-        description: message`Filter by token`,
+        description: message`Filter by token name or token ID`,
       }),
     ),
   }),
-  { description: message`Show token balances for an address` },
+  { description: message`Show token balances for the current account` },
 );
 
 const infoTxParser = command(

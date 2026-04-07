@@ -61,7 +61,7 @@ export const send: Command<SendArgs> = {
         // --from-chain with EVM address doesn't make sense
         return yield* Effect.fail(
           new InvalidAddressError({
-            message: `--from-chain is for EVM→Fast deposits. Recipient must be a fast1 address.`,
+            message: `--from-chain is for EVM → Fast deposits. Recipient must be a fast1 address.`,
           }),
         );
       }
@@ -69,7 +69,7 @@ export const send: Command<SendArgs> = {
       if (toChain && isEvmAddress === false) {
         return yield* Effect.fail(
           new InvalidAddressError({
-            message: `--to-chain is for Fast→EVM withdrawals. Recipient must be a 0x EVM address.`,
+            message: `--to-chain is for Fast → EVM withdrawals. Recipient must be a 0x EVM address.`,
           }),
         );
       }

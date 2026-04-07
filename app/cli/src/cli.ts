@@ -338,7 +338,7 @@ const sendParser = command(
       }),
     ),
   }),
-  { description: message`Send tokens (Fast→Fast, EVM→Fast, or Fast→EVM)` },
+  { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
 );
 
 // ---------------------------------------------------------------------------

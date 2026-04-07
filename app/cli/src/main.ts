@@ -136,13 +136,69 @@ if (argv.length === 0 || argv.includes("--help")) {
 
 // ── Full parse ──────────────────────────────────────────────────────────────
 
+const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay"] as const;
+
+const SUBCOMMANDS: Record<string, readonly string[]> = {
+  account: ["create", "import", "list", "set-default", "info", "export", "delete"],
+  network: ["list", "add", "set-default", "remove"],
+  info: ["status", "balance", "tx", "history"],
+  fund: ["fiat", "crypto"],
+};
+
+/** Simple Levenshtein distance for short strings. */
+const levenshtein = (a: string, b: string): number => {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+  return dp[m][n];
+};
+
+const suggest = (token: string, candidates: readonly string[]): string | null => {
+  let best: string | null = null;
+  let bestDist = Infinity;
+  for (const c of candidates) {
+    const d = levenshtein(token.toLowerCase(), c);
+    if (d < bestDist && d <= 2) {
+      bestDist = d;
+      best = c;
+    }
+  }
+  return best;
+};
+
 const result = parse(parser, argv);
 
 if (!result.success) {
-  writeFail(
-    new InvalidUsageError({ message: formatMessage(result.error) }),
-    isJson,
-  );
+  const firstToken = argv.find((a) => !a.startsWith("-"));
+  let msg = formatMessage(result.error);
+
+  if (firstToken && !KNOWN_COMMANDS.includes(firstToken as never)) {
+    const suggestion = suggest(firstToken, KNOWN_COMMANDS);
+    msg = suggestion
+      ? `Unknown command '${firstToken}'. Did you mean '${suggestion}'?`
+      : `Unknown command '${firstToken}'. Available: ${KNOWN_COMMANDS.join(", ")}.`;
+  } else if (firstToken && firstToken in SUBCOMMANDS) {
+    const subs = SUBCOMMANDS[firstToken];
+    const secondToken = argv.find((a) => a !== firstToken && !a.startsWith("-"));
+    if (!secondToken) {
+      msg = `Missing subcommand for '${firstToken}'. Available: ${subs.join(", ")}.`;
+    } else {
+      const s = suggest(secondToken, subs);
+      msg = s
+        ? `Unknown subcommand '${secondToken}' for '${firstToken}'. Did you mean '${s}'?`
+        : `Unknown subcommand '${secondToken}' for '${firstToken}'. Available: ${subs.join(", ")}.`;
+    }
+  }
+
+  writeFail(new InvalidUsageError({ message: msg }), isJson);
   process.exit(1);
 }
 

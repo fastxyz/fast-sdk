@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,12 +45,17 @@ export const DatabaseLive = Layer.sync(DatabaseService, () => {
 
   // Apply migrations from the generated drizzle/ folder.
   // drizzle-kit generate creates these from db/schema.ts.
-  migrate(db, {
-    migrationsFolder: join(
-      dirname(fileURLToPath(import.meta.url)),
-      "../drizzle",
-    ),
-  });
+  // Resolve the migrations folder for both tsx-from-source and compiled-dist modes:
+  //   tsx:   import.meta.url → src/services/storage/ → ../../../drizzle = app/cli/drizzle/
+  //   built: import.meta.url → dist/ → ../drizzle = app/cli/drizzle/
+  const __dir = dirname(fileURLToPath(import.meta.url));
+  const migrationsFolder = [join(__dir, "../../../drizzle"), join(__dir, "../drizzle")].find(
+    (p) => existsSync(join(p, "meta/_journal.json")),
+  );
+  if (!migrationsFolder) {
+    throw new Error("Could not locate Drizzle migrations folder");
+  }
+  migrate(db, { migrationsFolder });
 
   // Seed defaults
   db.insert(schema.metadata)

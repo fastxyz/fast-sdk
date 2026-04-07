@@ -5,7 +5,7 @@
  * so that dispatch in main.ts can be a type-safe `switch`.
  */
 import { merge, object, or } from "@optique/core/constructs";
-import { message } from "@optique/core/message";
+import { message, optionName } from "@optique/core/message";
 import { multiple, optional, withDefault } from "@optique/core/modifiers";
 import type { InferValue } from "@optique/core/parser";
 import { argument, command, constant, option, passThrough } from "@optique/core/primitives";

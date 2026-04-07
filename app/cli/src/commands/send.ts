@@ -145,7 +145,9 @@ export const send: Command<SendArgs> = {
 
       // Resolve account and password
       const accountInfo = yield* accounts.resolveAccount(config.account);
-      const pwd = yield* prompt.password();
+      const pwd = accountInfo.encrypted
+        ? yield* prompt.password()
+        : null;
       const { seed } = yield* accounts.export(accountInfo.name, pwd);
 
       // Interactive confirmation

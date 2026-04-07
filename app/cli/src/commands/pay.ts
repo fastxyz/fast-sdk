@@ -86,7 +86,9 @@ export const pay: Command<PayArgs> = {
       // -- Normal mode: resolve account + wallets --
       const network = yield* networkConfig.resolve(config.network);
       const accountInfo = yield* accounts.resolveAccount(config.account);
-      const pwd = yield* prompt.password();
+      const pwd = accountInfo.encrypted
+        ? yield* prompt.password()
+        : null;
       const { seed } = yield* accounts.export(accountInfo.name, pwd);
 
       const signer = new Signer(seed);

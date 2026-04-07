@@ -24,7 +24,10 @@ export const accountExport: Command<AccountExportArgs> = {
       );
       if (!confirmed) return;
 
-      const pwd = yield* prompt.password();
+      const accountInfo = yield* accounts.get(accountName);
+      const pwd = accountInfo.encrypted
+        ? yield* prompt.password()
+        : null;
       const { seed, entry } = yield* accounts.export(accountName, pwd);
       const privateKeyHex = toHex(seed);
 

@@ -16,6 +16,7 @@ import { networkAdd } from "./network/add.js";
 import { networkList } from "./network/list.js";
 import { networkRemove } from "./network/remove.js";
 import { networkSetDefault } from "./network/set-default.js";
+import { pay } from "./pay.js";
 import { send } from "./send.js";
 
 export const commands = [
@@ -35,6 +36,7 @@ export const commands = [
   networkRemove,
   networkSetDefault,
   send,
+  pay,
 ];
 
 /**

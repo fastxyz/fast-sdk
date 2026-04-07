@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fromHex } from "@fastxyz/fast-sdk";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type { AccountImportArgs } from "../../cli.js";
 import { InvalidUsageError } from "../../errors/index.js";
 import { Output } from "../../services/output.js";
@@ -84,8 +84,12 @@ export const accountImport: Command<AccountImportArgs> = {
 
       const name = args.name ?? (yield* accounts.nextAutoName());
 
-      const pwd = yield* prompt.password();
-      const entry = yield* accounts.import(name, seed, pwd);
+      const pwd = yield* prompt.password({ required: false });
+      const entry = yield* accounts.import(name, seed, Option.getOrNull(pwd));
+
+      if (Option.isNone(pwd)) {
+        yield* output.humanLine("No password set. Key stored unencrypted.");
+      }
 
       yield* output.humanLine(`Imported account "${entry.name}"`);
       yield* output.humanLine(`  Fast address: ${entry.fastAddress}`);

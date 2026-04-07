@@ -1,5 +1,5 @@
 import { TransactionCertificateFromRpc } from "@fastxyz/fast-schema";
-import { TransactionBuilder } from "@fastxyz/fast-sdk";
+import { TransactionBuilder } from "@fastxyz/sdk";
 import { Schema } from "effect";
 import { decodeAbiParameters } from "viem";
 import { fastAddressToBytes } from "./address.js";

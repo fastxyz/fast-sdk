@@ -4,7 +4,7 @@
  * Pure BCS serialization/deserialization utilities — no hardcoded network config.
  */
 
-import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/fast-sdk';
+import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
 import { bcsSchema } from '@fastxyz/fast-schema';
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────

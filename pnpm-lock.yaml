@@ -62,7 +62,7 @@ importers:
       '@fastxyz/fast-schema':
         specifier: workspace:*
         version: link:../../packages/fast-schema
-      '@fastxyz/fast-sdk':
+      '@fastxyz/sdk':
         specifier: workspace:*
         version: link:../../packages/fast-sdk
       '@fastxyz/x402-client':
@@ -117,7 +117,7 @@ importers:
       '@fastxyz/fast-schema':
         specifier: workspace:*
         version: link:../fast-schema
-      '@fastxyz/fast-sdk':
+      '@fastxyz/sdk':
         specifier: workspace:*
         version: link:../fast-sdk
       '@mysten/bcs':
@@ -191,7 +191,7 @@ importers:
       '@fastxyz/fast-schema':
         specifier: workspace:*
         version: link:../fast-schema
-      '@fastxyz/fast-sdk':
+      '@fastxyz/sdk':
         specifier: workspace:*
         version: link:../fast-sdk
       '@fastxyz/x402-types':
@@ -216,7 +216,7 @@ importers:
       '@fastxyz/fast-schema':
         specifier: workspace:*
         version: link:../fast-schema
-      '@fastxyz/fast-sdk':
+      '@fastxyz/sdk':
         specifier: workspace:*
         version: link:../fast-sdk
       '@fastxyz/x402-types':

@@ -6,18 +6,18 @@ Official TypeScript SDK monorepo for the Fast network.
 
 | Package                                       | Description                                                       |
 | --------------------------------------------- | ----------------------------------------------------------------- |
-| [@fastxyz/fast-sdk](packages/fast-sdk/)       | High-level SDK — signing, transactions, provider, conversions     |
+| [@fastxyz/sdk](packages/fast-sdk/)       | High-level SDK — signing, transactions, provider, conversions     |
 | [@fastxyz/fast-schema](packages/fast-schema/) | Effect Schema definitions — BCS, RPC, REST codecs and type system |
 | [@fastxyz/cli](app/cli/)                      | CLI tool for account utilities                                    |
 
 ## Quick start
 
 ```bash
-npm install @fastxyz/fast-sdk
+npm install @fastxyz/sdk
 ```
 
 ```ts
-import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/fast-sdk';
+import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/sdk';
 
 const signer = new Signer('abcdef0123456789...');
 const provider = new FastProvider({ rpcUrl: 'https://api.fast.xyz/proxy' });

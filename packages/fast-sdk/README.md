@@ -1,4 +1,4 @@
-# @fastxyz/fast-sdk
+# @fastxyz/sdk
 
 TypeScript SDK for the Fast network. Provides a high-level API for signing
 transactions, querying the network, and converting addresses and amounts.
@@ -6,13 +6,13 @@ transactions, querying the network, and converting addresses and amounts.
 ## Install
 
 ```bash
-npm install @fastxyz/fast-sdk
+npm install @fastxyz/sdk
 ```
 
 ## Quick start
 
 ```ts
-import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/fast-sdk';
+import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/sdk';
 
 // Create a signer from a 32-byte hex private key
 const signer = new Signer('0xabcdef0123456789...');
@@ -56,7 +56,7 @@ const sig = await signer.signTypedData(bcsType, data); // BCS domain-prefixed
 Standalone verification:
 
 ```ts
-import { verify, verifyTypedData } from '@fastxyz/fast-sdk';
+import { verify, verifyTypedData } from '@fastxyz/sdk';
 const valid = await verify(signature, message, publicKey);
 ```
 
@@ -94,7 +94,7 @@ Supported operations: `addTokenTransfer`, `addTokenCreation`,
 ### Conversion utilities
 
 ```ts
-import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/fast-sdk';
+import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
 
 toHex(bytes); // "0x..."
 fromHex('0xabcd'); // Uint8Array
@@ -105,7 +105,7 @@ fromFastAddress('fast1...'); // Uint8Array
 ### BCS encoding
 
 ```ts
-import { encode, hash, hashHex, getTokenId } from '@fastxyz/fast-sdk';
+import { encode, hash, hashHex, getTokenId } from '@fastxyz/sdk';
 
 const bytes = await encode(bcsSchema, data);
 const h = await hashHex(bcsSchema, data); // "0x..." keccak-256
@@ -117,7 +117,7 @@ const tokenId = getTokenId(sender, nonce, 0n); // deterministic token ID
 All errors are typed and can be matched with `instanceof`:
 
 ```ts
-import { UnexpectedNonceError, InsufficientFundingError } from '@fastxyz/fast-sdk';
+import { UnexpectedNonceError, InsufficientFundingError } from '@fastxyz/sdk';
 
 try {
   await provider.submitTransaction(envelope);

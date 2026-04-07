@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { fromHex, toHex } from "@fastxyz/fast-sdk";
+import { fromHex, toHex } from "@fastxyz/sdk";
 import { ctr } from "@noble/ciphers/aes";
 import { scryptAsync } from "@noble/hashes/scrypt.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";

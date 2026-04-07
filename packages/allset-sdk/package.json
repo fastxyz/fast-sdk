@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@fastxyz/fast-schema": "workspace:*",
-    "@fastxyz/fast-sdk": "workspace:*",
+    "@fastxyz/sdk": "workspace:*",
     "@mysten/bcs": "^2.0.3",
     "@noble/ed25519": "^3.0.1",
     "@noble/hashes": "^2.0.1",

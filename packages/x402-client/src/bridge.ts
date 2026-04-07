@@ -6,7 +6,7 @@
  */
 
 import { executeWithdraw } from '@fastxyz/allset-sdk';
-import { FastProvider, Signer, toFastAddress, toHex } from '@fastxyz/fast-sdk';
+import { FastProvider, Signer, toFastAddress, toHex } from '@fastxyz/sdk';
 import type { FastWallet } from './types.js';
 
 // ─── Public Types ─────────────────────────────────────────────────────────────

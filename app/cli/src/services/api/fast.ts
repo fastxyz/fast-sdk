@@ -9,7 +9,7 @@ import {
   getTokenInfo as sdkGetTokenInfo,
   getTransactionCertificates as sdkGetTransactionCertificates,
   submitTransaction as sdkSubmitTransaction,
-} from "@fastxyz/fast-sdk/core";
+} from "@fastxyz/sdk/core";
 import { Context, Effect, Layer } from "effect";
 import { FastSdkError } from "../../errors/index.js";
 import { ClientConfig } from "../config/client.js";

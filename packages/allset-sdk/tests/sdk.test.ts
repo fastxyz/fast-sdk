@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test, onTestFinished } from 'vitest';
 import { FastError } from '../src/errors.ts';
 import { encodeFunctionData } from 'viem';
-import { Signer, FastProvider } from '@fastxyz/fast-sdk';
+import { Signer, FastProvider } from '@fastxyz/sdk';
 import { Schema } from 'effect';
 import { TransactionCertificateFromRpc } from '@fastxyz/fast-schema';
 

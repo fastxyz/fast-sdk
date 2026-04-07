@@ -3,7 +3,7 @@ name: fast-sdk
 description: >
   Fast network SDK for AI agents and Node.js apps. Build and sign
   transactions, query accounts, transfer tokens, and manage keys
-  using @fastxyz/fast-sdk.
+  using @fastxyz/sdk.
 metadata:
   short-description: Fast transaction building, signing, and RPC queries.
   compatibility: Node.js 20+, browsers, workers.
@@ -52,7 +52,7 @@ info → Build transaction → Sign → Submit.
 **When:** Need to sign transactions or derive an address.
 
 ```ts
-import { Signer } from '@fastxyz/fast-sdk';
+import { Signer } from '@fastxyz/sdk';
 
 // From a 32-byte hex private key (0x prefix optional)
 const signer = new Signer('abcdef0123456789...');
@@ -78,7 +78,7 @@ const address = await signer.getFastAddress(); // "fast1..."
 **When:** Need to query or submit transactions.
 
 ```ts
-import { FastProvider } from '@fastxyz/fast-sdk';
+import { FastProvider } from '@fastxyz/sdk';
 
 const provider = new FastProvider({
   rpcUrl: 'https://api.fast.xyz/proxy',
@@ -121,7 +121,7 @@ const account = await provider.getAccountInfo({
 **When:** Send tokens to another address.
 
 ```ts
-import { TransactionBuilder } from '@fastxyz/fast-sdk';
+import { TransactionBuilder } from '@fastxyz/sdk';
 
 const account = await provider.getAccountInfo({
   address: pubKey,
@@ -221,7 +221,7 @@ const sig = await signer.signMessage(messageBytes);
 const sig = await signer.signTypedData(bcsType, data);
 
 // Verify
-import { verify, verifyTypedData } from '@fastxyz/fast-sdk';
+import { verify, verifyTypedData } from '@fastxyz/sdk';
 
 const valid = await verify(sig, messageBytes, pubKey);
 const valid = await verifyTypedData(sig, bcsType, data, pubKey);
@@ -255,7 +255,7 @@ const pending = await provider.getPendingMultisigTransactions({
 ### 8. Address and Hex Conversions
 
 ```ts
-import { toHex, fromHex, toFastAddress, fromFastAddress, bigintToHex, bigintFromHex } from '@fastxyz/fast-sdk';
+import { toHex, fromHex, toFastAddress, fromFastAddress, bigintToHex, bigintFromHex } from '@fastxyz/sdk';
 
 toHex(bytes); // "0xabcd..."
 fromHex('0xabcd'); // Uint8Array
@@ -280,7 +280,7 @@ organized in 4 layers:
 | Validator | `UnexpectedNonceError`, etc.                             | Validator rejects  |
 
 ```ts
-import { UnexpectedNonceError, InsufficientFundingError } from '@fastxyz/fast-sdk';
+import { UnexpectedNonceError, InsufficientFundingError } from '@fastxyz/sdk';
 
 try {
   await provider.submitTransaction(envelope);
@@ -317,7 +317,7 @@ try {
 ## Quick Reference
 
 ```ts
-import { Signer, FastProvider, TransactionBuilder, verify, toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/fast-sdk';
+import { Signer, FastProvider, TransactionBuilder, verify, toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
 
 // Setup
 const signer = new Signer(privateKeyHex);

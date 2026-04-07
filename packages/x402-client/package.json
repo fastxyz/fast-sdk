@@ -27,7 +27,7 @@
   "dependencies": {
     "@fastxyz/allset-sdk": "workspace:*",
     "@fastxyz/fast-schema": "workspace:*",
-    "@fastxyz/fast-sdk": "workspace:*",
+    "@fastxyz/sdk": "workspace:*",
     "@fastxyz/x402-types": "workspace:*",
     "viem": "^2.46.2"
   },

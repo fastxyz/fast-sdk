@@ -1,4 +1,4 @@
-import { Signer, toHex } from "@fastxyz/fast-sdk";
+import { Signer, toHex } from "@fastxyz/sdk";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { count, eq } from "drizzle-orm";

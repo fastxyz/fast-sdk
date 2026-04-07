@@ -1,4 +1,4 @@
-import type { Signer, FastProvider } from '@fastxyz/fast-sdk';
+import type { Signer, FastProvider } from '@fastxyz/sdk';
 import type { EvmClients } from './evm.js';
 import type { Intent } from './intents.js';
 

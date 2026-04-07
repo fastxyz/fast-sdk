@@ -46,15 +46,18 @@ export const infoBridgeTokens: Command<InfoBridgeTokensArgs> = {
       const tokens = Array.from(tokenMap.values());
 
       yield* output.humanLine(`Bridgeable tokens on ${config.network}:\n`);
-      yield* output.humanTable(
-        ["SYMBOL", "TOKEN ID", "DECIMALS", "CHAINS"],
-        tokens.map((t) => [
-          t.symbol,
-          t.tokenId,
-          String(t.decimals),
-          t.chains.map((c) => `${c.chain} (${c.evmAddress})`).join(", "),
-        ]),
-      );
+
+      for (const t of tokens) {
+        yield* output.humanTable(
+          ["SYMBOL", "TOKEN ID", "DECIMALS"],
+          [[t.symbol, t.tokenId, String(t.decimals)]],
+        );
+        yield* output.humanLine("  Supported chains:");
+        for (const c of t.chains) {
+          yield* output.humanLine(`    ${c.chain.padEnd(24)} ${c.evmAddress}`);
+        }
+        yield* output.humanLine("");
+      }
 
       yield* output.ok({
         tokens: tokens.map((t) => ({

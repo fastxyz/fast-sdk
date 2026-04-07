@@ -1,5 +1,5 @@
 import type { Command } from "../index.js";
-import { getEvmErc20Balance } from "@fastxyz/allset-sdk";
+import { getEvmErc20Balance, getEvmNativeBalance } from "@fastxyz/allset-sdk";
 import { bech32m } from "bech32";
 import { Effect } from "effect";
 import type { InfoBalanceArgs } from "../../cli.js";
@@ -64,56 +64,83 @@ export const infoBalance: Command<InfoBalanceArgs> = {
       yield* output.humanLine(`Balances for ${account.name}`);
       yield* output.humanLine(`  Fast address: ${fastAddress}`);
       yield* output.humanLine(`  EVM address:  ${evmAddress}`);
+      yield* output.humanLine("");
 
       if (!networkConfig.allSet) {
-        yield* output.humanLine("");
         yield* output.humanLine("No bridge chains configured for this network.");
-        yield* output.ok({ address: fastAddress, evmAddress, chains: [] });
+        yield* output.ok({ address: fastAddress, evmAddress, balances: [] });
         return;
       }
 
-      type TokenRow = { token: string; evmBalance: string; fastBalance: string };
-      type ChainOutput = { chain: string; tokens: TokenRow[] };
-      const chainsOutput: ChainOutput[] = [];
+      // Deduplicate tokens by fastTokenId, collecting their chain appearances
+      type ChainEntry = { chainName: string; evmRpcUrl: string; evmAddress: string };
+      type UniqueToken = {
+        name: string;
+        fastTokenId: string;
+        decimals: number;
+        chains: ChainEntry[];
+      };
+      const uniqueTokens: UniqueToken[] = [];
 
       for (const [chainName, chainConfig] of Object.entries(networkConfig.allSet.chains)) {
-        const tokenRows: TokenRow[] = [];
-
         for (const [tokenName, token] of Object.entries(chainConfig.tokens)) {
           // Apply --token filter
           if (args.token) {
-            const f = args.token.toLowerCase().replace(/^0x/, "");
+            const f = args.token.toLowerCase();
             const idHex = token.fastTokenId.replace(/^0x/, "").toLowerCase();
-            if (tokenName.toLowerCase() !== args.token.toLowerCase() && !idHex.includes(f)) continue;
+            if (tokenName.toLowerCase() !== f && !idHex.includes(f.replace(/^0x/, ""))) continue;
           }
 
-          const { decimals } = token;
-          const tokenIdHex = token.fastTokenId.replace(/^0x/, "").toLowerCase();
+          const idKey = token.fastTokenId.toLowerCase();
+          const existing = uniqueTokens.find((t) => t.fastTokenId.toLowerCase() === idKey);
+          const chainEntry: ChainEntry = { chainName, evmRpcUrl: chainConfig.evmRpcUrl, evmAddress: token.evmAddress };
+          if (existing) {
+            existing.chains.push(chainEntry);
+          } else {
+            uniqueTokens.push({ name: tokenName, fastTokenId: token.fastTokenId, decimals: token.decimals, chains: [chainEntry] });
+          }
+        }
+      }
 
-          const evmRaw = yield* Effect.promise(() =>
-            getEvmErc20Balance(chainConfig.evmRpcUrl, token.evmAddress, evmAddress).catch(() => 0n),
+      type NetworkRow = { network: string; tokenBalance: string; ethBalance: string | null };
+      type TokenOutput = { token: string; networks: NetworkRow[] };
+      const balancesOutput: TokenOutput[] = [];
+
+      for (const token of uniqueTokens) {
+        const { decimals } = token;
+        const tokenIdHex = token.fastTokenId.replace(/^0x/, "").toLowerCase();
+        const fastRaw = fastBalanceMap.get(tokenIdHex) ?? 0n;
+
+        const rows: NetworkRow[] = [
+          { network: "Fast", tokenBalance: formatAmount(fastRaw, decimals), ethBalance: null },
+        ];
+
+        for (const chain of token.chains) {
+          const [evmRaw, ethRaw] = yield* Effect.promise(() =>
+            Promise.all([
+              getEvmErc20Balance(chain.evmRpcUrl, chain.evmAddress, evmAddress).catch(() => null as bigint | null),
+              getEvmNativeBalance(chain.evmRpcUrl, evmAddress).catch(() => null as bigint | null),
+            ]),
           );
-          const fastRaw = fastBalanceMap.get(tokenIdHex) ?? 0n;
 
-          tokenRows.push({
-            token: tokenName,
-            evmBalance: formatAmount(evmRaw, decimals),
-            fastBalance: formatAmount(fastRaw, decimals),
+          rows.push({
+            network: chain.chainName,
+            tokenBalance: evmRaw !== null ? formatAmount(evmRaw, decimals) : "-",
+            ethBalance: ethRaw !== null ? `${formatAmount(ethRaw, 18)} ETH` : null,
           });
         }
 
-        if (tokenRows.length === 0) continue;
-
-        yield* output.humanLine("");
-        yield* output.humanLine(`${chainName}`);
+        yield* output.humanLine(`${token.name}`);
         yield* output.humanTable(
-          ["TOKEN", "EVM BALANCE", "FAST BALANCE"],
-          tokenRows.map((r) => [r.token, r.evmBalance, r.fastBalance]),
+          ["NETWORK", `${token.name} BALANCE`, "ETH BALANCE"],
+          rows.map((r) => [r.network, r.tokenBalance, r.ethBalance ?? "-"]),
         );
-        chainsOutput.push({ chain: chainName, tokens: tokenRows });
+        yield* output.humanLine("");
+
+        balancesOutput.push({ token: token.name, networks: rows });
       }
 
-      yield* output.ok({ address: fastAddress, evmAddress, chains: chainsOutput });
+      yield* output.ok({ address: fastAddress, evmAddress, balances: balancesOutput });
     }),
 };
 

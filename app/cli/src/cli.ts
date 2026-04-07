@@ -6,7 +6,7 @@
  */
 import { merge, object, or } from "@optique/core/constructs";
 import { message } from "@optique/core/message";
-import { optional, withDefault } from "@optique/core/modifiers";
+import { multiple, optional, withDefault } from "@optique/core/modifiers";
 import type { InferValue } from "@optique/core/parser";
 import { argument, command, constant, option, passThrough } from "@optique/core/primitives";
 import { integer, string } from "@optique/core/valueparser";
@@ -346,10 +346,81 @@ const sendParser = command(
 );
 
 // ---------------------------------------------------------------------------
+// Fund commands
+// ---------------------------------------------------------------------------
+
+const fundFiatParser = command(
+  "fiat",
+  object({
+    cmd: constant("fund-fiat" as const),
+    address: optional(
+      option("--address", string({ metavar: "ADDRESS" }), {
+        description: message`Fast address to fund (default: default account)`,
+      }),
+    ),
+  }),
+  { description: message`Get a fiat on-ramp funding URL` },
+);
+
+const fundCryptoParser = command(
+  "crypto",
+  object({
+    cmd: constant("fund-crypto" as const),
+  }),
+  { description: message`Show EVM address for crypto funding` },
+);
+
+const fundGroup = command(
+  "fund",
+  or(fundFiatParser, fundCryptoParser),
+  { description: message`Fund your account` },
+);
+
+// ---------------------------------------------------------------------------
+// Pay command
+// ---------------------------------------------------------------------------
+
+const payParser = command(
+  "pay",
+  object({
+    cmd: constant("pay" as const),
+    url: argument(string({ metavar: "URL" }), {
+      description: message`URL of the x402-protected resource`,
+    }),
+    dryRun: withDefault(
+      option("--dry-run", {
+        description: message`Inspect payment requirements without paying`,
+      }),
+      false,
+    ),
+    method: withDefault(
+      option("--method", string({ metavar: "METHOD" }), {
+        description: message`HTTP method (default: GET)`,
+      }),
+      "GET",
+    ),
+    header: withDefault(
+      multiple(
+        option("--header", string({ metavar: "KEY: VALUE" }), {
+          description: message`Custom header (repeatable)`,
+        }),
+      ),
+      [] as string[],
+    ),
+    body: optional(
+      option("--body", string({ metavar: "DATA" }), {
+        description: message`Request body (prefix with @ to read from file)`,
+      }),
+    ),
+  }),
+  { description: message`Access an x402 payment-protected resource` },
+);
+
+// ---------------------------------------------------------------------------
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
-const commands = or(accountGroup, networkGroup, infoGroup, sendParser);
+const commands = or(accountGroup, networkGroup, infoGroup, sendParser, fundGroup, payParser);
 
 export const parser = merge(globalOptions, commands);
 
@@ -376,6 +447,10 @@ export type InfoTxArgs = InferValue<typeof infoTxParser>;
 export type InfoHistoryArgs = InferValue<typeof infoHistoryParser>;
 
 export type SendArgs = InferValue<typeof sendParser>;
+
+export type FundFiatArgs = InferValue<typeof fundFiatParser>;
+export type FundCryptoArgs = InferValue<typeof fundCryptoParser>;
+export type PayArgs = InferValue<typeof payParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

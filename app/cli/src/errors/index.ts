@@ -3,6 +3,7 @@ export * from "./helpers.js";
 export * from "./io.js";
 export * from "./network.js";
 export * from "./transaction.js";
+export * from "./payment.js";
 export * from "./usage.js";
 
 import type { DatabaseError } from "./io.js";
@@ -33,6 +34,12 @@ import type {
   TransactionFailedError,
   TxNotFoundError,
 } from "./transaction.js";
+import type {
+  InsufficientPaymentBalanceError,
+  InvalidPaymentLinkError,
+  PaymentFailedError,
+  PaymentRejectedError,
+} from "./payment.js";
 import type {
   InvalidUsageError,
   NotImplementedError,
@@ -71,4 +78,8 @@ export type ClientError =
   | DefaultAccountError
   | DefaultNetworkError
   | NetworkNotFoundError
-  | NoDefaultNetworkError;
+  | NoDefaultNetworkError
+  | PaymentRejectedError
+  | PaymentFailedError
+  | InvalidPaymentLinkError
+  | InsufficientPaymentBalanceError;

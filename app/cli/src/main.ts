@@ -186,10 +186,87 @@ const suggest = (token: string, candidates: readonly string[]): string | null =>
   return best;
 };
 
+const SUBCOMMAND_REQUIREMENTS: Record<
+  string,
+  { usage: string; check: (positionals: string[], allArgv: string[]) => string | null }
+> = {
+  // ── Top-level commands with required args ──────────────────────────────────
+  send: {
+    usage: "fast send <address> <amount> [--from-chain <chain>] [--to-chain <chain>] [--token <token>]",
+    check: (positionals) => {
+      if (positionals.length < 2) return "Missing required argument: <address>";
+      if (positionals.length < 3) return "Missing required argument: <amount>";
+      return null;
+    },
+  },
+  pay: {
+    usage: "fast pay <url> [--dry-run] [--method <method>] [--header <key:value>] [--body <data>]",
+    check: (positionals) => {
+      if (positionals.length < 2) return "Missing required argument: <url>";
+      return null;
+    },
+  },
+  // ── Subcommands with required args/options ─────────────────────────────────
+  "fund crypto": {
+    usage: "fast fund crypto <amount> --chain <chain> [--token <token>]",
+    check: (positionals, allArgv) => {
+      if (positionals.length < 3) return "Missing required argument: <amount>";
+      if (!allArgv.some((a) => a === "--chain" || a.startsWith("--chain=")))
+        return "Missing required option: --chain <chain>";
+      return null;
+    },
+  },
+  "network add": {
+    usage: "fast network add <name> --config <path>",
+    check: (positionals, allArgv) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      if (!allArgv.some((a) => a === "--config" || a.startsWith("--config=")))
+        return "Missing required option: --config <path>";
+      return null;
+    },
+  },
+  "network set-default": {
+    usage: "fast network set-default <name>",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "network remove": {
+    usage: "fast network remove <name>",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "account set-default": {
+    usage: "fast account set-default <name>",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "account delete": {
+    usage: "fast account delete <name>",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "info tx": {
+    usage: "fast info tx <hash> [--source <source>]",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <hash>";
+      return null;
+    },
+  },
+};
+
 const result = parse(parser, argv);
 
 if (!result.success) {
-  const firstToken = argv.find((a) => !a.startsWith("-"));
+  const positionals = argv.filter((a) => !a.startsWith("-"));
+  const firstToken = positionals[0];
   let msg = formatMessage(result.error);
 
   if (firstToken && !KNOWN_COMMANDS.includes(firstToken as never)) {
@@ -199,14 +276,29 @@ if (!result.success) {
       : `Unknown command '${firstToken}'. Available: ${KNOWN_COMMANDS.join(", ")}.`;
   } else if (firstToken && firstToken in SUBCOMMANDS) {
     const subs = SUBCOMMANDS[firstToken];
-    const secondToken = argv.find((a) => a !== firstToken && !a.startsWith("-"));
+    const secondToken = positionals[1];
     if (!secondToken) {
       msg = `Missing subcommand for '${firstToken}'. Available: ${subs.join(", ")}.`;
-    } else {
+    } else if (!subs.includes(secondToken)) {
       const s = suggest(secondToken, subs);
       msg = s
         ? `Unknown subcommand '${secondToken}' for '${firstToken}'. Did you mean '${s}'?`
         : `Unknown subcommand '${secondToken}' for '${firstToken}'. Available: ${subs.join(", ")}.`;
+    } else {
+      // Valid subcommand but parse still failed — check for missing required args/options
+      const key = `${firstToken} ${secondToken}`;
+      const req = SUBCOMMAND_REQUIREMENTS[key];
+      if (req) {
+        const hint = req.check(positionals, argv);
+        if (hint) msg = `${hint}\n  Usage: ${req.usage}`;
+      }
+    }
+  } else if (firstToken && KNOWN_COMMANDS.includes(firstToken as never)) {
+    // Top-level command (send, pay) with missing required args
+    const req = SUBCOMMAND_REQUIREMENTS[firstToken];
+    if (req) {
+      const hint = req.check(positionals, argv);
+      if (hint) msg = `${hint}\n  Usage: ${req.usage}`;
     }
   }
 

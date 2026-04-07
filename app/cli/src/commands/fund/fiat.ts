@@ -31,7 +31,7 @@ export const fundFiat: Command<FundFiatArgs> = {
         address = account.fastAddress;
       }
 
-      const url = `${RAMP_BASE}/?fastAddress=${address}`;
+      const url = `${RAMP_BASE}/?to=${address}`;
 
       yield* output.humanLine("Open this URL in your browser to fund your account:");
       yield* output.humanLine("");

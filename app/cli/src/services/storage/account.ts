@@ -10,9 +10,10 @@ import {
   DatabaseError,
   DefaultAccountError,
   NoDefaultAccountError,
+  PasswordRequiredError,
   WrongPasswordError,
 } from "../../errors/index.js";
-import { decryptSeed, encryptSeed } from "../crypto.js";
+import { loadSeed, storeSeed } from "../crypto.js";
 import {
   DatabaseService,
   type DatabaseShape,
@@ -24,6 +25,7 @@ export interface AccountInfo {
   readonly fastAddress: string;
   readonly evmAddress: string;
   readonly isDefault: boolean;
+  readonly encrypted: boolean;
   readonly createdAt: string;
 }
 
@@ -34,6 +36,7 @@ const rowToInfo = (row: typeof accounts.$inferSelect): AccountInfo => ({
   fastAddress: row.fastAddress,
   evmAddress: row.evmAddress,
   isDefault: row.isDefault,
+  encrypted: row.encrypted,
   createdAt: row.createdAt,
 });
 
@@ -78,7 +81,7 @@ const storeAccount = (
   handle: DatabaseShape,
   name: string,
   seed: Uint8Array,
-  password: string,
+  password: string | null,
 ) =>
   Effect.gen(function* () {
     const existing = yield* handle.query(
@@ -90,16 +93,17 @@ const storeAccount = (
     }
 
     const { fastAddress, evmAddress } = yield* deriveAddresses(seed);
-    const encrypted = yield* Effect.tryPromise({
-      try: () => encryptSeed(seed, password),
+    const keyBlob = yield* Effect.tryPromise({
+      try: () => storeSeed(seed, password),
       catch: (cause) =>
-        new DatabaseError({ message: "Failed to encrypt seed", cause }),
+        new DatabaseError({ message: "Failed to store seed", cause }),
     });
 
     const isFirst = yield* handle.query(
       (db) => countAccounts(db) === 0,
       "Failed to count accounts",
     );
+    const isEncrypted = password !== null;
     const createdAt = new Date().toISOString();
 
     yield* handle.query(
@@ -110,7 +114,8 @@ const storeAccount = (
             name,
             fastAddress,
             evmAddress,
-            encryptedKey: Buffer.from(encrypted),
+            encryptedKey: Buffer.from(keyBlob),
+            encrypted: isEncrypted,
             isDefault: isFirst,
             createdAt,
           })
@@ -118,7 +123,14 @@ const storeAccount = (
       "Failed to store account",
     );
 
-    return { name, fastAddress, evmAddress, isDefault: isFirst, createdAt };
+    return {
+      name,
+      fastAddress,
+      evmAddress,
+      isDefault: isFirst,
+      encrypted: isEncrypted,
+      createdAt,
+    };
   });
 
 const get = (handle: DatabaseShape, name: string) =>
@@ -191,7 +203,11 @@ const deleteAccount = (handle: DatabaseShape, name: string) =>
     );
   });
 
-const exportAccount = (handle: DatabaseShape, name: string, password: string) =>
+const exportAccount = (
+  handle: DatabaseShape,
+  name: string,
+  password: string | null,
+) =>
   Effect.gen(function* () {
     const row = yield* handle.query(
       (db) => getAccountByName(db, name),
@@ -200,11 +216,13 @@ const exportAccount = (handle: DatabaseShape, name: string, password: string) =>
     if (!row) return yield* Effect.fail(new AccountNotFoundError({ name }));
 
     const seed = yield* Effect.tryPromise({
-      try: () => decryptSeed(new Uint8Array(row.encryptedKey), password),
+      try: () =>
+        loadSeed(new Uint8Array(row.encryptedKey), password, row.encrypted),
       catch: (cause) => {
         if (cause instanceof WrongPasswordError) return cause;
+        if (cause instanceof PasswordRequiredError) return cause;
         return new DatabaseError({
-          message: "Failed to decrypt seed",
+          message: "Failed to load seed",
           cause,
         });
       },
@@ -242,13 +260,13 @@ const ServiceEffect = Effect.gen(function* () {
     list: () => list(handle),
     get: (name: string) => get(handle, name),
     getDefault: () => getDefault(handle),
-    create: (name: string, seed: Uint8Array, password: string) =>
+    create: (name: string, seed: Uint8Array, password: string | null) =>
       storeAccount(handle, name, seed, password),
-    import: (name: string, seed: Uint8Array, password: string) =>
+    import: (name: string, seed: Uint8Array, password: string | null) =>
       storeAccount(handle, name, seed, password),
     setDefault: (name: string) => setDefault(handle, name),
     delete: (name: string) => deleteAccount(handle, name),
-    export: (name: string, password: string) =>
+    export: (name: string, password: string | null) =>
       exportAccount(handle, name, password),
     resolveAccount: (flag: Option.Option<string>) =>
       resolveAccount(handle, flag),

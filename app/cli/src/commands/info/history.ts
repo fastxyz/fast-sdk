@@ -142,11 +142,17 @@ export const infoHistory: Command<InfoHistoryArgs> = {
         });
       }
 
+      const routeLabel: Record<string, string> = {
+        fast: "Fast → Fast transfer",
+        "evm-to-fast": "EVM → Fast transfer",
+        "fast-to-evm": "Fast → EVM transfer",
+      };
+
       yield* output.humanTable(
         ["HASH", "TYPE", "FROM", "TO", "AMOUNT", "TOKEN", "STATUS", "TIME"],
         entries.map((e) => [
           `${e.hash.slice(0, 10)}...`,
-          e.type,
+          routeLabel[inferRoute(e)] ?? e.type,
           `${e.from.slice(0, 10)}...`,
           `${e.to.slice(0, 10)}...`,
           e.formatted,

@@ -1,12 +1,19 @@
 import { Data } from "effect";
 
-/** File I/O, lock, or persistence failure. */
-export class StorageError extends Data.TaggedError("StorageError")<{
+export class DatabaseError extends Data.TaggedError("DatabaseError")<{
   readonly message: string;
   readonly cause?: unknown;
 }> {
   readonly exitCode = 1 as const;
-  readonly errorCode = "STORAGE_ERROR" as const;
+  readonly errorCode = "DATABASE_ERROR" as const;
+}
+
+export class FileIOError extends Data.TaggedError("FileIOError")<{
+  readonly message: string;
+  readonly cause?: unknown;
+}> {
+  readonly exitCode = 1 as const;
+  readonly errorCode = "FILE_IO_ERROR" as const;
 }
 
 /** Unexpected internal error (defect/bug caught at the boundary). */

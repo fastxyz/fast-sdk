@@ -22,7 +22,6 @@ export class NetworkNotFoundError extends Data.TaggedError(
   }
 }
 
-
 export class DefaultNetworkError extends Data.TaggedError(
   "DefaultNetworkError",
 )<{
@@ -55,11 +54,16 @@ export class ReservedNameError extends Data.TaggedError("ReservedNameError")<{
   }
 }
 
-export class InvalidConfigError extends Data.TaggedError("InvalidConfigError")<{
-  readonly message: string;
+export class InvalidNetworkConfigError extends Data.TaggedError(
+  "InvalidNetworkConfigError",
+)<{
+  readonly name: string;
 }> {
   readonly exitCode = 2 as const;
-  readonly errorCode = "INVALID_CONFIG" as const;
+  readonly errorCode = "INVALID_NETWORK_CONFIG" as const;
+  get message() {
+    return `Invalid network config for "${this.name}"`;
+  }
 }
 
 export class UnsupportedChainError extends Data.TaggedError(

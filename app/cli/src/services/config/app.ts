@@ -2,38 +2,26 @@ import { Context, Layer, Schema } from "effect";
 import appManifest from "../../config/app.json" with { type: "json" };
 import networksRaw from "../../config/networks.json" with { type: "json" };
 import {
-  BundledNetworksSchema,
   type BundledNetworks,
+  BundledNetworksSchema,
   type NetworkConfig,
 } from "../../schemas/networks.js";
 
-// ---------------------------------------------------------------------------
-// Module-level load and validation — runs once at import time.
-// ---------------------------------------------------------------------------
-
-const _bundledNetworks: BundledNetworks = Schema.decodeUnknownSync(
+const bundledNetworks: BundledNetworks = Schema.decodeUnknownSync(
   BundledNetworksSchema,
 )(networksRaw);
-
-// ---------------------------------------------------------------------------
-// Pure functions — no Effect, no service. Callable before any layer exists.
-// ---------------------------------------------------------------------------
 
 export const getAppName = (): string => appManifest.name;
 
 export const getVersion = (): string => appManifest.version;
 
-export const getBundledNetworks = (): BundledNetworks => _bundledNetworks;
+export const getBundledNetworks = (): BundledNetworks => bundledNetworks;
 
 export const isBundledNetwork = (name: string): boolean =>
-  Object.hasOwn(_bundledNetworks, name);
+  Object.hasOwn(bundledNetworks, name);
 
 export const getBundledNetwork = (name: string): NetworkConfig | undefined =>
-  _bundledNetworks[name];
-
-// ---------------------------------------------------------------------------
-// Effect service — delegates to the pure functions above.
-// ---------------------------------------------------------------------------
+  bundledNetworks[name];
 
 export interface AppConfigShape {
   readonly name: string;

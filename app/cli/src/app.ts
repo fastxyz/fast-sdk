@@ -6,10 +6,10 @@ import { AppConfigLive } from "./services/config/app.js";
 import { makeClientConfigLayer } from "./services/config/client.js";
 import { Output, OutputLive } from "./services/output.js";
 import { PromptLive } from "./services/prompt.js";
-import { AccountStoreLive } from "./services/storage/account.js";
+import { AccountStore } from "./services/storage/account.js";
 import { DatabaseLive } from "./services/storage/database.js";
-import { HistoryStoreLive } from "./services/storage/history.js";
-import { NetworkConfigLive } from "./services/storage/network.js";
+import { HistoryStore } from "./services/storage/history.js";
+import { NetworkConfigService } from "./services/storage/network.js";
 
 /** Parsed global CLI options passed from main.ts into command handlers. */
 export interface GlobalOptions {
@@ -38,9 +38,9 @@ export const makeAppLayer = (opts: GlobalOptions) => {
   const tier1 = Layer.mergeAll(
     OutputLive,
     PromptLive,
-    NetworkConfigLive,
-    HistoryStoreLive,
-    AccountStoreLive,
+    NetworkConfigService.Default,
+    HistoryStore.Default,
+    AccountStore.Default,
   ).pipe(Layer.provide(foundation));
 
   // Services that depend on tier1

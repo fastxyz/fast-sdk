@@ -22,11 +22,13 @@ export class AccountNotFoundError extends Data.TaggedError(
   }
 }
 
-export class NoAccountsError extends Data.TaggedError("NoAccountsError") {
+export class NoDefaultAccountError extends Data.TaggedError(
+  "NoDefaultAccountError",
+) {
   readonly exitCode = 2 as const;
-  readonly errorCode = "NO_ACCOUNTS" as const;
+  readonly errorCode = "NO_DEFAULT_ACCOUNT" as const;
   get message() {
-    return "No accounts found. Create one with `fast account create`.";
+    return "No default account found. Create one with `fast account create` or set a default with `fast account set-default`.";
   }
 }
 

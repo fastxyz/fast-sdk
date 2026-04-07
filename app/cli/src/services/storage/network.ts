@@ -1,240 +1,188 @@
 import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
-import { Context, Effect, Layer, Schema } from "effect";
-import type { NetworkConfig } from "../../schemas/networks.js";
-import { AppConfig } from "../config/app.js";
+import { Effect, Schema } from "effect";
 import { customNetworks, metadata } from "../../db/schema.js";
 import {
   DefaultNetworkError,
-  InvalidConfigError,
+  FileIOError,
+  InvalidNetworkConfigError,
   NetworkExistsError,
   NetworkNotFoundError,
   NoDefaultNetworkError,
   ReservedNameError,
-  StorageError,
 } from "../../errors/index.js";
 import { NetworkConfigSchema } from "../../schemas/networks.js";
-import { DatabaseService, type DrizzleDB } from "./database.js";
+import type { AppConfigShape } from "../config/app.js";
+import { AppConfig } from "../config/app.js";
+import {
+  DatabaseService,
+  type DatabaseShape,
+  type DrizzleDB,
+} from "./database.js";
 
-type GetDefaultEffect = Effect.Effect<string, NoDefaultNetworkError>;
-type ResolveEffect = Effect.Effect<
-  NetworkConfig,
-  NetworkNotFoundError | StorageError | InvalidConfigError
->;
+const getDefaultNetwork = (db: DrizzleDB) =>
+  db.select().from(metadata).where(eq(metadata.key, "default_network")).get();
 
-export interface NetworkConfigShape {
-  readonly resolve: (name: string) => ResolveEffect;
-  readonly list: () => Effect.Effect<
-    Array<{ name: string; type: "bundled" | "custom"; isDefault: boolean }>,
-    StorageError
-  >;
-  readonly setDefault: (
-    name: string,
-  ) => Effect.Effect<void, NetworkNotFoundError | StorageError>;
-  readonly add: (
-    name: string,
-    configPath: string,
-  ) => Effect.Effect<
-    void,
-    ReservedNameError | NetworkExistsError | InvalidConfigError | StorageError
-  >;
-  readonly remove: (
-    name: string,
-  ) => Effect.Effect<
-    void,
-    | ReservedNameError
-    | NetworkNotFoundError
-    | DefaultNetworkError
-    | StorageError
-  >;
-  readonly getDefault: () => GetDefaultEffect;
-}
+const listCustomNetworks = (db: DrizzleDB) =>
+  db.select({ name: customNetworks.name }).from(customNetworks).all();
 
-export class NetworkConfigService extends Context.Tag("NetworkConfigService")<
-  NetworkConfigService,
-  NetworkConfigShape
->() {}
+const getCustomNetwork = (db: DrizzleDB, name: string) =>
+  db.select().from(customNetworks).where(eq(customNetworks.name, name)).get();
 
-const getDefault = (db: DrizzleDB): GetDefaultEffect => {
-  const row = db
-    .select()
-    .from(metadata)
-    .where(eq(metadata.key, "default_network"))
-    .get();
+const setDefaultNetwork = (db: DrizzleDB, name: string) =>
+  db
+    .insert(metadata)
+    .values({ key: "default_network", value: name })
+    .onConflictDoUpdate({ target: metadata.key, set: { value: name } })
+    .run();
 
-  if (row?.value === undefined) {
-    return Effect.fail(new NoDefaultNetworkError());
-  }
+const deleteCustomNetwork = (db: DrizzleDB, name: string) =>
+  db.delete(customNetworks).where(eq(customNetworks.name, name)).run();
 
-  return Effect.succeed(row.value);
+type Context = {
+  handle: DatabaseShape;
+  config: AppConfigShape;
 };
 
-export const NetworkConfigLive = Layer.effect(
-  NetworkConfigService,
+const getDefault = (handle: DatabaseShape) =>
+  Effect.flatMap(
+    handle.query(
+      (db) => getDefaultNetwork(db),
+      "Failed to get default network",
+    ),
+    (row) =>
+      row?.value !== undefined
+        ? Effect.succeed(row.value)
+        : Effect.fail(new NoDefaultNetworkError()),
+  );
+
+const resolve = (context: Context, name: string) =>
   Effect.gen(function* () {
-    const { db } = yield* DatabaseService;
-    const appConfig = yield* AppConfig;
+    const bundled = context.config.getBundledNetwork(name);
+    if (bundled) return bundled;
 
-    return {
-      resolve: (name) =>
-        Effect.gen(function* () {
-          const bundled = appConfig.getBundledNetwork(name);
-          if (bundled) return bundled;
+    const row = yield* context.handle.query(
+      (db) => getCustomNetwork(db, name),
+      "Failed to get network config",
+    );
 
-          const row = db
-            .select()
-            .from(customNetworks)
-            .where(eq(customNetworks.name, name))
-            .get();
-          if (!row) {
-            return yield* Effect.fail(new NetworkNotFoundError({ name }));
-          }
+    if (!row) {
+      return yield* Effect.fail(new NetworkNotFoundError({ name }));
+    }
 
-          const config = yield* Schema.decodeUnknown(NetworkConfigSchema)(
-            JSON.parse(row.config),
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new InvalidConfigError({
-                  message: `Invalid network config: ${name}`,
-                }),
-            ),
-          );
+    const json = JSON.parse(row.config);
+    return yield* Schema.decodeUnknown(NetworkConfigSchema)(json).pipe(
+      Effect.mapError(() => new InvalidNetworkConfigError({ name })),
+    );
+  });
 
-          return config as NetworkConfig;
+const list = (context: Context) =>
+  Effect.gen(function* () {
+    const defaultName = yield* getDefault(context.handle);
+    const customRows = yield* context.handle.query(
+      (db) => listCustomNetworks(db),
+      "Failed to list networks",
+    );
+    const names = [
+      ...Object.keys(context.config.bundledNetworks),
+      ...customRows.map((r) => r.name),
+    ];
+    return names.map((name) => {
+      const type = context.config.isBundledNetwork(name) ? "bundled" : "custom";
+      const isDefault = name === defaultName;
+      return { name, type, isDefault };
+    });
+  });
+
+const setDefault = (context: Context, name: string) =>
+  Effect.gen(function* () {
+    if (!context.config.isBundledNetwork(name)) {
+      const row = yield* context.handle.query(
+        (db) => getCustomNetwork(db, name),
+        "Failed to get network config",
+      );
+      if (!row) return yield* Effect.fail(new NetworkNotFoundError({ name }));
+    }
+    yield* context.handle.query(
+      (db) => setDefaultNetwork(db, name),
+      "Failed to set default network",
+    );
+  });
+
+const add = (context: Context, name: string, configPath: string) =>
+  Effect.gen(function* () {
+    if (context.config.isBundledNetwork(name)) {
+      return yield* Effect.fail(new ReservedNameError({ name }));
+    }
+
+    const existing = yield* context.handle.query(
+      (db) => getCustomNetwork(db, name),
+      "Failed to check existing networks",
+    );
+    if (existing) {
+      return yield* Effect.fail(new NetworkExistsError({ name }));
+    }
+
+    const raw = yield* Effect.try({
+      try: () => readFileSync(configPath, "utf-8"),
+      catch: (cause) =>
+        new FileIOError({
+          message: `Failed to read network config file at "${configPath}"`,
+          cause,
         }),
+    });
 
-      list: () =>
-        Effect.try({
-          try: () => {
-            const defaultName = getDefault(db);
-            const customRows = db
-              .select({ name: customNetworks.name })
-              .from(customNetworks)
-              .all();
-            const allNames = [
-              ...Object.keys(appConfig.bundledNetworks),
-              ...customRows.map((r) => r.name),
-            ];
-            return allNames.map((name) => ({
-              name,
-              type: (appConfig.isBundledNetwork(name) ? "bundled" : "custom") as
-                | "bundled"
-                | "custom",
-              isDefault: name === defaultName,
-            }));
-          },
-          catch: (cause) =>
-            new StorageError({ message: "Failed to list networks", cause }),
-        }),
+    yield* Schema.decodeUnknown(NetworkConfigSchema)(JSON.parse(raw)).pipe(
+      Effect.mapError(() => new InvalidNetworkConfigError({ name })),
+    );
 
-      setDefault: (name) =>
-        Effect.try({
-          try: () => {
-            if (
-              !appConfig.isBundledNetwork(name) &&
-              !db
-                .select()
-                .from(customNetworks)
-                .where(eq(customNetworks.name, name))
-                .get()
-            ) {
-              throw new NetworkNotFoundError({ name });
-            }
-            db.insert(metadata)
-              .values({ key: "default_network", value: name })
-              .onConflictDoUpdate({
-                target: metadata.key,
-                set: { value: name },
-              })
-              .run();
-          },
-          catch: (e) =>
-            e instanceof NetworkNotFoundError
-              ? e
-              : new StorageError({
-                  message: "Failed to set default network",
-                  cause: e,
-                }),
-        }),
+    yield* context.handle.query(
+      (db) => db.insert(customNetworks).values({ name, config: raw }).run(),
+      "Failed to save network config",
+    );
+  });
 
-      add: (name, configPath) =>
-        Effect.gen(function* () {
-          if (appConfig.isBundledNetwork(name)) {
-            return yield* Effect.fail(new ReservedNameError({ name }));
-          }
-          if (
-            db
-              .select()
-              .from(customNetworks)
-              .where(eq(customNetworks.name, name))
-              .get()
-          ) {
-            return yield* Effect.fail(new NetworkExistsError({ name }));
-          }
+const remove = (context: Context, name: string) =>
+  Effect.gen(function* () {
+    if (context.config.isBundledNetwork(name)) {
+      return yield* Effect.fail(new ReservedNameError({ name }));
+    }
 
-          const raw = yield* Effect.try({
-            try: () => readFileSync(configPath, "utf-8"),
-            catch: () =>
-              new InvalidConfigError({
-                message: `Cannot read config file: ${configPath}`,
-              }),
-          });
+    const row = yield* context.handle.query(
+      (db) => getCustomNetwork(db, name),
+      "Failed to check network exists",
+    );
+    if (!row) {
+      return yield* Effect.fail(new NetworkNotFoundError({ name }));
+    }
 
-          // Validate against NetworkConfigSchema (same shape as NetworkConfig)
-          yield* Schema.decodeUnknown(NetworkConfigSchema)(
-            JSON.parse(raw),
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new InvalidConfigError({
-                  message: "Invalid network config format",
-                }),
-            ),
-          );
+    const defaultName = yield* getDefault(context.handle);
+    if (defaultName === name) {
+      return yield* Effect.fail(new DefaultNetworkError({ name }));
+    }
 
-          // Store the validated JSON as-is — resolve() reads it back directly
-          yield* Effect.try({
-            try: () =>
-              db.insert(customNetworks).values({ name, config: raw }).run(),
-            catch: (cause) =>
-              new StorageError({
-                message: "Failed to save network config",
-                cause,
-              }),
-          });
-        }),
+    yield* context.handle.query(
+      (db) => deleteCustomNetwork(db, name),
+      "Failed to remove network",
+    );
+  });
 
-      remove: (name) =>
-        Effect.try({
-          try: () => {
-            if (appConfig.isBundledNetwork(name)) throw new ReservedNameError({ name });
-            if (
-              !db
-                .select()
-                .from(customNetworks)
-                .where(eq(customNetworks.name, name))
-                .get()
-            ) {
-              throw new NetworkNotFoundError({ name });
-            }
-            if (getDefault() === name) throw new DefaultNetworkError({ name });
-            db.delete(customNetworks)
-              .where(eq(customNetworks.name, name))
-              .run();
-          },
-          catch: (e) =>
-            e instanceof ReservedNameError ||
-            e instanceof NetworkNotFoundError ||
-            e instanceof DefaultNetworkError
-              ? e
-              : new StorageError({
-                  message: "Failed to remove network",
-                  cause: e,
-                }),
-        }),
+const ServiceEffect = Effect.gen(function* () {
+  const handle = yield* DatabaseService;
+  const config = yield* AppConfig;
+  const context = { handle, config };
 
-      getDefault: () => getDefault(db),
-    };
-  }),
-);
+  return {
+    resolve: (name: string) => resolve(context, name),
+    list: () => list(context),
+    setDefault: (name: string) => setDefault(context, name),
+    add: (name: string, configPath: string) => add(context, name, configPath),
+    remove: (name: string) => remove(context, name),
+    getDefault: () => getDefault(context.handle),
+  };
+});
+
+export class NetworkConfigService extends Effect.Service<NetworkConfigService>()(
+  "NetworkConfigService",
+  { effect: ServiceEffect },
+) {}

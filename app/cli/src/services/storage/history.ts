@@ -1,9 +1,9 @@
 import { and, desc, eq, or, sql } from "drizzle-orm";
-import { Context, Effect, Layer } from "effect";
+import { Effect } from "effect";
 import { history } from "../../db/schema.js";
-import { StorageError, TxNotFoundError } from "../../errors/index.js";
+import { TxNotFoundError } from "../../errors/index.js";
 import type { HistoryEntry } from "../../schemas/history.js";
-import { DatabaseService } from "./database.js";
+import { DatabaseService, type DatabaseShape, type DrizzleDB } from "./database.js";
 
 export interface HistoryFilters {
   readonly from?: string;
@@ -13,24 +13,7 @@ export interface HistoryFilters {
   readonly offset?: number;
 }
 
-export interface HistoryStoreShape {
-  readonly record: (entry: HistoryEntry) => Effect.Effect<void, StorageError>;
-  readonly list: (
-    filters: HistoryFilters,
-  ) => Effect.Effect<HistoryEntry[], StorageError>;
-  readonly getByHash: (
-    hash: string,
-  ) => Effect.Effect<HistoryEntry, TxNotFoundError | StorageError>;
-  readonly updateStatus: (
-    hash: string,
-    status: string,
-  ) => Effect.Effect<void, StorageError>;
-}
-
-export class HistoryStore extends Context.Tag("HistoryStore")<
-  HistoryStore,
-  HistoryStoreShape
->() {}
+// ── Pure helpers ───────────────────���────────────────────────��────────────────
 
 const rowToEntry = (row: typeof history.$inferSelect): HistoryEntry => ({
   hash: row.hash,
@@ -49,121 +32,106 @@ const rowToEntry = (row: typeof history.$inferSelect): HistoryEntry => ({
   chainId: row.chainId,
 });
 
-export const HistoryStoreLive = Layer.effect(
-  HistoryStore,
+// ── Raw DB helpers ──────────��───────────────────────────────────────────────
+
+const insertHistoryEntry = (db: DrizzleDB, entry: HistoryEntry) =>
+  db
+    .insert(history)
+    .values({
+      hash: entry.hash,
+      type: entry.type,
+      from: entry.from,
+      to: entry.to,
+      amount: entry.amount,
+      formatted: entry.formatted,
+      tokenName: entry.tokenName,
+      tokenId: entry.tokenId,
+      network: entry.network,
+      status: entry.status,
+      timestamp: entry.timestamp,
+      explorerUrl: entry.explorerUrl,
+      route: entry.route,
+      chainId: entry.chainId,
+    })
+    .onConflictDoUpdate({
+      target: history.hash,
+      set: { status: entry.status },
+    })
+    .run();
+
+const queryHistory = (db: DrizzleDB, filters: HistoryFilters) => {
+  const conditions = [];
+
+  if (filters.from) conditions.push(eq(history.from, filters.from));
+  if (filters.to) conditions.push(eq(history.to, filters.to));
+  if (filters.token) {
+    conditions.push(
+      or(
+        eq(sql`LOWER(${history.tokenName})`, filters.token.toLowerCase()),
+        eq(history.tokenId, filters.token),
+      )!,
+    );
+  }
+
+  const q = db
+    .select()
+    .from(history)
+    .orderBy(desc(history.timestamp))
+    .limit(filters.limit ?? 20)
+    .offset(filters.offset ?? 0);
+
+  return conditions.length > 0 ? q.where(and(...conditions)).all() : q.all();
+};
+
+const findByHash = (db: DrizzleDB, hash: string) => {
+  const normalized = hash.startsWith("0x") ? hash : `0x${hash}`;
+  return { row: db.select().from(history).where(eq(history.hash, normalized)).get(), normalized };
+};
+
+// ── Effect-level operations ───────────────��─────────────────────────────────
+
+const record = (handle: DatabaseShape, entry: HistoryEntry) =>
+  handle.query(
+    (db) => insertHistoryEntry(db, entry),
+    "Failed to record history entry",
+  );
+
+const list = (handle: DatabaseShape, filters: HistoryFilters) =>
+  Effect.map(
+    handle.query((db) => queryHistory(db, filters), "Failed to list history"),
+    (rows) => rows.map(rowToEntry),
+  );
+
+const getByHash = (handle: DatabaseShape, hash: string) =>
   Effect.gen(function* () {
-    const { db } = yield* DatabaseService;
+    const { row, normalized } = yield* handle.query(
+      (db) => findByHash(db, hash),
+      "Failed to get transaction",
+    );
+    if (!row) return yield* Effect.fail(new TxNotFoundError({ hash: normalized }));
+    return rowToEntry(row);
+  });
 
-    return {
-      record: (entry) =>
-        Effect.try({
-          try: () => {
-            db.insert(history)
-              .values({
-                hash: entry.hash,
-                type: entry.type,
-                from: entry.from,
-                to: entry.to,
-                amount: entry.amount,
-                formatted: entry.formatted,
-                tokenName: entry.tokenName,
-                tokenId: entry.tokenId,
-                network: entry.network,
-                status: entry.status,
-                timestamp: entry.timestamp,
-                explorerUrl: entry.explorerUrl,
-                route: entry.route,
-                chainId: entry.chainId,
-              })
-              .onConflictDoUpdate({
-                target: history.hash,
-                set: { status: entry.status },
-              })
-              .run();
-          },
-          catch: (cause) =>
-            new StorageError({
-              message: "Failed to record history entry",
-              cause,
-            }),
-        }),
+const updateStatus = (handle: DatabaseShape, hash: string, status: string) =>
+  handle.query(
+    (db) => db.update(history).set({ status }).where(eq(history.hash, hash)).run(),
+    "Failed to update history status",
+  );
 
-      list: (filters) =>
-        Effect.try({
-          try: () => {
-            const conditions = [];
+// ── Service ───────���─────────────────────────────────────────────────────────
 
-            if (filters.from) {
-              conditions.push(eq(history.from, filters.from));
-            }
-            if (filters.to) {
-              conditions.push(eq(history.to, filters.to));
-            }
-            if (filters.token) {
-              conditions.push(
-                or(
-                  eq(
-                    sql`LOWER(${history.tokenName})`,
-                    filters.token.toLowerCase(),
-                  ),
-                  eq(history.tokenId, filters.token),
-                )!,
-              );
-            }
+const ServiceEffect = Effect.gen(function* () {
+  const handle = yield* DatabaseService;
 
-            const query = db
-              .select()
-              .from(history)
-              .orderBy(desc(history.timestamp))
-              .limit(filters.limit ?? 20)
-              .offset(filters.offset ?? 0);
+  return {
+    record: (entry: HistoryEntry) => record(handle, entry),
+    list: (filters: HistoryFilters) => list(handle, filters),
+    getByHash: (hash: string) => getByHash(handle, hash),
+    updateStatus: (hash: string, status: string) => updateStatus(handle, hash, status),
+  };
+});
 
-            const rows =
-              conditions.length > 0
-                ? query.where(and(...conditions)).all()
-                : query.all();
-
-            return rows.map(rowToEntry);
-          },
-          catch: (cause) =>
-            new StorageError({ message: "Failed to list history", cause }),
-        }),
-
-      getByHash: (hash) =>
-        Effect.try({
-          try: () => {
-            const normalized = hash.startsWith("0x") ? hash : `0x${hash}`;
-            const row = db
-              .select()
-              .from(history)
-              .where(eq(history.hash, normalized))
-              .get();
-            if (!row) throw new TxNotFoundError({ hash: normalized });
-            return rowToEntry(row);
-          },
-          catch: (e) =>
-            e instanceof TxNotFoundError
-              ? e
-              : new StorageError({
-                  message: "Failed to get transaction",
-                  cause: e,
-                }),
-        }),
-
-      updateStatus: (hash, status) =>
-        Effect.try({
-          try: () => {
-            db.update(history)
-              .set({ status })
-              .where(eq(history.hash, hash))
-              .run();
-          },
-          catch: (cause) =>
-            new StorageError({
-              message: "Failed to update history status",
-              cause,
-            }),
-        }),
-    };
-  }),
-);
+export class HistoryStore extends Effect.Service<HistoryStore>()(
+  "HistoryStore",
+  { effect: ServiceEffect },
+) {}

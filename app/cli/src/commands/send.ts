@@ -12,17 +12,17 @@ import type { SendArgs } from "../cli.js";
 import {
   InvalidAddressError,
   InvalidAmountError,
-  InvalidConfigError,
+  InvalidNetworkConfigError,
   TransactionFailedError,
   UnsupportedChainError,
 } from "../errors/index.js";
 import { makeHistoryEntry } from "../schemas/history.js";
+import { AllSet } from "../services/api/allset.js";
 import { FastRpc } from "../services/api/fast.js";
 import { ClientConfig } from "../services/config/client.js";
 import { Output } from "../services/output.js";
 import { Prompt } from "../services/prompt.js";
 import { AccountStore } from "../services/storage/account.js";
-import { AllSet } from "../services/api/allset.js";
 import { HistoryStore } from "../services/storage/history.js";
 import { NetworkConfigService } from "../services/storage/network.js";
 import { resolveToken } from "../services/token-resolver.js";
@@ -120,7 +120,7 @@ export const send: Command<SendArgs> = {
       // Resolve token using the appropriate chain context
       const tokenInfo = yield* Effect.try({
         try: () => resolveToken(resolvedTokenName, network, tokenChain),
-        catch: (e) => e as InvalidConfigError | Error,
+        catch: (e) => e as InvalidNetworkConfigError | Error,
       }).pipe(
         Effect.mapError((e) =>
           "message" in (e as object)
@@ -146,7 +146,7 @@ export const send: Command<SendArgs> = {
       // Resolve account and password
       const accountInfo = yield* accounts.resolveAccount(config.account);
       const pwd = yield* prompt.password();
-      const { seed } = yield* accounts.export_(accountInfo.name, pwd);
+      const { seed } = yield* accounts.export(accountInfo.name, pwd);
 
       // Interactive confirmation
       if (!config.nonInteractive && !config.json) {
@@ -178,7 +178,7 @@ export const send: Command<SendArgs> = {
         const allset = network.allSet;
         if (!allset) {
           return yield* Effect.fail(
-            new InvalidConfigError({
+            new InvalidNetworkConfigError({
               message: `Network "${config.network}" does not have AllSet bridge config`,
             }),
           );
@@ -216,7 +216,7 @@ export const send: Command<SendArgs> = {
         const allset = network.allSet;
         if (!allset) {
           return yield* Effect.fail(
-            new InvalidConfigError({
+            new InvalidNetworkConfigError({
               message: `Network "${config.network}" does not have AllSet bridge config`,
             }),
           );

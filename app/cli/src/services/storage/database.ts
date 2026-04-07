@@ -8,8 +8,9 @@ import {
   drizzle,
 } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { Context, Layer } from "effect";
+import { Context, Effect, Layer } from "effect";
 import * as schema from "../../db/schema.js";
+import { DatabaseError } from "../../errors/index.js";
 
 const FAST_DIR = join(homedir(), ".fast");
 const DB_PATH = join(FAST_DIR, "fast.db");
@@ -17,7 +18,10 @@ const DB_PATH = join(FAST_DIR, "fast.db");
 export type DrizzleDB = BetterSQLite3Database<typeof schema>;
 
 export interface DatabaseShape {
-  readonly db: DrizzleDB;
+  readonly query: <A>(
+    fn: (db: DrizzleDB) => A,
+    message: string,
+  ) => Effect.Effect<A, DatabaseError>;
 }
 
 export class DatabaseService extends Context.Tag("Database")<
@@ -54,5 +58,11 @@ export const DatabaseLive = Layer.sync(DatabaseService, () => {
     .onConflictDoNothing()
     .run();
 
-  return { db };
+  return {
+    query: (fn, message) =>
+      Effect.try({
+        try: () => fn(db),
+        catch: (cause) => new DatabaseError({ message, cause }),
+      }),
+  };
 });

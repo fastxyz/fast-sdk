@@ -5,18 +5,19 @@ export * from "./network.js";
 export * from "./transaction.js";
 export * from "./usage.js";
 
+import type { DatabaseError } from "./io.js";
 import type {
   AccountExistsError,
   AccountNotFoundError,
   DefaultAccountError,
-  NoAccountsError,
+  NoDefaultAccountError,
   PasswordRequiredError,
   WrongPasswordError,
 } from "./account.js";
-import type { FastSdkError, InternalError, StorageError } from "./io.js";
+import type { FastSdkError, InternalError } from "./io.js";
 import type {
   DefaultNetworkError,
-  InvalidConfigError,
+  InvalidNetworkConfigError,
   NetworkExistsError,
   NetworkNotFoundError,
   NoDefaultNetworkError,
@@ -46,20 +47,20 @@ export interface ClientErrorMeta {
 
 export type ClientError =
   | InternalError
-  | StorageError
   | TxNotFoundError
   | InvalidUsageError
   | AccountExistsError
   | ReservedNameError
   | NetworkExistsError
-  | InvalidConfigError
+  | InvalidNetworkConfigError
+  | DatabaseError
   | InvalidAddressError
   | InvalidAmountError
   | TokenNotFoundError
   | UnsupportedChainError
   | NotImplementedError
   | AccountNotFoundError
-  | NoAccountsError
+  | NoDefaultAccountError
   | InsufficientBalanceError
   | InsufficientGasError
   | FastSdkError

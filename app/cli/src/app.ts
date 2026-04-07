@@ -2,6 +2,7 @@ import { Effect, Layer, type Option } from "effect";
 import { type ClientError, InternalError } from "./errors/index.js";
 import { AllSetLive } from "./services/api/allset.js";
 import { FastRpcLive } from "./services/api/fast.js";
+import { X402Service } from "./services/api/x402.js";
 import { AppConfigLive } from "./services/config/app.js";
 import { makeClientConfigLayer } from "./services/config/client.js";
 import { Output, OutputLive } from "./services/output.js";
@@ -41,6 +42,7 @@ export const makeAppLayer = (opts: GlobalOptions) => {
     NetworkConfigService.Default,
     HistoryStore.Default,
     AccountStore.Default,
+    X402Service.Default,
   ).pipe(Layer.provide(foundation));
 
   // Services that depend on tier1

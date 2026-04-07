@@ -11,8 +11,10 @@
  * getDocPageSync then generates contextual docs per subcommand.
  */
 
+import type { DocPage } from "@optique/core/doc";
 import { formatDocPage } from "@optique/core/doc";
 import { formatMessage } from "@optique/core/message";
+import type { Message } from "@optique/core/message";
 import { getDocPageSync, parse } from "@optique/core/parser";
 import { type Effect, Option } from "effect";
 
@@ -25,11 +27,60 @@ import {
   InvalidUsageError,
 } from "./errors/index.js";
 import { getAppName, getVersion } from "./services/config/app.js";
-import { writeFail } from "./services/output.js";
+import { writeFail, writeOk } from "./services/output.js";
+
+// ---------------------------------------------------------------------------
+// Helpers — convert DocPage to a plain JSON-serialisable object
+// ---------------------------------------------------------------------------
+
+const messageToString = (msg: Message | undefined): string | undefined => {
+  if (!msg || msg.length === 0) return undefined;
+  return msg
+    .map((t) => {
+      switch (t.type) {
+        case "text":
+          return t.text;
+        case "optionName":
+          return t.optionName;
+        case "optionNames":
+          return t.optionNames.join(", ");
+        case "metavar":
+          return t.metavar;
+        case "value":
+          return t.value;
+        case "values":
+          return t.values.join(", ");
+        case "lineBreak":
+          return "\n";
+        default:
+          return "";
+      }
+    })
+    .join("");
+};
+
+const docPageToJson = (doc: DocPage) => {
+  const result: Record<string, unknown> = {};
+  for (const section of doc.sections) {
+    const key = (section.title ?? "entries").toLowerCase().replace(/\s+/g, "_");
+    result[key] = section.entries.map((e) => {
+      const base: Record<string, unknown> = {};
+      if (e.term.type === "command") base.name = e.term.name;
+      else if (e.term.type === "option") base.name = e.term.names.join(", ");
+      else if (e.term.type === "argument") base.name = e.term.metavar;
+      const desc = messageToString(e.description);
+      if (desc) base.description = desc;
+      const def = messageToString(e.default);
+      if (def) base.default = def;
+      return base;
+    });
+  }
+  return result;
+};
 
 const argv = process.argv.slice(2);
 const pre = parse(globalPreParser, argv);
-const isJson = pre.success && pre.value.json;
+const isJson = argv.includes("--json");
 
 // ── Version ─────────────────────────────────────────────────────────────────
 
@@ -41,7 +92,7 @@ if (pre.success && pre.value.version) {
 // ── Help ────────────────────────────────────────────────────────────────────
 
 if (argv.length === 0 || argv.includes("--help")) {
-  const contextArgs = argv.filter((a) => a !== "--help");
+  const contextArgs = argv.filter((a) => a !== "--help" && a !== "--json");
   const rawDoc = getDocPageSync(parser, contextArgs);
   if (rawDoc) {
     // For subcommands, use optique's output directly.
@@ -71,9 +122,14 @@ if (argv.length === 0 || argv.includes("--help")) {
               { type: "text" as const, text: `Run \`${getAppName()} <command> --help\` for command details.` },
             ],
           };
-    process.stdout.write(
-      `${formatDocPage(getAppName(), doc, { colors: process.stdout.isTTY ?? false })}\n`,
-    );
+
+    if (isJson) {
+      writeOk(docPageToJson(doc), true);
+    } else {
+      process.stdout.write(
+        `${formatDocPage(getAppName(), doc, { colors: process.stdout.isTTY ?? false })}\n`,
+      );
+    }
   }
   process.exit(0);
 }

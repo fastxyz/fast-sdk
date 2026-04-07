@@ -11,7 +11,7 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "test": "turbo test",
-    "cli": "tsx packages/cli/src/index.ts",
+    "cli": "tsx app/cli/src/main.ts",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "clean": "turbo clean && rm -rf node_modules",
     "version-packages": "changeset version",

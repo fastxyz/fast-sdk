@@ -16,7 +16,7 @@ import { formatDocPage } from "@optique/core/doc";
 import { formatMessage } from "@optique/core/message";
 import type { Message } from "@optique/core/message";
 import { getDocPageSync, parse } from "@optique/core/parser";
-import { type Effect, Option } from "effect";
+import { Effect, Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
 import { globalPreParser, parser } from "./cli.js";
@@ -204,11 +204,35 @@ if (!result.success) {
 
 const parsed = result.value;
 
+// Resolve network: explicit --network > DB default > hardcoded fallback
+const resolveNetwork = async (): Promise<string> => {
+  if (parsed.network) return parsed.network;
+  try {
+    const { Effect: Eff, ManagedRuntime, Layer } = await import("effect");
+    const { NetworkConfigService } = await import("./services/storage/network.js");
+    const { DatabaseLive } = await import("./services/storage/database.js");
+    const { AppConfigLive } = await import("./services/config/app.js");
+    const layer = Layer.provide(NetworkConfigService.Default, Layer.merge(DatabaseLive, AppConfigLive));
+    const runtime = ManagedRuntime.make(layer);
+    const name = await runtime.runPromise(
+      Eff.flatMap(NetworkConfigService, (s) => s.getDefault()).pipe(
+        Eff.catchAll(() => Eff.succeed("testnet")),
+      ),
+    );
+    await runtime.dispose();
+    return name;
+  } catch {
+    return "testnet";
+  }
+};
+
+const network = await resolveNetwork();
+
 const globalOpts: GlobalOptions = {
   json: parsed.json,
   debug: parsed.debug,
   nonInteractive: parsed.nonInteractive,
-  network: parsed.network,
+  network,
   account: Option.fromNullable(parsed.account),
   password: Option.fromNullable(parsed.password),
 };
@@ -216,7 +240,7 @@ const globalOpts: GlobalOptions = {
 if (parsed.debug) {
   const dbPath = `${process.env.HOME ?? "~"}/.fast/fast.db`;
   process.stderr.write(`[debug] command:         ${parsed.cmd}\n`);
-  process.stderr.write(`[debug] network:         ${parsed.network}\n`);
+  process.stderr.write(`[debug] network:         ${network}\n`);
   process.stderr.write(`[debug] account:         ${parsed.account ?? "(default)"}\n`);
   process.stderr.write(`[debug] non-interactive: ${parsed.nonInteractive}\n`);
   process.stderr.write(`[debug] db:              ${dbPath}\n`);

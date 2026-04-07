@@ -42,11 +42,10 @@ export const globalOptions = object({
     }),
     false,
   ),
-  network: withDefault(
+  network: optional(
     option("--network", string({ metavar: "NAME" }), {
       description: message`Override the network for this command`,
     }),
-    "testnet",
   ),
   account: optional(
     option("--account", string({ metavar: "NAME" }), {

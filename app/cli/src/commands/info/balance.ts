@@ -1,5 +1,5 @@
 import type { Command } from "../index.js";
-import { getEvmErc20Balance, getEvmNativeBalance } from "@fastxyz/allset-sdk";
+import { getEvmErc20Balance } from "@fastxyz/allset-sdk";
 import { bech32m } from "bech32";
 import { Effect } from "effect";
 import type { InfoBalanceArgs } from "../../cli.js";
@@ -84,7 +84,6 @@ export const infoBalance: Command<InfoBalanceArgs> = {
 
       for (const [chainName, chainConfig] of Object.entries(networkConfig.allSet.chains)) {
         for (const [tokenName, token] of Object.entries(chainConfig.tokens)) {
-          // Apply --token filter
           if (args.token) {
             const f = args.token.toLowerCase();
             const idHex = token.fastTokenId.replace(/^0x/, "").toLowerCase();
@@ -102,7 +101,7 @@ export const infoBalance: Command<InfoBalanceArgs> = {
         }
       }
 
-      type NetworkRow = { network: string; tokenBalance: string; ethBalance: string | null };
+      type NetworkRow = { network: string; balance: string };
       type TokenOutput = { token: string; networks: NetworkRow[] };
       const balancesOutput: TokenOutput[] = [];
 
@@ -112,28 +111,22 @@ export const infoBalance: Command<InfoBalanceArgs> = {
         const fastRaw = fastBalanceMap.get(tokenIdHex) ?? 0n;
 
         const rows: NetworkRow[] = [
-          { network: "Fast", tokenBalance: formatAmount(fastRaw, decimals), ethBalance: null },
+          { network: "Fast", balance: formatAmount(fastRaw, decimals) },
         ];
 
         for (const chain of token.chains) {
-          const [evmRaw, ethRaw] = yield* Effect.promise(() =>
-            Promise.all([
-              getEvmErc20Balance(chain.evmRpcUrl, chain.evmAddress, evmAddress).catch(() => null as bigint | null),
-              getEvmNativeBalance(chain.evmRpcUrl, evmAddress).catch(() => null as bigint | null),
-            ]),
+          const evmRaw = yield* Effect.promise(() =>
+            getEvmErc20Balance(chain.evmRpcUrl, chain.evmAddress, evmAddress).catch(() => null as bigint | null),
           );
-
           rows.push({
             network: chain.chainName,
-            tokenBalance: evmRaw !== null ? formatAmount(evmRaw, decimals) : "-",
-            ethBalance: ethRaw !== null ? `${formatAmount(ethRaw, 18)} ETH` : null,
+            balance: evmRaw !== null ? formatAmount(evmRaw, decimals) : "-",
           });
         }
 
-        yield* output.humanLine(`${token.name}`);
         yield* output.humanTable(
-          ["NETWORK", `${token.name} BALANCE`, "ETH BALANCE"],
-          rows.map((r) => [r.network, r.tokenBalance, r.ethBalance ?? "-"]),
+          ["NETWORK", `${token.name} BALANCE`],
+          rows.map((r) => [r.network, r.balance]),
         );
         yield* output.humanLine("");
 
@@ -143,4 +136,3 @@ export const infoBalance: Command<InfoBalanceArgs> = {
       yield* output.ok({ address: fastAddress, evmAddress, balances: balancesOutput });
     }),
 };
-

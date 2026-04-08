@@ -7,7 +7,7 @@
     "sdk",
     "bridge",
     "fast",
-    "blockchain"
+    
   ],
   "type": "module",
   "main": "./dist/index.js",

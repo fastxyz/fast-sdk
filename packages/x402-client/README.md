@@ -1,3 +1,15 @@
+---
+name: x402-client
+description: >
+  x402 client SDK for paying for 402-protected content. Use when the user wants to call
+  an API that returns HTTP 402 and automatically handle payment. Supports Fast networks,
+  EVM networks (EIP-3009), and auto-bridge from Fast → EVM. All network config provided
+  by the caller — no hardcoded values.
+metadata:
+  short-description: Pay for 402-protected APIs with Fast or EVM wallets.
+  compatibility: Node.js 20+.
+---
+
 # @fastxyz/x402-client
 
 Client SDK for the x402 HTTP Payment Protocol. Automatically handles HTTP 402 Payment Required responses by signing and paying for content.
@@ -7,6 +19,15 @@ Supports:
 - **Fast networks** — via wallet `rpcUrl`
 - **EVM networks** — via EIP-3009 transferWithAuthorization
 - **Auto-bridge** — Fast USDC → EVM USDC when EVM balance insufficient
+
+## Use Cases
+
+- Pay for a 402-protected API endpoint
+- Handle HTTP 402 Payment Required responses automatically
+- Auto-bridge Fast USDC → EVM USDC for EVM payments
+- Check Fast balance or bridge funds manually
+
+**Out of scope:** Protecting API routes → [`@fastxyz/x402-server`](../x402-server) · Running a facilitator → [`@fastxyz/x402-facilitator`](../x402-facilitator) · General wallet operations → [`@fastxyz/sdk`](../fast-sdk)
 
 ## Installation
 
@@ -103,6 +124,13 @@ Manually bridge Fast USDC to EVM USDC.
 ### `getFastBalance(wallet: FastWallet): Promise<bigint>`
 
 Get USDC balance on the Fast network.
+
+## Common Pitfalls
+
+1. **DO NOT omit `rpcUrl` on `FastWallet`** — it is required, not optional.
+2. **DO NOT omit `evmNetworks` when using an EVM wallet** — the SDK has no hardcoded chains.
+3. **DO NOT forget `bridgeConfig` when using auto-bridge** — it must include `networkId`.
+4. **DO NOT pass a single wallet when auto-bridge is needed** — pass `[fastWallet, evmWallet]` as an array.
 
 ## Design
 

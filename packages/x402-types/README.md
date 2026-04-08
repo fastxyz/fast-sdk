@@ -1,8 +1,25 @@
+---
+name: x402-types
+description: >
+  Shared types and utilities for the x402 HTTP Payment Protocol. Use when you need
+  PaymentRequirement, PaymentPayload, VerifyResponse, SettleResponse, network config types,
+  or utility functions (parsePrice, encodePayload, decodePayload). Zero runtime dependencies.
+metadata:
+  short-description: Shared x402 types, network config interfaces, and pure utility functions.
+  compatibility: Node.js 20+, any TypeScript project.
+---
+
 # @fastxyz/x402-types
 
 Shared types and utilities for the x402 HTTP Payment Protocol. Zero runtime dependencies.
 
 This package provides the canonical type definitions used across `@fastxyz/x402-client`, `@fastxyz/x402-server`, and `@fastxyz/x402-facilitator`.
+
+## Use Cases
+
+Use this package when you need to reference x402 payment types (`PaymentRequirement`, `PaymentPayload`, `VerifyResponse`, etc.), define network configurations (`EvmChainConfig`, `FastNetworkConfig`), parse price strings into raw token units, encode/decode base64 JSON payloads for X-PAYMENT headers, or determine network type from a network name string.
+
+Out of scope: making payments → use `@fastxyz/x402-client`; protecting API routes → use `@fastxyz/x402-server`; verifying/settling payments on-chain → use `@fastxyz/x402-facilitator`.
 
 ## Installation
 
@@ -67,6 +84,12 @@ import { getNetworkType } from '@fastxyz/x402-types';
 getNetworkType('arbitrum-sepolia'); // "evm"
 getNetworkType('fast-testnet'); // "fast"
 ```
+
+## Common Pitfalls
+
+1. **Do not hardcode `decimals`** — `parsePrice` defaults to 6 (USDC); pass explicitly if using other tokens.
+2. **Do not assume network names** — use `getNetworkType()` to determine if a network is `"evm"` or `"fast"`.
+3. **Do not import network config values from this package** — this package only provides type definitions; actual config values are provided by the caller.
 
 ## Design
 

@@ -1,6 +1,26 @@
+---
+name: x402-server
+description: >
+  x402 server SDK for protecting API routes with payment requirements. Provides Express
+  middleware (paywall, paymentMiddleware) and payment verification/settlement helpers.
+  All network config provided by the caller via RouteConfig — no hardcoded values.
+metadata:
+  short-description: Protect API routes with x402 payment requirements.
+  compatibility: Node.js 20+, Express-compatible frameworks.
+---
+
 # @fastxyz/x402-server
 
 Server SDK for the x402 HTTP Payment Protocol. Protect API routes with payment requirements using Express middleware.
+
+## Use Cases
+
+- Protect API routes with payment requirements (HTTP 402)
+- Add payment middleware to an Express app
+- Create payment requirements for specific routes
+- Verify or settle payments via a facilitator
+
+**Out of scope:** Paying for 402-protected content → [`@fastxyz/x402-client`](../x402-client) · Running a facilitator service → [`@fastxyz/x402-facilitator`](../x402-facilitator)
 
 ## Installation
 
@@ -102,6 +122,13 @@ interface NetworkConfig {
 - `verifyPayment(payload, requirement, facilitator)` — verify via facilitator
 - `settlePayment(payload, requirement, facilitator)` — settle via facilitator
 - `verifyAndSettle(payload, requirement, facilitator)` — verify then settle
+
+## Common Pitfalls
+
+1. **DO NOT omit `networkConfig` in `RouteConfig`** — there are no hardcoded network defaults.
+2. **DO NOT forget the `facilitator.url`** — the server needs a facilitator endpoint to verify/settle payments.
+3. **DO NOT use raw token amounts in `price`** — use human-readable formats like `"$0.10"` or `"0.1 USDC"`.
+4. **DO NOT hardcode asset addresses across environments** — pass them via `networkConfig` per route.
 
 ## Design
 

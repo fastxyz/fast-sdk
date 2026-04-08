@@ -1,45 +1,186 @@
+---
+name: fast-sdk
+description: >
+  Fast network SDK for AI agents and Node.js apps. Build and sign
+  transactions, query accounts, transfer tokens, and manage keys
+  using @fastxyz/sdk.
+metadata:
+  short-description: Fast transaction building, signing, and RPC queries.
+  compatibility: Node.js 20+, browsers, workers.
+---
+
 # @fastxyz/sdk
 
 TypeScript SDK for the Fast network. Provides a high-level API for signing
 transactions, querying the network, and converting addresses and amounts.
 
-## Install
+## Use Cases
+
+- Build and sign Fast network transactions
+- Query account balances, nonces, or token metadata
+- Transfer tokens on the Fast network
+- Create or burn tokens
+- Sign or verify messages with an Ed25519 key
+- Convert between hex, bytes, and bech32m addresses
+
+**Out of scope:** Bridge flows (EVM ↔ Fast) → [`@fastxyz/allset-sdk`](../allset-sdk) · Token swaps, DEX operations, or generic EVM wallet operations
+
+---
+
+## Installation
 
 ```bash
 npm install @fastxyz/sdk
 ```
 
-## Quick start
+## Core Concepts
+
+| Class                | Purpose                                      |
+| -------------------- | -------------------------------------------- |
+| `Signer`             | Holds an Ed25519 private key, signs messages |
+| `FastProvider`       | JSON-RPC client for the Fast proxy API       |
+| `TransactionBuilder` | Fluent builder for all transaction types     |
+
+**Typical flow:** Create Signer → Create Provider → Get account info → Build transaction → Sign → Submit.
+
+---
+
+## Workflows
+
+### 1. Create a Signer
 
 ```ts
-import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/sdk';
+import { Signer } from '@fastxyz/sdk';
 
-// Create a signer from a 32-byte hex private key
-const signer = new Signer('0xabcdef0123456789...');
-const pubKey = await signer.getPublicKey();
+// From a 32-byte hex private key (0x prefix optional)
+const signer = new Signer('abcdef0123456789...');
 
-// Connect to a proxy RPC endpoint
-const provider = new FastProvider({ rpcUrl: 'https://api.fast.xyz/proxy' });
+// Or from raw bytes or a number array
+const signer = new Signer(new Uint8Array(32));
 
-// Fetch account info
+const pubKey = await signer.getPublicKey();   // Uint8Array (32)
+const address = await signer.getFastAddress(); // "fast1..."
+```
+
+### 2. Connect to the Network
+
+```ts
+import { FastProvider } from '@fastxyz/sdk';
+
+const provider = new FastProvider({
+  rpcUrl: 'https://api.fast.xyz/proxy',
+});
+```
+
+There is no default URL — `rpcUrl` is always required.
+
+### 3. Check Account Info
+
+```ts
 const account = await provider.getAccountInfo({
-  address: pubKey,
+  address: pubKey, // Uint8Array, hex string, or bech32m
 });
 
-// Build and sign a transaction
+console.log('Balance:', account.balance);      // bigint
+console.log('Next nonce:', account.nextNonce); // bigint
+console.log('Tokens:', account.tokenBalance);  // [id, amt][]
+```
+
+Optional filters (all default to `null` if omitted):
+
+```ts
+const account = await provider.getAccountInfo({
+  address: pubKey,
+  tokenBalancesFilter: [tokenIdBytes],
+  stateKeyFilter: [stateKeyBytes],
+  certificateByNonce: { start: 0n, limit: 10 },
+});
+```
+
+### 4. Transfer Tokens
+
+```ts
+import { TransactionBuilder } from '@fastxyz/sdk';
+
+const account = await provider.getAccountInfo({ address: pubKey });
+
 const envelope = await new TransactionBuilder({
   networkId: 'fast:mainnet',
   signer,
   nonce: account.nextNonce,
 })
-  .addBurn({ tokenId: '11'.repeat(32), amount: 100n })
+  .addTokenTransfer({
+    tokenId: '11'.repeat(32),
+    recipient: 'fast1recipient...',
+    amount: 1000n,
+    userData: null,
+  })
   .sign();
 
-// Submit
 const result = await provider.submitTransaction(envelope);
 ```
 
-## API overview
+### 5. Build Other Transaction Types
+
+`TransactionBuilder` supports 10 operation types via fluent chaining. Single operations produce a direct claim; multiple operations are automatically batched.
+
+```ts
+const builder = new TransactionBuilder({ networkId, signer, nonce });
+
+builder.addTokenCreation({ tokenName, decimals, initialAmount, mints, userData });
+builder.addTokenManagement({ tokenId, updateId, newAdmin, mints, userData });
+builder.addMint({ tokenId, recipient, amount });
+builder.addBurn({ tokenId, amount });
+builder.addStateInitialization({ key, initialState });
+builder.addStateUpdate({ key, previousState, nextState, computeClaimTxHash, computeClaimTxTimestamp });
+builder.addStateReset({ key, resetState });
+builder.addExternalClaim({ claim: { verifierCommittee, verifierQuorum, claimData }, signatures });
+builder.addLeaveCommittee();
+
+// Batch multiple operations
+builder.addBurn({ tokenId, amount: 100n }).addBurn({ tokenId, amount: 200n });
+
+const envelope = await builder.sign();
+```
+
+**Builder reuse:** Call `builder.reset()` to clear operations, then `builder.setNonce(newNonce)` for the next transaction.
+
+### 6. Sign and Verify Messages
+
+```ts
+// Sign raw bytes
+const sig = await signer.signMessage(messageBytes);
+
+// Sign BCS-encoded typed data (domain-prefixed)
+const sig = await signer.signTypedData(bcsType, data);
+
+// Verify
+import { verify, verifyTypedData } from '@fastxyz/sdk';
+
+const valid = await verify(sig, messageBytes, pubKey);
+const valid = await verifyTypedData(sig, bcsType, data, pubKey);
+```
+
+### 7. Query Certificates and Token Metadata
+
+```ts
+// Get finalized transaction certificates
+const certs = await provider.getTransactionCertificates({
+  address: pubKey,
+  fromNonce: 0n,
+  limit: 10,
+});
+
+// Get token metadata
+const tokenInfo = await provider.getTokenInfo({ tokenIds: [tokenIdBytes] });
+
+// Get pending multisig transactions
+const pending = await provider.getPendingMultisigTransactions({ address: pubKey });
+```
+
+---
+
+## API Reference
 
 ### Signer
 
@@ -91,7 +232,7 @@ Supported operations: `addTokenTransfer`, `addTokenCreation`,
 `addStateInitialization`, `addStateUpdate`, `addStateReset`,
 `addExternalClaim`, `addLeaveCommittee`.
 
-### Conversion utilities
+### Conversion Utilities
 
 ```ts
 import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
@@ -102,7 +243,7 @@ toFastAddress(pubKey); // "fast1..."
 fromFastAddress('fast1...'); // Uint8Array
 ```
 
-### BCS encoding
+### BCS Encoding
 
 ```ts
 import { encode, hash, hashHex, getTokenId } from '@fastxyz/sdk';
@@ -112,7 +253,7 @@ const h = await hashHex(bcsSchema, data); // "0x..." keccak-256
 const tokenId = getTokenId(sender, nonce, 0n); // deterministic token ID
 ```
 
-### Error handling
+### Error Handling
 
 All errors are typed and can be matched with `instanceof`:
 

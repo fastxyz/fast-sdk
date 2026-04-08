@@ -1,3 +1,15 @@
+---
+name: x402-facilitator
+description: >
+  x402 payment facilitator for on-chain verification and settlement. Verify and settle
+  payments for both EVM (EIP-3009 transferWithAuthorization) and Fast (Ed25519 transaction
+  certificates) networks. Run as a standalone Express server or mount routes into an
+  existing app. All network config provided via FacilitatorConfig — no hardcoded values.
+metadata:
+  short-description: Verify and settle x402 payments on-chain (EVM + Fast).
+  compatibility: Node.js 20+, Express-compatible frameworks.
+---
+
 # @fastxyz/x402-facilitator
 
 On-chain payment verification and settlement for the x402 HTTP Payment Protocol.
@@ -6,6 +18,15 @@ Supports:
 
 - **EVM** — EIP-3009 `transferWithAuthorization` verification and settlement
 - **Fast** — Ed25519 transaction certificate verification
+
+## Use Cases
+
+- Run a payment facilitator service
+- Verify x402 payment proofs on-chain
+- Settle EVM EIP-3009 authorizations or Fast transaction certificates
+- Mount facilitator API routes in an existing Express app
+
+**Out of scope:** Paying for 402-protected content → [`@fastxyz/x402-client`](../x402-client) · Protecting API routes → [`@fastxyz/x402-server`](../x402-server)
 
 ## Installation
 
@@ -99,6 +120,13 @@ interface FacilitatorFastNetworkConfig {
   committeePublicKeys: string[]; // Ed25519 public keys
 }
 ```
+
+## Common Pitfalls
+
+1. **DO NOT omit `evmPrivateKey`** when settling EVM payments — the facilitator needs a key to call `transferWithAuthorization`.
+2. **DO NOT omit `committeePublicKeys`** for Fast networks — required for Ed25519 signature verification.
+3. **DO NOT pass chain IDs as strings** — `evmChains` values require a viem `Chain` object (import from `viem/chains`).
+4. **DO NOT assume built-in networks** — all networks must be explicitly configured in `FacilitatorConfig`.
 
 ## Design
 

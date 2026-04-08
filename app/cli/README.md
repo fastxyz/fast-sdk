@@ -9,11 +9,11 @@ metadata:
   compatibility: Node.js 18+.
 ---
 
-# fast CLI Skill
+# fast CLI
 
-## When to Use This Skill
+## Use Cases
 
-**USE this skill when the user wants to:**
+**Use when:**
 
 - Create or manage Fast accounts from the terminal
 - Check token balances on Fast or EVM chains
@@ -22,7 +22,7 @@ metadata:
 - Pay a payment-protected URL (x402) using a stored account
 - Configure networks or switch defaults
 
-**DO NOT use this skill for:**
+**Out of scope:**
 
 - Programmatic SDK usage → use `@fastxyz/sdk` or `@fastxyz/allset-sdk`
 - Protecting API routes with payments → use `@fastxyz/x402-server`
@@ -149,7 +149,7 @@ fast pay https://api.example.com/resource --dry-run
 
 ---
 
-## Potentially Confusing Points
+## Common Pitfalls
 
 ### Fast address vs. EVM address — same key, different format
 

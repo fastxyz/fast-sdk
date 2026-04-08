@@ -1,3 +1,9 @@
+import {
+  encodeDepositCalldata,
+  fastAddressToBytes32,
+  InsufficientBalanceError as SDKInsufficientBalanceError,
+  smartDeposit,
+} from "@fastxyz/allset-sdk";
 import { toHex } from "@fastxyz/sdk";
 import { Effect } from "effect";
 import type { FundCryptoArgs } from "../../cli.js";
@@ -103,9 +109,11 @@ export const fundCrypto: Command<FundCryptoArgs> = {
         yield* output.humanLine(
           `Send at least ${fmt(shortfall)} ${tokenName} to the EVM address above on ${args.chain}.`,
         );
-        yield* output.humanLine(
-          `Note: You will also need ETH for gas fees on ${args.chain}.`,
-        );
+        if (!args.eip7702) {
+          yield* output.humanLine(
+            `Note: You will also need ETH for gas fees on ${args.chain}.`,
+          );
+        }
 
         return yield* Effect.fail(
           new FundingRequiredError({
@@ -114,33 +122,111 @@ export const fundCrypto: Command<FundCryptoArgs> = {
         );
       }
 
-      // Check native ETH balance for gas
-      const ethBalance = yield* bridge.nativeBalance(
-        chainCfg.evmRpcUrl,
-        accountInfo.evmAddress,
-      );
-      if (ethBalance === 0n) {
-        yield* output.humanLine(`Insufficient ETH for gas on ${args.chain}.`);
-        yield* output.humanLine("");
-        yield* output.humanLine(`  EVM address:  ${accountInfo.evmAddress}`);
-        yield* output.humanLine(`  Chain:        ${args.chain}`);
-        yield* output.humanLine(`  ETH balance:  0`);
-        yield* output.humanLine("");
-        yield* output.humanLine(
-          `Send ETH to the EVM address above on ${args.chain} to cover gas fees.`,
+      // Check native ETH balance for gas (skipped for EIP-7702 — gas paid in USDC via paymaster)
+      if (!args.eip7702) {
+        const ethBalance = yield* bridge.nativeBalance(
+          chainCfg.evmRpcUrl,
+          accountInfo.evmAddress,
         );
+        if (ethBalance === 0n) {
+          yield* output.humanLine(`Insufficient ETH for gas on ${args.chain}.`);
+          yield* output.humanLine("");
+          yield* output.humanLine(`  EVM address:  ${accountInfo.evmAddress}`);
+          yield* output.humanLine(`  Chain:        ${args.chain}`);
+          yield* output.humanLine(`  ETH balance:  0`);
+          yield* output.humanLine("");
+          yield* output.humanLine(
+            `Send ETH to the EVM address above on ${args.chain} to cover gas fees.`,
+          );
 
-        return yield* Effect.fail(
-          new FundingRequiredError({
-            message: `No ETH for gas on ${args.chain}. Send ETH to ${accountInfo.evmAddress}.`,
-          }),
-        );
+          return yield* Effect.fail(
+            new FundingRequiredError({
+              message: `No ETH for gas on ${args.chain}. Send ETH to ${accountInfo.evmAddress}.`,
+            }),
+          );
+        }
       }
 
-      // Balance sufficient — bridge to Fast without any interactive prompts
       const pwd = accountInfo.encrypted ? yield* prompt.password() : null;
       const { seed } = yield* accounts.export(accountInfo.name, pwd);
 
+      if (args.eip7702) {
+        // EIP-7702 path — gas paid in USDC via ERC-20 paymaster, no ETH required
+        if (!network.allSet) {
+          return yield* Effect.fail(
+            new InvalidNetworkConfigError({ name: config.network }),
+          );
+        }
+
+        const depositCalldata = encodeDepositCalldata({
+          tokenAddress: tokenInfo.evmAddress!,
+          amount: amountRaw,
+          receiverBytes32: fastAddressToBytes32(accountInfo.fastAddress),
+        });
+
+        const smartResult = yield* Effect.tryPromise({
+          try: () =>
+            smartDeposit({
+              privateKey: toHex(seed) as `0x${string}`,
+              rpcUrl: chainCfg.evmRpcUrl,
+              allsetApiUrl: network.allSet!.portalApiUrl,
+              tokenAddress: tokenInfo.evmAddress! as `0x${string}`,
+              amount: amountRaw,
+              bridgeAddress: chainCfg.bridgeContract as `0x${string}`,
+              depositCalldata,
+            }),
+          catch: (e) => {
+            if (e instanceof SDKInsufficientBalanceError) {
+              return new FundingRequiredError({ message: e.message });
+            }
+            return new TransactionFailedError({ message: String(e), cause: e });
+          },
+        });
+
+        const explorerUrl = `${chainCfg.evmExplorerUrl}/tx/${smartResult.txHash}`;
+
+        yield* historyStore.record(
+          makeHistoryEntry({
+            hash: smartResult.txHash,
+            type: "transfer",
+            from: accountInfo.evmAddress,
+            to: accountInfo.fastAddress,
+            amount: amountRaw.toString(),
+            formatted: args.amount,
+            tokenName,
+            tokenId: toHex(tokenInfo.fastTokenId),
+            network: config.network,
+            status: "pending",
+            timestamp: new Date().toISOString(),
+            explorerUrl,
+            route: "evm-to-fast",
+            chainId: chainCfg.chainId,
+          }),
+        );
+
+        yield* output.humanLine(
+          `Funded ${args.amount} ${tokenName} to ${accountInfo.fastAddress} (EIP-7702)`,
+        );
+        yield* output.humanLine(`  Transaction: ${smartResult.txHash}`);
+        yield* output.humanLine(`  UserOp:      ${smartResult.userOpHash}`);
+        yield* output.humanLine(`  Explorer:    ${explorerUrl}`);
+
+        yield* output.ok({
+          txHash: smartResult.txHash,
+          userOpHash: smartResult.userOpHash,
+          from: accountInfo.evmAddress,
+          to: accountInfo.fastAddress,
+          amount: amountRaw.toString(),
+          formatted: args.amount,
+          tokenName,
+          chain: args.chain,
+          explorerUrl,
+        });
+
+        return;
+      }
+
+      // Standard EVM deposit path
       const evmAccount = bridge.createWallet(toHex(seed));
       const evmClients = bridge.createExecutor(
         evmAccount as Parameters<typeof bridge.createExecutor>[0],

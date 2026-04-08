@@ -27,6 +27,9 @@ import {
   executeDeposit,
   executeIntent,
   executeWithdraw,
+  // eip7702
+  smartDeposit,
+  InsufficientBalanceError,
 } from '../src/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
@@ -753,4 +756,76 @@ test('executeWithdraw calls executeIntent with a DynamicTransfer intent', async 
   assert.equal(relayerBody?.external_token_address, TOKEN_ADDRESS);
   assert.equal(result.txHash, TX_HASH);
   assert.equal(result.orderId, TX_HASH);
+});
+
+// ---------------------------------------------------------------------------
+// smartDeposit (EIP-7702) Tests
+// ---------------------------------------------------------------------------
+
+test('smartDeposit is exported from index', () => {
+  assert.equal(typeof smartDeposit, 'function');
+  assert.equal(typeof InsufficientBalanceError, 'function');
+});
+
+test('smartDeposit throws InsufficientBalanceError when balance is below amount', async () => {
+  const PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    return Response.json({
+      jsonrpc: '2.0',
+      id: 1,
+      result: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    });
+  };
+  onTestFinished(() => { globalThis.fetch = originalFetch; });
+
+  await assert.rejects(
+    () => smartDeposit({
+      privateKey: PRIVATE_KEY,
+      rpcUrl: 'https://mainnet.base.org',
+      allsetApiUrl: 'http://localhost:9999',
+      tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      amount: 1_000_000n,
+      bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+      depositCalldata: '0xdeadbeef',
+    }),
+    (err: unknown) => {
+      assert.ok(err instanceof InsufficientBalanceError, `expected InsufficientBalanceError, got ${err}`);
+      return true;
+    },
+  );
+});
+
+test('smartDeposit rejects with prepare error when backend returns 500', async () => {
+  const PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const urlStr = String(url instanceof Request ? url.url : url);
+    if (urlStr.includes('/userop/prepare')) {
+      return new Response(JSON.stringify({ error: 'backend offline' }), { status: 500 });
+    }
+    // 10 USDC balance
+    return Response.json({
+      jsonrpc: '2.0',
+      id: 1,
+      result: '0x0000000000000000000000000000000000000000000000000000000000989680',
+    });
+  };
+  onTestFinished(() => { globalThis.fetch = originalFetch; });
+
+  await assert.rejects(
+    () => smartDeposit({
+      privateKey: PRIVATE_KEY,
+      rpcUrl: 'https://mainnet.base.org',
+      allsetApiUrl: 'http://localhost:9999',
+      tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      amount: 1_000_000n,
+      bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+      depositCalldata: '0xdeadbeef',
+    }),
+    (err: unknown) => {
+      assert.match(String(err), /failed/i);
+      return true;
+    },
+  );
 });

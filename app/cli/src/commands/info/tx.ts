@@ -1,6 +1,8 @@
 import type { Command } from "../index.js";
 import { Effect } from "effect";
 import type { InfoTxArgs } from "../../cli.js";
+import { InvalidUsageError } from "../../errors/index.js";
+import { validateTxHash } from "../../services/validate.js";
 import { Output } from "../../services/output.js";
 import { HistoryStore } from "../../services/storage/history.js";
 
@@ -10,6 +12,11 @@ export const infoTx: Command<InfoTxArgs> = {
   Effect.gen(function* () {
     const history = yield* HistoryStore;
     const output = yield* Output;
+
+    const hashErr = validateTxHash(args.hash);
+    if (hashErr) {
+      return yield* Effect.fail(new InvalidUsageError({ message: hashErr }));
+    }
 
     const entry = yield* history.getByHash(args.hash);
 

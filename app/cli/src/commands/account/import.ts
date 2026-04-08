@@ -3,6 +3,7 @@ import { fromHex } from "@fastxyz/sdk";
 import { Effect, Option } from "effect";
 import type { AccountImportArgs } from "../../cli.js";
 import { InvalidUsageError } from "../../errors/index.js";
+import { validateName } from "../../services/validate.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { AccountStore } from "../../services/storage/account.js";
@@ -83,6 +84,13 @@ export const accountImport: Command<AccountImportArgs> = {
       }
 
       const name = args.name ?? (yield* accounts.nextAutoName());
+
+      if (args.name) {
+        const nameErr = validateName(args.name, "Account name");
+        if (nameErr) {
+          return yield* Effect.fail(new InvalidUsageError({ message: nameErr }));
+        }
+      }
 
       const pwd = yield* prompt.password({ required: false });
       const entry = yield* accounts.import(name, seed, Option.getOrNull(pwd));

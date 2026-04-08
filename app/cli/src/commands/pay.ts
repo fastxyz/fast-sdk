@@ -3,7 +3,8 @@ import { Signer, toHex } from "@fastxyz/sdk";
 import type { EvmChainConfig, EvmWallet, FastWallet } from "@fastxyz/x402-client";
 import { Effect } from "effect";
 import type { PayArgs } from "../cli.js";
-import { InternalError, InvalidPaymentLinkError } from "../errors/index.js";
+import { InternalError, InvalidPaymentLinkError, InvalidUsageError } from "../errors/index.js";
+import { validateHeader, validateHttpMethod, validateUrl } from "../services/validate.js";
 import { makeHistoryEntry } from "../schemas/history.js";
 import { X402Service } from "../services/api/x402.js";
 import { ClientConfig } from "../services/config/client.js";
@@ -53,6 +54,24 @@ export const pay: Command<PayArgs> = {
 
       const headers = parseHeaders(args.header);
       const body = yield* resolveBody(args.body);
+
+      // Validate inputs
+      const urlErr = validateUrl(args.url);
+      if (urlErr) {
+        return yield* Effect.fail(new InvalidUsageError({ message: urlErr }));
+      }
+
+      const methodErr = validateHttpMethod(args.method);
+      if (methodErr) {
+        return yield* Effect.fail(new InvalidUsageError({ message: methodErr }));
+      }
+
+      for (const h of args.header) {
+        const headerErr = validateHeader(h);
+        if (headerErr) {
+          return yield* Effect.fail(new InvalidUsageError({ message: headerErr }));
+        }
+      }
 
       // -- Dry-run mode --
       if (args.dryRun) {

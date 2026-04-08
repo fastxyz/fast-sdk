@@ -39,9 +39,18 @@ export const fundCrypto: Command<FundCryptoArgs> = {
 
       // Parse amount
       const amountFloat = Number.parseFloat(args.amount);
-      if (Number.isNaN(amountFloat) || amountFloat <= 0) {
+      if (Number.isNaN(amountFloat)) {
         return yield* Effect.fail(
-          new InvalidAmountError({ message: "Amount must be a positive number" }),
+          new InvalidAmountError({
+            message: `Invalid amount "${args.amount}". Expected a positive number (e.g., 10 or 1.5).`,
+          }),
+        );
+      }
+      if (amountFloat <= 0) {
+        return yield* Effect.fail(
+          new InvalidAmountError({
+            message: `Amount must be greater than zero (got "${args.amount}").`,
+          }),
         );
       }
 

@@ -1,13 +1,13 @@
 # Fast SDK and CLI Monorepo
 
-Official TypeScript SDK and CLI for the [Fast network](https://fast.xyz) — a high-throughput L1 blockchain designed for AI agents and high-frequency applications.
+Official TypeScript SDK and CLI for the [Fast network](https://fast.xyz) — a high-throughput L1 payment network designed for AI agents and high-frequency applications.
 
 ## What is Fast?
 
-Fast is a next-generation blockchain built for:
+Fast is a next-generation payment network built for:
 
 - **AI agents** — autonomous transactions, micropayments, and on-chain operations
-- **High-frequency applications** — sub-second finality, 100K+ TPS
+- **High-frequency applications** — sub-second finality, super high TPS (more than 1k)
 - **Cross-chain settlement** — bridge tokens between Fast and EVM chains via AllSet
 - **HTTP-native payments** — pay for API resources with the x402 protocol
 

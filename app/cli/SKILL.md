@@ -112,6 +112,14 @@ fast fund crypto 50 --chain arbitrum-sepolia
 > The EVM address comes from the current account's key. Find it with
 > `fast account list`. You must hold tokens at that address on the specified chain.
 
+#### Gasless variant with EIP-7702 (no ETH needed)
+
+```sh
+fast fund crypto 50 --chain base --eip-7702
+```
+
+Gas is paid in USDC instead of ETH. Approve + deposit are batched into a single UserOperation via the AllSet Portal and Pimlico.
+
 ### 5. Bridge USDC from Fast → EVM
 
 ```sh
@@ -168,12 +176,17 @@ On mainnet, only `USDC` is valid.
 
 | You want | Command |
 |---|---|
-| EVM → Fast | `fast send <fast1-address> <amount> --from-chain <chain>` |
+| EVM → Fast (standard) | `fast send <fast1-address> <amount> --from-chain <chain>` |
+| EVM → Fast (gasless, no ETH) | `fast send <fast1-address> <amount> --from-chain <chain> --eip-7702` |
 | Fast → EVM | `fast send <0x-address> <amount> --to-chain <chain>` |
 | EVM → EVM | Not supported (`NOT_IMPLEMENTED`) |
 
 The address format determines the direction: an `0x` recipient implies Fast→EVM;
 a `fast1` recipient with `--from-chain` implies EVM→Fast.
+
+### `--eip-7702` flag: when to use it
+
+Use `--eip-7702` with EVM→Fast commands when the EVM account has no ETH — gas is deducted in USDC instead. Ignored for Fast→Fast or Fast→EVM routes.
 
 ### `fast info balance` vs. `fast info bridge-chains`
 

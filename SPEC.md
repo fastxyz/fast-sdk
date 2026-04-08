@@ -1542,7 +1542,7 @@ Input value
   └─ Otherwise: treat as symbol.
        → Exact match against bundled token config for current network.
        → Case-insensitive fallback (e.g., "usdc" matches "USDC").
-       → Alias normalization: "testUSDC" and "fastUSDC" → "USDC".
+       → Alias normalization: "testUSDC" → "USDC".
        → Not found? Exit code 2:
          "Unknown token '<value>'. Run `fast info bridge-tokens` to list supported tokens."
 ```
@@ -1591,7 +1591,7 @@ configuration. These are the canonical values accepted by `--from-chain`,
 
 | Token | Symbol (alias) | Fast Token ID | Decimals |
 |---|---|---|---|
-| Test USD Coin | `USDC` (`testUSDC`, `fastUSDC`) | `0xd73a0679...` | 6 |
+| Test USD Coin | `USDC` (`testUSDC`) | `0xd73a0679...` | 6 |
 
 **Note:** The x402 payment protocol (`fast pay`) may encounter payment
 requirements on chains not listed above (e.g., `base-sepolia`, `ethereum`).

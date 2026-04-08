@@ -167,9 +167,9 @@ Both bridge tokens from EVM → Fast, but serve different scenarios:
 | `fast fund crypto <amount> --chain <chain>` | Top up your own Fast account from your own EVM balance |
 | `fast send <fast-address> <amount> --from-chain <chain>` | Bridge from EVM to an arbitrary Fast recipient |
 
-### Token names: `USDC` vs. `testUSDC` / `fastUSDC`
+### Token names: `USDC` vs. `testUSDC`
 
-On testnet, `USDC`, `testUSDC`, and `fastUSDC` all resolve to the same token.
+On testnet, `USDC` and `testUSDC` both resolve to the same token.
 On mainnet, only `USDC` is valid.
 
 ### Bridge direction flags

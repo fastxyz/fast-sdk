@@ -35,6 +35,7 @@ import type {
   PaymentRejectedError,
 } from "./payment.js";
 import type {
+  FundingRequiredError,
   InsufficientBalanceError,
   InsufficientGasError,
   InvalidAddressError,
@@ -58,6 +59,7 @@ export interface ClientErrorMeta {
 export type ClientError =
   | InternalError
   | TxNotFoundError
+  | FundingRequiredError
   | InvalidUsageError
   | AccountExistsError
   | ReservedNameError

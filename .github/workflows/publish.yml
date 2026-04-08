@@ -1,9 +1,8 @@
 name: Publish
 
 on:
-  push:
-    tags:
-      - v*.*.*
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -12,38 +11,19 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
           registry-url: https://registry.npmjs.org/
 
-      - name: Upgrade npm
-        run: npm install --global npm@11.5.2
+      - run: pnpm install --frozen-lockfile
 
-      - name: Verify tag matches package version
-        run: npm run release:verify-tag
+      - run: pnpm build
 
-      - name: Install dependencies
-        run: npm ci
+      - run: pnpm test
 
-      - name: Build
-        run: npm run build
-
-      - name: Test
-        run: npm test
-
-      - name: Check publish tarball
-        run: npm run pack:dry-run
-
-      - name: Smoke-test package
-        run: npm run pack:smoke
-
-      - name: Publish to npm
-        run: npm publish --access public --provenance
+      - name: Publish packages
+        run: pnpm changeset publish

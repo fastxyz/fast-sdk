@@ -43,6 +43,21 @@ const mapFastSdkError = <A, E>(
   return effect.pipe(Effect.mapError((e) => error(e)));
 };
 
+const debugLog = (debug: boolean, label: string, data: unknown): void => {
+  if (!debug) return;
+  const text = JSON.stringify(
+    data,
+    (_, v) =>
+      typeof v === "bigint"
+        ? v.toString()
+        : v instanceof Uint8Array
+          ? `0x${Array.from(v).map((b) => b.toString(16).padStart(2, "0")).join("")}`
+          : v,
+    2,
+  );
+  process.stderr.write(`[debug] ${label}:\n${text}\n`);
+};
+
 export const FastRpcLive = Layer.effect(
   FastRpc,
   Effect.gen(function* () {
@@ -51,7 +66,10 @@ export const FastRpcLive = Layer.effect(
 
     const getRpcUrl = () =>
       networkConfig.resolve(config.network).pipe(
-        Effect.map((n) => n.rpcUrl),
+        Effect.map((n) => {
+          if (config.debug) process.stderr.write(`[debug] rpcUrl: ${n.rpcUrl}\n`);
+          return n.rpcUrl;
+        }),
         Effect.mapError(
           (e) => new FastSdkError({ message: e.message, cause: e }),
         ),
@@ -63,27 +81,39 @@ export const FastRpcLive = Layer.effect(
       getAccountInfo: (params) =>
         Effect.gen(function* () {
           const rpcUrl = yield* getRpcUrl();
-          return yield* mapFastSdkError(sdkGetAccountInfo(rpcUrl, params));
+          debugLog(config.debug, "getAccountInfo >", params);
+          const result = yield* mapFastSdkError(sdkGetAccountInfo(rpcUrl, params));
+          debugLog(config.debug, "getAccountInfo <", result);
+          return result;
         }),
 
       submitTransaction: (params) =>
         Effect.gen(function* () {
           const rpcUrl = yield* getRpcUrl();
-          return yield* mapFastSdkError(sdkSubmitTransaction(rpcUrl, params));
+          debugLog(config.debug, "submitTransaction >", params);
+          const result = yield* mapFastSdkError(sdkSubmitTransaction(rpcUrl, params));
+          debugLog(config.debug, "submitTransaction <", result);
+          return result;
         }),
 
       getTransactionCertificates: (params) =>
         Effect.gen(function* () {
           const rpcUrl = yield* getRpcUrl();
-          return yield* mapFastSdkError(
+          debugLog(config.debug, "getTransactionCertificates >", params);
+          const result = yield* mapFastSdkError(
             sdkGetTransactionCertificates(rpcUrl, params),
           );
+          debugLog(config.debug, "getTransactionCertificates <", result);
+          return result;
         }),
 
       getTokenInfo: (params) =>
         Effect.gen(function* () {
           const rpcUrl = yield* getRpcUrl();
-          return yield* mapFastSdkError(sdkGetTokenInfo(rpcUrl, params));
+          debugLog(config.debug, "getTokenInfo >", params);
+          const result = yield* mapFastSdkError(sdkGetTokenInfo(rpcUrl, params));
+          debugLog(config.debug, "getTokenInfo <", result);
+          return result;
         }),
     };
   }),

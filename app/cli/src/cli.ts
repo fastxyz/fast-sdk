@@ -42,11 +42,10 @@ export const globalOptions = object({
     }),
     false,
   ),
-  network: withDefault(
+  network: optional(
     option("--network", string({ metavar: "NAME" }), {
       description: message`Override the network for this command`,
     }),
-    "testnet",
   ),
   account: optional(
     option("--account", string({ metavar: "NAME" }), {
@@ -120,19 +119,6 @@ const accountSetDefaultParser = command(
   { description: message`Set the default account` },
 );
 
-const accountInfoParser = command(
-  "info",
-  object({
-    cmd: constant("account-info" as const),
-    name: optional(
-      argument(string({ metavar: "NAME" }), {
-        description: message`Account alias (defaults to default account)`,
-      }),
-    ),
-  }),
-  { description: message`Show account addresses` },
-);
-
 const accountExportParser = command(
   "export",
   object({
@@ -164,7 +150,6 @@ const accountGroup = command(
     accountImportParser,
     accountListParser,
     accountSetDefaultParser,
-    accountInfoParser,
     accountExportParser,
     accountDeleteParser,
   ),
@@ -246,18 +231,13 @@ const infoBalanceParser = command(
   "balance",
   object({
     cmd: constant("info-balance" as const),
-    address: optional(
-      option("--address", string({ metavar: "ADDRESS" }), {
-        description: message`Any Fast address (fast1...) to query`,
-      }),
-    ),
     token: optional(
       option("--token", string({ metavar: "TOKEN" }), {
-        description: message`Filter by token`,
+        description: message`Filter by token name or token ID`,
       }),
     ),
   }),
-  { description: message`Show token balances for an address` },
+  { description: message`Show token balances for the current account` },
 );
 
 const infoTxParser = command(
@@ -306,9 +286,25 @@ const infoHistoryParser = command(
   { description: message`Show transaction history` },
 );
 
+const infoBridgeTokensParser = command(
+  "bridge-tokens",
+  object({
+    cmd: constant("info-bridge-tokens" as const),
+  }),
+  { description: message`List tokens available for Fast-EVM transfers` },
+);
+
+const infoBridgeChainsParser = command(
+  "bridge-chains",
+  object({
+    cmd: constant("info-bridge-chains" as const),
+  }),
+  { description: message`List chains available for Fast-EVM transfers` },
+);
+
 const infoGroup = command(
   "info",
-  or(infoStatusParser, infoBalanceParser, infoTxParser, infoHistoryParser),
+  or(infoStatusParser, infoBalanceParser, infoTxParser, infoHistoryParser, infoBridgeTokensParser, infoBridgeChainsParser),
   { description: message`Query network and account information` },
 );
 
@@ -342,7 +338,7 @@ const sendParser = command(
       }),
     ),
   }),
-  { description: message`Send tokens (Fast→Fast, EVM→Fast, or Fast→EVM)` },
+  { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
 );
 
 // ---------------------------------------------------------------------------
@@ -366,8 +362,19 @@ const fundCryptoParser = command(
   "crypto",
   object({
     cmd: constant("fund-crypto" as const),
+    amount: argument(string({ metavar: "AMOUNT" }), {
+      description: message`Human-readable amount to fund (e.g., 100.00)`,
+    }),
+    chain: option("--chain", string({ metavar: "CHAIN" }), {
+      description: message`EVM chain to bridge from (see fast info bridge-chains)`,
+    }),
+    token: optional(
+      option("--token", string({ metavar: "TOKEN" }), {
+        description: message`Token to bridge (default: USDC / testUSDC)`,
+      }),
+    ),
   }),
-  { description: message`Show EVM address for crypto funding` },
+  { description: message`Fund Fast account by bridging from an EVM chain` },
 );
 
 const fundGroup = command(
@@ -432,7 +439,6 @@ export type AccountCreateArgs = InferValue<typeof accountCreateParser>;
 export type AccountImportArgs = InferValue<typeof accountImportParser>;
 export type AccountListArgs = InferValue<typeof accountListParser>;
 export type AccountSetDefaultArgs = InferValue<typeof accountSetDefaultParser>;
-export type AccountInfoArgs = InferValue<typeof accountInfoParser>;
 export type AccountExportArgs = InferValue<typeof accountExportParser>;
 export type AccountDeleteArgs = InferValue<typeof accountDeleteParser>;
 
@@ -445,6 +451,8 @@ export type InfoStatusArgs = InferValue<typeof infoStatusParser>;
 export type InfoBalanceArgs = InferValue<typeof infoBalanceParser>;
 export type InfoTxArgs = InferValue<typeof infoTxParser>;
 export type InfoHistoryArgs = InferValue<typeof infoHistoryParser>;
+export type InfoBridgeTokensArgs = InferValue<typeof infoBridgeTokensParser>;
+export type InfoBridgeChainsArgs = InferValue<typeof infoBridgeChainsParser>;
 
 export type SendArgs = InferValue<typeof sendParser>;
 

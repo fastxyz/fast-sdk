@@ -5,10 +5,11 @@ import { accountCreate } from "./account/create.js";
 import { accountDelete } from "./account/delete.js";
 import { accountExport } from "./account/export.js";
 import { accountImport } from "./account/import.js";
-import { accountInfo } from "./account/info.js";
 import { accountList } from "./account/list.js";
 import { accountSetDefault } from "./account/set-default.js";
 import { infoBalance } from "./info/balance.js";
+import { infoBridgeChains } from "./info/bridge-chains.js";
+import { infoBridgeTokens } from "./info/bridge-tokens.js";
 import { infoHistory } from "./info/history.js";
 import { infoStatus } from "./info/status.js";
 import { infoTx } from "./info/tx.js";
@@ -26,12 +27,13 @@ export const commands = [
   accountDelete,
   accountExport,
   accountImport,
-  accountInfo,
   accountList,
   accountSetDefault,
   fundCrypto,
   fundFiat,
   infoBalance,
+  infoBridgeChains,
+  infoBridgeTokens,
   infoHistory,
   infoStatus,
   infoTx,

@@ -1,3 +1,15 @@
+---
+name: allset-sdk
+description: >
+  AllSet SDK for bridging tokens between Fast network and EVM chains. Use executeDeposit
+  for EVM → Fast deposits and executeIntent for Fast → EVM withdrawals or custom operations.
+  All functions are pure — no embedded config, no file system access. Caller provides all
+  chain/contract addresses.
+metadata:
+  short-description: Bridge tokens between Fast and EVM chains (pure functions, no config).
+  compatibility: Node.js 20+; browser-safe pure helpers (address, deposit, intents).
+---
+
 # @fastxyz/allset-sdk
 
 AllSet SDK for bridging tokens between [Fast network](https://fast.xyz) and EVM chains.
@@ -7,6 +19,24 @@ AllSet SDK for bridging tokens between [Fast network](https://fast.xyz) and EVM 
 - **Pure helpers:** `buildDepositTransaction()`, intent builders, address utils — browser-safe
 
 **Design:** All functions are pure — no embedded chain config, no file system access, no environment variable reads. The caller provides all addresses, URLs, and credentials.
+
+---
+
+## Use Cases
+
+- Bridge tokens from EVM to Fast network (deposit / EVM → Fast)
+- Bridge tokens from Fast to EVM (withdrawal / Fast → EVM)
+- Execute custom intents on EVM via AllSet bridge
+- Build or plan deposit transactions (pure, browser-safe helpers)
+- Set up EVM wallets for bridging
+
+**Out of scope:** Fast-only operations (balance, send, sign) → [`@fastxyz/sdk`](../fast-sdk) · EVM-only operations without bridging · Swaps, lending, or staking
+
+All functions are exported from a single root entrypoint — no sub-paths:
+
+```ts
+import { ... } from '@fastxyz/allset-sdk';
+```
 
 ---
 
@@ -22,7 +52,7 @@ pnpm add @fastxyz/allset-sdk
 
 ---
 
-## Quick Start
+## Workflows
 
 ### Deposit (EVM → Fast)
 

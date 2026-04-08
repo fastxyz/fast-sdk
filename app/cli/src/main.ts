@@ -16,7 +16,7 @@ import { formatDocPage } from "@optique/core/doc";
 import { formatMessage } from "@optique/core/message";
 import type { Message } from "@optique/core/message";
 import { getDocPageSync, parse } from "@optique/core/parser";
-import { type Effect, Option } from "effect";
+import { Effect, Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
 import { globalPreParser, parser } from "./cli.js";
@@ -78,7 +78,19 @@ const docPageToJson = (doc: DocPage) => {
   return result;
 };
 
-const argv = process.argv.slice(2);
+// Normalize bare --password (no value) → --password "" so the parser doesn't fail.
+// Empty string is later treated as "no password" in prompt.ts.
+const argv: string[] = [];
+for (let i = 0; i < process.argv.length - 2; i++) {
+  const arg = process.argv[2 + i];
+  argv.push(arg);
+  if (arg === "--password") {
+    const next = process.argv[2 + i + 1];
+    if (next === undefined || next.startsWith("-")) {
+      argv.push("");
+    }
+  }
+}
 const pre = parse(globalPreParser, argv);
 const isJson = argv.includes("--json");
 
@@ -139,9 +151,9 @@ if (argv.length === 0 || argv.includes("--help")) {
 const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay"] as const;
 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
-  account: ["create", "import", "list", "set-default", "info", "export", "delete"],
+  account: ["create", "import", "list", "set-default", "export", "delete"],
   network: ["list", "add", "set-default", "remove"],
-  info: ["status", "balance", "tx", "history"],
+  info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["fiat", "crypto"],
 };
 
@@ -174,10 +186,87 @@ const suggest = (token: string, candidates: readonly string[]): string | null =>
   return best;
 };
 
+const SUBCOMMAND_REQUIREMENTS: Record<
+  string,
+  { usage: string; check: (positionals: string[], allArgv: string[]) => string | null }
+> = {
+  // ── Top-level commands with required args ──────────────────────────────────
+  send: {
+    usage: "fast send <address> <amount> [--from-chain <chain>] [--to-chain <chain>] [--token <token>]",
+    check: (positionals) => {
+      if (positionals.length < 2) return "Missing required argument: <address>";
+      if (positionals.length < 3) return "Missing required argument: <amount>";
+      return null;
+    },
+  },
+  pay: {
+    usage: "fast pay <url> [--dry-run] [--method <method>] [--header <key:value>] [--body <data>]",
+    check: (positionals) => {
+      if (positionals.length < 2) return "Missing required argument: <url>";
+      return null;
+    },
+  },
+  // ── Subcommands with required args/options ─────────────────────────────────
+  "fund crypto": {
+    usage: "fast fund crypto <amount> --chain <chain> [--token <token>]",
+    check: (positionals, allArgv) => {
+      if (positionals.length < 3) return "Missing required argument: <amount>";
+      if (!allArgv.some((a) => a === "--chain" || a.startsWith("--chain=")))
+        return "Missing required option: --chain <chain>";
+      return null;
+    },
+  },
+  "network add": {
+    usage: "fast network add <name> --config <path>",
+    check: (positionals, allArgv) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      if (!allArgv.some((a) => a === "--config" || a.startsWith("--config=")))
+        return "Missing required option: --config <path>";
+      return null;
+    },
+  },
+  "network set-default": {
+    usage: "fast network set-default <name>",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "network remove": {
+    usage: "fast network remove <name>",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "account set-default": {
+    usage: "fast account set-default <name>",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "account delete": {
+    usage: "fast account delete <name>",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "info tx": {
+    usage: "fast info tx <hash> [--source <source>]",
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <hash>";
+      return null;
+    },
+  },
+};
+
 const result = parse(parser, argv);
 
 if (!result.success) {
-  const firstToken = argv.find((a) => !a.startsWith("-"));
+  const positionals = argv.filter((a) => !a.startsWith("-"));
+  const firstToken = positionals[0];
   let msg = formatMessage(result.error);
 
   if (firstToken && !KNOWN_COMMANDS.includes(firstToken as never)) {
@@ -187,14 +276,29 @@ if (!result.success) {
       : `Unknown command '${firstToken}'. Available: ${KNOWN_COMMANDS.join(", ")}.`;
   } else if (firstToken && firstToken in SUBCOMMANDS) {
     const subs = SUBCOMMANDS[firstToken];
-    const secondToken = argv.find((a) => a !== firstToken && !a.startsWith("-"));
+    const secondToken = positionals[1];
     if (!secondToken) {
       msg = `Missing subcommand for '${firstToken}'. Available: ${subs.join(", ")}.`;
-    } else {
+    } else if (!subs.includes(secondToken)) {
       const s = suggest(secondToken, subs);
       msg = s
         ? `Unknown subcommand '${secondToken}' for '${firstToken}'. Did you mean '${s}'?`
         : `Unknown subcommand '${secondToken}' for '${firstToken}'. Available: ${subs.join(", ")}.`;
+    } else {
+      // Valid subcommand but parse still failed — check for missing required args/options
+      const key = `${firstToken} ${secondToken}`;
+      const req = SUBCOMMAND_REQUIREMENTS[key];
+      if (req) {
+        const hint = req.check(positionals, argv);
+        if (hint) msg = `${hint}\n  Usage: ${req.usage}`;
+      }
+    }
+  } else if (firstToken && KNOWN_COMMANDS.includes(firstToken as never)) {
+    // Top-level command (send, pay) with missing required args
+    const req = SUBCOMMAND_REQUIREMENTS[firstToken];
+    if (req) {
+      const hint = req.check(positionals, argv);
+      if (hint) msg = `${hint}\n  Usage: ${req.usage}`;
     }
   }
 
@@ -204,14 +308,47 @@ if (!result.success) {
 
 const parsed = result.value;
 
+// Resolve network: explicit --network > DB default > hardcoded fallback
+const resolveNetwork = async (): Promise<string> => {
+  if (parsed.network) return parsed.network;
+  try {
+    const { Effect: Eff, ManagedRuntime, Layer } = await import("effect");
+    const { NetworkConfigService } = await import("./services/storage/network.js");
+    const { DatabaseLive } = await import("./services/storage/database.js");
+    const { AppConfigLive } = await import("./services/config/app.js");
+    const layer = Layer.provide(NetworkConfigService.Default, Layer.merge(DatabaseLive, AppConfigLive));
+    const runtime = ManagedRuntime.make(layer);
+    const name = await runtime.runPromise(
+      Eff.flatMap(NetworkConfigService, (s) => s.getDefault()).pipe(
+        Eff.catchAll(() => Eff.succeed("testnet")),
+      ),
+    );
+    await runtime.dispose();
+    return name;
+  } catch {
+    return "testnet";
+  }
+};
+
+const network = await resolveNetwork();
+
 const globalOpts: GlobalOptions = {
   json: parsed.json,
   debug: parsed.debug,
   nonInteractive: parsed.nonInteractive,
-  network: parsed.network,
+  network,
   account: Option.fromNullable(parsed.account),
   password: Option.fromNullable(parsed.password),
 };
+
+if (parsed.debug) {
+  const dbPath = `${process.env.HOME ?? "~"}/.fast/fast.db`;
+  process.stderr.write(`[debug] command:         ${parsed.cmd}\n`);
+  process.stderr.write(`[debug] network:         ${network}\n`);
+  process.stderr.write(`[debug] account:         ${parsed.account ?? "(default)"}\n`);
+  process.stderr.write(`[debug] non-interactive: ${parsed.nonInteractive}\n`);
+  process.stderr.write(`[debug] db:              ${dbPath}\n`);
+}
 
 const dispatch = () => {
   const entry = commands.find((c) => c.cmd === parsed.cmd);

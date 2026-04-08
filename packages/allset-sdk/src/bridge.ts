@@ -127,7 +127,16 @@ async function approveErc20(
     functionName: "approve",
     args: [spender as `0x${string}`, BigInt(amount)],
   });
-  await clients.publicClient.waitForTransactionReceipt({ hash });
+  const receipt = await clients.publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status === "reverted") {
+    throw new FastError(
+      "TX_FAILED",
+      `ERC-20 approve transaction reverted: ${hash}`,
+      {
+        note: "Check that you have sufficient ETH for gas fees.",
+      },
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

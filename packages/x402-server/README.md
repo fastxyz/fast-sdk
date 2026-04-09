@@ -42,12 +42,12 @@ const app = express();
 
 app.use(
   paywall(
-    { fast: 'fast1abc...' },  // payTo: Fast address
-    {                         // RouteConfig for all requests
+    { fast: 'fast1merchant...' },
+    {
       price: '$0.10',
       network: 'fast-testnet',
       networkConfig: {
-        asset: '0x...',      // USDC token address on the Fast network
+        asset: '0x...',
         decimals: 6,
       },
     },
@@ -119,50 +119,22 @@ Client                    Server                    Facilitator
 
 ## API
 
-### `paywall(payTo, routeConfig, facilitator, options?)`
+### `paywall(payTo, config, facilitator, options?)`
 
-Express middleware that protects all routes with a single price and network config. Internally calls `paymentMiddleware` with `'*'` as the route pattern.
+Express middleware that protects all requests matched at the mount point with a single payment requirement.
 
 **Parameters:**
 
-| Param         | Type                 | Description                                       |
-| ------------ | -------------------- | ------------------------------------------------- |
-| `payTo`       | `PayToConfig`        | Payment address — a string address or `{ fast?, evm? }` |
-| `routeConfig` | `RouteConfig`        | Single price/network config applied to all routes |
-| `facilitator` | `FacilitatorConfig`  | Facilitator endpoint (`{ url }`)                  |
-| `options`     | `MiddlewareOptions`  | Optional debug/settings config                    |
-
-```typescript
-paywall(
-  { fast: 'fast1abc...' },
-  { price: '$0.10', network: 'fast-testnet', networkConfig: { asset: '0x...', decimals: 6 } },
-  { url: 'https://facilitator.example.com' },
-);
-```
+| Param         | Type                | Description                                |
+| ------------- | ------------------- | ------------------------------------------ |
+| `payTo`       | `PayToConfig`       | Recipient address config                   |
+| `config`      | `RouteConfig`       | Payment config for the mounted route(s)    |
+| `facilitator` | `FacilitatorConfig` | Facilitator endpoint (`{ url }`)           |
+| `options`     | `MiddlewareOptions` | Optional middleware config                 |
 
 ### `paymentMiddleware(payTo, routes, facilitator, options?)`
 
-Express middleware for protecting multiple routes with different price configs. The `routes` parameter maps URL patterns to `RouteConfig` objects. Supports `*` wildcard in patterns and `METHOD /path` syntax for method-specific matching.
-
-**Parameters:**
-
-| Param         | Type                          | Description                                       |
-| ------------ | ----------------------------- | ------------------------------------------------- |
-| `payTo`       | `PayToConfig`                 | Payment address — a string address or `{ fast?, evm? }` |
-| `routes`      | `Record<string, RouteConfig>` | Route pattern → payment config                    |
-| `facilitator` | `FacilitatorConfig`          | Facilitator endpoint (`{ url }`)                  |
-| `options`     | `MiddlewareOptions`           | Optional debug/settings config                    |
-
-```typescript
-paymentMiddleware(
-  { evm: '0x123...' },
-  {
-    '/basic': { price: '$0.01', network: 'arbitrum-sepolia', networkConfig: { asset: '0x...', decimals: 6 } },
-    '/premium': { price: '$0.10', network: 'fast-testnet', networkConfig: { asset: '0x...', decimals: 6 } },
-  },
-  { url: 'https://facilitator.example.com' },
-);
-```
+Express middleware for multiple route patterns.
 
 ### `RouteConfig`
 
@@ -200,8 +172,8 @@ interface FacilitatorConfig {
 
 ### Low-Level Functions
 
-- `createPaymentRequirement(routeConfig, payTo)` — create a `PaymentRequirement`
-- `createPaymentRequired(requirements)` — format a 402 response body
+- `createPaymentRequirement(payTo, routeConfig, resource)` — create a `PaymentRequirement`
+- `createPaymentRequired(payTo, routeConfig, resource)` — format a 402 response body
 - `verifyPayment(payload, requirement, facilitator)` — verify via facilitator
 - `settlePayment(payload, requirement, facilitator)` — settle via facilitator
 - `verifyAndSettle(payload, requirement, facilitator)` — verify then settle

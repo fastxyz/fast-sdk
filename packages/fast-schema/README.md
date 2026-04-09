@@ -72,6 +72,6 @@ const bytes = bcsSchema.VersionedTransaction.serialize(tx).toBytes();
 ## Development
 
 ```bash
-pnpm build    # Build with tsup
-pnpm test     # Run tests (from repo root: pnpm vitest run)
+pnpm build        # Build this package
+pnpm turbo test   # Run the repo test pipeline
 ```

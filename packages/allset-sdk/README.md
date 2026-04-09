@@ -48,7 +48,7 @@ npm install @fastxyz/allset-sdk
 pnpm add @fastxyz/allset-sdk
 ```
 
-**Peer dependencies:** `viem` (used internally)
+`viem` is installed as a package dependency and is also useful directly in consumer code when you need chain objects or wallet helpers.
 
 ---
 

@@ -47,12 +47,13 @@ const result = await x402Pay({
   wallet: {
     type: 'fast',
     privateKey: '0x...',
+    publicKey: '0x...',
     address: 'fast1...',
     rpcUrl: 'https://api.fast.xyz/proxy',
   },
 });
 
-console.log(result.response); // Paid content
+console.log(result.body); // Paid content
 ```
 
 ### EVM Payment
@@ -96,7 +97,15 @@ const result = await x402Pay({
   url: 'https://api.example.com/premium',
   wallet: [fastWallet, evmWallet],
   evmNetworks: { ... },
-  bridgeConfig: { ... },
+  bridgeConfig: {
+    rpcUrl: 'https://rpc.testnet.fast.co',
+    fastBridgeAddress: 'fast1bridge...',
+    relayerUrl: 'https://relayer.example.com',
+    crossSignUrl: 'https://crosssign.example.com',
+    tokenEvmAddress: '0x...',
+    tokenFastTokenId: 'abc123...',
+    networkId: 'fast:testnet',
+  },
 });
 ```
 
@@ -119,30 +128,40 @@ Main entry point. Fetches the URL, and if a 402 is returned, handles payment aut
 | `bridgeConfig` | `BridgeConfig`                   | No       | Bridge config for auto-bridge                   |
 | `verbose`      | `boolean`                        | No       | Enable verbose logging                          |
 
-### `bridgeFastusdcToUsdc(fastWallet, evmWallet, amount, bridgeConfig)`
+### `bridgeFastusdcToUsdc(params)`
 
-Manually bridge Fast USDC to EVM USDC.
+Manually bridge Fast USDC to EVM USDC using a single params object.
 
 ```typescript
 import { bridgeFastusdcToUsdc } from '@fastxyz/x402-client';
 
-const result = await bridgeFastusdcToUsdc(
+const result = await bridgeFastusdcToUsdc({
   fastWallet,
-  evmWallet,
-  '1000000', // amount in USDC smallest units
-  bridgeConfig,
-);
-console.log(result.bridgeTxHash); // Bridge transaction hash
+  evmReceiverAddress: evmWallet.address,
+  amount: 1000000n,
+  rpcUrl: bridgeConfig.rpcUrl,
+  fastBridgeAddress: bridgeConfig.fastBridgeAddress,
+  relayerUrl: bridgeConfig.relayerUrl,
+  crossSignUrl: bridgeConfig.crossSignUrl,
+  tokenEvmAddress: bridgeConfig.tokenEvmAddress,
+  tokenFastTokenId: bridgeConfig.tokenFastTokenId,
+  networkId: bridgeConfig.networkId,
+});
+
+console.log(result.txHash); // Bridge transaction hash
 ```
 
-### `getFastBalance(wallet: FastWallet): Promise<bigint>`
+### `getFastBalance(wallet: FastWallet, options: { rpcUrl: string; tokenId: string }): Promise<bigint>`
 
-Get USDC balance on the Fast network.
+Get a token balance on the Fast network.
 
 ```typescript
 import { getFastBalance } from '@fastxyz/x402-client';
 
-const balance = await getFastBalance(fastWallet);
+const balance = await getFastBalance(fastWallet, {
+  rpcUrl: 'https://api.fast.xyz/proxy',
+  tokenId: 'abc123...',
+});
 console.log('Fast USDC balance:', balance); // bigint (smallest units)
 ```
 

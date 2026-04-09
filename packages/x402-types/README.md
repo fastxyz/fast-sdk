@@ -47,7 +47,7 @@ pnpm add @fastxyz/x402-types
 | Type                | Description                                                                             |
 | ------------------- | --------------------------------------------------------------------------------------- |
 | `EvmChainConfig`    | EVM chain config: `chainId`, `rpcUrl`, `usdcAddress`, optional `usdcName`/`usdcVersion` |
-| `FastNetworkConfig` | Fast network config: `rpcUrl`, `usdcTokenId`                                            |
+| `FastNetworkConfig` | Fast network config: `rpcUrl`, `tokenId`, `networkId`, `committeePublicKeys`           |
 
 ## Utilities
 

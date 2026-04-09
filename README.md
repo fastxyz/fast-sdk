@@ -113,20 +113,20 @@ fast account create --name my-account
 # List accounts
 fast account list
 
-# Check balance
-fast info balance --address fast1...
+# Check balance for the current/default account
+fast info balance
 
-# Send tokens
-fast send --to fast1recipient... --amount 1000 --token 0x...
+# Send tokens on Fast
+fast send fast1recipient... 1000 --token USDC
 
 # Fund via fiat on-ramp
 fast fund fiat --network mainnet
 
 # Pay for x402-protected resource
-fast pay https://api.example.com/protected --network mainnet
+fast pay https://api.example.com/protected
 ```
 
-For full CLI documentation, see the **[CLI README](app/cli/README.md)**.
+The CLI source lives in `app/cli/`. Run `pnpm cli --help` or `pnpm cli <command> --help` for the current command reference.
 
 ## Development
 

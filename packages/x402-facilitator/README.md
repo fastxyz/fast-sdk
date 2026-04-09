@@ -39,10 +39,15 @@ pnpm add @fastxyz/x402-facilitator
 ### Standalone Server
 
 ```typescript
+import express from 'express';
 import { createFacilitatorServer } from '@fastxyz/x402-facilitator';
 import { arbitrumSepolia } from 'viem/chains';
 
-const app = createFacilitatorServer({
+const app = express();
+app.use(express.json());
+
+app.use(
+  createFacilitatorServer({
   evmPrivateKey: '0x...',
   evmChains: {
     'arbitrum-sepolia': {
@@ -57,7 +62,8 @@ const app = createFacilitatorServer({
       committeePublicKeys: ['abc123...', 'def456...'], // Ed25519 public keys used to verify Fast network transactions
     },
   },
-});
+  }),
+);
 
 app.listen(4402, () => console.log('Facilitator running on :4402'));
 ```
@@ -69,7 +75,11 @@ import express from 'express';
 import { createFacilitatorRoutes } from '@fastxyz/x402-facilitator';
 
 const app = express();
-app.use(createFacilitatorRoutes(config));
+const routes = createFacilitatorRoutes(config);
+
+for (const route of routes) {
+  app[route.method](route.path, route.handler);
+}
 // Exposes: POST /verify, POST /settle, GET /supported
 ```
 
@@ -77,7 +87,7 @@ app.use(createFacilitatorRoutes(config));
 
 ### `createFacilitatorServer(config)`
 
-Create a standalone Express app with facilitator routes.
+Create Express-compatible middleware that serves the facilitator endpoints.
 
 ```typescript
 import { createFacilitatorServer } from '@fastxyz/x402-facilitator';
@@ -88,7 +98,7 @@ app.listen(4402);
 
 ### `createFacilitatorRoutes(config)`
 
-Create an Express Router with facilitator routes. Mount into an existing app.
+Create route descriptors (`method`, `path`, `handler`) that you can attach to an existing app.
 
 ```typescript
 import { createFacilitatorRoutes } from '@fastxyz/x402-facilitator';
@@ -163,7 +173,7 @@ interface FacilitatorConfig {
 
 interface FacilitatorEvmChainConfig {
   chain: Chain; // viem Chain object
-  rpcUrl: string;
+  rpcUrl?: string;
   usdcAddress: `0x${string}`;
   usdcName?: string;
   usdcVersion?: string;

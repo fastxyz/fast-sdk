@@ -121,7 +121,7 @@ const result = await provider.submitTransaction(envelope);
 
 ### 5. Build Other Transaction Types
 
-`TransactionBuilder` supports 10 operation types via fluent chaining. Single operations produce a direct claim; multiple operations are automatically batched.
+`TransactionBuilder` supports 10 builder methods via fluent chaining. Single operations produce a direct claim; multiple operations are automatically batched.
 
 ```ts
 const builder = new TransactionBuilder({ networkId, signer, nonce });
@@ -275,6 +275,6 @@ Error hierarchy: Network → JSON-RPC Protocol → Proxy → Verifier (FastSet �
 ## Development
 
 ```bash
-pnpm build    # Build with tsup
-pnpm test     # Run tests (from repo root: pnpm vitest run)
+pnpm build        # Build this package
+pnpm turbo test   # Run the repo test pipeline
 ```

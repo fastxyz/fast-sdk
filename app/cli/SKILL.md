@@ -11,6 +11,52 @@ metadata:
 
 # fast CLI
 
+## Agent Bootstrap
+
+**Run these steps before executing any `fast` command.**
+
+### 1. Verify Node.js ≥ 18
+
+```sh
+node --version
+```
+
+If the version is below 18, stop and ask the user to upgrade Node.js.
+
+### 2. Check the latest published version
+
+```sh
+npm show @fastxyz/cli version
+```
+
+Save the output — this is `LATEST_VERSION`.
+
+### 3. Check whether `fast` is installed and up to date
+
+```sh
+fast --version 2>/dev/null || echo "not installed"
+```
+
+- **Not installed** → go to step 4.
+- **Installed but outdated** (version < `LATEST_VERSION`) → go to step 4.
+- **Installed and up to date** → skip to step 5.
+
+### 4. Install / upgrade
+
+```sh
+npm install -g @fastxyz/cli@latest
+```
+
+### 5. Confirm the binary works
+
+```sh
+fast --version
+```
+
+The output should match `LATEST_VERSION`. If it doesn't, diagnose the `PATH` or try `npx @fastxyz/cli@latest --version`.
+
+---
+
 ## Installation
 
 ```sh

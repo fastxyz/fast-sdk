@@ -1,13 +1,14 @@
 {
   "name": "@fastxyz/cli",
   "description": "Fast CLI - Account, network, and transaction management",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "bin": {
     "fast": "./dist/main.js"
   },
   "type": "module",
   "files": [
     "dist",
+    "drizzle",
     "README.md"
   ],
   "scripts": {

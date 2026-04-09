@@ -133,7 +133,9 @@ builder.addBurn({ tokenId, amount });
 builder.addStateInitialization({ key, initialState });
 builder.addStateUpdate({ key, previousState, nextState, computeClaimTxHash, computeClaimTxTimestamp });
 builder.addStateReset({ key, resetState });
+// verifierCommittee = addresses of verifiers, verifierQuorum = minimum signatures needed, claimData = the claim being verified
 builder.addExternalClaim({ claim: { verifierCommittee, verifierQuorum, claimData }, signatures });
+// Informs the network that the account is leaving the verifier set.
 builder.addLeaveCommittee();
 
 // Batch multiple operations

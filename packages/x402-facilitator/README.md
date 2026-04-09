@@ -131,17 +131,18 @@ if (settlement.success) {
 }
 ```
 
-### `getNetworkId(networkName)`
+### `getNetworkId(network)`
 
 Derive the chain ID number (e.g. `421614` for Arbitrum Sepolia) from a network name.
 
 > Note: The `getNetworkId` function returns a **chain ID number** (e.g., `421614` for Arbitrum Sepolia), not the network ID string. The example below shows how to map a network name to a chain ID using the `evmChains` config.
 
 ```typescript
+// import { arbitrumSepolia } from 'viem/chains'; // Uncomment if not already imported
 import { getNetworkId } from '@fastxyz/x402-facilitator';
 
 // The function returns a chain ID number (requires evmChains config to map network names to IDs)
-// Without config, unknown networks return 0; with config, returns the viem Chain id
+// Without config, unknown networks return 0; with config, returns the chain ID number (from viem's chain definitions)
 const id = getNetworkId('arbitrum-sepolia', {
   evmChains: {
     'arbitrum-sepolia': { chain: arbitrumSepolia, rpcUrl: '...', usdcAddress: '0x...' },

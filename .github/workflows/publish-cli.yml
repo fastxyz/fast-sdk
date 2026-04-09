@@ -41,4 +41,5 @@ jobs:
 
       - name: Dry run (pack only)
         if: ${{ inputs.dry_run }}
-        run: pnpm --filter @fastxyz/cli pack --dry-run
+        working-directory: app/cli
+        run: pnpm pack

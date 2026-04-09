@@ -56,27 +56,6 @@ importers:
       '@effect/typeclass':
         specifier: ^0.40.0
         version: 0.40.0(effect@3.21.0)
-      '@fastxyz/allset-sdk':
-        specifier: workspace:*
-        version: link:../../packages/allset-sdk
-      '@fastxyz/schema':
-        specifier: workspace:*
-        version: link:../../packages/fast-schema
-      '@fastxyz/sdk':
-        specifier: workspace:*
-        version: link:../../packages/fast-sdk
-      '@fastxyz/x402-client':
-        specifier: workspace:*
-        version: link:../../packages/x402-client
-      '@noble/ciphers':
-        specifier: ^1.3.0
-        version: 1.3.0
-      '@noble/curves':
-        specifier: ^2.0.1
-        version: 2.0.1
-      '@noble/hashes':
-        specifier: ^2.0.1
-        version: 2.0.1
       '@optique/core':
         specifier: ^0.10.7
         version: 0.10.7
@@ -99,6 +78,27 @@ importers:
         specifier: ^11.1.0
         version: 11.1.0
     devDependencies:
+      '@fastxyz/allset-sdk':
+        specifier: workspace:*
+        version: link:../../packages/allset-sdk
+      '@fastxyz/schema':
+        specifier: workspace:*
+        version: link:../../packages/fast-schema
+      '@fastxyz/sdk':
+        specifier: workspace:*
+        version: link:../../packages/fast-sdk
+      '@fastxyz/x402-client':
+        specifier: workspace:*
+        version: link:../../packages/x402-client
+      '@noble/ciphers':
+        specifier: ^1.3.0
+        version: 1.3.0
+      '@noble/curves':
+        specifier: ^2.0.1
+        version: 2.0.1
+      '@noble/hashes':
+        specifier: ^2.0.1
+        version: 2.0.1
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13

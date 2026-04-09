@@ -362,21 +362,24 @@ test('evmSign throws FastError on HTTP error', async () => {
 test('executeDeposit sends approve + deposit transaction for ERC-20', async () => {
   let approveCallCount = 0;
   let sentTx: { to: string; data: string; value: string } | undefined;
+  let approved = false;
 
   const mockClients = {
     walletClient: {
+      account: { address: EVM_ADDRESS },
       sendTransaction: async (tx: { to: string; data: string; value: bigint }) => {
         sentTx = { to: tx.to, data: tx.data, value: tx.value.toString() };
         return TX_HASH;
       },
       writeContract: async () => {
         approveCallCount++;
+        approved = true;
         return TX_HASH;
       },
     },
     publicClient: {
       waitForTransactionReceipt: async () => ({ status: 'success' }),
-      readContract: async () => 0n, // allowance = 0 → triggers approve
+      readContract: async () => (approved ? 1_000_000n : 0n),
     },
   };
 
@@ -385,7 +388,6 @@ test('executeDeposit sends approve + deposit transaction for ERC-20', async () =
     bridgeContract: BRIDGE_CONTRACT,
     tokenAddress: TOKEN_ADDRESS,
     amount: '1000000',
-    senderAddress: EVM_ADDRESS,
     receiverAddress: FAST_ADDRESS,
     evmClients: mockClients as any,
   });
@@ -402,6 +404,7 @@ test('executeDeposit always approves before depositing', async () => {
 
   const mockClients = {
     walletClient: {
+      account: { address: EVM_ADDRESS },
       sendTransaction: async () => TX_HASH,
       writeContract: async () => {
         approveCallCount++;
@@ -419,7 +422,6 @@ test('executeDeposit always approves before depositing', async () => {
     bridgeContract: BRIDGE_CONTRACT,
     tokenAddress: TOKEN_ADDRESS,
     amount: '1000000',
-    senderAddress: EVM_ADDRESS,
     receiverAddress: FAST_ADDRESS,
     evmClients: mockClients as any,
   });
@@ -430,6 +432,7 @@ test('executeDeposit always approves before depositing', async () => {
 test('executeDeposit throws FastError on reverted transaction', async () => {
   const mockClients = {
     walletClient: {
+      account: { address: EVM_ADDRESS },
       sendTransaction: async () => TX_HASH,
       writeContract: async () => TX_HASH,
     },
@@ -446,7 +449,6 @@ test('executeDeposit throws FastError on reverted transaction', async () => {
         bridgeContract: BRIDGE_CONTRACT,
         tokenAddress: TOKEN_ADDRESS,
         amount: '1000000',
-        senderAddress: EVM_ADDRESS,
         receiverAddress: FAST_ADDRESS,
         evmClients: mockClients as any,
       }),
@@ -474,7 +476,6 @@ test('executeDeposit throws FastError on invalid receiver address', async () => 
         bridgeContract: BRIDGE_CONTRACT,
         tokenAddress: TOKEN_ADDRESS,
         amount: '1000000',
-        senderAddress: EVM_ADDRESS,
         receiverAddress: 'notavalidaddress',
         evmClients: mockClients as any,
       }),

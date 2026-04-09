@@ -249,7 +249,6 @@ export const fundCrypto: Command<FundCryptoArgs> = {
         tokenAddress: tokenInfo.evmAddress! as `0x${string}`,
         isNative: false,
         amount: amountRaw.toString(),
-        senderAddress: evmAccount.address,
         receiverAddress: accountInfo.fastAddress,
         evmClients,
       });

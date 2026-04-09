@@ -27,8 +27,6 @@ export interface ExecuteDepositParams {
   isNative?: boolean;
   /** Amount in smallest units (e.g., '1000000' for 1 USDC) */
   amount: string;
-  /** Sender EVM address (0x...) */
-  senderAddress: string;
   /** Receiver Fast address (fast1...) */
   receiverAddress: string;
   /** viem clients from createEvmExecutor() */

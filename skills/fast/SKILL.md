@@ -1,5 +1,5 @@
 ---
-name: fast-cli
+name: fast
 description: >
   fast CLI for managing Fast network accounts, sending tokens, funding via bridge or fiat,
   and paying x402-protected APIs. Use when the user wants to run fast commands, create accounts,

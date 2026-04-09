@@ -6,8 +6,13 @@
     "fast": "./dist/main.js"
   },
   "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
+    "prepack": "tsup",
     "dev": "tsup --watch"
   },
   "dependencies": {

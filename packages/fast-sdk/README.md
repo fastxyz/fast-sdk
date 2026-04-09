@@ -81,9 +81,8 @@ const account = await provider.getAccountInfo({
   address: pubKey, // Uint8Array, hex string, or bech32m
 });
 
-console.log('Balance:', account.balance);      // bigint
-console.log('Next nonce:', account.nextNonce); // bigint
-console.log('Tokens:', account.tokenBalance);  // [id, amt][]
+console.log('Balances:', account.balances); // [tokenId, amount][] pairs
+console.log('Next nonce:', account.nextNonce);
 ```
 
 Optional filters (all default to `null` if omitted):
@@ -216,7 +215,7 @@ Typed JSON-RPC client for the Fast proxy API.
 
 ### TransactionBuilder
 
-Fluent builder for all 12 operation types. Single operations produce a direct
+Fluent builder for all 10 operation types. Single operations produce a direct
 claim type; multiple operations are automatically batched.
 
 ```ts
@@ -249,7 +248,7 @@ fromFastAddress('fast1...'); // Uint8Array
 import { encode, hash, hashHex, getTokenId } from '@fastxyz/sdk';
 
 const bytes = await encode(bcsSchema, data);
-const h = await hashHex(bcsSchema, data); // "0x..." keccak-256
+const h = await hashHex(bcsSchema, data); // "0x..." hash output
 const tokenId = getTokenId(sender, nonce, 0n); // deterministic token ID
 ```
 
@@ -269,7 +268,7 @@ try {
 }
 ```
 
-Error hierarchy: Network → JSON-RPC Protocol → Proxy → Validator (FastSet).
+Error hierarchy: Network → JSON-RPC Protocol → Proxy → Verifier (FastSet — the Fast network's signature verification layer).
 
 ## Development
 

@@ -48,7 +48,7 @@ const result = await x402Pay({
     type: 'fast',
     privateKey: '0x...',
     address: 'fast1...',
-    rpcUrl: 'https://rpc.testnet.fast.co',
+    rpcUrl: 'https://api.fast.xyz/proxy',
   },
 });
 
@@ -82,19 +82,22 @@ const result = await x402Pay({
 When both wallet types and a `bridgeConfig` are provided, the client will automatically bridge Fast USDC to EVM if the EVM wallet has insufficient balance.
 
 ```typescript
+```typescript
+interface BridgeConfig {
+  rpcUrl: string;           // Fast network RPC URL
+  fastBridgeAddress: string; // Fast address of the AllSet bridge contract
+  relayerUrl: string;        // AllSet relayer URL
+  crossSignUrl: string;      // AllSet cross-sign service URL
+  tokenEvmAddress: string;   // USDC address on the EVM side (e.g., '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d')
+  tokenFastTokenId: string;  // USDC token ID on the Fast network (hex, no 0x)
+  networkId: string;         // Fast network ID (e.g., 'fast:testnet')
+}
+
 const result = await x402Pay({
   url: 'https://api.example.com/premium',
   wallet: [fastWallet, evmWallet],
   evmNetworks: { ... },
-  bridgeConfig: {
-    rpcUrl: 'https://rpc.testnet.fast.co',
-    fastBridgeAddress: '0x...',
-    relayerUrl: 'https://relayer.example.com',
-    crossSignUrl: 'https://crosssign.example.com',
-    tokenEvmAddress: '0x...',
-    tokenFastTokenId: '0x...',
-    networkId: 'fast:testnet',
-  },
+  bridgeConfig: { ... },
 });
 ```
 

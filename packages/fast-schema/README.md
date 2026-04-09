@@ -1,6 +1,6 @@
 # @fastxyz/fast-schema
 
-Effect Schema definitions for the Fast network protocol.
+Effect schema definitions for the Fast network protocol.
 Provides type-safe, bidirectional codecs for BCS serialization,
 JSON-RPC, and REST wire formats.
 

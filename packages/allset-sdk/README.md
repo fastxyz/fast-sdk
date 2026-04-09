@@ -158,12 +158,14 @@ Supported chain IDs: `1` (Ethereum), `11155111` (Sepolia), `421614` (Arbitrum Se
 
 Executes an EVM → Fast deposit. For ERC-20 tokens, automatically submits an `approve` transaction if the current allowance is insufficient.
 
+> **Note:** `isNative` is only for native EVM assets (ETH). All ERC-20 tokens (including USDC, USDT, etc.) use `tokenAddress` and `isNative: false` (the default). Do not set `isNative: true` for ERC-20 tokens.
+
 ```ts
 interface ExecuteDepositParams {
   chainId: number;
   bridgeContract: `0x${string}`;
-  tokenAddress: `0x${string}`;
-  isNative?: boolean; // true for ETH deposits
+  tokenAddress: `0x${string}`; // ERC-20 contract address (or zero address for native ETH when isNative=true)
+  isNative?: boolean; // true only for native ETH deposits; false (default) for all ERC-20 tokens
   amount: string; // smallest units as string
   senderAddress: string;
   receiverAddress: string; // Fast bech32m address (fast1...)

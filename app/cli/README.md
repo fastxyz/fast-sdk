@@ -119,7 +119,7 @@ fast send fast1recipient... 1000 --token 0x11...
 
 **Positional arguments:**
 - `<address>` — Recipient Fast address (bech32m format)
-- `<amount>` — Amount in smallest token units (not human-readable)
+- `<amount>` — Amount in smallest token units (e.g., for USDC with 6 decimals, `1000000` = 1 USDC)
 
 **Options:**
 - `--from-chain <chain>` — Source chain (for cross-chain sends)
@@ -148,7 +148,7 @@ fast info balance --address fast1... --token 0x11...
 
 ### `fast info status`
 
-Check the current network status — block height, epoch info, and validator state.
+Check the current network status — block height, epoch info, and network verification state (which verifiers are active and their current status).
 
 ```bash
 fast info status
@@ -200,7 +200,7 @@ fast info bridge-tokens
 
 ### `fast fund fiat`
 
-Open an interactive fiat on-ramp (via MoonPay) to fund your Fast account using USD or EUR.
+Open an interactive fiat on-ramp (via MoonPay) to fund your Fast account using USD or EUR. MoonPay requires identity verification (KYC) before purchasing.
 
 ```bash
 fast fund fiat --network mainnet
@@ -286,6 +286,15 @@ fast network add my-custom-net --config ./network-config.json
 
 **Options:**
 - `--config <path>` — Path to a JSON file with the network configuration (required)
+
+**Example JSON config (`network-config.json`):**
+```json
+{
+  "rpcUrl": "https://api.fast.xyz/proxy",
+  "networkId": "fast:testnet",
+  "chainType": "fast"
+}
+```
 
 ---
 

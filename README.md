@@ -6,7 +6,7 @@ Official TypeScript SDK and CLI for the [Fast network](https://fast.xyz).
 
 Fast is a next-generation payment network built for:
 
-- **AI agents** — autonomous transactions, micropayments, and on-chain operations
+- **AI agents** — autonomous transactions, micropayments, and network operations
 - **High-frequency applications** — sub-second finality, super high TPS (more than 1k)
 - **Cross-chain settlement** — bridge tokens between Fast and EVM chains via AllSet
 - **HTTP-native payments** — pay for API resources with the x402 protocol
@@ -28,7 +28,7 @@ The monorepo contains multiple packages:
 | [@fastxyz/allset-sdk](packages/allset-sdk/) | AllSet SDK — bridge tokens between Fast and EVM |
 | [@fastxyz/x402-client](packages/x402-client/) | Pay for x402-protected HTTP resources |
 | [@fastxyz/x402-server](packages/x402-server/) | Protect API routes with x402 payments |
-| [@fastxyz/x402-facilitator](packages/x402-facilitator/) | Verify and settle x402 payments on-chain |
+| [@fastxyz/x402-facilitator](packages/x402-facilitator/) | Verify and settle x402 payments on the network |
 | [@fastxyz/fast-schema](packages/fast-schema/) | BCS/RPC/REST codec schemas |
 | [@fastxyz/x402-types](packages/x402-types/) | Shared x402 protocol types |
 

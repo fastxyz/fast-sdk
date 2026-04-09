@@ -79,9 +79,23 @@ app.use(createFacilitatorRoutes(config));
 
 Create a standalone Express app with facilitator routes.
 
+```typescript
+import { createFacilitatorServer } from '@fastxyz/x402-facilitator';
+
+const app = createFacilitatorServer({ evmPrivateKey: '0x...', evmChains: { ... } });
+app.listen(4402);
+```
+
 ### `createFacilitatorRoutes(config)`
 
 Create an Express Router with facilitator routes. Mount into an existing app.
+
+```typescript
+import { createFacilitatorRoutes } from '@fastxyz/x402-facilitator';
+
+const router = createFacilitatorRoutes(config);
+app.use('/facilitator', router);
+```
 
 **Routes:**
 
@@ -91,11 +105,42 @@ Create an Express Router with facilitator routes. Mount into an existing app.
 
 ### `verify(payload, requirement, config)`
 
-Verify a payment payload. Returns `VerifyResponse`.
+Verify a payment payload against a payment requirement. Checks signature validity on-chain (EIP-3009 for EVM, Ed25519 for Fast). Returns a `VerifyResponse` indicating whether the payment proof is valid and covers the required amount.
+
+```typescript
+import { verify } from '@fastxyz/x402-facilitator';
+
+const result = await verify(payload, requirement, config);
+if (result.valid) {
+  console.log('Payment verified:', result.details);
+} else {
+  console.log('Verification failed:', result.error);
+}
+```
 
 ### `settle(payload, requirement, config)`
 
-Settle a verified payment on-chain. Returns `SettleResponse`.
+Settle a previously verified payment on-chain. For EVM payments, calls `transferWithAuthorization` to actually move the USDC. For Fast payments, records the settlement on-chain. Returns a `SettleResponse`.
+
+```typescript
+import { settle } from '@fastxyz/x402-facilitator';
+
+const settlement = await settle(payload, requirement, config);
+if (settlement.success) {
+  console.log('Payment settled:', settlement.txHash);
+}
+```
+
+### `getNetworkId(networkName)`
+
+Derive the canonical network ID string (e.g. `'fast:testnet'`) from a network name.
+
+```typescript
+import { getNetworkId } from '@fastxyz/x402-facilitator';
+
+const id = getNetworkId('arbitrum-sepolia');
+// → 'evm:421614'
+```
 
 ### `FacilitatorConfig`
 

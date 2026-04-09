@@ -121,9 +121,66 @@ Main entry point. Fetches the URL, and if a 402 is returned, handles payment aut
 
 Manually bridge Fast USDC to EVM USDC.
 
+```typescript
+import { bridgeFastusdcToUsdc } from '@fastxyz/x402-client';
+
+const result = await bridgeFastusdcToUsdc(
+  fastWallet,
+  evmWallet,
+  '1000000', // amount in USDC smallest units
+  bridgeConfig,
+);
+console.log(result.bridgeTxHash); // Bridge transaction hash
+```
+
 ### `getFastBalance(wallet: FastWallet): Promise<bigint>`
 
 Get USDC balance on the Fast network.
+
+```typescript
+import { getFastBalance } from '@fastxyz/x402-client';
+
+const balance = await getFastBalance(fastWallet);
+console.log('Fast USDC balance:', balance); // bigint (smallest units)
+```
+
+### Low-Level Utilities
+
+#### `parse402Response(response: Response): Promise<PaymentRequired>`
+
+Parse a raw HTTP 402 response into a typed `PaymentRequired` object. Throws if the response status is not 402.
+
+```typescript
+import { parse402Response } from '@fastxyz/x402-client';
+
+const paymentReq = await parse402Response(response);
+console.log(paymentReq.accepts); // Array of accepted payment methods
+```
+
+#### `buildPaymentHeader(payload: unknown): string`
+
+Build a base64-encoded X-PAYMENT header value from a payment payload object. Useful for manual payment flows where you construct the payload yourself.
+
+```typescript
+import { buildPaymentHeader } from '@fastxyz/x402-client';
+
+const header = buildPaymentHeader({
+  x402Version: 1,
+  scheme: 'exact',
+  // ...payment payload fields
+});
+// Use as: headers['X-PAYMENT'] = header
+```
+
+#### `parsePaymentHeader(header: string): unknown`
+
+Parse a base64-encoded X-PAYMENT header string back into a decoded object. Inverse of `buildPaymentHeader`.
+
+```typescript
+import { parsePaymentHeader } from '@fastxyz/x402-client';
+
+const payload = parsePaymentHeader('eyJ4NDAyVmVyc2lvbiI6MS...');
+```
 
 ## Common Pitfalls
 

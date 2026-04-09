@@ -270,7 +270,7 @@ fastAddressToBytes(address: string): Uint8Array   // bech32m → Uint8Array
 ### Error Handling
 
 ```ts
-import { FastError } from '@fastxyz/allset-sdk';
+import { FastError, type FastErrorCode } from '@fastxyz/allset-sdk';
 
 try {
   await executeWithdraw({ ... });
@@ -283,6 +283,71 @@ try {
 }
 ```
 
+### Claims Encoding (Low-Level)
+
+`claims.ts` provides standalone functions for encoding AllSet bridge claims. These are used internally by `executeIntent()` but can also be used directly for custom flows:
+
+```ts
+import {
+  encodeTransferClaim,
+  hashTransferClaim,
+  encodeIntentClaim,
+  buildIntentClaimBytes,
+  extractClaimId,
+  type TransferClaimParams,
+  type IntentClaimParams,
+} from '@fastxyz/allset-sdk';
+
+// Encode a transfer claim for cross-signing
+const claimBytes = encodeTransferClaim({
+  fastAddress: 'fast1sender...',
+  tokenFastTokenId: 'abc123...',
+  amount: '1000000',
+  recipientEvmAddress: '0xReceiver...',
+  bridgeAddress: 'fast1bridge...',
+  nonce: 0n,
+  timestamp: BigInt(Math.floor(Date.now() / 1000)),
+});
+
+// Hash a transfer claim
+const claimHash = hashTransferClaim({ ... });
+
+// Encode an intent claim
+const intentBytes = encodeIntentClaim({
+  externalAddress: '0xTarget...',
+  tokenEvmAddress: '0xUSDC...',
+  amount: '1000000',
+  fastAddress: 'fast1sender...',
+  transferClaimId: '0xabc...',
+  externalCallDeadline: BigInt(Math.floor(Date.now() / 1000) + 3600),
+});
+
+// Extract the claim ID from cross-sign transaction output
+const claimId = extractClaimId(crossSignTransaction); // Uint8Array
+```
+
+### Relay Submission (Low-Level)
+
+`relay.ts` provides a standalone function for submitting to the AllSet relayer. Use this for step-by-step flows, retry logic, or when you want to separate relay submission from the rest of the bridge flow:
+
+```ts
+import { relayExecute, type RelayParams } from '@fastxyz/allset-sdk';
+
+const result = await relayExecute({
+  relayerUrl: 'https://relayer.allset...',
+  encodedTransferClaim: [...],   // from evmSign result
+  transferProof: '0x...',         // EVM signature over the transfer claim
+  transferFastTxId: '0x...',      // Fast network tx ID for the transfer
+  fastsetAddress: 'fast1bridge...',
+  externalAddress: '0xTarget...',
+  encodedIntentClaim: [...],      // from evmSign result
+  intentProof: '0x...',            // EVM signature over the intent claim
+  intentClaimId: '0xabc...',
+});
+
+console.log(result.relayTxHash); // EVM transaction hash from the relayer
+```
+
 ---
 
 ## Types
@@ -292,6 +357,48 @@ interface BridgeResult {
   txHash: string;
   orderId: string;
   estimatedTime?: string;
+}
+
+type FastErrorCode = 'TX_FAILED' | 'INVALID_ADDRESS' | 'INVALID_PARAMS' | 'CROSS_SIGN_FAILED' | 'RELAY_FAILED';
+
+class FastError extends Error {
+  readonly code: FastErrorCode;
+  readonly context?: Record<string, unknown>;
+}
+
+interface TransferClaimParams {
+  fastAddress: string;
+  tokenFastTokenId: string;
+  amount: string;
+  recipientEvmAddress: string;
+  bridgeAddress: string;
+  nonce: bigint;
+  timestamp: bigint;
+}
+
+interface IntentClaimParams {
+  externalAddress: string;
+  tokenEvmAddress: string;
+  amount: string;
+  fastAddress: string;
+  transferClaimId: string;
+  externalCallDeadline: bigint;
+}
+
+interface RelayParams {
+  relayerUrl: string;
+  encodedTransferClaim: number[];
+  transferProof: string;
+  transferFastTxId: string;
+  fastsetAddress: string;
+  externalAddress: string;
+  encodedIntentClaim: number[];
+  intentProof: string;
+  intentClaimId: string;
+}
+
+interface RelayResult {
+  relayTxHash: string;
 }
 ```
 

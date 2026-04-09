@@ -7,7 +7,7 @@ Official TypeScript SDK and CLI for the [Fast network](https://fast.xyz).
 Fast is a next-generation payment network built for:
 
 - **AI agents** — autonomous transactions, micropayments, and network operations
-- **High-frequency applications** — sub-second finality, super high TPS (more than 1k)
+- **High-frequency applications** — sub-second finality, super high TPS (more than 100k)
 - **Cross-chain settlement** — bridge tokens between Fast and EVM chains via AllSet
 - **HTTP-native payments** — pay for API resources with the x402 protocol
 

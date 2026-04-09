@@ -47,11 +47,11 @@ fast pay https://api.example.com/resource
 Install the Copilot CLI skill to let AI agents operate the `fast` CLI on your behalf:
 
 ```bash
-copilot plugin install fastxyz/fast-sdk:skills
+npx skills add https://github.com/fastxyz/fast-sdk/tree/main/skills
 ```
 
 The skill teaches the agent how to bootstrap, install, and use every `fast` command — including bridging flows, x402 payments, and JSON-mode scripting.
 
 ## Documentation
 
-Full command reference and workflows: [`skills/fast/SKILL.md`](../../skills/fast/SKILL.md)
+Full command reference and workflows: [`skills/fast/SKILL.md`](https://github.com/fastxyz/fast-sdk/tree/main/skills/fast/SKILL.md)

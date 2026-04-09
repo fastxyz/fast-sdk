@@ -82,7 +82,6 @@ const result = await x402Pay({
 When both wallet types and a `bridgeConfig` are provided, the client will automatically bridge Fast USDC to EVM if the EVM wallet has insufficient balance.
 
 ```typescript
-```typescript
 interface BridgeConfig {
   rpcUrl: string;           // Fast network RPC URL
   fastBridgeAddress: string; // Fast address of the AllSet bridge contract

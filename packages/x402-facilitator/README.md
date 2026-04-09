@@ -12,7 +12,7 @@ metadata:
 
 # @fastxyz/x402-facilitator
 
-On-chain payment verification and settlement for the x402 HTTP Payment Protocol.
+Payment verification and settlement for the x402 HTTP Payment Protocol.
 
 Supports:
 
@@ -54,7 +54,7 @@ const app = createFacilitatorServer({
   fastNetworks: {
     'fast-testnet': {
       rpcUrl: 'https://api.fast.xyz/proxy',
-      verifierKeys: ['abc123...', 'def456...'], // Ed25519 public keys of Fast network verifiers
+      committeePublicKeys: ['abc123...', 'def456...'], // Ed25519 public keys used to verify Fast network transactions
     },
   },
 });
@@ -133,7 +133,7 @@ if (settlement.success) {
 
 ### `getNetworkId(networkName)`
 
-Derive the canonical network ID string (e.g. `'fast:testnet'`) from a network name.
+Derive the chain ID number (e.g. `421614` for Arbitrum Sepolia) from a network name.
 
 > Note: The `getNetworkId` function returns a **chain ID number** (e.g., `421614` for Arbitrum Sepolia), not the network ID string. The example below shows how to map a network name to a chain ID using the `evmChains` config.
 
@@ -170,14 +170,14 @@ interface FacilitatorEvmChainConfig {
 
 interface FacilitatorFastNetworkConfig {
   rpcUrl: string;
-  verifierKeys: string[]; // Ed25519 public keys of the Fast network verifiers (committee)
+  committeePublicKeys: string[]; // Ed25519 public keys used to verify Fast network transactions
 }
 ```
 
 ## Common Pitfalls
 
 1. **DO NOT omit `evmPrivateKey`** when settling EVM payments — the facilitator needs a key to call `transferWithAuthorization`.
-2. **DO NOT omit `verifierKeys`** for Fast networks — required for Ed25519 signature verification. These are the Ed25519 public keys of the Fast network verifiers (the committee).
+2. **DO NOT omit `committeePublicKeys`** for Fast networks — required for Ed25519 signature verification. These are the Ed25519 public keys used to verify Fast network transactions.
 3. **DO NOT pass chain IDs as strings** — `evmChains` values require a viem `Chain` object (import from `viem/chains`).
 4. **DO NOT assume built-in networks** — all networks must be explicitly configured in `FacilitatorConfig`.
 

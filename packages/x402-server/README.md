@@ -79,11 +79,13 @@ app.use(
       '/basic': {
         price: '$0.01',
         network: 'arbitrum-sepolia',
+        // NOTE: In production, use environment variables or a config service for asset addresses
         networkConfig: { asset: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', decimals: 6 },
       },
       '/premium': {
         price: '$0.10',
         network: 'arbitrum-sepolia',
+        // NOTE: In production, use environment variables or a config service for asset addresses
         networkConfig: { asset: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', decimals: 6 },
         config: { description: 'Premium tier content' },
       },

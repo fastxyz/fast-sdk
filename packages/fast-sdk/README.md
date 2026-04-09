@@ -81,7 +81,8 @@ const account = await provider.getAccountInfo({
   address: pubKey, // Uint8Array, hex string, or bech32m
 });
 
-console.log('Balances:', account.balances); // [tokenId, amount][] pairs
+console.log('Native balance:', account.balance);
+console.log('Token balances:', account.tokenBalance); // [tokenId, amount][] pairs
 console.log('Next nonce:', account.nextNonce);
 ```
 

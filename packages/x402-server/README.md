@@ -155,6 +155,7 @@ interface NetworkConfig {
   decimals: number; // Token decimals (typically 6)
   extra?: Record<string, unknown>;
 }
+```
 
 ### `FacilitatorConfig`
 

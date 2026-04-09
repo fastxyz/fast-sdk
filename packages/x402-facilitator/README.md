@@ -90,9 +90,12 @@ for (const route of routes) {
 Create Express-compatible middleware that serves the facilitator endpoints.
 
 ```typescript
+import express from 'express';
 import { createFacilitatorServer } from '@fastxyz/x402-facilitator';
 
-const app = createFacilitatorServer({ evmPrivateKey: '0x...', evmChains: { ... } });
+const app = express();
+app.use(express.json());
+app.use(createFacilitatorServer({ evmPrivateKey: '0x...', evmChains: { ... } }));
 app.listen(4402);
 ```
 
@@ -103,8 +106,10 @@ Create route descriptors (`method`, `path`, `handler`) that you can attach to an
 ```typescript
 import { createFacilitatorRoutes } from '@fastxyz/x402-facilitator';
 
-const router = createFacilitatorRoutes(config);
-app.use('/facilitator', router);
+const routes = createFacilitatorRoutes(config);
+for (const route of routes) {
+  app[route.method](`/facilitator${route.path}`, route.handler);
+}
 ```
 
 **Routes:**
@@ -121,10 +126,10 @@ Verify a payment payload against a payment requirement. Checks signature validit
 import { verify } from '@fastxyz/x402-facilitator';
 
 const result = await verify(payload, requirement, config);
-if (result.valid) {
-  console.log('Payment verified:', result.details);
+if (result.isValid) {
+  console.log('Payment verified for payer:', result.payer);
 } else {
-  console.log('Verification failed:', result.error);
+  console.log('Verification failed:', result.invalidReason);
 }
 ```
 

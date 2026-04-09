@@ -4,9 +4,6 @@ description: >
   fast CLI for managing Fast network accounts, sending tokens, funding via bridge or fiat,
   and paying x402-protected APIs. Use when the user wants to run fast commands, create accounts,
   check balances, send USDC, or interact with the Fast network from the terminal.
-metadata:
-  short-description: Fast network CLI — accounts, transfers, bridge, x402 payments.
-  compatibility: Node.js 18+.
 ---
 
 # fast CLI
@@ -15,63 +12,29 @@ metadata:
 
 **Run these steps before executing any `fast` command.**
 
-### 1. Verify Node.js ≥ 18
-
 ```sh
-node --version
+# 1. Require Node.js ≥ 18
+node --version   # must be v18 or higher; stop and inform the user if not
+
+# 2. Check the latest version and what's installed
+LATEST=$(npm show @fastxyz/cli version)
+INSTALLED=$(fast --version 2>/dev/null || echo "none")
+
+# 3. Install or upgrade if needed
+if [ "$INSTALLED" != "$LATEST" ]; then
+  npm install -g @fastxyz/cli@latest
+fi
+
+# 4. Confirm
+fast --version   # should print $LATEST
 ```
 
-If the version is below 18, stop and ask the user to upgrade Node.js.
-
-### 2. Check the latest published version
+If `fast` is still not found after install, diagnose `PATH`:
 
 ```sh
-npm show @fastxyz/cli version
+npm bin -g        # ensure this directory is on PATH
+npx @fastxyz/cli@latest --version   # fallback
 ```
-
-Save the output — this is `LATEST_VERSION`.
-
-### 3. Check whether `fast` is installed and up to date
-
-```sh
-fast --version 2>/dev/null || echo "not installed"
-```
-
-- **Not installed** → go to step 4.
-- **Installed but outdated** (version < `LATEST_VERSION`) → go to step 4.
-- **Installed and up to date** → skip to step 5.
-
-### 4. Install / upgrade
-
-```sh
-npm install -g @fastxyz/cli@latest
-```
-
-### 5. Confirm the binary works
-
-```sh
-fast --version
-```
-
-The output should match `LATEST_VERSION`. If it doesn't, diagnose the `PATH` or try `npx @fastxyz/cli@latest --version`.
-
----
-
-## Installation
-
-```sh
-npm install -g @fastxyz/cli
-# or
-pnpm add -g @fastxyz/cli
-```
-
-After installation, the `fast` binary is available globally:
-
-```sh
-fast --help
-```
-
-**Requirements:** Node.js 18+
 
 ---
 
@@ -90,7 +53,7 @@ fast --help
 
 - Programmatic SDK usage → use `@fastxyz/sdk` or `@fastxyz/allset-sdk`
 - Protecting API routes with payments → use `@fastxyz/x402-server`
-- Operations that require custom transaction logic not exposed by the CLI
+- Operations requiring custom transaction logic not exposed by the CLI
 
 ---
 
@@ -169,12 +132,11 @@ fast fund crypto 50 --chain arbitrum-sepolia
 **What happens:**
 
 1. Checks ERC-20 balance on `arbitrum-sepolia` for the account's EVM address.
-2. If sufficient: executes bridge deposit automatically (no extra steps needed).
+2. If sufficient: executes bridge deposit automatically.
 3. If insufficient: prints the EVM address and shortfall, exits with code 4
-   (`FUNDING_REQUIRED`). Send tokens to the printed EVM address first, then re-run.
+   (`FUNDING_REQUIRED`). Send tokens to that address first, then re-run.
 
-> The EVM address comes from the current account's key. Find it with
-> `fast account list`. You must hold tokens at that address on the specified chain.
+> Find your EVM address with `fast account list`.
 
 #### Gasless variant with EIP-7702 (no ETH needed)
 
@@ -182,7 +144,8 @@ fast fund crypto 50 --chain arbitrum-sepolia
 fast fund crypto 50 --chain base --eip-7702
 ```
 
-Gas is paid in USDC instead of ETH. Approve + deposit are batched into a single UserOperation via the AllSet Portal and Pimlico.
+Gas is paid in USDC instead of ETH. Approve + deposit are batched into a single
+UserOperation via the AllSet Portal and Pimlico.
 
 ### 5. Bridge USDC from Fast → EVM
 
@@ -196,8 +159,6 @@ fast send 0xYourEvmAddress 25 --to-chain arbitrum-sepolia
 fast fund fiat --network mainnet
 # → prints an on-ramp URL
 ```
-
-`fast fund fiat` only works on `mainnet`. On testnet it exits with an error.
 
 ### 7. Pay an x402-protected URL
 
@@ -224,8 +185,6 @@ When depositing via a bridge UI or another wallet, use the EVM address from
 
 ### `fast fund crypto` vs. `fast send --from-chain`
 
-Both bridge tokens from EVM → Fast, but serve different scenarios:
-
 | Command | Use when |
 |---|---|
 | `fast fund crypto <amount> --chain <chain>` | Top up your own Fast account from your own EVM balance |
@@ -245,23 +204,17 @@ On mainnet, only `USDC` is valid.
 | Fast → EVM | `fast send <0x-address> <amount> --to-chain <chain>` |
 | EVM → EVM | Not supported (`NOT_IMPLEMENTED`) |
 
-The address format determines the direction: an `0x` recipient implies Fast→EVM;
-a `fast1` recipient with `--from-chain` implies EVM→Fast.
+The address format determines direction: `0x` recipient → Fast→EVM; `fast1`
+recipient with `--from-chain` → EVM→Fast.
 
 ### `--eip-7702` flag: when to use it
 
-Use `--eip-7702` with EVM→Fast commands when the EVM account has no ETH — gas is deducted in USDC instead. Ignored for Fast→Fast or Fast→EVM routes.
-
-### `fast info balance` vs. `fast info bridge-chains`
-
-- `fast info balance` — your **current token balances** on Fast and EVM chains
-- `fast info bridge-chains` — which **chains the bridge supports**, with contract addresses
+Use with EVM→Fast commands when the EVM account has no ETH — gas is deducted
+in USDC instead. Ignored for Fast→Fast or Fast→EVM routes.
 
 ---
 
 ## Global Flags
-
-Every command accepts:
 
 | Flag | Description |
 |---|---|

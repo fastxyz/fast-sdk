@@ -4,7 +4,7 @@ import { FastError } from '../src/errors.ts';
 import { encodeFunctionData } from 'viem';
 import { Signer, FastProvider } from '@fastxyz/sdk';
 import { Schema } from 'effect';
-import { TransactionCertificateFromRpc } from '@fastxyz/fast-schema';
+import { TransactionCertificateFromRpc } from '@fastxyz/schema';
 
 import {
   // address

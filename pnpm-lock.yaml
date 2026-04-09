@@ -59,7 +59,7 @@ importers:
       '@fastxyz/allset-sdk':
         specifier: workspace:*
         version: link:../../packages/allset-sdk
-      '@fastxyz/fast-schema':
+      '@fastxyz/schema':
         specifier: workspace:*
         version: link:../../packages/fast-schema
       '@fastxyz/sdk':
@@ -114,7 +114,7 @@ importers:
 
   packages/allset-sdk:
     dependencies:
-      '@fastxyz/fast-schema':
+      '@fastxyz/schema':
         specifier: workspace:*
         version: link:../fast-schema
       '@fastxyz/sdk':
@@ -157,7 +157,7 @@ importers:
 
   packages/fast-sdk:
     dependencies:
-      '@fastxyz/fast-schema':
+      '@fastxyz/schema':
         specifier: workspace:*
         version: link:../fast-schema
       '@mysten/bcs':
@@ -188,7 +188,7 @@ importers:
       '@fastxyz/allset-sdk':
         specifier: workspace:*
         version: link:../allset-sdk
-      '@fastxyz/fast-schema':
+      '@fastxyz/schema':
         specifier: workspace:*
         version: link:../fast-schema
       '@fastxyz/sdk':
@@ -213,7 +213,7 @@ importers:
 
   packages/x402-facilitator:
     dependencies:
-      '@fastxyz/fast-schema':
+      '@fastxyz/schema':
         specifier: workspace:*
         version: link:../fast-schema
       '@fastxyz/sdk':

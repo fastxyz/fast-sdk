@@ -7,7 +7,7 @@
 
 import { FastProvider, Signer, TransactionBuilder, hashHex } from '@fastxyz/sdk';
 import { fromHex, fromFastAddress, toFastAddress } from '@fastxyz/sdk';
-import { bcsSchema } from '@fastxyz/fast-schema';
+import { bcsSchema } from '@fastxyz/schema';
 import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResult } from './types.js';
 
 // ─── Cached Providers ─────────────────────────────────────────────────────────

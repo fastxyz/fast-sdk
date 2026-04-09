@@ -11,6 +11,24 @@ metadata:
 
 # fast CLI
 
+## Installation
+
+```sh
+npm install -g @fastxyz/cli
+# or
+pnpm add -g @fastxyz/cli
+```
+
+After installation, the `fast` binary is available globally:
+
+```sh
+fast --help
+```
+
+**Requirements:** Node.js 18+
+
+---
+
 ## Use Cases
 
 **Use when:**

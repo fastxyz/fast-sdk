@@ -1,5 +1,5 @@
-import type { ProxyErrorData } from "@fastxyz/fast-schema";
-import { ProxyErrorData as ProxyErrorDataSchema } from "@fastxyz/fast-schema";
+import type { ProxyErrorData } from "@fastxyz/schema";
+import { ProxyErrorData as ProxyErrorDataSchema } from "@fastxyz/schema";
 import { Schema } from "effect";
 import {
   CertificateTooYoungError,

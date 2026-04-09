@@ -1,4 +1,4 @@
-import { bcsSchema, VersionedTransactionFromBcs } from "@fastxyz/fast-schema";
+import { bcsSchema, VersionedTransactionFromBcs } from "@fastxyz/schema";
 import {
   encodeDepositCalldata,
   fastAddressToBytes32,

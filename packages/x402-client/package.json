@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/x402-client",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Client SDK for the x402 HTTP Payment Protocol — pay for x402-protected content",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@fastxyz/allset-sdk": "workspace:*",
-    "@fastxyz/fast-schema": "workspace:*",
+    "@fastxyz/schema": "workspace:*",
     "@fastxyz/sdk": "workspace:*",
     "@fastxyz/x402-types": "workspace:*",
     "viem": "^2.46.2"

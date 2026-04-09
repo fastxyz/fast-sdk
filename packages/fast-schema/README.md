@@ -1,4 +1,4 @@
-# @fastxyz/fast-schema
+# @fastxyz/schema
 
 Effect Schema definitions for the Fast network protocol.
 Provides type-safe, bidirectional codecs for BCS serialization,
@@ -41,7 +41,7 @@ import {
   TransactionEnvelopeFromRpc,
   type TransactionEnvelope,
   bcsSchema,
-} from "@fastxyz/fast-schema";
+} from "@fastxyz/schema";
 
 // Decode a JSON-RPC response into typed domain objects
 const transfer = Schema.decodeUnknownSync(TokenTransferFromRpc)({

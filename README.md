@@ -11,8 +11,8 @@ Official TypeScript SDK and CLI monorepo for the Fast network.
 | [@fastxyz/x402-client](packages/x402-client/) | Client SDK for paying for x402-protected resources |
 | [@fastxyz/x402-server](packages/x402-server/) | Server SDK for x402 payment verification / middleware |
 | [@fastxyz/x402-facilitator](packages/x402-facilitator/) | Facilitator for verifying and settling x402 payments |
-| [@fastxyz/fast-cli](app/cli/) | CLI for account, network, balance, funding, send, and pay flows |
-| [@fastxyz/fast-schema](packages/fast-schema/) | Shared schema definitions for BCS, RPC, REST codecs, and types |
+| [@fastxyz/cli](app/cli/) | CLI for account, network, balance, funding, send, and pay flows |
+| [@fastxyz/schema](packages/fast-schema/) | Shared schema definitions for BCS, RPC, REST codecs, and types |
 | [@fastxyz/x402-types](packages/x402-types/) | Shared types and utilities for the x402 protocol |
 
 See the package READMEs for package-specific documentation.

@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/x402-facilitator",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Facilitator for the x402 HTTP Payment Protocol — verify and settle payments on-chain",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fastxyz/fast-schema": "workspace:*",
+    "@fastxyz/schema": "workspace:*",
     "@fastxyz/sdk": "workspace:*",
     "@fastxyz/x402-types": "workspace:*",
     "viem": "^2.27.2"

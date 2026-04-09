@@ -36,22 +36,14 @@ The monorepo contains multiple packages:
 
 | Resource | URL |
 | --- | --- |
-| **Documentation** | https://docs.fast.xyz |
-| **GitHub** | https://github.com/fastxyz/fast-sdk |
-| **NPM Org** | https://www.npmjs.com/org/fastxyz |
-
-## Packages
-
-| Package | Version | Description |
-| --- | --- | --- |
-| [@fastxyz/sdk](packages/fast-sdk/) | [![npm](https://img.shields.io/npm/v/@fastxyz/sdk)](https://www.npmjs.com/package/@fastxyz/sdk) | Core Fast SDK — signing, transactions, provider, address conversions |
-| [@fastxyz/allset-sdk](packages/allset-sdk/) | [![npm](https://img.shields.io/npm/v/@fastxyz/allset-sdk)](https://www.npmjs.com/package/@fastxyz/allset-sdk) | Bridge tokens between Fast and EVM chains |
-| [@fastxyz/x402-client](packages/x402-client/) | [![npm](https://img.shields.io/npm/v/@fastxyz/x402-client)](https://www.npmjs.com/package/@fastxyz/x402-client) | Client SDK for x402 HTTP payment protocol |
-| [@fastxyz/x402-server](packages/x402-server/) | [![npm](https://img.shields.io/npm/v/@fastxyz/x402-server)](https://www.npmjs.com/package/@fastxyz/x402-server) | Server middleware for x402 payment verification |
-| [@fastxyz/x402-facilitator](packages/x402-facilitator/) | [![npm](https://img.shields.io/npm/v/@fastxyz/x402-facilitator)](https://www.npmjs.com/package/@fastxyz/x402-facilitator) | Facilitator for x402 payment settlement |
-| [@fastxyz/fast-schema](packages/fast-schema/) | [![npm](https://img.shields.io/npm/v/@fastxyz/fast-schema)](https://www.npmjs.com/package/@fastxyz/fast-schema) | Shared BCS/RPC schema definitions |
-| [@fastxyz/x402-types](packages/x402-types/) | [![npm](https://img.shields.io/npm/v/@fastxyz/x402-types)](https://www.npmjs.com/package/@fastxyz/x402-types) | Shared types for x402 protocol |
-| [@fastxyz/fast-cli](app/cli/) | [![npm](https://img.shields.io/npm/v/@fastxyz/fast-cli)](https://www.npmjs.com/package/@fastxyz/fast-cli) | CLI for accounts, balances, sends, and payments |
+| [@fastxyz/sdk](packages/fast-sdk/) | Core Fast SDK — signing, transactions, provider, conversions |
+| [@fastxyz/allset-sdk](packages/allset-sdk/) | AllSet SDK for bridge flows between Fast and EVM |
+| [@fastxyz/x402-client](packages/x402-client/) | Client SDK for paying for x402-protected resources |
+| [@fastxyz/x402-server](packages/x402-server/) | Server SDK for x402 payment verification / middleware |
+| [@fastxyz/x402-facilitator](packages/x402-facilitator/) | Facilitator for verifying and settling x402 payments |
+| [@fastxyz/cli](app/cli/) | CLI for account, network, balance, funding, send, and pay flows |
+| [@fastxyz/schema](packages/fast-schema/) | Shared schema definitions for BCS, RPC, REST codecs, and types |
+| [@fastxyz/x402-types](packages/x402-types/) | Shared types and utilities for the x402 protocol |
 
 ## Quick Start
 

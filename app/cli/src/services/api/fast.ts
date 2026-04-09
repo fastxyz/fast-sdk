@@ -3,7 +3,7 @@ import type {
   GetTokenInfoParams,
   GetTransactionCertificatesParams,
   TransactionEnvelope,
-} from "@fastxyz/fast-schema";
+} from "@fastxyz/schema";
 import {
   getAccountInfo as sdkGetAccountInfo,
   getTokenInfo as sdkGetTokenInfo,

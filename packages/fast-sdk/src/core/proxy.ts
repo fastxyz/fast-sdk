@@ -16,7 +16,7 @@ import {
   TransactionCertificateFromRpc,
   type TransactionEnvelope,
   TransactionEnvelopeFromRpc,
-} from "@fastxyz/fast-schema";
+} from "@fastxyz/schema";
 import { Effect, Schema } from "effect";
 import { rpcCallEffect } from "./network/rpc";
 

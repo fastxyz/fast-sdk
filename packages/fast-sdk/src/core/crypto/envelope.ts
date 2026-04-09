@@ -4,7 +4,7 @@ import {
   type TransactionEnvelope,
   type VersionedTransaction,
   VersionedTransactionFromBcs,
-} from "@fastxyz/fast-schema";
+} from "@fastxyz/schema";
 import { Effect, Schema } from "effect";
 import { signTypedData } from "./signing";
 

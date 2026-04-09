@@ -186,13 +186,25 @@ const suggest = (token: string, candidates: readonly string[]): string | null =>
   return best;
 };
 
+// Global option flags shared by every command (used to identify unknown flags).
+const GLOBAL_FLAGS = new Set([
+  "--json", "--debug", "--non-interactive", "--network", "--account", "--password",
+  "--help", "--version",
+]);
+
 const SUBCOMMAND_REQUIREMENTS: Record<
   string,
-  { usage: string; check: (positionals: string[], allArgv: string[]) => string | null }
+  {
+    usage: string;
+    /** Valid command-specific option flags (excluding globals). Used to detect unknown flags. */
+    options?: readonly string[];
+    check: (positionals: string[], allArgv: string[]) => string | null;
+  }
 > = {
   // ── Top-level commands with required args ──────────────────────────────────
   send: {
     usage: "fast send <address> <amount> [--from-chain <chain>] [--to-chain <chain>] [--token <token>]",
+    options: ["--from-chain", "--to-chain", "--token", "--eip-7702"],
     check: (positionals) => {
       if (positionals.length < 2) return "Missing required argument: <address>";
       if (positionals.length < 3) return "Missing required argument: <amount>";
@@ -201,6 +213,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   },
   pay: {
     usage: "fast pay <url> [--dry-run] [--method <method>] [--header <key:value>] [--body <data>]",
+    options: ["--dry-run", "--method", "--header", "--body"],
     check: (positionals) => {
       if (positionals.length < 2) return "Missing required argument: <url>";
       return null;
@@ -209,6 +222,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   // ── Subcommands with required args/options ─────────────────────────────────
   "fund crypto": {
     usage: "fast fund crypto <amount> --chain <chain> [--token <token>]",
+    options: ["--chain", "--token", "--eip-7702"],
     check: (positionals, allArgv) => {
       if (positionals.length < 3) return "Missing required argument: <amount>";
       if (!allArgv.some((a) => a === "--chain" || a.startsWith("--chain=")))
@@ -216,8 +230,14 @@ const SUBCOMMAND_REQUIREMENTS: Record<
       return null;
     },
   },
+  "fund fiat": {
+    usage: "fast fund fiat [--address <address>]",
+    options: ["--address"],
+    check: () => null,
+  },
   "network add": {
     usage: "fast network add <name> --config <path>",
+    options: ["--config"],
     check: (positionals, allArgv) => {
       if (positionals.length < 3) return "Missing required argument: <name>";
       if (!allArgv.some((a) => a === "--config" || a.startsWith("--config=")))
@@ -227,6 +247,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   },
   "network set-default": {
     usage: "fast network set-default <name>",
+    options: [],
     check: (positionals) => {
       if (positionals.length < 3) return "Missing required argument: <name>";
       return null;
@@ -234,6 +255,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   },
   "network remove": {
     usage: "fast network remove <name>",
+    options: [],
     check: (positionals) => {
       if (positionals.length < 3) return "Missing required argument: <name>";
       return null;
@@ -241,6 +263,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   },
   "account set-default": {
     usage: "fast account set-default <name>",
+    options: [],
     check: (positionals) => {
       if (positionals.length < 3) return "Missing required argument: <name>";
       return null;
@@ -248,18 +271,59 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   },
   "account delete": {
     usage: "fast account delete <name>",
+    options: [],
     check: (positionals) => {
       if (positionals.length < 3) return "Missing required argument: <name>";
       return null;
     },
   },
+  "account create": {
+    usage: "fast account create [--name <name>]",
+    options: ["--name"],
+    check: () => null,
+  },
+  "account import": {
+    usage: "fast account import [--name <name>] [--private-key <hex>] [--key-file <path>]",
+    options: ["--name", "--private-key", "--key-file"],
+    check: () => null,
+  },
+  "account export": {
+    usage: "fast account export [<name>]",
+    options: [],
+    check: () => null,
+  },
   "info tx": {
-    usage: "fast info tx <hash> [--source <source>]",
+    usage: "fast info tx <hash>",
+    options: [],
     check: (positionals) => {
       if (positionals.length < 3) return "Missing required argument: <hash>";
       return null;
     },
   },
+  "info balance": {
+    usage: "fast info balance [--token <token>]",
+    options: ["--token"],
+    check: () => null,
+  },
+  "info history": {
+    usage: "fast info history [--from <address>] [--to <address>] [--token <token>] [--limit <n>] [--offset <n>]",
+    options: ["--from", "--to", "--token", "--limit", "--offset"],
+    check: () => null,
+  },
+};
+
+/** Find the first unrecognised --flag in argv given a set of known flags. */
+const findUnknownFlag = (
+  allArgv: string[],
+  knownCommandFlags: readonly string[],
+): string | null => {
+  const known = new Set([...GLOBAL_FLAGS, ...knownCommandFlags]);
+  for (const a of allArgv) {
+    if (!a.startsWith("--")) continue;
+    const flag = a.split("=")[0]!;
+    if (!known.has(flag)) return flag;
+  }
+  return null;
 };
 
 const result = parse(parser, argv);
@@ -290,7 +354,12 @@ if (!result.success) {
       const req = SUBCOMMAND_REQUIREMENTS[key];
       if (req) {
         const hint = req.check(positionals, argv);
-        if (hint) msg = `${hint}\n  Usage: ${req.usage}`;
+        if (hint) {
+          msg = `${hint}\n  Usage: ${req.usage}`;
+        } else if (req.options) {
+          const unknown = findUnknownFlag(argv, req.options);
+          if (unknown) msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
+        }
       }
     }
   } else if (firstToken && KNOWN_COMMANDS.includes(firstToken as never)) {
@@ -298,12 +367,17 @@ if (!result.success) {
     const req = SUBCOMMAND_REQUIREMENTS[firstToken];
     if (req) {
       const hint = req.check(positionals, argv);
-      if (hint) msg = `${hint}\n  Usage: ${req.usage}`;
+      if (hint) {
+        msg = `${hint}\n  Usage: ${req.usage}`;
+      } else if (req.options) {
+        const unknown = findUnknownFlag(argv, req.options);
+        if (unknown) msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
+      }
     }
   }
 
   writeFail(new InvalidUsageError({ message: msg }), isJson);
-  process.exit(1);
+  process.exit(2);
 }
 
 const parsed = result.value;

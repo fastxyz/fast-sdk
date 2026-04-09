@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/sdk",
-  "version": "0.2.5",
+  "version": "1.0.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -21,7 +21,7 @@
     "dev": "tsup src/index.ts src/core/index.ts --format cjs,esm --watch --dts"
   },
   "dependencies": {
-    "@fastxyz/fast-schema": "workspace:*",
+    "@fastxyz/schema": "workspace:*",
     "@mysten/bcs": "^2.0.3",
     "@noble/ed25519": "^3.0.1",
     "@noble/hashes": "^2.0.1",

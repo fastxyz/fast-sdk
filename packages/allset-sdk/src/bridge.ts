@@ -1,4 +1,4 @@
-import { TransactionCertificateFromRpc } from "@fastxyz/fast-schema";
+import { TransactionCertificateFromRpc } from "@fastxyz/schema";
 import { TransactionBuilder } from "@fastxyz/sdk";
 import { Schema } from "effect";
 import { decodeAbiParameters } from "viem";
@@ -137,6 +137,17 @@ async function approveErc20(
       },
     );
   }
+
+  // Wait until the RPC reflects the updated allowance before proceeding.
+  // Load-balanced RPC nodes can lag behind, causing the deposit's eth_estimateGas
+  // to see stale state (allowance=0) and revert even though the approve was confirmed.
+  const amountBig = BigInt(amount);
+  const walletAddress = walletClient.account?.address as `0x${string}`;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const current = await checkAllowance(clients, token, spender, walletAddress);
+    if (current >= amountBig) break;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +234,6 @@ export async function evmSign(
  *   bridgeContract: '0xb536...',
  *   tokenAddress: '0x75fa...',
  *   amount: '1000000',
- *   senderAddress: '0xYourEvmAddress',
  *   receiverAddress: 'fast1abc...',
  *   evmClients,
  * });
@@ -238,7 +248,6 @@ export async function executeDeposit(
     tokenAddress,
     isNative = false,
     amount,
-    senderAddress,
     receiverAddress,
     evmClients,
   } = params;

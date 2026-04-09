@@ -14,8 +14,8 @@ import type {
   TokenTransferInputParams,
   TransactionEnvelope,
   TransactionVersion,
-} from "@fastxyz/fast-schema";
-import { TransactionInput } from "@fastxyz/fast-schema";
+} from "@fastxyz/schema";
+import { TransactionInput } from "@fastxyz/schema";
 import { Schema } from "effect";
 import { buildSignedEnvelope } from "../core/crypto/envelope";
 import { run } from "../core/run";

@@ -1,7 +1,7 @@
 import {
   PrivateKeyFromInput,
   type PrivateKeyInputParams,
-} from "@fastxyz/fast-schema";
+} from "@fastxyz/schema";
 import type { BcsType } from "@mysten/bcs";
 import { Redacted, Schema } from "effect";
 import * as signing from "../core/crypto/signing";

@@ -337,6 +337,12 @@ const sendParser = command(
         description: message`Destination EVM chain for bridge-out (e.g., arbitrum-sepolia)`,
       }),
     ),
+    eip7702: withDefault(
+      option("--eip-7702", {
+        description: message`Use EIP-7702 smart deposit for EVM → Fast (gas paid in USDC, no ETH required)`,
+      }),
+      false,
+    ),
   }),
   { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
 );
@@ -372,6 +378,12 @@ const fundCryptoParser = command(
       option("--token", string({ metavar: "TOKEN" }), {
         description: message`Token to bridge (default: USDC / testUSDC)`,
       }),
+    ),
+    eip7702: withDefault(
+      option("--eip-7702", {
+        description: message`Use EIP-7702 smart deposit (gas paid in USDC via paymaster, no ETH required)`,
+      }),
+      false,
     ),
   }),
   { description: message`Fund Fast account by bridging from an EVM chain` },

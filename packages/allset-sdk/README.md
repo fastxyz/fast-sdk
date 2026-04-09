@@ -75,6 +75,45 @@ const result = await executeDeposit({
 console.log(result.txHash); // EVM transaction hash
 ```
 
+### Smart Deposit via EIP-7702 (EVM → Fast, gasless)
+
+Gas is paid in the deposit token (USDC) — no ETH required.
+
+```ts
+import {
+  smartDeposit,
+  encodeDepositCalldata,
+  fastAddressToBytes32,
+  InsufficientBalanceError,
+} from '@fastxyz/allset-sdk';
+
+const receiverBytes32 = fastAddressToBytes32('fast1abc...');
+const depositCalldata = encodeDepositCalldata({
+  tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
+  amount: 1_000n, // 0.001 USDC
+  receiverBytes32,
+});
+
+try {
+  const result = await smartDeposit({
+    privateKey: '0xYourPrivateKey',
+    rpcUrl: 'https://base-rpc...',
+    allsetApiUrl: 'https://allset.fast.xyz/api',
+    tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    amount: 1_000n,
+    bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+    depositCalldata,
+  });
+
+  console.log(result.txHash);     // on-chain transaction hash
+  console.log(result.userOpHash); // ERC-4337 UserOperation hash
+} catch (err) {
+  if (err instanceof InsufficientBalanceError) {
+    console.error(`Need ${err.required}, have ${err.balance}`);
+  }
+}
+```
+
 ### Withdrawal (Fast → EVM)
 
 ```ts

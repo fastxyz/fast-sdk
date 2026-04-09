@@ -19,8 +19,8 @@ Trusted publishing is the expected path for this repo. Do not add a long-lived n
 | `@fastxyz/x402-client` | `packages/x402-client/` |
 | `@fastxyz/x402-server` | `packages/x402-server/` |
 | `@fastxyz/x402-facilitator` | `packages/x402-facilitator/` |
-| `@fastxyz/fast-cli` | `app/cli/` |
-| `@fastxyz/fast-schema` | `packages/fast-schema/` |
+| `@fastxyz/cli` | `app/cli/` |
+| `@fastxyz/schema` | `packages/fast-schema/` |
 | `@fastxyz/x402-types` | `packages/x402-types/` |
 
 ## Day-to-day: recording changes

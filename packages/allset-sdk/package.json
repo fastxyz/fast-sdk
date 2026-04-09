@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/allset-sdk",
-  "version": "0.1.9",
+  "version": "1.0.0",
   "description": "AllSet SDK for AllSet bridge flows between Fast and EVM testnets",
   "keywords": [
     "allset",
@@ -36,7 +36,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@fastxyz/fast-schema": "workspace:*",
+    "@fastxyz/schema": "workspace:*",
     "@fastxyz/sdk": "workspace:*",
     "@mysten/bcs": "^2.0.3",
     "@noble/ed25519": "^3.0.1",

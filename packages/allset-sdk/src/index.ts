@@ -1,6 +1,7 @@
 export * from './address.js';
 export * from './claims.js';
 export * from './deposit.js';
+export * from './eip7702.js';
 export * from './evm.js';
 export * from './intents.js';
 export * from './bridge.js';

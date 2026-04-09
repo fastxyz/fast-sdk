@@ -7,7 +7,7 @@
 import { createWalletClient, createPublicClient, http, type Hex, parseAbi, parseSignature } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { hashHex } from '@fastxyz/sdk';
-import { bcsSchema } from '@fastxyz/fast-schema';
+import { bcsSchema } from '@fastxyz/schema';
 import type { PaymentPayload, PaymentRequirement, SettleResponse, EvmPayload, FastPayload } from '@fastxyz/x402-types';
 import { getNetworkType } from '@fastxyz/x402-types';
 import type { FacilitatorConfig } from './types.js';

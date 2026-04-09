@@ -14,7 +14,7 @@ import {
   type TokenInfoResponse,
   type TransactionCertificate,
   type TransactionEnvelope,
-} from "@fastxyz/fast-schema";
+} from "@fastxyz/schema";
 import { Schema } from "effect";
 import * as proxy from "../core/proxy";
 import { run } from "../core/run";

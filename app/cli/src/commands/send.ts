@@ -1,4 +1,10 @@
-import { bcsSchema, VersionedTransactionFromBcs } from "@fastxyz/fast-schema";
+import { bcsSchema, VersionedTransactionFromBcs } from "@fastxyz/schema";
+import {
+  encodeDepositCalldata,
+  fastAddressToBytes32,
+  InsufficientBalanceError as SDKInsufficientBalanceError,
+  smartDeposit,
+} from "@fastxyz/allset-sdk";
 import {
   FastProvider,
   hashHex,
@@ -13,6 +19,7 @@ import {
   InvalidAddressError,
   InvalidAmountError,
   InvalidNetworkConfigError,
+  FundingRequiredError,
   TransactionFailedError,
   UnsupportedChainError,
 } from "../errors/index.js";
@@ -50,11 +57,10 @@ export const send: Command<SendArgs> = {
         args.address.startsWith("0x") && args.address.length === 42;
 
       if (!isFastAddress && !isEvmAddress) {
-        return yield* Effect.fail(
-          new InvalidAddressError({
-            message: `Invalid recipient address "${args.address}". Must start with fast1 (Fast) or 0x (EVM).`,
-          }),
-        );
+        const msg = args.address.startsWith("0x")
+          ? `Invalid EVM address "${args.address}": expected 42 characters (0x + 40 hex digits), got ${args.address.length}.`
+          : `Invalid recipient address "${args.address}". Must start with fast1 (Fast network) or 0x (EVM).`;
+        return yield* Effect.fail(new InvalidAddressError({ message: msg }));
       }
 
       if (fromChain && isFastAddress === false) {
@@ -94,10 +100,17 @@ export const send: Command<SendArgs> = {
 
       // Parse amount
       const amountFloat = Number.parseFloat(args.amount);
-      if (Number.isNaN(amountFloat) || amountFloat <= 0) {
+      if (Number.isNaN(amountFloat)) {
         return yield* Effect.fail(
           new InvalidAmountError({
-            message: "Amount must be a positive number",
+            message: `Invalid amount "${args.amount}". Expected a positive number (e.g., 10 or 1.5).`,
+          }),
+        );
+      }
+      if (amountFloat <= 0) {
+        return yield* Effect.fail(
+          new InvalidAmountError({
+            message: `Amount must be greater than zero (got "${args.amount}").`,
           }),
         );
       }
@@ -190,28 +203,61 @@ export const send: Command<SendArgs> = {
           );
         }
 
-        const evmAccount = bridge.createWallet(toHex(seed));
-        // Cast needed: viem version mismatch between allset-sdk and cli
-        const evmClients = bridge.createExecutor(
-          evmAccount as Parameters<typeof bridge.createExecutor>[0],
-          chainCfg.evmRpcUrl,
-          chainCfg.chainId,
-        );
+        if (args.eip7702) {
+          // EIP-7702: gas paid in USDC via paymaster, no ETH required
+          const depositCalldata = encodeDepositCalldata({
+            tokenAddress: tokenInfo.evmAddress!,
+            amount: amountRaw,
+            receiverBytes32: fastAddressToBytes32(args.address),
+          });
 
-        const bridgeResult = yield* bridge.deposit({
-          chainId: chainCfg.chainId,
-          bridgeContract: chainCfg.bridgeContract as `0x${string}`,
-          tokenAddress: tokenInfo.evmAddress! as `0x${string}`,
-          isNative: false,
-          amount: amountRaw.toString(),
-          senderAddress: evmAccount.address,
-          receiverAddress: args.address,
-          evmClients,
-        });
+          const smartResult = yield* Effect.tryPromise({
+            try: () =>
+              smartDeposit({
+                privateKey: toHex(seed) as `0x${string}`,
+                rpcUrl: chainCfg.evmRpcUrl,
+                allsetApiUrl: allset.portalApiUrl,
+                tokenAddress: tokenInfo.evmAddress! as `0x${string}`,
+                amount: amountRaw,
+                bridgeAddress: chainCfg.bridgeContract as `0x${string}`,
+                depositCalldata,
+              }),
+            catch: (e) => {
+              if (e instanceof SDKInsufficientBalanceError) {
+                return new FundingRequiredError({ message: e.message });
+              }
+              return new TransactionFailedError({
+                message: String(e),
+                cause: e,
+              });
+            },
+          });
 
-        txHash = bridgeResult.txHash;
-        evmExplorerUrl = chainCfg.evmExplorerUrl;
-        estimatedTime = bridgeResult.estimatedTime ?? "1-5 minutes";
+          txHash = smartResult.txHash;
+          evmExplorerUrl = chainCfg.evmExplorerUrl;
+        } else {
+          const evmAccount = bridge.createWallet(toHex(seed));
+          // Cast needed: viem version mismatch between allset-sdk and cli
+          const evmClients = bridge.createExecutor(
+            evmAccount as Parameters<typeof bridge.createExecutor>[0],
+            chainCfg.evmRpcUrl,
+            chainCfg.chainId,
+          );
+
+          const bridgeResult = yield* bridge.deposit({
+            chainId: chainCfg.chainId,
+            bridgeContract: chainCfg.bridgeContract as `0x${string}`,
+            tokenAddress: tokenInfo.evmAddress! as `0x${string}`,
+            isNative: false,
+            amount: amountRaw.toString(),
+            receiverAddress: args.address,
+            evmClients,
+          });
+
+          txHash = bridgeResult.txHash;
+          evmExplorerUrl = chainCfg.evmExplorerUrl;
+          estimatedTime = bridgeResult.estimatedTime ?? "1-5 minutes";
+        }
       } else if (route === "fast-to-evm") {
         // ── Fast → EVM (bridge-out) ─────────────────────────────────────────
         const allset = network.allSet;

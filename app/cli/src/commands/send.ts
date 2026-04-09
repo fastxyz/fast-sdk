@@ -57,11 +57,10 @@ export const send: Command<SendArgs> = {
         args.address.startsWith("0x") && args.address.length === 42;
 
       if (!isFastAddress && !isEvmAddress) {
-        return yield* Effect.fail(
-          new InvalidAddressError({
-            message: `Invalid recipient address "${args.address}". Must start with fast1 (Fast) or 0x (EVM).`,
-          }),
-        );
+        const msg = args.address.startsWith("0x")
+          ? `Invalid EVM address "${args.address}": expected 42 characters (0x + 40 hex digits), got ${args.address.length}.`
+          : `Invalid recipient address "${args.address}". Must start with fast1 (Fast network) or 0x (EVM).`;
+        return yield* Effect.fail(new InvalidAddressError({ message: msg }));
       }
 
       if (fromChain && isFastAddress === false) {

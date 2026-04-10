@@ -1,12 +1,20 @@
 import {
+  type VersionedTransaction,
   PrivateKeyFromInput,
   type PrivateKeyInputParams,
 } from "@fastxyz/schema";
 import type { BcsType } from "@mysten/bcs";
 import { Redacted, Schema } from "effect";
+import { signVersionedTransaction } from "../core/crypto/envelope";
 import * as signing from "../core/crypto/signing";
 import { run } from "../core/run";
 import { toFastAddress } from "./convert";
+
+export interface FastSigner {
+  getPublicKey(): Promise<Uint8Array>;
+  signMessage(message: Uint8Array): Promise<Uint8Array>;
+  signTransaction(transaction: VersionedTransaction): Promise<Uint8Array>;
+}
 
 /**
  * Ed25519 signer for Fast transactions.
@@ -22,7 +30,7 @@ import { toFastAddress } from "./convert";
  * const sig = await signer.signMessage(new TextEncoder().encode("hello"));
  * ```
  */
-export class Signer {
+export class Signer implements FastSigner {
   private readonly privateKey: Redacted.Redacted<Uint8Array>;
   private publicKey?: Uint8Array;
 
@@ -67,6 +75,15 @@ export class Signer {
   async signTypedData<T>(type: BcsType<T>, data: T): Promise<Uint8Array> {
     return run(
       signing.signTypedData(Redacted.value(this.privateKey), type, data),
+    );
+  }
+
+  /** Sign a Fast VersionedTransaction using the same domain-prefixed payload as the network. */
+  async signTransaction(
+    transaction: VersionedTransaction,
+  ): Promise<Uint8Array> {
+    return run(
+      signVersionedTransaction(Redacted.value(this.privateKey), transaction),
     );
   }
 }

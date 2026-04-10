@@ -18,11 +18,17 @@ import {
 import { Schema } from "effect";
 import * as proxy from "../core/proxy";
 import { run } from "../core/run";
+import {
+  JsonRpcFastTransport,
+  type FastTransport,
+} from "../core/network/transport";
 
 /** Options for constructing a {@link FastProvider}. */
 export interface ProviderOptions {
   /** The URL of the Fast proxy JSON-RPC endpoint. */
   rpcUrl: string;
+  /** Optional transport override for browser wallets, tests, or custom clients. */
+  transport?: FastTransport;
 }
 
 /**
@@ -45,14 +51,21 @@ export interface ProviderOptions {
  */
 export class FastProvider {
   private readonly _rpcUrl: string;
+  private readonly _transport: FastTransport;
 
   constructor(opts: ProviderOptions) {
     this._rpcUrl = opts.rpcUrl;
+    this._transport = opts.transport ?? new JsonRpcFastTransport();
   }
 
   /** The proxy RPC URL this provider was constructed with. */
   get rpcUrl(): string {
     return this._rpcUrl;
+  }
+
+  /** The transport used for all proxy requests. */
+  get transport(): FastTransport {
+    return this._transport;
   }
 
   /**
@@ -62,13 +75,13 @@ export class FastProvider {
   async submitTransaction(
     params: TransactionEnvelope,
   ): Promise<SubmitTransactionResult> {
-    return run(proxy.submitTransaction(this._rpcUrl, params));
+    return run(proxy.submitTransaction(this._transport, this._rpcUrl, params));
   }
 
   /** Request a faucet drip for the given recipient. */
   async faucetDrip(params: FaucetDripInputParams): Promise<void> {
     const internal = Schema.decodeUnknownSync(FaucetDripInput)(params);
-    return run(proxy.faucetDrip(this._rpcUrl, internal));
+    return run(proxy.faucetDrip(this._transport, this._rpcUrl, internal));
   }
 
   /**
@@ -79,7 +92,7 @@ export class FastProvider {
     params: GetAccountInfoInputParams,
   ): Promise<AccountInfoResponse> {
     const internal = Schema.decodeUnknownSync(GetAccountInfoInput)(params);
-    return run(proxy.getAccountInfo(this._rpcUrl, internal));
+    return run(proxy.getAccountInfo(this._transport, this._rpcUrl, internal));
   }
 
   /** Fetch pending multisig transactions for the given address. */
@@ -87,7 +100,13 @@ export class FastProvider {
     params: GetPendingMultisigInputParams,
   ): Promise<readonly TransactionEnvelope[]> {
     const internal = Schema.decodeUnknownSync(GetPendingMultisigInput)(params);
-    return run(proxy.getPendingMultisigTransactions(this._rpcUrl, internal));
+    return run(
+      proxy.getPendingMultisigTransactions(
+        this._transport,
+        this._rpcUrl,
+        internal,
+      ),
+    );
   }
 
   /** Fetch metadata for one or more tokens by their IDs. */
@@ -95,7 +114,7 @@ export class FastProvider {
     params: GetTokenInfoInputParams,
   ): Promise<TokenInfoResponse> {
     const internal = Schema.decodeUnknownSync(GetTokenInfoInput)(params);
-    return run(proxy.getTokenInfo(this._rpcUrl, internal));
+    return run(proxy.getTokenInfo(this._transport, this._rpcUrl, internal));
   }
 
   /**
@@ -108,6 +127,12 @@ export class FastProvider {
     const internal = Schema.decodeUnknownSync(GetTransactionCertificatesInput)(
       params,
     );
-    return run(proxy.getTransactionCertificates(this._rpcUrl, internal));
+    return run(
+      proxy.getTransactionCertificates(
+        this._transport,
+        this._rpcUrl,
+        internal,
+      ),
+    );
   }
 }

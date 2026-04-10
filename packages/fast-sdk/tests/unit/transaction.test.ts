@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { FastSigner } from "../../src/index";
 import { Signer, TransactionBuilder } from "../../src/index";
 
 const HEX_TOKEN_ID =
@@ -364,6 +365,32 @@ describe("TransactionBuilder", () => {
       expect(envelopes[0]!.transaction.value.nonce).toBe(0n);
       expect(envelopes[1]!.transaction.value.nonce).toBe(1n);
       expect(envelopes[2]!.transaction.value.nonce).toBe(2n);
+    });
+  });
+
+  describe("delegated signing", () => {
+    it("supports non-key-owning signers that implement signTransaction", async () => {
+      const delegatedSigner: FastSigner = {
+        getPublicKey: vi.fn().mockResolvedValue(new Uint8Array(32).fill(9)),
+        signMessage: vi.fn().mockResolvedValue(new Uint8Array(64).fill(8)),
+        signTransaction: vi.fn().mockResolvedValue(new Uint8Array(64).fill(7)),
+      };
+
+      const builder = new TransactionBuilder({
+        networkId: "fast:testnet",
+        signer: delegatedSigner,
+        nonce: 5n,
+      });
+
+      builder.addLeaveCommittee();
+      const envelope = await builder.sign();
+
+      expect(delegatedSigner.getPublicKey).toHaveBeenCalledTimes(1);
+      expect(delegatedSigner.signTransaction).toHaveBeenCalledTimes(1);
+      expect(envelope.transaction.value.sender).toEqual(
+        new Uint8Array(32).fill(9),
+      );
+      expect(envelope.signature.value).toEqual(new Uint8Array(64).fill(7));
     });
   });
 

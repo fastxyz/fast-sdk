@@ -17,7 +17,7 @@ This monorepo provides everything you need to build on Fast from TypeScript/Node
 
 **Start with the CLI.** It's the primary way to interact with the Fast network — all skill operations rely on it. Install it globally and use commands for accounts, balances, transfers, and x402 payments.
 
-**Use the SDK when you're building an integration.** The SDK provides the `Signer`, `FastProvider`, and `TransactionBuilder` classes for programmatic control — useful for bots, AI agents, and custom workflows.
+**Use the SDK when you're building an integration.** The SDK provides the `Signer`, `FastProvider`, `FastSnapClient`, and `TransactionBuilder` classes for programmatic control — useful for bots, AI agents, custom wallets, and browser dapps.
 
 The monorepo contains multiple packages:
 
@@ -52,7 +52,7 @@ The monorepo contains multiple packages:
 | Package | When to use it |
 | ------- | -------------- |
 | [@fastxyz/cli](app/cli/) | Terminal commands — accounts, balances, transfers, x402 payments |
-| [@fastxyz/sdk](packages/fast-sdk/) | Programmatic access — Signer, FastProvider, TransactionBuilder |
+| [@fastxyz/sdk](packages/fast-sdk/) | Programmatic access — Signer, FastProvider, FastSnapClient, TransactionBuilder |
 | [@fastxyz/allset-sdk](packages/allset-sdk/) | Cross-chain bridging — EVM ↔ Fast via AllSet |
 | [@fastxyz/x402-client](packages/x402-client/) | Pay for 402-protected APIs (auto-handles HTTP 402) |
 | [@fastxyz/x402-server](packages/x402-server/) | Protect your API routes with payment requirements |
@@ -150,7 +150,7 @@ pnpm cli --help
 
 ### Core SDK
 
-- **@fastxyz/sdk** — The main entry point for Fast network operations. Provides `Signer`, `FastProvider`, and `TransactionBuilder` for building, signing, and submitting transactions.
+- **@fastxyz/sdk** — The main entry point for Fast network operations. Provides `Signer`, `FastProvider`, `FastSnapClient`, and `TransactionBuilder` for building, signing, and submitting transactions.
 
 ### Cross-Chain (AllSet)
 

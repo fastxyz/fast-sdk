@@ -27,7 +27,8 @@
   "author": "Fast.xyz",
   "license": "MIT",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@fastxyz/allset-sdk": "workspace:*",

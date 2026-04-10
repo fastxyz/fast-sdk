@@ -23,5 +23,9 @@
     "@mysten/bcs": "^2.0.3",
     "bech32": "^2.0.0",
     "effect": "^3.21.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

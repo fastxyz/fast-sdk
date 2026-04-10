@@ -26,7 +26,8 @@
   "author": "Fast.xyz",
   "license": "MIT",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "devDependencies": {
     "@types/node": "^25.5.0"

@@ -102,6 +102,21 @@ is never stored in plaintext.
 }
 ```
 
+When no password is provided (agent/non-interactive use), the keyfile stores
+the seed in plaintext, protected by file permissions (`0600`) only — the same
+model as SSH keys without a passphrase:
+
+```json
+{
+  "version": 3,
+  "id": "a1b2c3d4-...",
+  "fastAddress": "fast1qw5...x9z",
+  "evmAddress": "0x7a3f...b2c1",
+  "encrypted": false,
+  "seed": "0x<hex>",
+  "createdAt": "2026-03-31T00:00:00Z"
+}
+
 The encrypted payload is an Ed25519 seed (32 bytes). From this single key the
 CLI derives:
 
@@ -116,15 +131,24 @@ encrypted.
 
 ### 3.3 Password handling
 
-The keystore password is required to decrypt keys for signing operations
-(`send`, `pay`) and for `account export`. It can be provided via:
+The keystore password encrypts the private key at rest. It can be provided via:
 
 1. `--password <value>` flag (highest priority)
 2. `FAST_PASSWORD` environment variable
 3. Interactive masked prompt (only in interactive mode)
 
-In `--non-interactive` mode, if no password is available from (1) or (2), the
-CLI exits with code 8 (`PASSWORD_REQUIRED`).
+**When no password is provided:**
+
+- **Interactive mode:** the CLI prompts for a password. The user may press
+  Enter to skip encryption (with a warning).
+- **Non-interactive mode:** the key is stored unencrypted, protected by file
+  permissions (`0600`) only. This is the expected mode for agent-created
+  accounts — the same model as SSH keys without a passphrase.
+
+  In `--non-interactive` mode, signing operations on password-protected accounts
+require the password via (1) or (2). If unavailable, the CLI exits with code 8
+(`PASSWORD_REQUIRED`). Signing operations on unencrypted accounts proceed
+without a password.
 
 The password is **not stored** by the CLI. Users choose their own password at
 account creation time. Different accounts may use different passwords.
@@ -281,7 +305,9 @@ prompt (see section 3.3).
 
 **Behavior**
 
-1. Prompt for a password (interactive) or read from flag/env var.
+1. Read password from flag/env var. In interactive mode, prompt for a password
+   (Enter to skip). In non-interactive mode with no password, store
+   unencrypted.
 2. Generate 32 random bytes via `crypto.getRandomValues` as the Ed25519 seed.
 3. Derive the Fast address (bech32m) and EVM address.
 4. Encrypt the seed using the password (AES-256-CTR + scrypt).
@@ -1127,7 +1153,7 @@ or bank transfer (on-ramp).
 
 ```text
 Fund USDC to fast1qw5...x9z via Swapper:
-  https://ramp.fast.xyz/...
+  https://ramp.fast.xyz/?to=fast1...
 ```
 
 **Output (`--json`)**
@@ -1157,7 +1183,7 @@ Fund USDC to fast1qw5...x9z via Swapper:
 **Synopsis**
 
 ```text
-fast fund crypto <amount> --chain <chain> [--token <value>]
+fast fund crypto <amount> --chain <chain> [--token <value>] [--eip-7702]
 ```
 
 **Description**
@@ -1165,10 +1191,10 @@ fast fund crypto <amount> --chain <chain> [--token <value>]
 Fund a Fast account by bridging tokens from an EVM chain. 
 The CLI checks the EVM balance of the account's derived EVM address 
 (same underlying key) on the specified chain.
-- f the EVM balance is sufficient: bridge the requested amount to Fast
-automatically.
+- If the EVM balance is sufficient: bridge the requested amount to Fast automatically.
 - If the EVM balance is insufficient: print the EVM address and the shortfall
-amount, then exit. The user (or a human) sends the required tokens to that
+amount, with a prompt indicating users to fund the provided EVM address,
+then exit. The user (or a human) sends the required tokens to that
 address on the specified chain, then re-runs the same command.
 
 **Arguments**
@@ -1179,16 +1205,18 @@ address on the specified chain, then re-runs the same command.
 
 
 **Flags**
-| Flag    | Type   | Required | Default         | Description                                                    |
-| ------- | ------ | -------- | --------------- | -------------------------------------------------------------- |
-| --chain | string | yes      | --               | EVM chain to bridge from. Values from fast info bridge-chains. |
-| --token | string | no       | USDC / testUSDC | Token to bridge. See Token Resolution.                         |
+| Flag         | Type    | Required | Default         | Description                                                                              |
+| ------------ | ------- | -------- | --------------- | ---------------------------------------------------------------------------------------- |
+| `--chain`    | string  | yes      | —               | EVM chain to bridge from. Values from `fast info bridge-chains`.                         |
+| `--token`    | string  | no       | USDC / testUSDC | Token to bridge. See Token Resolution.                                                   |
+| `--eip-7702` | boolean | no       | false           | Use EIP-7702 gasless deposit (Account Abstraction). Gas is paid in token; no ETH needed. |
 
 **Behavior**
-1. Check the token balance on --chain for the (derived) EVM address.
-2. If balance >= amount: execute `fast send` and bridge tokens to Fast. 
+1. Check the token balance on `--chain` for the (derived) EVM address.
+2. If balance >= amount: bridge tokens to Fast (standard EVM txs, or `smartDeposit()` with `--eip-7702`).
 3. If balance < amount: print the shortfall and the EVM address. Exit with
 code 4 and error code FUNDING_REQUIRED.
+
 If balance >= amount, the above should not require any human intervention (like entering password).
 
 ### 6.19 `fast send`
@@ -1197,7 +1225,7 @@ If balance >= amount, the above should not require any human intervention (like 
 
 ```text
 fast send <address> <amount> [--from-chain <chain>] [--to-chain <chain>]
-                              [--token <value>]
+                              [--token <value>] [--eip-7702]
 ```
 
 **Description**
@@ -1222,13 +1250,14 @@ with code 2 (`INVALID_AMOUNT`): `"Amount has too many decimal places for <token-
 | `--from-chain` | string | no | — | Source chain for bridge-in. Must be a chain from `fast info bridge-chains`. |
 | `--to-chain` | string | no | — | Destination chain for bridge-out. Must be a chain from `fast info bridge-chains`. |
 | `--token` | string | no | `USDC` | Token to send. See [Token Resolution](#7-token-resolution-rules). Default is `USDC`. For Fast→Fast transfers, any token on the Fast network is supported (not limited to bridge tokens). For bridge operations, only tokens listed in `fast info bridge-tokens` are supported. |
+| `--eip-7702` | boolean | no | `false` | Use EIP-7702 gasless deposit for EVM→Fast bridge-in. Only applies when `--from-chain` is set and recipient is `fast1...`. Gas is paid in token; no ETH required. |
 
 **Routing Rules**
 
 | `--from-chain` | `--to-chain` | `address` format | Route | SDK method |
 |---|---|---|---|---|
 | *(none)* | *(none)* | `fast1...` | Fast → Fast | `FastProvider.submitTransaction()` with `TokenTransfer` |
-| set | *(none)* | `fast1...` | EVM → Fast (bridge in) | `AllSetProvider.sendToFast()` |
+| set | *(none)* | `fast1...` | EVM → Fast (bridge in) | `smartDeposit()` (with `--eip-7702`) or standard EVM txs |
 | *(none)* | set | `0x...` | Fast → EVM (bridge out) | `AllSetProvider.sendToExternal()` |
 | set | set | `0x...` | EVM → EVM (routed via Fast) | *Reserved — exit code 2 with `NOT_IMPLEMENTED`* |
 
@@ -1241,6 +1270,8 @@ sufficient token balance at that address on the specified chain. Use
 allowance for the bridge contract, (2) submit an approval transaction if
 needed, (3) submit the bridge deposit. The user sees a single confirmation
 prompt; the CLI manages the underlying transactions.
+With `--eip-7702`, all three operations (approve paymaster, approve bridge,
+deposit) are batched into a single UserOperation; gas is paid in token.
 
 
 **Address validation rules:**
@@ -1511,7 +1542,7 @@ Input value
   └─ Otherwise: treat as symbol.
        → Exact match against bundled token config for current network.
        → Case-insensitive fallback (e.g., "usdc" matches "USDC").
-       → Alias normalization: "testUSDC" and "fastUSDC" → "USDC".
+       → Alias normalization: "testUSDC" → "USDC".
        → Not found? Exit code 2:
          "Unknown token '<value>'. Run `fast info bridge-tokens` to list supported tokens."
 ```
@@ -1560,7 +1591,7 @@ configuration. These are the canonical values accepted by `--from-chain`,
 
 | Token | Symbol (alias) | Fast Token ID | Decimals |
 |---|---|---|---|
-| Test USD Coin | `USDC` (`testUSDC`, `fastUSDC`) | `0xd73a0679...` | 6 |
+| Test USD Coin | `USDC` (`testUSDC`) | `0xd73a0679...` | 6 |
 
 **Note:** The x402 payment protocol (`fast pay`) may encounter payment
 requirements on chains not listed above (e.g., `base-sepolia`, `ethereum`).

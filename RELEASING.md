@@ -1,6 +1,6 @@
 # Releasing Fast SDK
 
-This repo publishes `@fastxyz/sdk` to npm from Git tags.
+This monorepo publishes multiple `@fastxyz/*` packages to npm. Releases are managed with [Changesets](https://github.com/changesets/changesets) and triggered by creating a GitHub Release.
 
 ## One-time npm setup
 
@@ -10,17 +10,43 @@ This repo publishes `@fastxyz/sdk` to npm from Git tags.
 
 Trusted publishing is the expected path for this repo. Do not add a long-lived npm token unless trusted publishing is unavailable.
 
+## Packages published
+
+| Package | Path |
+|---|---|
+| `@fastxyz/sdk` | `packages/fast-sdk/` |
+| `@fastxyz/allset-sdk` | `packages/allset-sdk/` |
+| `@fastxyz/x402-client` | `packages/x402-client/` |
+| `@fastxyz/x402-server` | `packages/x402-server/` |
+| `@fastxyz/x402-facilitator` | `packages/x402-facilitator/` |
+| `@fastxyz/cli` | `app/cli/` |
+| `@fastxyz/schema` | `packages/fast-schema/` |
+| `@fastxyz/x402-types` | `packages/x402-types/` |
+
+## Day-to-day: recording changes
+
+After each meaningful change, create a changeset:
+
+```bash
+pnpm changeset
+```
+
+Commit the generated `.changeset/*.md` file alongside your code changes.
+
 ## Release flow
 
-1. Update `package.json` with the next semver version.
-2. Run `npm install` if the lockfile needs refreshing.
-3. Merge the release commit to `main`.
-4. Create and push a matching tag in the form `vX.Y.Z`.
-5. Wait for the publish workflow to finish.
-6. Verify the package on npm and test a fresh install with `npm install @fastxyz/sdk`.
+1. **Bump versions** — run `pnpm version-packages`, commit and push
+2. **Create a GitHub Release** — GitHub → Releases → "Draft a new release" → Publish
+3. **Wait for publish workflow** — builds, tests, and publishes only the changed packages
+4. **Verify** — check each updated package on npm
 
 ## Release invariants
 
-- The git tag must match `package.json` exactly.
-- The publish workflow rebuilds, tests, runs package smoke checks, and publishes only on tag pushes.
-- Public scoped packages must publish with public access.
+- Only packages with a version bump are published; unchanged packages are skipped.
+- Do not manually edit package versions — always use `pnpm changeset` + `pnpm version-packages`.
+- All packages publish with `--access public` (configured in `.changeset/config.json`).
+
+## Entrypoint policy
+
+- Each package's `src/index.ts` is the single public entrypoint.
+- Ensure docs and examples do not reference internal paths.

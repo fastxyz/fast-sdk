@@ -5,3 +5,10 @@ dist
 .DS_Store
 npm-debug.log*
 AGENTS.md
+
+.turbo
+coverage
+*.log
+*.tsbuildinfo
+.idea
+.vscode

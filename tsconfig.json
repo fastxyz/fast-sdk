@@ -1,23 +1,13 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true,
-    "outDir": "./dist",
-    "rootDir": "./src"
+    "composite": true
   },
-  "include": ["src"]
+  "files": [],
+  "references": [
+    { "path": "packages/fast-schema" },
+    { "path": "packages/fast-sdk" },
+    { "path": "packages/allset-sdk" },
+    { "path": "packages/x402-sdk" },
+    { "path": "app/cli" }
+  ]
 }

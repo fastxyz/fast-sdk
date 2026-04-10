@@ -2,6 +2,11 @@
   "name": "@fastxyz/x402-client",
   "version": "1.0.0",
   "description": "Client SDK for the x402 HTTP Payment Protocol — pay for x402-protected content",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fastxyz/fast-sdk",
+    "directory": "packages/x402-client"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -22,7 +27,8 @@
   "author": "Fast.xyz",
   "license": "MIT",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@fastxyz/allset-sdk": "workspace:*",

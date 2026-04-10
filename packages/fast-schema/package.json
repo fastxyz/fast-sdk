@@ -1,6 +1,11 @@
 {
   "name": "@fastxyz/schema",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fastxyz/fast-sdk",
+    "directory": "packages/fast-schema"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,5 +23,9 @@
     "@mysten/bcs": "^2.0.3",
     "bech32": "^2.0.0",
     "effect": "^3.21.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

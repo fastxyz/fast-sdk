@@ -2,6 +2,11 @@
   "name": "@fastxyz/x402-types",
   "version": "1.0.0",
   "description": "Shared types and utilities for the x402 HTTP Payment Protocol",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fastxyz/fast-sdk",
+    "directory": "packages/x402-types"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,7 +26,8 @@
   "author": "Fast.xyz",
   "license": "MIT",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "devDependencies": {
     "@types/node": "^25.5.0"

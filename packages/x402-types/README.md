@@ -1,14 +1,3 @@
----
-name: x402-types
-description: >
-  Shared types and utilities for the x402 HTTP Payment Protocol. Use when you need
-  PaymentRequirement, PaymentPayload, VerifyResponse, SettleResponse, network config types,
-  or utility functions (parsePrice, encodePayload, decodePayload). Zero runtime dependencies.
-metadata:
-  short-description: Shared x402 types, network config interfaces, and pure utility functions.
-  compatibility: Node.js 20+, any TypeScript project.
----
-
 # @fastxyz/x402-types
 
 Shared types and utilities for the x402 HTTP Payment Protocol. Zero runtime dependencies.
@@ -31,15 +20,15 @@ pnpm add @fastxyz/x402-types
 
 ### Payment Types
 
-| Type                   | Description                                    |
-| ---------------------- | ---------------------------------------------- |
-| `PaymentRequirement`   | Payment requirement returned in a 402 response |
-| `PaymentPayload`       | Decoded X-PAYMENT header payload               |
-| `FastPayload`          | Fast transaction certificate payload           |
-| `EvmPayload`           | EVM EIP-3009 authorization payload             |
-| `VerifyResponse`       | Facilitator verify result                      |
-| `SettleResponse`       | Facilitator settle result                      |
-| `SupportedPaymentKind` | Facilitator /supported descriptor              |
+| Type                   | Description                                                   |
+| ---------------------- | ------------------------------------------------------------- |
+| `PaymentRequirement`   | Payment requirement returned in a 402 response                |
+| `PaymentPayload`       | Decoded X-PAYMENT header payload                              |
+| `FastPayload`          | Fast transaction certificate payload                          |
+| `EvmPayload`           | EVM EIP-3009 authorization payload                            |
+| `VerifyResponse`       | Facilitator verify result                                     |
+| `SettleResponse`       | Facilitator settle result                                     |
+| `SupportedPaymentKind` | Facilitator /supported descriptor                             |
 | `NetworkType`          | `"evm" \| "fast" \| "svm"` (SVM = Solana VM, forward-looking) |
 
 ### Network Config Types
@@ -47,7 +36,7 @@ pnpm add @fastxyz/x402-types
 | Type                | Description                                                                             |
 | ------------------- | --------------------------------------------------------------------------------------- |
 | `EvmChainConfig`    | EVM chain config: `chainId`, `rpcUrl`, `usdcAddress`, optional `usdcName`/`usdcVersion` |
-| `FastNetworkConfig` | Fast network config: `rpcUrl`, `tokenId`, `networkId`, `committeePublicKeys`           |
+| `FastNetworkConfig` | Fast network config: `rpcUrl`, `tokenId`, `networkId`, `committeePublicKeys`            |
 
 ## Utilities
 

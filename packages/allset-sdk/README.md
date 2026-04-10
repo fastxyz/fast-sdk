@@ -1,15 +1,3 @@
----
-name: allset-sdk
-description: >
-  AllSet SDK for bridging tokens between Fast network and EVM chains. Use executeDeposit
-  for EVM → Fast deposits and executeIntent for Fast → EVM withdrawals or custom operations.
-  All functions are pure — no embedded config, no file system access. Caller provides all
-  chain/contract addresses.
-metadata:
-  short-description: Bridge tokens between Fast and EVM chains (pure functions, no config).
-  compatibility: Node.js 20+; browser-safe pure helpers (address, deposit, intents).
----
-
 # @fastxyz/allset-sdk
 
 AllSet SDK for bridging tokens between [Fast network](https://fast.xyz) and EVM chains.
@@ -80,12 +68,7 @@ console.log(result.txHash); // EVM transaction hash
 Gas is paid in the deposit token (USDC) — no ETH required.
 
 ```ts
-import {
-  smartDeposit,
-  encodeDepositCalldata,
-  fastAddressToBytes32,
-  InsufficientBalanceError,
-} from '@fastxyz/allset-sdk';
+import { smartDeposit, encodeDepositCalldata, fastAddressToBytes32, InsufficientBalanceError } from '@fastxyz/allset-sdk';
 
 const receiverBytes32 = fastAddressToBytes32('fast1abc...');
 const depositCalldata = encodeDepositCalldata({
@@ -105,7 +88,7 @@ try {
     depositCalldata,
   });
 
-  console.log(result.txHash);     // on-chain transaction hash
+  console.log(result.txHash); // on-chain transaction hash
   console.log(result.userOpHash); // ERC-4337 UserOperation hash
 } catch (err) {
   if (err instanceof InsufficientBalanceError) {

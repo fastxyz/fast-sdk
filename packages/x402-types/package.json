@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/x402-types",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Shared types and utilities for the x402 HTTP Payment Protocol",
   "repository": {
     "type": "git",

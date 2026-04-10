@@ -2,6 +2,11 @@
   "name": "@fastxyz/allset-sdk",
   "version": "1.0.0",
   "description": "AllSet SDK for AllSet bridge flows between Fast and EVM testnets",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fastxyz/fast-sdk",
+    "directory": "packages/allset-sdk"
+  },
   "keywords": [
     "allset",
     "sdk",

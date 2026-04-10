@@ -1,6 +1,11 @@
 {
   "name": "@fastxyz/schema",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fastxyz/fast-sdk",
+    "directory": "packages/fast-schema"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

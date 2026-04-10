@@ -2,6 +2,11 @@
   "name": "@fastxyz/cli",
   "description": "Fast CLI - Account, network, and transaction management",
   "version": "1.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fastxyz/fast-sdk",
+    "directory": "app/cli"
+  },
   "bin": {
     "fast": "./dist/main.js"
   },

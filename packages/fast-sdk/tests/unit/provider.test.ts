@@ -67,8 +67,8 @@ describe("FastProvider", () => {
       );
     });
 
-    it("rejects invalid recipient length", () => {
-      expect(() =>
+    it("rejects invalid recipient length", async () => {
+      await expect(() =>
         provider.faucetDrip({ recipient: "abcd", amount: 1n, tokenId: null }),
       ).rejects.toThrow();
     });

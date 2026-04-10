@@ -30,6 +30,10 @@ pnpm add @fastxyz/x402-server
 
 ## Quick Start
 
+### Protect a Single Route with `paywall`
+
+Use `paywall` to protect a single route with one price and network config:
+
 ```typescript
 import express from 'express';
 import { paywall } from '@fastxyz/x402-server';
@@ -38,23 +42,60 @@ const app = express();
 
 app.use(
   paywall(
+    { fast: 'fast1merchant...' },
     {
-      '/premium': {
-        price: '$0.10',
-        network: 'fast-testnet',
-        networkConfig: {
-          asset: '0x...',
-          decimals: 6,
-        },
+      price: '$0.10',
+      network: 'fast-testnet',
+      networkConfig: {
+        asset: '0x...',
+        decimals: 6,
       },
     },
-    { url: 'https://facilitator.example.com' },
+    { url: 'https://facilitator.example.com' }, // facilitator endpoint
   ),
 );
 
 app.get('/premium', (req, res) => {
   res.json({ content: 'exclusive data' });
 });
+
+app.listen(3000);
+```
+
+### Protect Multiple Routes with `paymentMiddleware`
+
+Use `paymentMiddleware` to define different price configs per route:
+
+```typescript
+import express from 'express';
+import { paymentMiddleware } from '@fastxyz/x402-server';
+
+const app = express();
+
+app.use(
+  paymentMiddleware(
+    { evm: '0x123...' },     // payTo: EVM address for all payments
+    {                         // RoutesConfig: pattern → RouteConfig
+      '/basic': {
+        price: '$0.01',
+        network: 'arbitrum-sepolia',
+        // NOTE: In production, use environment variables or a config service for asset addresses
+        networkConfig: { asset: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', decimals: 6 },
+      },
+      '/premium': {
+        price: '$0.10',
+        network: 'arbitrum-sepolia',
+        // NOTE: In production, use environment variables or a config service for asset addresses
+        networkConfig: { asset: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', decimals: 6 },
+        config: { description: 'Premium tier content' },
+      },
+    },
+    { url: 'https://facilitator.example.com' },
+  ),
+);
+
+app.get('/basic', (req, res) => res.json({ tier: 'basic' }));
+app.get('/premium', (req, res) => res.json({ tier: 'premium' }));
 
 app.listen(3000);
 ```
@@ -78,21 +119,22 @@ Client                    Server                    Facilitator
 
 ## API
 
-### `paywall(routes, facilitator, options?)`
+### `paywall(payTo, config, facilitator, options?)`
 
-Express middleware that protects multiple routes with payment requirements.
+Express middleware that protects all requests matched at the mount point with a single payment requirement.
 
 **Parameters:**
 
-| Param         | Type                          | Description                      |
-| ------------- | ----------------------------- | -------------------------------- |
-| `routes`      | `Record<string, RouteConfig>` | Route path → payment config      |
-| `facilitator` | `FacilitatorConfig`           | Facilitator endpoint (`{ url }`) |
-| `options`     | `MiddlewareOptions`           | Optional config                  |
+| Param         | Type                | Description                                |
+| ------------- | ------------------- | ------------------------------------------ |
+| `payTo`       | `PayToConfig`       | Recipient address config                   |
+| `config`      | `RouteConfig`       | Payment config for the mounted route(s)    |
+| `facilitator` | `FacilitatorConfig` | Facilitator endpoint (`{ url }`)           |
+| `options`     | `MiddlewareOptions` | Optional middleware config                 |
 
-### `paymentMiddleware(routeConfig, facilitator, options?)`
+### `paymentMiddleware(payTo, routes, facilitator, options?)`
 
-Express middleware for a single route.
+Express middleware for multiple route patterns.
 
 ### `RouteConfig`
 
@@ -115,13 +157,37 @@ interface NetworkConfig {
 }
 ```
 
+### `FacilitatorConfig`
+
+```typescript
+interface FacilitatorConfig {
+  /** Facilitator URL (e.g., "http://localhost:3002") */
+  url: string;
+  /** Optional factory for auth headers on verify/settle calls to the facilitator */
+  createAuthHeaders?: () => Promise<{
+    verify?: Record<string, string>;
+    settle?: Record<string, string>;
+  }>;
+}
+```
+
 ### Low-Level Functions
 
-- `createPaymentRequirement(routeConfig, payTo)` — create a `PaymentRequirement`
-- `createPaymentRequired(requirements)` — format a 402 response body
+- `createPaymentRequirement(payTo, routeConfig, resource)` — create a `PaymentRequirement`
+- `createPaymentRequired(payTo, routeConfig, resource)` — format a 402 response body
 - `verifyPayment(payload, requirement, facilitator)` — verify via facilitator
 - `settlePayment(payload, requirement, facilitator)` — settle via facilitator
 - `verifyAndSettle(payload, requirement, facilitator)` — verify then settle
+
+### Re-exported Express Types
+
+The middleware module re-exports minimal Express-compatible types for use in type annotations:
+
+```typescript
+import type { Request, Response, NextFunction } from '@fastxyz/x402-server';
+```
+
+These are framework-compatible (Express, Koa, etc.) as long as they follow the same `method`, `path`, `header()`, `status()`, `json()`, `setHeader()` signature.
 
 ## Common Pitfalls
 

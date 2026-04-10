@@ -38,19 +38,17 @@ fast pay https://api.example.com/resource
 
 ## Environment
 
-| Variable | Description |
-|---|---|
+| Variable        | Description                                          |
+| --------------- | ---------------------------------------------------- |
 | `FAST_PASSWORD` | Keystore password (preferred over `--password` flag) |
 
 ## AI Agent Skill
 
-Install the Copilot CLI skill to let AI agents operate the `fast` CLI on your behalf:
+Install the skill to let AI agents operate the `fast` CLI on your behalf:
 
 ```bash
 npx skills add https://github.com/fastxyz/fast-sdk/tree/main/skills
 ```
-
-The skill teaches the agent how to bootstrap, install, and use every `fast` command — including bridging flows, x402 payments, and JSON-mode scripting.
 
 ## Documentation
 

@@ -47,12 +47,13 @@ const result = await x402Pay({
   wallet: {
     type: 'fast',
     privateKey: '0x...',
+    publicKey: '0x...',
     address: 'fast1...',
-    rpcUrl: 'https://rpc.testnet.fast.co',
+    rpcUrl: 'https://api.fast.xyz/proxy',
   },
 });
 
-console.log(result.response); // Paid content
+console.log(result.body); // Paid content
 ```
 
 ### EVM Payment
@@ -82,17 +83,27 @@ const result = await x402Pay({
 When both wallet types and a `bridgeConfig` are provided, the client will automatically bridge Fast USDC to EVM if the EVM wallet has insufficient balance.
 
 ```typescript
+interface BridgeConfig {
+  rpcUrl: string;           // Fast network RPC URL
+  fastBridgeAddress: string; // Fast address of the AllSet bridge contract
+  relayerUrl: string;        // AllSet relayer URL
+  crossSignUrl: string;      // AllSet cross-sign service URL
+  tokenEvmAddress: string;   // USDC address on the EVM side (e.g., '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d')
+  tokenFastTokenId: string;  // USDC token ID on the Fast network (hex, no 0x)
+  networkId: string;         // Fast network ID (e.g., 'fast:testnet')
+}
+
 const result = await x402Pay({
   url: 'https://api.example.com/premium',
   wallet: [fastWallet, evmWallet],
   evmNetworks: { ... },
   bridgeConfig: {
     rpcUrl: 'https://rpc.testnet.fast.co',
-    fastBridgeAddress: '0x...',
+    fastBridgeAddress: 'fast1bridge...',
     relayerUrl: 'https://relayer.example.com',
     crossSignUrl: 'https://crosssign.example.com',
     tokenEvmAddress: '0x...',
-    tokenFastTokenId: '0x...',
+    tokenFastTokenId: 'abc123...',
     networkId: 'fast:testnet',
   },
 });
@@ -117,13 +128,80 @@ Main entry point. Fetches the URL, and if a 402 is returned, handles payment aut
 | `bridgeConfig` | `BridgeConfig`                   | No       | Bridge config for auto-bridge                   |
 | `verbose`      | `boolean`                        | No       | Enable verbose logging                          |
 
-### `bridgeFastusdcToUsdc(fastWallet, evmWallet, amount, bridgeConfig)`
+### `bridgeFastusdcToUsdc(params)`
 
-Manually bridge Fast USDC to EVM USDC.
+Manually bridge Fast USDC to EVM USDC using a single params object.
 
-### `getFastBalance(wallet: FastWallet): Promise<bigint>`
+```typescript
+import { bridgeFastusdcToUsdc } from '@fastxyz/x402-client';
 
-Get USDC balance on the Fast network.
+const result = await bridgeFastusdcToUsdc({
+  fastWallet,
+  evmReceiverAddress: evmWallet.address,
+  amount: 1000000n,
+  rpcUrl: bridgeConfig.rpcUrl,
+  fastBridgeAddress: bridgeConfig.fastBridgeAddress,
+  relayerUrl: bridgeConfig.relayerUrl,
+  crossSignUrl: bridgeConfig.crossSignUrl,
+  tokenEvmAddress: bridgeConfig.tokenEvmAddress,
+  tokenFastTokenId: bridgeConfig.tokenFastTokenId,
+  networkId: bridgeConfig.networkId,
+});
+
+console.log(result.txHash); // Bridge transaction hash
+```
+
+### `getFastBalance(wallet: FastWallet, options: { rpcUrl: string; tokenId: string }): Promise<bigint>`
+
+Get a token balance on the Fast network.
+
+```typescript
+import { getFastBalance } from '@fastxyz/x402-client';
+
+const balance = await getFastBalance(fastWallet, {
+  rpcUrl: 'https://api.fast.xyz/proxy',
+  tokenId: 'abc123...',
+});
+console.log('Fast USDC balance:', balance); // bigint (smallest units)
+```
+
+### Low-Level Utilities
+
+#### `parse402Response(response: Response): Promise<PaymentRequired>`
+
+Parse a raw HTTP 402 response into a typed `PaymentRequired` object. Throws if the response status is not 402.
+
+```typescript
+import { parse402Response } from '@fastxyz/x402-client';
+
+const paymentReq = await parse402Response(response);
+console.log(paymentReq.accepts); // Array of accepted payment methods
+```
+
+#### `buildPaymentHeader(payload: unknown): string`
+
+Build a base64-encoded X-PAYMENT header value from a payment payload object. Useful for manual payment flows where you construct the payload yourself.
+
+```typescript
+import { buildPaymentHeader } from '@fastxyz/x402-client';
+
+const header = buildPaymentHeader({
+  x402Version: 1,
+  scheme: 'exact',
+  // ...payment payload fields
+});
+// Use as: headers['X-PAYMENT'] = header
+```
+
+#### `parsePaymentHeader(header: string): unknown`
+
+Parse a base64-encoded X-PAYMENT header string back into a decoded object. Inverse of `buildPaymentHeader`.
+
+```typescript
+import { parsePaymentHeader } from '@fastxyz/x402-client';
+
+const payload = parsePaymentHeader('eyJ4NDAyVmVyc2lvbiI6MS...');
+```
 
 ## Common Pitfalls
 

@@ -19,7 +19,7 @@ This package provides the canonical type definitions used across `@fastxyz/x402-
 
 Use this package when you need to reference x402 payment types (`PaymentRequirement`, `PaymentPayload`, `VerifyResponse`, etc.), define network configurations (`EvmChainConfig`, `FastNetworkConfig`), parse price strings into raw token units, encode/decode base64 JSON payloads for X-PAYMENT headers, or determine network type from a network name string.
 
-Out of scope: making payments → use `@fastxyz/x402-client`; protecting API routes → use `@fastxyz/x402-server`; verifying/settling payments on-chain → use `@fastxyz/x402-facilitator`.
+Out of scope: making payments → use `@fastxyz/x402-client`; protecting API routes → use `@fastxyz/x402-server`; verifying/settling payments on the network → use `@fastxyz/x402-facilitator`.
 
 ## Installation
 
@@ -40,14 +40,14 @@ pnpm add @fastxyz/x402-types
 | `VerifyResponse`       | Facilitator verify result                      |
 | `SettleResponse`       | Facilitator settle result                      |
 | `SupportedPaymentKind` | Facilitator /supported descriptor              |
-| `NetworkType`          | `"evm" \| "fast" \| "svm"`                     |
+| `NetworkType`          | `"evm" \| "fast" \| "svm"` (SVM = Solana VM, forward-looking) |
 
 ### Network Config Types
 
 | Type                | Description                                                                             |
 | ------------------- | --------------------------------------------------------------------------------------- |
 | `EvmChainConfig`    | EVM chain config: `chainId`, `rpcUrl`, `usdcAddress`, optional `usdcName`/`usdcVersion` |
-| `FastNetworkConfig` | Fast network config: `rpcUrl`, `usdcTokenId`                                            |
+| `FastNetworkConfig` | Fast network config: `rpcUrl`, `tokenId`, `networkId`, `committeePublicKeys`           |
 
 ## Utilities
 

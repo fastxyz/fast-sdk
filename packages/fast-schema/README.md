@@ -1,6 +1,6 @@
 # @fastxyz/schema
 
-Effect Schema definitions for the Fast network protocol.
+Effect schema definitions for the Fast network protocol.
 Provides type-safe, bidirectional codecs for BCS serialization,
 JSON-RPC, and REST wire formats.
 
@@ -72,6 +72,6 @@ const bytes = bcsSchema.VersionedTransaction.serialize(tx).toBytes();
 ## Development
 
 ```bash
-pnpm build    # Build with tsup
-pnpm test     # Run tests (from repo root: pnpm vitest run)
+pnpm build        # Build this package
+pnpm turbo test   # Run the repo test pipeline
 ```

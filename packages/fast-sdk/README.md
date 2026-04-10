@@ -81,9 +81,9 @@ const account = await provider.getAccountInfo({
   address: pubKey, // Uint8Array, hex string, or bech32m
 });
 
-console.log('Balance:', account.balance);      // bigint
-console.log('Next nonce:', account.nextNonce); // bigint
-console.log('Tokens:', account.tokenBalance);  // [id, amt][]
+console.log('Native balance:', account.balance);
+console.log('Token balances:', account.tokenBalance); // [tokenId, amount][] pairs
+console.log('Next nonce:', account.nextNonce);
 ```
 
 Optional filters (all default to `null` if omitted):
@@ -122,7 +122,7 @@ const result = await provider.submitTransaction(envelope);
 
 ### 5. Build Other Transaction Types
 
-`TransactionBuilder` supports 10 operation types via fluent chaining. Single operations produce a direct claim; multiple operations are automatically batched.
+`TransactionBuilder` supports 10 builder methods via fluent chaining. Single operations produce a direct claim; multiple operations are automatically batched.
 
 ```ts
 const builder = new TransactionBuilder({ networkId, signer, nonce });
@@ -134,7 +134,9 @@ builder.addBurn({ tokenId, amount });
 builder.addStateInitialization({ key, initialState });
 builder.addStateUpdate({ key, previousState, nextState, computeClaimTxHash, computeClaimTxTimestamp });
 builder.addStateReset({ key, resetState });
+// verifierCommittee = addresses of verifiers, verifierQuorum = minimum signatures needed, claimData = the claim being verified
 builder.addExternalClaim({ claim: { verifierCommittee, verifierQuorum, claimData }, signatures });
+// Informs the network that the account is leaving the verifier set.
 builder.addLeaveCommittee();
 
 // Batch multiple operations
@@ -216,7 +218,7 @@ Typed JSON-RPC client for the Fast proxy API.
 
 ### TransactionBuilder
 
-Fluent builder for all 12 operation types. Single operations produce a direct
+Fluent builder for all 10 operation types. Single operations produce a direct
 claim type; multiple operations are automatically batched.
 
 ```ts
@@ -249,7 +251,7 @@ fromFastAddress('fast1...'); // Uint8Array
 import { encode, hash, hashHex, getTokenId } from '@fastxyz/sdk';
 
 const bytes = await encode(bcsSchema, data);
-const h = await hashHex(bcsSchema, data); // "0x..." keccak-256
+const h = await hashHex(bcsSchema, data); // "0x..." hash output
 const tokenId = getTokenId(sender, nonce, 0n); // deterministic token ID
 ```
 
@@ -269,11 +271,11 @@ try {
 }
 ```
 
-Error hierarchy: Network → JSON-RPC Protocol → Proxy → Validator (FastSet).
+Error hierarchy: Network → JSON-RPC Protocol → Proxy → Validators
 
 ## Development
 
 ```bash
-pnpm build    # Build with tsup
-pnpm test     # Run tests (from repo root: pnpm vitest run)
+pnpm build        # Build this package
+pnpm turbo test   # Run the repo test pipeline
 ```

@@ -1,5 +1,8 @@
+import { AccountInfoResponseFromRpc } from "@fastxyz/schema";
+import { Schema } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FastProvider, Signer, TransactionBuilder } from "../../src/index";
+import { GeneralError } from "../../src/interface/errors";
 
 const HEX_KEY_32 =
   "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
@@ -17,6 +20,57 @@ describe("FastProvider", () => {
     it("stores rpcUrl", () => {
       const provider = new FastProvider({ rpcUrl: "http://localhost:9999" });
       expect(provider.rpcUrl).toBe("http://localhost:9999");
+    });
+
+    it("uses a custom transport when provided", async () => {
+      const wireAccountInfo = Schema.encodeSync(AccountInfoResponseFromRpc)({
+        sender: new Uint8Array(32).fill(1),
+        balance: 0n,
+        nextNonce: 7n,
+        pendingConfirmation: null,
+        requestedState: [],
+        requestedCertificates: null,
+        requestedValidatedTransaction: null,
+        tokenBalance: [],
+      });
+      const transport = {
+        request: vi.fn().mockResolvedValue(wireAccountInfo),
+      };
+
+      const provider = new FastProvider({
+        rpcUrl: "http://localhost:9999",
+        transport,
+      });
+
+      const result = await provider.getAccountInfo({
+        address: HEX_KEY_32,
+      });
+
+      expect(transport.request).toHaveBeenCalledWith(
+        "http://localhost:9999",
+        "proxy_getAccountInfo",
+        expect.any(Object),
+      );
+      expect(result.nextNonce).toBe(7n);
+    });
+
+    it("normalizes JSON-RPC-shaped transport errors", async () => {
+      const provider = new FastProvider({
+        rpcUrl: "http://localhost:9999",
+        transport: {
+          request: vi.fn().mockRejectedValue({
+            code: 1,
+            message: "boom",
+            data: { GeneralError: "transport failed" },
+          }),
+        },
+      });
+
+      await expect(
+        provider.getAccountInfo({
+          address: HEX_KEY_32,
+        }),
+      ).rejects.toBeInstanceOf(GeneralError);
     });
   });
 

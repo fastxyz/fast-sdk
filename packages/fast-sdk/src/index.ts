@@ -42,7 +42,21 @@ export {
 } from "./interface/errors";
 export type { ProviderOptions } from "./interface/provider";
 export { FastProvider } from "./interface/provider";
-export { Signer, verify, verifyTypedData } from "./interface/signer";
+export {
+  FastSnapClient,
+  type FastSnapAccount,
+  type FastSnapClientOptions,
+  type FastSnapConnectResult,
+  type FastSnapSignatureResult,
+  type FastSnapSignTransactionResult,
+  type Eip1193Provider,
+} from "./interface/snap";
+export {
+  Signer,
+  type FastSigner,
+  verify,
+  verifyTypedData,
+} from "./interface/signer";
 export {
   TransactionBuilder,
   type TransactionBuilderOptions,

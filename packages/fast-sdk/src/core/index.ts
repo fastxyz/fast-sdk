@@ -1,5 +1,9 @@
 export { domainEncode, encode, getTokenId, hash, hashHex } from "./crypto/bcs";
-export { buildSignedEnvelope } from "./crypto/envelope";
+export {
+  buildSignedEnvelope,
+  signVersionedTransaction,
+  verifyVersionedTransactionSignature,
+} from "./crypto/envelope";
 export {
   getPublicKey,
   signMessage,
@@ -42,6 +46,10 @@ export {
 } from "./error/proxy";
 export { parseRpcError } from "./network/error";
 export { rpcCallEffect } from "./network/rpc";
+export {
+  JsonRpcFastTransport,
+  type FastTransport,
+} from "./network/transport";
 export {
   faucetDrip,
   getAccountInfo,

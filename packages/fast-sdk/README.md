@@ -1,7 +1,8 @@
 # @fastxyz/sdk
 
 TypeScript SDK for the Fast network. Provides a high-level API for signing
-transactions, querying the network, and converting addresses and amounts.
+transactions, querying the network, converting addresses and amounts, and
+connecting delegated browser signers such as MetaMask Snaps.
 
 ## Use Cases
 
@@ -10,6 +11,7 @@ transactions, querying the network, and converting addresses and amounts.
 - Transfer tokens on the Fast network
 - Create or burn tokens
 - Sign or verify messages with an Ed25519 key
+- Integrate a Fast-specific MetaMask Snap from a browser dapp
 - Convert between hex, bytes, and bech32m addresses
 
 **Out of scope:** Bridge flows (EVM ↔ Fast) → [`@fastxyz/allset-sdk`](../allset-sdk) · Token swaps, DEX operations, or generic EVM wallet operations
@@ -28,6 +30,7 @@ npm install @fastxyz/sdk
 | -------------------- | -------------------------------------------- |
 | `Signer`             | Holds an Ed25519 private key, signs messages |
 | `FastProvider`       | JSON-RPC client for the Fast proxy API       |
+| `FastSnapClient`     | MetaMask Snap client for delegated signing   |
 | `TransactionBuilder` | Fluent builder for all transaction types     |
 
 **Typical flow:** Create Signer → Create Provider → Get account info → Build transaction → Sign → Submit.
@@ -62,6 +65,28 @@ const provider = new FastProvider({
 ```
 
 There is no default URL — `rpcUrl` is always required.
+
+You can also override the transport when the SDK should not perform the raw
+JSON-RPC request itself:
+
+```ts
+const provider = new FastProvider({
+  rpcUrl: 'https://api.fast.xyz/proxy',
+  transport: {
+    request: async (url, method, params) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+      });
+
+      const json = await response.json();
+      if (json.error) throw new Error(json.error.message);
+      return json.result;
+    },
+  },
+});
+```
 
 ### 3. Check Account Info
 
@@ -152,7 +177,40 @@ const valid = await verify(sig, messageBytes, pubKey);
 const valid = await verifyTypedData(sig, bcsType, data, pubKey);
 ```
 
-### 7. Query Certificates and Token Metadata
+### 7. Connect to a Fast MetaMask Snap
+
+```ts
+import {
+  FastProvider,
+  FastSnapClient,
+  TransactionBuilder,
+} from '@fastxyz/sdk/browser';
+
+const snap = new FastSnapClient({
+  snapId: 'local:http://localhost:8081',
+});
+
+const { accounts } = await snap.connect();
+const signer = snap.getSigner(accounts[0]!.address);
+
+const provider = new FastProvider({
+  rpcUrl: 'https://api.fast.xyz/proxy',
+});
+
+const account = await provider.getAccountInfo({
+  address: await signer.getPublicKey(),
+});
+
+const envelope = await new TransactionBuilder({
+  networkId: 'fast:testnet',
+  signer,
+  nonce: account.nextNonce,
+})
+  .addLeaveCommittee()
+  .sign();
+```
+
+### 8. Query Certificates and Token Metadata
 
 ```ts
 // Get finalized transaction certificates
@@ -192,6 +250,10 @@ import { verify, verifyTypedData } from '@fastxyz/sdk';
 const valid = await verify(signature, message, publicKey);
 ```
 
+The same `TransactionBuilder` can also use delegated signers, including
+`FastSnapClient#getSigner(address)`, as long as they implement the exported
+`FastSigner` interface.
+
 ### FastProvider
 
 Typed JSON-RPC client for the Fast proxy API.
@@ -204,6 +266,23 @@ Typed JSON-RPC client for the Fast proxy API.
 | `getTransactionCertificates(params)`     | Fetch finalized certificates                |
 | `getPendingMultisigTransactions(params)` | Fetch pending multisig txs                  |
 | `faucetDrip(params)`                     | Request testnet/devnet faucet drip          |
+
+`FastProvider` also accepts an optional `transport` override for browser
+wallet integrations and tests.
+
+### FastSnapClient
+
+Typed EIP-1193 client for a Fast-specific MetaMask Snap.
+
+```ts
+const snap = new FastSnapClient({
+  snapId: 'npm:@fastxyz/metamask-snap',
+});
+
+await snap.install();
+const { accounts } = await snap.connect();
+const signer = snap.getSigner(accounts[0]!.address);
+```
 
 ### TransactionBuilder
 

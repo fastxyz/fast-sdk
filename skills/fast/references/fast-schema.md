@@ -1,1 +1,0 @@
-../../../packages/fast-schema/README.md

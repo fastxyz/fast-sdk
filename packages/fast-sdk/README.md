@@ -1,14 +1,3 @@
----
-name: fast-sdk
-description: >
-  Fast network SDK for AI agents and Node.js apps. Build and sign
-  transactions, query accounts, transfer tokens, and manage keys
-  using @fastxyz/sdk.
-metadata:
-  short-description: Fast transaction building, signing, and RPC queries.
-  compatibility: Node.js 20+, browsers, workers.
----
-
 # @fastxyz/sdk
 
 TypeScript SDK for the Fast network. Provides a high-level API for signing
@@ -58,7 +47,7 @@ const signer = new Signer('abcdef0123456789...');
 // Or from raw bytes or a number array
 const signer = new Signer(new Uint8Array(32));
 
-const pubKey = await signer.getPublicKey();   // Uint8Array (32)
+const pubKey = await signer.getPublicKey(); // Uint8Array (32)
 const address = await signer.getFastAddress(); // "fast1..."
 ```
 

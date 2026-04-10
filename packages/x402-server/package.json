@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/x402-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Server SDK for the x402 HTTP Payment Protocol — Express middleware for paywall and payment verification",
   "repository": {
     "type": "git",

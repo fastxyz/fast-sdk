@@ -1,14 +1,3 @@
----
-name: x402-server
-description: >
-  x402 server SDK for protecting API routes with payment requirements. Provides Express
-  middleware (paywall, paymentMiddleware) and payment verification/settlement helpers.
-  All network config provided by the caller via RouteConfig — no hardcoded values.
-metadata:
-  short-description: Protect API routes with x402 payment requirements.
-  compatibility: Node.js 20+, Express-compatible frameworks.
----
-
 # @fastxyz/x402-server
 
 Server SDK for the x402 HTTP Payment Protocol. Protect API routes with payment requirements using Express middleware.
@@ -74,8 +63,9 @@ const app = express();
 
 app.use(
   paymentMiddleware(
-    { evm: '0x123...' },     // payTo: EVM address for all payments
-    {                         // RoutesConfig: pattern → RouteConfig
+    { evm: '0x123...' }, // payTo: EVM address for all payments
+    {
+      // RoutesConfig: pattern → RouteConfig
       '/basic': {
         price: '$0.01',
         network: 'arbitrum-sepolia',
@@ -125,12 +115,12 @@ Express middleware that protects all requests matched at the mount point with a 
 
 **Parameters:**
 
-| Param         | Type                | Description                                |
-| ------------- | ------------------- | ------------------------------------------ |
-| `payTo`       | `PayToConfig`       | Recipient address config                   |
-| `config`      | `RouteConfig`       | Payment config for the mounted route(s)    |
-| `facilitator` | `FacilitatorConfig` | Facilitator endpoint (`{ url }`)           |
-| `options`     | `MiddlewareOptions` | Optional middleware config                 |
+| Param         | Type                | Description                             |
+| ------------- | ------------------- | --------------------------------------- |
+| `payTo`       | `PayToConfig`       | Recipient address config                |
+| `config`      | `RouteConfig`       | Payment config for the mounted route(s) |
+| `facilitator` | `FacilitatorConfig` | Facilitator endpoint (`{ url }`)        |
+| `options`     | `MiddlewareOptions` | Optional middleware config              |
 
 ### `paymentMiddleware(payTo, routes, facilitator, options?)`
 

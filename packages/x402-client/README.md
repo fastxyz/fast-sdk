@@ -1,15 +1,3 @@
----
-name: x402-client
-description: >
-  x402 client SDK for paying for 402-protected content. Use when the user wants to call
-  an API that returns HTTP 402 and automatically handle payment. Supports Fast networks,
-  EVM networks (EIP-3009), and auto-bridge from Fast → EVM. All network config provided
-  by the caller — no hardcoded values.
-metadata:
-  short-description: Pay for 402-protected APIs with Fast or EVM wallets.
-  compatibility: Node.js 20+.
----
-
 # @fastxyz/x402-client
 
 Client SDK for the x402 HTTP Payment Protocol. Automatically handles HTTP 402 Payment Required responses by signing and paying for content.

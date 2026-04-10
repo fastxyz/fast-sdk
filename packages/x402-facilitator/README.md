@@ -1,15 +1,3 @@
----
-name: x402-facilitator
-description: >
-  x402 payment facilitator for network verification and settlement. Verify and settle
-  payments for both EVM (EIP-3009 transferWithAuthorization) and Fast (Ed25519 transaction
-  certificates) networks. Run as a standalone Express server or mount routes into an
-  existing app. All network config provided via FacilitatorConfig — no hardcoded values.
-metadata:
-  short-description: Verify and settle x402 payments on the Fast and EVM networks.
-  compatibility: Node.js 20+, Express-compatible frameworks.
----
-
 # @fastxyz/x402-facilitator
 
 Payment verification and settlement for the x402 HTTP Payment Protocol.
@@ -48,20 +36,20 @@ app.use(express.json());
 
 app.use(
   createFacilitatorServer({
-  evmPrivateKey: '0x...',
-  evmChains: {
-    'arbitrum-sepolia': {
-      chain: arbitrumSepolia,
-      rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
-      usdcAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+    evmPrivateKey: '0x...',
+    evmChains: {
+      'arbitrum-sepolia': {
+        chain: arbitrumSepolia,
+        rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
+        usdcAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+      },
     },
-  },
-  fastNetworks: {
-    'fast-testnet': {
-      rpcUrl: 'https://api.fast.xyz/proxy',
-      committeePublicKeys: ['abc123...', 'def456...'], // Ed25519 public keys used to verify Fast network transactions
+    fastNetworks: {
+      'fast-testnet': {
+        rpcUrl: 'https://api.fast.xyz/proxy',
+        committeePublicKeys: ['abc123...', 'def456...'], // Ed25519 public keys used to verify Fast network transactions
+      },
     },
-  },
   }),
 );
 

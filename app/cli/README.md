@@ -13,7 +13,7 @@ pnpm install -g @fastxyz/cli
 Or use via pnpm in the repo:
 
 ```bash
-pnpm fast --help
+pnpm cli --help
 ```
 
 Verify:

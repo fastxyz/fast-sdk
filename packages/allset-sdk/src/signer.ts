@@ -2,6 +2,7 @@ import { bcsSchema, VersionedTransactionFromBcs } from '@fastxyz/schema';
 import { Schema } from 'effect';
 import type {
   FastDelegatedAccessKeyAuthorization,
+  FastDelegatedAccessKeyPolicy,
   FastEnvelopeSignature,
   FastPasskeyOwnerAuthorization,
   FastSignerCapabilities,
@@ -40,7 +41,7 @@ export interface FastPasskeyOwnerSignerOptions {
 export interface FastDelegatedAccessKeySignerOptions {
   address: string;
   publicKey?: Uint8Array | null;
-  policy: FastDelegatedAccessKeyAuthorization['policy'];
+  policy: FastDelegatedAccessKeyPolicy;
   metadata?: Record<string, unknown>;
   signMessage?: (messageBytes: Uint8Array) => Promise<Uint8Array>;
   authorizeTransaction: (

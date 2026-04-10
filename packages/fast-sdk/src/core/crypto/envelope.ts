@@ -6,7 +6,7 @@ import {
   VersionedTransactionFromBcs,
 } from "@fastxyz/schema";
 import { Effect, Schema } from "effect";
-import { signTypedData } from "./signing";
+import { signTypedData, verifyTypedData } from "./signing";
 
 /** Sign a VersionedTransaction with an Ed25519 private key. */
 export const signVersionedTransaction = (
@@ -21,6 +21,24 @@ export const signVersionedTransaction = (
       privateKey,
       bcsSchema.VersionedTransaction,
       bcsEncoded,
+    );
+  });
+
+/** Verify a VersionedTransaction signature against an Ed25519 public key. */
+export const verifyVersionedTransactionSignature = (
+  signature: Uint8Array,
+  transaction: VersionedTransaction,
+  publicKey: Uint8Array,
+) =>
+  Effect.gen(function* () {
+    const bcsEncoded = yield* Schema.encode(VersionedTransactionFromBcs)(
+      transaction,
+    );
+    return yield* verifyTypedData(
+      signature,
+      bcsSchema.VersionedTransaction,
+      bcsEncoded,
+      publicKey,
     );
   });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { FastSigner } from "../../src/index";
 import { Signer, TransactionBuilder } from "../../src/index";
+import { SigningError } from "../../src/interface/errors";
 
 const HEX_TOKEN_ID =
   "1111111111111111111111111111111111111111111111111111111111111111";
@@ -370,10 +371,15 @@ describe("TransactionBuilder", () => {
 
   describe("delegated signing", () => {
     it("supports non-key-owning signers that implement signTransaction", async () => {
+      const realSigner = new Signer(new Uint8Array(32).fill(9));
       const delegatedSigner: FastSigner = {
-        getPublicKey: vi.fn().mockResolvedValue(new Uint8Array(32).fill(9)),
+        getPublicKey: vi.fn().mockResolvedValue(await realSigner.getPublicKey()),
         signMessage: vi.fn().mockResolvedValue(new Uint8Array(64).fill(8)),
-        signTransaction: vi.fn().mockResolvedValue(new Uint8Array(64).fill(7)),
+        signTransaction: vi
+          .fn()
+          .mockImplementation((transaction) =>
+            realSigner.signTransaction(transaction),
+          ),
       };
 
       const builder = new TransactionBuilder({
@@ -388,9 +394,33 @@ describe("TransactionBuilder", () => {
       expect(delegatedSigner.getPublicKey).toHaveBeenCalledTimes(1);
       expect(delegatedSigner.signTransaction).toHaveBeenCalledTimes(1);
       expect(envelope.transaction.value.sender).toEqual(
-        new Uint8Array(32).fill(9),
+        await realSigner.getPublicKey(),
       );
-      expect(envelope.signature.value).toEqual(new Uint8Array(64).fill(7));
+      expect(envelope.signature.value).toHaveLength(64);
+    });
+
+    it("rejects delegated signers whose signature does not match the claimed public key", async () => {
+      const realSigner = new Signer(new Uint8Array(32).fill(33));
+      const wrongSigner = new Signer(new Uint8Array(32).fill(34));
+      const delegatedSigner: FastSigner = {
+        getPublicKey: vi.fn().mockResolvedValue(await realSigner.getPublicKey()),
+        signMessage: vi.fn().mockResolvedValue(new Uint8Array(64).fill(8)),
+        signTransaction: vi
+          .fn()
+          .mockImplementation((transaction) =>
+            wrongSigner.signTransaction(transaction),
+          ),
+      };
+
+      const builder = new TransactionBuilder({
+        networkId: "fast:testnet",
+        signer: delegatedSigner,
+        nonce: 6n,
+      });
+
+      builder.addLeaveCommittee();
+
+      await expect(builder.sign()).rejects.toBeInstanceOf(SigningError);
     });
   });
 

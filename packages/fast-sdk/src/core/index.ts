@@ -2,6 +2,7 @@ export { domainEncode, encode, getTokenId, hash, hashHex } from "./crypto/bcs";
 export {
   buildSignedEnvelope,
   signVersionedTransaction,
+  verifyVersionedTransactionSignature,
 } from "./crypto/envelope";
 export {
   getPublicKey,

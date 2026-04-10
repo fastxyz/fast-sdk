@@ -18,8 +18,10 @@ import type {
 import { TransactionInput } from "@fastxyz/schema";
 import { Schema } from "effect";
 import { SignatureFromInput } from "@fastxyz/schema";
+import { verifyVersionedTransactionSignature } from "../core/crypto/envelope";
 import { run } from "../core/run";
 import type { FastSigner } from "./signer";
+import { SigningError } from "../core/error/crypto";
 
 /** Options for constructing a {@link TransactionBuilder}. */
 export interface TransactionBuilderOptions {
@@ -179,6 +181,16 @@ export class TransactionBuilder {
     const type: TransactionVersion = version ?? "Release20260319";
     const versioned = { type, value: internal };
     const rawSignature = await signer.signTransaction(versioned);
+    const matchesSigner = await run(
+      verifyVersionedTransactionSignature(rawSignature, versioned, sender),
+    );
+    if (!matchesSigner) {
+      throw new SigningError({
+        cause: new Error(
+          "Signer returned a transaction signature that does not match its public key.",
+        ),
+      });
+    }
     const signature = Schema.decodeUnknownSync(SignatureFromInput)(rawSignature);
 
     return {

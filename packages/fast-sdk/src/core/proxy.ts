@@ -18,8 +18,19 @@ import {
   TransactionEnvelopeFromRpc,
 } from "@fastxyz/schema";
 import { Effect, Schema } from "effect";
+import { parseRpcError } from "./network/error";
 import type { FastTransport } from "./network/transport";
 import { rpcCallEffect } from "./network/rpc";
+
+const isJsonRpcErrorLike = (
+  error: unknown,
+): error is { code: number; message: string; data?: unknown } =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  typeof (error as { code?: unknown }).code === "number" &&
+  "message" in error &&
+  typeof (error as { message?: unknown }).message === "string";
 
 const requestEffect = (
   transport: FastTransport | undefined,
@@ -30,7 +41,8 @@ const requestEffect = (
   transport
     ? Effect.tryPromise({
         try: () => transport.request(rpcUrl, method, params),
-        catch: (error) => error,
+        catch: (error) =>
+          isJsonRpcErrorLike(error) ? parseRpcError(error) : error,
       })
     : (rpcCallEffect(rpcUrl, method, params) as Effect.Effect<
         unknown,

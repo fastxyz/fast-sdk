@@ -2,6 +2,7 @@ import { AccountInfoResponseFromRpc } from "@fastxyz/schema";
 import { Schema } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FastProvider, Signer, TransactionBuilder } from "../../src/index";
+import { GeneralError } from "../../src/interface/errors";
 
 const HEX_KEY_32 =
   "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
@@ -51,6 +52,25 @@ describe("FastProvider", () => {
         expect.any(Object),
       );
       expect(result.nextNonce).toBe(7n);
+    });
+
+    it("normalizes JSON-RPC-shaped transport errors", async () => {
+      const provider = new FastProvider({
+        rpcUrl: "http://localhost:9999",
+        transport: {
+          request: vi.fn().mockRejectedValue({
+            code: 1,
+            message: "boom",
+            data: { GeneralError: "transport failed" },
+          }),
+        },
+      });
+
+      await expect(
+        provider.getAccountInfo({
+          address: HEX_KEY_32,
+        }),
+      ).rejects.toBeInstanceOf(GeneralError);
     });
   });
 

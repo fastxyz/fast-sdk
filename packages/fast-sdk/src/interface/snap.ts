@@ -172,8 +172,12 @@ export class FastSnapClient {
     );
   }
 
-  async syncNonce(address: string): Promise<number | null> {
-    return this.invoke<number | null>("fast_syncNonce", { address });
+  async syncNonce(address: string): Promise<bigint | null> {
+    const result = await this.invoke<number | bigint | null>(
+      "fast_syncNonce",
+      { address },
+    );
+    return result == null ? null : BigInt(result);
   }
 
   getSigner(address: string): FastSigner {

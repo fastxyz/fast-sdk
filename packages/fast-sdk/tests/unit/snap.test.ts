@@ -151,4 +151,20 @@ describe("FastSnapClient", () => {
       },
     });
   });
+
+  it("returns syncNonce as bigint to avoid precision loss", async () => {
+    const request = vi
+      .fn<NonNullable<Eip1193Provider["request"]>>()
+      .mockResolvedValueOnce("9007199254740993");
+    const client = new FastSnapClient({
+      snapId: "local:http://localhost:8081",
+      provider: { request },
+    });
+
+    const nonce = await client.syncNonce(
+      "fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqx3y2z9",
+    );
+
+    expect(nonce).toBe(9007199254740993n);
+  });
 });

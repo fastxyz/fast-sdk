@@ -23,7 +23,7 @@ The monorepo contains multiple packages:
 
 | Package | What it's for |
 | ------- | ------------- |
-| [@fastxyz/fast-cli](app/cli/) | CLI tool — accounts, balances, sends, x402 payments |
+| [@fastxyz/cli](app/cli/) | CLI tool — accounts, balances, sends, x402 payments |
 | [@fastxyz/sdk](packages/fast-sdk/) | Core SDK — signing, transactions, RPC queries |
 | [@fastxyz/allset-sdk](packages/allset-sdk/) | AllSet SDK — bridge tokens between Fast and EVM |
 | [@fastxyz/x402-client](packages/x402-client/) | Pay for x402-protected HTTP resources |
@@ -51,7 +51,7 @@ The monorepo contains multiple packages:
 
 | Package | When to use it |
 | ------- | -------------- |
-| [@fastxyz/fast-cli](app/cli/) | Terminal commands — accounts, balances, transfers, x402 payments |
+| [@fastxyz/cli](app/cli/) | Terminal commands — accounts, balances, transfers, x402 payments |
 | [@fastxyz/sdk](packages/fast-sdk/) | Programmatic access — Signer, FastProvider, TransactionBuilder |
 | [@fastxyz/allset-sdk](packages/allset-sdk/) | Cross-chain bridging — EVM ↔ Fast via AllSet |
 | [@fastxyz/x402-client](packages/x402-client/) | Pay for 402-protected APIs (auto-handles HTTP 402) |
@@ -98,7 +98,7 @@ The Fast CLI provides command-line access to accounts, networks, transactions, a
 
 ```bash
 # Install globally
-npm install -g @fastxyz/fast-cli
+npm install -g @fastxyz/cli
 
 # Or use via pnpm in the repo
 pnpm cli --help

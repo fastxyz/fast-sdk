@@ -57,6 +57,22 @@ npx @fastxyz/cli@latest --version   # fallback
 
 ---
 
+## Related Package References
+
+Detailed API docs are available in `references/`:
+
+| File | Package | Purpose |
+|---|---|---|
+| `references/fast-sdk.md` | `@fastxyz/sdk` | Fast network SDK — build/sign transactions, query accounts, transfer tokens |
+| `references/allset-sdk.md` | `@fastxyz/allset-sdk` | Bridge SDK — EVM → Fast deposits, Fast → EVM withdrawals |
+| `references/x402-client.md` | `@fastxyz/x402-client` | x402 client — pay 402-protected APIs programmatically |
+| `references/x402-server.md` | `@fastxyz/x402-server` | x402 server — protect API routes with payment middleware |
+| `references/x402-facilitator.md` | `@fastxyz/x402-facilitator` | x402 facilitator — verify and settle payments |
+| `references/x402-types.md` | `@fastxyz/x402-types` | Shared x402 types — PaymentRequirement, PaymentPayload, network configs |
+| `references/fast-schema.md` | `@fastxyz/schema` | Effect schema — BCS/JSON-RPC/REST wire format codecs |
+
+---
+
 ## Key Concepts
 
 ### Accounts

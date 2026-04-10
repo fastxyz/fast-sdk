@@ -271,7 +271,7 @@ try {
 }
 ```
 
-Error hierarchy: Network → JSON-RPC Protocol → Proxy → Verifier (FastSet — the Fast network's signature verification layer).
+Error hierarchy: Network → JSON-RPC Protocol → Proxy → Validators
 
 ## Development
 

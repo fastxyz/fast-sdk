@@ -95,10 +95,12 @@ fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chai
 |---|---|---|
 | `<address>` | Recipient address | `fast1...` (Fast network) or `0x...` (EVM) |
 | `<amount>` | Amount to send | numeric string, e.g. `"20"` |
-| `--token <TOKEN>` | Token to send | `USDC` (default; `testUSDC` is an alias on testnet) |
+| `--token <TOKEN>` | Token to send (**always specify explicitly**) | `USDC` (default; `testUSDC` is an alias on testnet) |
 | `--from-chain <chain>` | Bridge from this EVM chain into Fast | e.g. `arbitrum-sepolia`, `base` |
 | `--to-chain <chain>` | Bridge from Fast to this EVM chain | e.g. `arbitrum-sepolia` |
 | `--eip-7702` | Gasless deposit (no ETH needed on EVM side) | flag, no value |
+
+> **Always pass `--token USDC` explicitly** when bridging or sending USDC — do not rely on the default.
 
 ### `network` subcommands
 
@@ -106,7 +108,11 @@ fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chai
 |---|---|
 | `fast network list` | List configured networks |
 | `fast network set-default <name>` | Set the default network (`testnet` or `mainnet`) |
-| `fast network add <file>` | Add a custom network from a JSON config file |
+| `fast network add <file> --name <name>` | Add a custom network from a JSON config file; **`--name` is required** |
+| `fast network remove <name>` | Remove a custom network by name |
+
+> **`network add` requires both arguments:** the config file path (positional) AND `--name <name>` (named flag). Omitting `--name` will fail.
+> **`network remove` is the correct command** to delete a network — do NOT use `network delete` or `network list`.
 
 ### `pay` command
 
@@ -176,7 +182,7 @@ with `--network mainnet` per command, or set a persistent default:
 fast network set-default mainnet
 ```
 
-Custom networks can be added from a JSON config file via `fast network add`.
+Custom networks can be added from a JSON config file via `fast network add <file> --name <name>`. Both arguments are required. Remove a custom network with `fast network remove <name>`.
 
 ### Password
 
@@ -237,6 +243,16 @@ fast info bridge-chains    # ← lists which EVM chains support bridging
 fast info bridge-tokens    # ← lists which tokens can be bridged
 ```
 
+### Add and remove custom networks
+
+```sh
+# Add — BOTH the file path AND --name are required:
+fast network add /etc/fast/custom-net.json --name custom-testnet
+
+# Remove — use 'network remove', NOT 'network delete':
+fast network remove custom-testnet
+```
+
 ### Account management
 
 ```sh
@@ -278,7 +294,7 @@ UserOperation via the AllSet Portal and Pimlico.
 ### 5. Bridge USDC from Fast → EVM
 
 ```sh
-fast send 0xYourEvmAddress 25 --to-chain arbitrum-sepolia
+fast send 0xYourEvmAddress 25 --token USDC --to-chain arbitrum-sepolia
 ```
 
 ### 6. Fund via fiat (mainnet only)
@@ -327,9 +343,9 @@ On mainnet, only `USDC` is valid.
 
 | You want | Command |
 |---|---|
-| EVM → Fast (standard) | `fast send <fast1-address> <amount> --from-chain <chain>` |
-| EVM → Fast (gasless, no ETH) | `fast send <fast1-address> <amount> --from-chain <chain> --eip-7702` |
-| Fast → EVM | `fast send <0x-address> <amount> --to-chain <chain>` |
+| EVM → Fast (standard) | `fast send <fast1-address> <amount> --token USDC --from-chain <chain>` |
+| EVM → Fast (gasless, no ETH) | `fast send <fast1-address> <amount> --token USDC --from-chain <chain> --eip-7702` |
+| Fast → EVM | `fast send <0x-address> <amount> --token USDC --to-chain <chain>` |
 | EVM → EVM | Not supported (`NOT_IMPLEMENTED`) |
 
 The address format determines direction: `0x` recipient → Fast→EVM; `fast1`

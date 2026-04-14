@@ -6,6 +6,12 @@ const HEX_TOKEN_ID =
 const HEX_STATE_KEY =
   "2222222222222222222222222222222222222222222222222222222222222222";
 
+/** Extract the claims array from a signed envelope (assumes Release20260407). */
+// biome-ignore lint: test helper uses `any` for convenience
+function claims(envelope: any): { type: string; value: any }[] {
+  return envelope.transaction.value.claims;
+}
+
 describe("TransactionBuilder", () => {
   describe("construction", () => {
     it("accepts minimal options", () => {
@@ -57,7 +63,7 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("TokenTransfer");
+      expect(claims(envelope)[0]!.type).toBe("TokenTransfer");
     });
 
     it("builds TokenCreation", async () => {
@@ -77,7 +83,7 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("TokenCreation");
+      expect(claims(envelope)[0]!.type).toBe("TokenCreation");
     });
 
     it("builds Burn", async () => {
@@ -90,10 +96,8 @@ describe("TransactionBuilder", () => {
 
       builder.addBurn({ tokenId: HEX_TOKEN_ID, amount: 100n });
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("Burn");
-      if (envelope.transaction.value.claim.type === "Burn") {
-        expect(envelope.transaction.value.claim.value.amount).toBe(100n);
-      }
+      expect(claims(envelope)[0]!.type).toBe("Burn");
+      expect(claims(envelope)[0]!.value.amount).toBe(100n);
     });
 
     it("builds Mint", async () => {
@@ -111,7 +115,7 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("Mint");
+      expect(claims(envelope)[0]!.type).toBe("Mint");
     });
 
     it("builds LeaveCommittee", async () => {
@@ -124,7 +128,7 @@ describe("TransactionBuilder", () => {
 
       builder.addLeaveCommittee();
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("LeaveCommittee");
+      expect(claims(envelope)[0]!.type).toBe("LeaveCommittee");
     });
 
     it("builds StateInitialization", async () => {
@@ -141,7 +145,7 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("StateInitialization");
+      expect(claims(envelope)[0]!.type).toBe("StateInitialization");
     });
 
     it("builds StateUpdate", async () => {
@@ -161,7 +165,7 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("StateUpdate");
+      expect(claims(envelope)[0]!.type).toBe("StateUpdate");
     });
 
     it("builds StateReset", async () => {
@@ -178,7 +182,7 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("StateReset");
+      expect(claims(envelope)[0]!.type).toBe("StateReset");
     });
 
     it("builds ExternalClaim", async () => {
@@ -199,12 +203,12 @@ describe("TransactionBuilder", () => {
       });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("ExternalClaim");
+      expect(claims(envelope)[0]!.type).toBe("ExternalClaim");
     });
   });
 
   describe("batching", () => {
-    it("builds Batch when multiple operations are added", async () => {
+    it("collects multiple operations in claims array", async () => {
       const signer = new Signer(new Uint8Array(32).fill(11));
       const builder = new TransactionBuilder({
         networkId: "fast:testnet",
@@ -217,7 +221,9 @@ describe("TransactionBuilder", () => {
         .addBurn({ tokenId: HEX_TOKEN_ID, amount: 200n });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("Batch");
+      expect(claims(envelope)).toHaveLength(2);
+      expect(claims(envelope)[0]!.type).toBe("Burn");
+      expect(claims(envelope)[1]!.type).toBe("Burn");
     });
 
     it("batches mixed operation types", async () => {
@@ -238,7 +244,9 @@ describe("TransactionBuilder", () => {
         });
 
       const envelope = await builder.sign();
-      expect(envelope.transaction.value.claim.type).toBe("Batch");
+      expect(claims(envelope)).toHaveLength(2);
+      expect(claims(envelope)[0]!.type).toBe("Burn");
+      expect(claims(envelope)[1]!.type).toBe("TokenTransfer");
     });
   });
 
@@ -264,7 +272,7 @@ describe("TransactionBuilder", () => {
       expect(tx.feeToken).toBeInstanceOf(Uint8Array);
       expect(tx.timestampNanos).toBeTypeOf("bigint");
 
-      expect(envelope.transaction.type).toBe("Release20260319");
+      expect(envelope.transaction.type).toBe("Release20260407");
       expect(envelope.signature.type).toBe("Signature");
       expect(envelope.signature.value).toHaveLength(64);
     });
@@ -313,7 +321,7 @@ describe("TransactionBuilder", () => {
       builder.addLeaveCommittee();
       const envelope = await builder.sign();
       expect(envelope.transaction.value.nonce).toBe(1n);
-      expect(envelope.transaction.value.claim.type).toBe("LeaveCommittee");
+      expect(claims(envelope)[0]!.type).toBe("LeaveCommittee");
     });
 
     it("setSigner changes the signing key", async () => {

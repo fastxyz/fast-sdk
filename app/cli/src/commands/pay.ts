@@ -128,7 +128,7 @@ export const pay: Command<PayArgs> = {
         privateKey: toHex(seed),
         publicKey,
         address: fastAddress,
-        rpcUrl: network.rpcUrl,
+        rpcUrl: network.url,
       };
 
       const evmWallet: EvmWallet = {

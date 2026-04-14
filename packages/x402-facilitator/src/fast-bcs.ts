@@ -2,6 +2,7 @@
  * Fast BCS helpers using @fastxyz/sdk and @fastxyz/schema.
  *
  * Pure BCS serialization/deserialization utilities — no hardcoded network config.
+ * Supports both Release20260319 (.claim) and Release20260407 (.claims[]) transactions.
  */
 
 import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
@@ -13,7 +14,9 @@ export { toHex as bytesToHex, fromHex as hexToBytes, fromFastAddress as fastAddr
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface DecodedFastTransaction {
+/** Release20260319 decoded transaction — single `.claim` field. */
+export interface DecodedFastTransaction20260319 {
+  version: 'Release20260319';
   network_id: string;
   sender: Uint8Array | number[];
   nonce: bigint;
@@ -22,6 +25,20 @@ export interface DecodedFastTransaction {
   archival: boolean;
   fee_token: Uint8Array | number[] | null;
 }
+
+/** Release20260407 decoded transaction — `.claims[]` (vector of operations). */
+export interface DecodedFastTransaction20260407 {
+  version: 'Release20260407';
+  network_id: string;
+  sender: Uint8Array | number[];
+  nonce: bigint;
+  timestamp_nanos: bigint;
+  claims: unknown[];
+  archival: boolean;
+  fee_token: Uint8Array | number[] | null;
+}
+
+export type DecodedFastTransaction = DecodedFastTransaction20260319 | DecodedFastTransaction20260407;
 
 export interface TransferDetails {
   sender: string;
@@ -33,14 +50,18 @@ export interface TransferDetails {
 export type FastSerializableTransaction = Record<string, unknown>;
 export type VersionedFastTransaction = Record<string, unknown>;
 
+type TransactionVersionKey = 'Release20260319' | 'Release20260407';
+
 // ─── BCS types ───────────────────────────────────────────────────────────────
 
 export const TransactionBcs = bcsSchema.Transaction20260319;
+export const Transaction20260407Bcs = bcsSchema.Transaction20260407;
 export const VersionedTransactionBcs = bcsSchema.VersionedTransaction;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const FAST_TRANSACTION_SIGNING_PREFIX = new TextEncoder().encode('VersionedTransaction::');
+const KNOWN_VERSIONS: TransactionVersionKey[] = ['Release20260319', 'Release20260407'];
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 
@@ -67,33 +88,75 @@ function toUint8Array(value: unknown): Uint8Array | null {
   return null;
 }
 
+/** Detect which version wrapper a transaction object uses, or null if bare. */
+function detectVersion(transaction: Record<string, unknown>): TransactionVersionKey | null {
+  for (const version of KNOWN_VERSIONS) {
+    if (version in transaction && isRecord(transaction[version])) {
+      return version;
+    }
+  }
+  return null;
+}
+
+/** Infer version from a bare (unwrapped) transaction based on its fields. */
+function inferBareVersion(transaction: Record<string, unknown>): TransactionVersionKey {
+  if ('claims' in transaction && Array.isArray(transaction.claims)) {
+    return 'Release20260407';
+  }
+  return 'Release20260319';
+}
+
 // ─── Public Functions ────────────────────────────────────────────────────────
 
+export interface UnwrappedTransaction {
+  version: TransactionVersionKey;
+  inner: FastSerializableTransaction;
+}
+
 export function unwrapFastTransaction(transaction: unknown): FastSerializableTransaction {
-  if (isRecord(transaction) && 'Release20260319' in transaction && isRecord(transaction.Release20260319)) {
-    return transaction.Release20260319 as FastSerializableTransaction;
+  return unwrapFastTransactionVersioned(transaction).inner;
+}
+
+export function unwrapFastTransactionVersioned(transaction: unknown): UnwrappedTransaction {
+  if (!isRecord(transaction)) {
+    throw new Error('unsupported_fast_transaction_format');
   }
 
-  if (isRecord(transaction) && typeof transaction.network_id === 'string') {
-    return transaction as FastSerializableTransaction;
+  const version = detectVersion(transaction);
+  if (version) {
+    return { version, inner: transaction[version] as FastSerializableTransaction };
+  }
+
+  if (typeof transaction.network_id === 'string') {
+    return { version: inferBareVersion(transaction), inner: transaction as FastSerializableTransaction };
   }
 
   throw new Error('unsupported_fast_transaction_format');
 }
 
 export function serializeFastTransaction(transaction: VersionedFastTransaction | FastSerializableTransaction): Uint8Array {
-  if (isRecord(transaction) && 'Release20260319' in transaction && isRecord(transaction.Release20260319)) {
+  if (!isRecord(transaction)) {
+    throw new Error('unsupported_fast_transaction_format');
+  }
+
+  const version = detectVersion(transaction);
+  if (version) {
     return VersionedTransactionBcs.serialize({
-      Release20260319: transaction.Release20260319,
+      [version]: transaction[version],
     } as any).toBytes();
   }
 
-  return serializeVersionedTransaction(transaction as FastSerializableTransaction);
+  // Bare transaction — infer version from shape
+  const inferredVersion = inferBareVersion(transaction);
+  return VersionedTransactionBcs.serialize({
+    [inferredVersion]: transaction,
+  } as any).toBytes();
 }
 
-export function serializeVersionedTransaction(transaction: FastSerializableTransaction): Uint8Array {
+export function serializeVersionedTransaction(transaction: FastSerializableTransaction, version?: TransactionVersionKey): Uint8Array {
+  const v = version ?? inferBareVersion(transaction);
   return VersionedTransactionBcs.serialize({
-    Release20260319: transaction,
+    [v]: transaction,
   } as any).toBytes();
 }
 
@@ -114,25 +177,41 @@ export function decodeEnvelope(envelope: string | number[] | Uint8Array): Decode
 
   const decoded = VersionedTransactionBcs.parse(bytes);
 
-  if (isRecord(decoded) && 'Release20260319' in decoded) {
-    return decoded.Release20260319 as unknown as DecodedFastTransaction;
+  if (isRecord(decoded)) {
+    if ('Release20260407' in decoded) {
+      const inner = decoded.Release20260407 as Record<string, unknown>;
+      return { version: 'Release20260407', ...inner } as unknown as DecodedFastTransaction20260407;
+    }
+    if ('Release20260319' in decoded) {
+      const inner = decoded.Release20260319 as Record<string, unknown>;
+      return { version: 'Release20260319', ...inner } as unknown as DecodedFastTransaction20260319;
+    }
   }
 
-  return decoded as unknown as DecodedFastTransaction;
+  return { version: 'Release20260319', ...(decoded as Record<string, unknown>) } as unknown as DecodedFastTransaction20260319;
 }
 
+/**
+ * Extract the first TokenTransfer from a decoded transaction.
+ * Handles both Release20260319 (.claim) and Release20260407 (.claims[]).
+ */
 export function getTransferDetails(decoded: DecodedFastTransaction): TransferDetails | null {
-  const claim = decoded.claim;
-  if (!isRecord(claim)) return null;
-
   let transfer: Record<string, unknown> | null = null;
-  if ('TokenTransfer' in claim && isRecord(claim.TokenTransfer)) {
-    transfer = claim.TokenTransfer as Record<string, unknown>;
-  } else if ('Batch' in claim && Array.isArray(claim.Batch)) {
-    for (const op of claim.Batch) {
-      if (isRecord(op) && 'TokenTransfer' in op && isRecord(op.TokenTransfer)) {
-        transfer = op.TokenTransfer as Record<string, unknown>;
-        break;
+
+  if (decoded.version === 'Release20260407') {
+    // Release20260407: claims is a Vec<Operation>
+    const claims = (decoded as DecodedFastTransaction20260407).claims;
+    if (Array.isArray(claims)) {
+      transfer = findTokenTransferInOps(claims);
+    }
+  } else {
+    // Release20260319: claim is a single ClaimType (tagged union)
+    const claim = (decoded as DecodedFastTransaction20260319).claim;
+    if (isRecord(claim)) {
+      if ('TokenTransfer' in claim && isRecord(claim.TokenTransfer)) {
+        transfer = claim.TokenTransfer as Record<string, unknown>;
+      } else if ('Batch' in claim && Array.isArray(claim.Batch)) {
+        transfer = findTokenTransferInOps(claim.Batch);
       }
     }
   }
@@ -147,16 +226,7 @@ export function getTransferDetails(decoded: DecodedFastTransaction): TransferDet
     throw new Error('not_a_token_transfer');
   }
 
-  const amount =
-    typeof transfer.amount === 'bigint'
-      ? transfer.amount
-      : typeof transfer.amount === 'number'
-        ? BigInt(transfer.amount)
-        : typeof transfer.amount === 'string'
-          ? BigInt(transfer.amount)
-          : (() => {
-              throw new Error('not_a_token_transfer');
-            })();
+  const amount = toBigInt(transfer.amount);
 
   return {
     sender: bytesToHexString(senderBytes),
@@ -171,4 +241,22 @@ export function createFastTransactionSigningMessage(transactionBytes: Uint8Array
   message.set(FAST_TRANSACTION_SIGNING_PREFIX, 0);
   message.set(transactionBytes, FAST_TRANSACTION_SIGNING_PREFIX.length);
   return message;
+}
+
+// ─── Private Helpers ─────────────────────────────────────────────────────────
+
+function findTokenTransferInOps(ops: unknown[]): Record<string, unknown> | null {
+  for (const op of ops) {
+    if (isRecord(op) && 'TokenTransfer' in op && isRecord(op.TokenTransfer)) {
+      return op.TokenTransfer as Record<string, unknown>;
+    }
+  }
+  return null;
+}
+
+function toBigInt(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  throw new Error('not_a_token_transfer');
 }

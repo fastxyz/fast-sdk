@@ -27,7 +27,7 @@ npm install @fastxyz/sdk
 | Class                | Purpose                                      |
 | -------------------- | -------------------------------------------- |
 | `Signer`             | Holds an Ed25519 private key, signs messages |
-| `FastProvider`       | JSON-RPC client for the Fast proxy API       |
+| `FastProvider`       | REST client for the Fast proxy API           |
 | `TransactionBuilder` | Fluent builder for all transaction types     |
 
 **Typical flow:** Create Signer → Create Provider → Get account info → Build transaction → Sign → Submit.
@@ -57,11 +57,11 @@ const address = await signer.getFastAddress(); // "fast1..."
 import { FastProvider } from '@fastxyz/sdk';
 
 const provider = new FastProvider({
-  rpcUrl: 'https://api.fast.xyz/proxy',
+  url: 'https://api.fast.xyz/proxy-rest',
 });
 ```
 
-There is no default URL — `rpcUrl` is always required.
+There is no default URL — `url` is always required.
 
 ### 3. Check Account Info
 
@@ -194,7 +194,7 @@ const valid = await verify(signature, message, publicKey);
 
 ### FastProvider
 
-Typed JSON-RPC client for the Fast proxy API.
+Typed REST client for the Fast proxy API.
 
 | Method                                   | Description                                 |
 | ---------------------------------------- | ------------------------------------------- |
@@ -204,6 +204,8 @@ Typed JSON-RPC client for the Fast proxy API.
 | `getTransactionCertificates(params)`     | Fetch finalized certificates                |
 | `getPendingMultisigTransactions(params)` | Fetch pending multisig txs                  |
 | `faucetDrip(params)`                     | Request testnet/devnet faucet drip          |
+| `getEscrowJob(params)`                   | Fetch a single escrow job by ID             |
+| `getEscrowJobs(params)`                  | List escrow jobs by role and status          |
 
 ### TransactionBuilder
 
@@ -221,7 +223,7 @@ const envelope = await builder.sign(); // Batch of 2 operations
 Supported operations: `addTokenTransfer`, `addTokenCreation`,
 `addTokenManagement`, `addMint`, `addBurn`,
 `addStateInitialization`, `addStateUpdate`, `addStateReset`,
-`addExternalClaim`, `addLeaveCommittee`.
+`addExternalClaim`, `addLeaveCommittee`, `addEscrow`.
 
 ### Conversion Utilities
 
@@ -260,7 +262,7 @@ try {
 }
 ```
 
-Error hierarchy: Network → JSON-RPC Protocol → Proxy → Validators
+Error hierarchy: Network → REST → Proxy → Validators
 
 ## Development
 

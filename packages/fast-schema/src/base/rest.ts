@@ -2,6 +2,7 @@ import { Schema } from 'effect';
 import {
   DecimalInt320,
   DecimalUint256,
+  Uint8Array32,
   Uint8Array32FromHex,
   Uint8Array64FromHex,
   Uint8ArrayFromBech32m,
@@ -15,7 +16,7 @@ export const QuorumFromRest = Uint64FromNumberOrSelf.pipe(Schema.brand('Quorum')
 
 export const NetworkIdFromRest = Schema.Literal('fast:localnet', 'fast:devnet', 'fast:testnet', 'fast:mainnet');
 
-export const AddressFromRest = Uint8ArrayFromBech32m('fast').pipe(Schema.brand('Address'));
+export const AddressFromRest = Schema.compose(Uint8ArrayFromBech32m('fast'), Uint8Array32).pipe(Schema.brand('Address'));
 export const SignatureFromRest = Uint8Array64FromHex.pipe(Schema.brand('Signature'));
 export const TokenIdFromRest = Uint8Array32FromHex.pipe(Schema.brand('TokenId'));
 export const StateKeyFromRest = Uint8Array32FromHex.pipe(Schema.brand('StateKey'));

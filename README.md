@@ -24,7 +24,7 @@ The monorepo contains multiple packages:
 | Package | What it's for |
 | ------- | ------------- |
 | [@fastxyz/cli](app/cli/) | CLI tool — accounts, balances, sends, x402 payments |
-| [@fastxyz/sdk](packages/fast-sdk/) | Core SDK — signing, transactions, RPC queries |
+| [@fastxyz/sdk](packages/fast-sdk/) | Core SDK — signing, transactions, REST queries |
 | [@fastxyz/allset-sdk](packages/allset-sdk/) | AllSet SDK — bridge tokens between Fast and EVM |
 | [@fastxyz/x402-client](packages/x402-client/) | Pay for x402-protected HTTP resources |
 | [@fastxyz/x402-server](packages/x402-server/) | Protect API routes with x402 payments |
@@ -70,7 +70,7 @@ npm install @fastxyz/sdk
 import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/sdk';
 
 const signer = new Signer('abcdef0123456789...');
-const provider = new FastProvider({ rpcUrl: 'https://api.fast.xyz/proxy' });
+const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
 
 const account = await provider.getAccountInfo({
   address: await signer.getPublicKey(),

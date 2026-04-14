@@ -19,10 +19,13 @@ import {
   serializeFastTransaction,
   unwrapFastTransaction,
 } from './fast-bcs.js';
+import { FastProvider } from '@fastxyz/sdk';
+import { serializeVersionedTransactionDomain, type TransactionCertificate } from '@fastxyz/schema';
 
 // ─── Internal Types ──────────────────────────────────────────────────────────
 
-interface FastTransactionCertificate {
+/** Raw certificate shape from x402 payment payload JSON. */
+interface RawFastTransactionCertificate {
   envelope: {
     transaction: unknown;
     signature: unknown;
@@ -449,61 +452,27 @@ function warnUntrustedCommittee(network: string, rpcUrl?: string): void {
   );
 }
 
-// ─── Fast Network RPC ────────────────────────────────────────────────────────
-
-interface FastRpcAccountInfoResponse {
-  requested_certificates: FastTransactionCertificate[] | null;
-}
+// ─── Fast Network REST ───────────────────────────────────────────────────────
 
 async function fetchFastCertificateByNonce(
   network: string,
   senderPublicKey: Uint8Array,
-  nonce: bigint,
+  nonce: bigint | string | number,
   config: FacilitatorConfig,
-): Promise<FastTransactionCertificate | null> {
+): Promise<TransactionCertificate | null> {
   const fastConfig = getFastNetworkConfig(network, config);
   if (!fastConfig) {
     return null;
   }
 
-  if (nonce > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error('nonce_out_of_range');
-  }
-
-  const response = await fetch(fastConfig.rpcUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method: 'proxy_getAccountInfo',
-      params: {
-        address: Array.from(senderPublicKey),
-        token_balances_filter: [],
-        certificate_by_nonce: {
-          start: Number(nonce),
-          limit: 1,
-        },
-      },
-    }),
+  const provider = new FastProvider({ url: fastConfig.rpcUrl });
+  const certs = await provider.getTransactionCertificates({
+    address: senderPublicKey,
+    fromNonce: BigInt(nonce),
+    limit: 1,
   });
 
-  if (!response.ok) {
-    throw new Error(`http_${response.status}`);
-  }
-
-  const json = (await response.json()) as {
-    result?: FastRpcAccountInfoResponse;
-    error?: { message?: string };
-  };
-
-  if (json.error) {
-    throw new Error(json.error.message || 'unknown_rpc_error');
-  }
-
-  return json.result?.requested_certificates?.[0] ?? null;
+  return certs[0] ?? null;
 }
 
 // ─── Fast Verification ──────────────────────────────────────────────────────
@@ -547,7 +516,7 @@ async function verifyFastPayment(
     };
   }
 
-  const certificate = payload.transactionCertificate as FastTransactionCertificate;
+  const certificate = payload.transactionCertificate as RawFastTransactionCertificate;
   const { envelope, signatures } = certificate;
 
   if (!envelope) {
@@ -740,7 +709,7 @@ async function verifyFastPayment(
   }
 
   // Certificate lookup is optional — requires RPC config
-  let networkCertificate: FastTransactionCertificate | null = null;
+  let networkCertificate: TransactionCertificate | null = null;
   let skipNetworkValidation = false;
   try {
     networkCertificate = await fetchFastCertificateByNonce(paymentPayload.network, senderPublicKey, nonce, config);
@@ -755,7 +724,7 @@ async function verifyFastPayment(
   if (!skipNetworkValidation && networkCertificate) {
     let networkTransactionBytes: Uint8Array;
     try {
-      networkTransactionBytes = serializeFastTransaction(unwrapFastTransaction(networkCertificate.envelope.transaction));
+      networkTransactionBytes = serializeVersionedTransactionDomain(networkCertificate.envelope.transaction);
     } catch {
       return {
         isValid: false,

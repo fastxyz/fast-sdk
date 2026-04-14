@@ -161,3 +161,28 @@ export class InvalidRequestError extends Data.TaggedError(
 )<{
   readonly message: string;
 }> {}
+
+/** Resource not found (REST 404). */
+export class NotFoundError extends Data.TaggedError("NotFoundError")<{
+  readonly message: string;
+}> {}
+
+/** IP rate limited (REST 429). */
+export class IpRateLimitedError extends Data.TaggedError(
+  "IpRateLimitedError",
+)<{
+  readonly message: string;
+  readonly retryAfterSecs: number;
+}> {}
+
+/** Upstream validator error (REST 502). */
+export class UpstreamError extends Data.TaggedError("UpstreamError")<{
+  readonly message: string;
+}> {}
+
+/** Service unavailable / shutting down (REST 503). */
+export class ServiceUnavailableError extends Data.TaggedError(
+  "ServiceUnavailableError",
+)<{
+  readonly message: string;
+}> {}

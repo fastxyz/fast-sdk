@@ -1,6 +1,6 @@
 {
   "testnet": {
-    "rpcUrl": "https://testnet.api.fast.xyz/proxy",
+    "url": "https://testnet.api.fast.xyz/proxy-rest",
     "explorerUrl": "https://testnet.explorer.fast.xyz",
     "networkId": "fast:testnet",
     "allSet": {
@@ -41,7 +41,7 @@
     }
   },
   "mainnet": {
-    "rpcUrl": "https://api.fast.xyz/proxy",
+    "url": "https://api.fast.xyz/proxy-rest",
     "explorerUrl": "https://explorer.fast.xyz",
     "networkId": "fast:mainnet",
     "allSet": {

@@ -136,3 +136,56 @@ export const makeProxySubmitTransactionResult = <
     IncompleteVerifierSigs: null,
     IncompleteMultiSig: null,
   });
+
+export const makeEscrowJobRecord = <TAddr extends S, TId extends S, TAmt extends S>(p: {
+  Address: TAddr;
+  TokenId: TId;
+  Amount: TAmt;
+}) =>
+  CamelCaseStruct({
+    job_id: p.TokenId,
+    config_id: p.TokenId,
+    client: p.Address,
+    provider: p.Address,
+    evaluator: p.Address,
+    token_id: p.TokenId,
+    provider_fee: p.Amount,
+    evaluator_fee: p.Amount,
+    description: Schema.String,
+    deliverable: Schema.NullOr(p.TokenId),
+    status: Schema.String,
+  });
+
+export const makeEscrowJobWithCerts = <
+  TNetId extends S,
+  TAddr extends S,
+  TNonce extends S,
+  TBi extends S,
+  TId extends S,
+  TAmt extends S,
+  TUd extends S,
+  TKey extends S,
+  TSt extends S,
+  TQ extends S,
+  TCD extends S,
+  TSig extends S,
+  TBal extends S,
+>(p: {
+  NetworkId: TNetId;
+  Address: TAddr;
+  Nonce: TNonce;
+  BigInt: TBi;
+  TokenId: TId;
+  Amount: TAmt;
+  UserData: TUd;
+  StateKey: TKey;
+  State: TSt;
+  Quorum: TQ;
+  ClaimData: TCD;
+  Signature: TSig;
+  Balance: TBal;
+}) =>
+  Schema.Struct({
+    job: makeEscrowJobRecord(p),
+    certificates: Schema.Array(makeTransactionCertificate(p)),
+  });

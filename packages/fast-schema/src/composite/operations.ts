@@ -78,7 +78,61 @@ export const makeCommitteeConfig = <TAddr extends S>(p: { Address: TAddr }) => S
 export const makeCommitteeChange = <TAddr extends S>(p: { Address: TAddr }) =>
   CamelCaseStruct({ new_committee: makeCommitteeConfig(p), epoch: Schema.Number });
 
-/** The 12 operation variants (no Batch). Used inside Batch. */
+/** `Fixed(Amount)` | `Bps(u16)` — evaluation fee type. */
+export const makeFixedAmountOrBps = <TAmt extends S, Mode extends 'serde' | 'bcs' = 'serde'>(
+  p: { Amount: TAmt },
+  options?: { unitEncoding: Mode },
+) => TypedVariant({ Fixed: p.Amount, Bps: Schema.Number }, options);
+
+export const makeEscrowCreateConfig = <TId extends S, TAddr extends S, TAmt extends S, Mode extends 'serde' | 'bcs' = 'serde'>(
+  p: { TokenId: TId; Address: TAddr; Amount: TAmt },
+  options?: { unitEncoding: Mode },
+) =>
+  CamelCaseStruct({
+    token_id: p.TokenId,
+    evaluator: p.Address,
+    evaluation_fee: makeFixedAmountOrBps(p, options),
+    min_evaluator_fee: p.Amount,
+  });
+
+export const makeEscrowCreateJob = <TId extends S, TAddr extends S, TAmt extends S>(p: {
+  TokenId: TId;
+  Address: TAddr;
+  Amount: TAmt;
+}) =>
+  CamelCaseStruct({
+    config_id: p.TokenId,
+    provider: p.Address,
+    provider_fee: p.Amount,
+    description: Schema.String,
+  });
+
+export const makeEscrowSubmit = <TId extends S>(p: { TokenId: TId }) =>
+  CamelCaseStruct({ job_id: p.TokenId, deliverable: p.TokenId });
+
+export const makeEscrowReject = <TId extends S>(p: { TokenId: TId }) =>
+  CamelCaseStruct({ job_id: p.TokenId });
+
+export const makeEscrowComplete = <TId extends S>(p: { TokenId: TId }) =>
+  CamelCaseStruct({ job_id: p.TokenId });
+
+/** The 5 Escrow sub-variants as a TypedVariant. */
+export const makeEscrow = <TId extends S, TAddr extends S, TAmt extends S, Mode extends 'serde' | 'bcs' = 'serde'>(
+  p: { TokenId: TId; Address: TAddr; Amount: TAmt },
+  options?: { unitEncoding: Mode },
+) =>
+  TypedVariant(
+    {
+      CreateConfig: makeEscrowCreateConfig(p, options),
+      CreateJob: makeEscrowCreateJob(p),
+      Submit: makeEscrowSubmit(p),
+      Reject: makeEscrowReject(p),
+      Complete: makeEscrowComplete(p),
+    },
+    options,
+  );
+
+/** The 13 operation variants (no Batch). Used inside Batch and Claims. */
 export const makeOperation = <
   TId extends S,
   TAddr extends S,
@@ -122,11 +176,12 @@ export const makeOperation = <
       JoinCommittee: makeValidatorConfig(p),
       LeaveCommittee: null,
       ChangeCommittee: makeCommitteeChange(p),
+      Escrow: makeEscrow(p, options),
     },
     options,
   );
 
-/** Top-level claim type: 12 operation variants + Batch. */
+/** Top-level claim type: 13 operation variants + Batch. */
 export const makeClaimType = <
   TId extends S,
   TAddr extends S,
@@ -170,6 +225,7 @@ export const makeClaimType = <
       JoinCommittee: makeValidatorConfig(p),
       LeaveCommittee: null,
       ChangeCommittee: makeCommitteeChange(p),
+      Escrow: makeEscrow(p, options),
       Batch: Schema.Array(makeOperation(p, options)),
     },
     options,

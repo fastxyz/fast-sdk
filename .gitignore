@@ -12,3 +12,4 @@ coverage
 *.tsbuildinfo
 .idea
 .vscode
+.github/copilot-instructions.mdpackages/fast-sdk/.env

@@ -1,124 +1,60 @@
-import type { ProxyErrorData } from "@fastxyz/schema";
-import { ProxyErrorData as ProxyErrorDataSchema } from "@fastxyz/schema";
-import { Schema } from "effect";
+import { RestError } from "../error/network";
 import {
-  CertificateTooYoungError,
-  InsufficientFundingError,
-  InvalidSignatureError,
-  MissingEarlierConfirmationsError,
-  NonSubmittableOperationError,
-  PreviousTransactionPendingError,
-  UnexpectedNonceError,
-  ValidatorGenericError,
-} from "../error/fastset";
-import { JsonRpcProtocolError, RpcError } from "../error/network";
-import {
-  DatabaseError,
   FaucetDisabledError,
   FaucetThresholdExceededError,
   FaucetThrottledError,
-  FaucetTxnFailedError,
   GeneralError,
   InvalidRequestError,
+  IpRateLimitedError,
+  NotFoundError,
   ProxyUnexpectedNonceError,
+  ServiceUnavailableError,
   TooManyCertificatesRequestedError,
+  UpstreamError,
   VerifierSigsInvalidError,
 } from "../error/proxy";
 
-/** Map a FastSet (validator) RPC error variant to a typed error class. */
-const toFastSetError = (
-  message: string,
-  rpcErr: (ProxyErrorData & { type: "RpcError" })["value"],
+/** Parse a REST error envelope into a typed error. */
+export const parseRestError = (
+  status: number,
+  err: { readonly code: string; readonly message: string; readonly details?: unknown },
 ) => {
-  if (rpcErr.type === "Generic") {
-    return new ValidatorGenericError({ message: rpcErr.value });
-  }
-  const err = rpcErr.value;
-  switch (err.type) {
-    case "UnexpectedNonce":
-      return new UnexpectedNonceError({
-        message,
-        expectedNonce: err.value.expectedNonce,
-      });
-    case "InsufficientFunding":
-      return new InsufficientFundingError({
-        message,
-        currentBalance: err.value.currentBalance,
-      });
-    case "PreviousTransactionMustBeConfirmedFirst":
-      return new PreviousTransactionPendingError({
-        message,
-        pendingConfirmation: err.value.pendingConfirmation,
-      });
-    case "InvalidSignature":
-      return new InvalidSignatureError({ message, error: err.value.error });
-    case "MissingEarlierConfirmations":
-      return new MissingEarlierConfirmationsError({
-        message,
-        currentNonce: err.value.currentNonce,
-      });
-    case "CertificateTooYoung":
-      return new CertificateTooYoungError({
-        message,
-        resendAfterNanos: err.value.resendAfterNanos,
-      });
-    case "NonSubmittableOperation":
-      return new NonSubmittableOperationError({
-        message,
-        reason: err.value.reason,
-      });
-    default:
-      return new GeneralError({ message });
-  }
-};
+  const { code, message, details } = err;
+  const d = details as Record<string, unknown> | undefined;
 
-/** Parse a JSON-RPC error response into a typed error. */
-export const parseRpcError = (err: {
-  readonly code: number;
-  readonly message: string;
-  readonly data?: unknown;
-}) => {
-  const { code, message, data } = err;
-
-  if (code <= -32600 && code >= -32700) {
-    return new JsonRpcProtocolError({ code, message });
-  }
-
-  let parsed: ProxyErrorData;
-  try {
-    parsed = Schema.decodeUnknownSync(ProxyErrorDataSchema)(data);
-  } catch {
-    return new RpcError({ code, message, data });
-  }
-
-  switch (parsed.type) {
-    case "RpcError":
-      return toFastSetError(message, parsed.value);
-    case "UnexpectedNonce":
+  switch (code) {
+    case "INVALID_REQUEST":
+      return new InvalidRequestError({ message });
+    case "NOT_FOUND":
+      return new NotFoundError({ message });
+    case "FAUCET_AMOUNT_EXCEEDED":
+      return new FaucetThresholdExceededError({ message });
+    case "TOO_MANY_CERTIFICATES_REQUESTED":
+      return new TooManyCertificatesRequestedError({ message });
+    case "FAUCET_DISABLED":
+      return new FaucetDisabledError({ message });
+    case "UNEXPECTED_NONCE":
       return new ProxyUnexpectedNonceError({
         message,
-        txNonce: parsed.value.txNonce,
-        expectedNonce: parsed.value.expectedNonce,
+        txNonce: BigInt((d?.tx_nonce as number) ?? 0),
+        expectedNonce: BigInt((d?.expected_nonce as number) ?? 0),
       });
-    case "GeneralError":
-      return new GeneralError({ message: parsed.value });
-    case "FaucetDisabled":
-      return new FaucetDisabledError({ message });
-    case "FaucetThrottled":
-      return new FaucetThrottledError({ message });
-    case "FaucetTxnFailed":
-      return new FaucetTxnFailedError({ message });
-    case "FaucetThresholdExceeded":
-      return new FaucetThresholdExceededError({ message });
-    case "VerifierSigsInvalid":
+    case "VERIFIER_SIGNATURES_INVALID":
       return new VerifierSigsInvalidError({ message });
-    case "DatabaseError":
-      return new DatabaseError({ message: parsed.value });
-    case "TooManyCertificatesRequested":
-      return new TooManyCertificatesRequestedError({ message });
-    case "InvalidRequest":
-      return new InvalidRequestError({ message: parsed.value });
+    case "FAUCET_THROTTLED":
+      return new FaucetThrottledError({ message });
+    case "INTERNAL_ERROR":
+      return new GeneralError({ message });
+    case "UPSTREAM_ERROR":
+      return new UpstreamError({ message });
+    case "IP_RATE_LIMITED":
+      return new IpRateLimitedError({
+        message,
+        retryAfterSecs: (d?.retry_after_secs as number) ?? 0,
+      });
+    case "SERVICE_UNAVAILABLE":
+      return new ServiceUnavailableError({ message });
     default:
-      return new RpcError({ code, message, data });
+      return new RestError({ status, code, message, details });
   }
 };

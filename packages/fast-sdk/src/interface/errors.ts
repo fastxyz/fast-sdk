@@ -17,12 +17,13 @@
  *
  * Error hierarchy:
  *
- * - **Network/Transport**: `RpcTimeoutError`, `RpcError`
- * - **JSON-RPC Protocol**: `JsonRpcProtocolError`
- * - **Proxy (request validation)**: `InvalidRequestError`, `ProxyUnexpectedNonceError`,
- *   `TooManyCertificatesRequestedError`, `DatabaseError`, `GeneralError`
+ * - **Network/Transport**: `RestTimeoutError`, `RestError`
+ * - **Proxy (request validation)**: `InvalidRequestError`, `NotFoundError`,
+ *   `ProxyUnexpectedNonceError`, `TooManyCertificatesRequestedError`,
+ *   `DatabaseError`, `GeneralError`
  * - **Proxy (faucet)**: `FaucetDisabledError`, `FaucetThrottledError`,
  *   `FaucetTxnFailedError`, `FaucetThresholdExceededError`
+ * - **Proxy (infrastructure)**: `IpRateLimitedError`, `UpstreamError`, `ServiceUnavailableError`
  * - **Validator (protocol)**: `UnexpectedNonceError`, `InsufficientFundingError`,
  *   `InvalidSignatureError`, `PreviousTransactionPendingError`,
  *   `MissingEarlierConfirmationsError`, `CertificateTooYoungError`,
@@ -47,8 +48,8 @@ export {
   ValidatorGenericError,
 } from "../core/error/fastset";
 export {
-  JsonRpcProtocolError,
-  RpcError,
+  RestError,
+  RestTimeoutError,
   RpcTimeoutError,
 } from "../core/error/network";
 export {
@@ -59,7 +60,11 @@ export {
   FaucetTxnFailedError,
   GeneralError,
   InvalidRequestError,
+  IpRateLimitedError,
+  NotFoundError,
   ProxyUnexpectedNonceError,
+  ServiceUnavailableError,
   TooManyCertificatesRequestedError,
+  UpstreamError,
   VerifierSigsInvalidError,
 } from "../core/error/proxy";

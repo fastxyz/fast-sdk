@@ -42,6 +42,7 @@ export {
   Amount,
   Balance,
   ClaimData,
+  LatestTransactionVersion,
   NetworkId,
   Nonce,
   TransactionVersion,

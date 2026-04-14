@@ -1,5 +1,6 @@
 import type {
   BurnInputParams,
+  EscrowInputParams,
   ExternalClaimInputParams,
   MintInputParams,
   NetworkId,
@@ -15,7 +16,7 @@ import type {
   TransactionEnvelope,
   TransactionVersion,
 } from "@fastxyz/schema";
-import { TransactionInput } from "@fastxyz/schema";
+import { LatestTransactionVersion, TransactionRelease20260319Input, TransactionRelease20260407Input } from "@fastxyz/schema";
 import { Schema } from "effect";
 import { buildSignedEnvelope } from "../core/crypto/envelope";
 import { run } from "../core/run";
@@ -130,6 +131,12 @@ export class TransactionBuilder {
     return this;
   }
 
+  /** Add an escrow operation (CreateConfig, CreateJob, Submit, Reject, Complete). */
+  addEscrow(params: EscrowInputParams): this {
+    this.operations.push({ type: "Escrow", value: params });
+    return this;
+  }
+
   /** Update the nonce for the next {@link sign} call. */
   setNonce(nonce: NonceInput): this {
     this.options = { ...this.options, nonce };
@@ -162,25 +169,36 @@ export class TransactionBuilder {
       this.options;
     const sender = await signer.getPublicKey();
     const privateKey = await signer.getPrivateKey();
-
     const ops = this.operations;
-    const claim =
-      ops.length === 1 ? ops[0]! : { type: "Batch" as const, value: ops };
+    const type: TransactionVersion = version ?? LatestTransactionVersion;
 
-    const txInput = {
-      networkId,
-      sender,
-      nonce,
-      timestampNanos: BigInt(Date.now()) * 1_000_000n,
-      claim,
-      archival: archival ?? false,
-      feeToken: feeToken ?? null,
-    };
+    let versioned: { type: TransactionVersion; value: unknown };
+    if (type === "Release20260319") {
+      const claim =
+        ops.length === 1 ? ops[0]! : { type: "Batch" as const, value: ops };
+      const internal = Schema.decodeUnknownSync(TransactionRelease20260319Input)({
+        networkId,
+        sender,
+        nonce,
+        timestampNanos: BigInt(Date.now()) * 1_000_000n,
+        claim,
+        archival: archival ?? false,
+        feeToken: feeToken ?? null,
+      });
+      versioned = { type: "Release20260319" as const, value: internal };
+    } else {
+      const internal = Schema.decodeUnknownSync(TransactionRelease20260407Input)({
+        networkId,
+        sender,
+        nonce,
+        timestampNanos: BigInt(Date.now()) * 1_000_000n,
+        claims: ops,
+        archival: archival ?? false,
+        feeToken: feeToken ?? null,
+      });
+      versioned = { type: "Release20260407" as const, value: internal };
+    }
 
-    const internal = Schema.decodeUnknownSync(TransactionInput)(txInput);
-    const type: TransactionVersion = version ?? "Release20260319";
-    const versioned = { type, value: internal };
-
-    return run(buildSignedEnvelope(privateKey, versioned));
+    return run(buildSignedEnvelope(privateKey, versioned as Parameters<typeof buildSignedEnvelope>[1]));
   }
 }

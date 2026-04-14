@@ -274,7 +274,7 @@ export const send: Command<SendArgs> = {
         }
 
         const signer = new Signer(seed);
-        const provider = new FastProvider({ rpcUrl: network.rpcUrl });
+        const provider = new FastProvider({ url: network.url });
 
         const bridgeResult = yield* bridge.withdraw({
           fastBridgeAddress: chainCfg.fastBridgeAddress,

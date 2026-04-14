@@ -50,7 +50,7 @@ export interface BridgeResult {
  * Get USDC balance on Fast network.
  */
 export async function getFastBalance(wallet: FastWallet, options: { rpcUrl: string; tokenId: string }): Promise<bigint> {
-  const provider = new FastProvider({ rpcUrl: options.rpcUrl });
+  const provider = new FastProvider({ url: options.rpcUrl });
   const signer = new Signer(wallet.privateKey);
   const publicKey = await signer.getPublicKey();
 
@@ -110,7 +110,7 @@ export async function bridgeFastusdcToUsdc(params: BridgeParams): Promise<Bridge
   log(`  To: ${evmReceiverAddress}`);
 
   try {
-    const provider = new FastProvider({ rpcUrl });
+    const provider = new FastProvider({ url: rpcUrl });
     const signer = new Signer(fastWallet.privateKey);
 
     // Verify address matches

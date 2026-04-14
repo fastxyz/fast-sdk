@@ -14,14 +14,14 @@ describe("FastProvider", () => {
   });
 
   describe("construction", () => {
-    it("stores rpcUrl", () => {
-      const provider = new FastProvider({ rpcUrl: "http://localhost:9999" });
-      expect(provider.rpcUrl).toBe("http://localhost:9999");
+    it("stores url", () => {
+      const provider = new FastProvider({ url: "http://localhost:9999" });
+      expect(provider.url).toBe("http://localhost:9999");
     });
   });
 
   describe("faucetDrip param validation", () => {
-    const provider = new FastProvider({ rpcUrl: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999" });
 
     const expectFetchError = async (fn: () => Promise<unknown>) => {
       await expect(fn()).rejects.toThrow();
@@ -75,7 +75,7 @@ describe("FastProvider", () => {
   });
 
   describe("getAccountInfo param validation", () => {
-    const provider = new FastProvider({ rpcUrl: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999" });
 
     const expectFetchError = async (fn: () => Promise<unknown>) => {
       await expect(fn()).rejects.toThrow();
@@ -138,7 +138,7 @@ describe("FastProvider", () => {
   });
 
   describe("getPendingMultisigTransactions param validation", () => {
-    const provider = new FastProvider({ rpcUrl: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999" });
 
     it("accepts hex address", async () => {
       await expect(
@@ -156,7 +156,7 @@ describe("FastProvider", () => {
   });
 
   describe("getTokenInfo param validation", () => {
-    const provider = new FastProvider({ rpcUrl: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999" });
 
     it("accepts hex token IDs", async () => {
       await expect(
@@ -176,7 +176,7 @@ describe("FastProvider", () => {
   });
 
   describe("getTransactionCertificates param validation", () => {
-    const provider = new FastProvider({ rpcUrl: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999" });
 
     it("accepts hex address + bigint nonce", async () => {
       await expect(
@@ -200,7 +200,7 @@ describe("FastProvider", () => {
   });
 
   describe("submitTransaction via TransactionBuilder", () => {
-    const provider = new FastProvider({ rpcUrl: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999" });
 
     it("accepts a signed envelope (fails at fetch, not validation)", async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));

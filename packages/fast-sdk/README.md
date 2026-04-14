@@ -203,7 +203,6 @@ Typed REST client for the Fast proxy API.
 | `getTokenInfo(params)`                   | Fetch token metadata                        |
 | `getTransactionCertificates(params)`     | Fetch finalized certificates                |
 | `getPendingMultisigTransactions(params)` | Fetch pending multisig txs                  |
-| `faucetDrip(params)`                     | Request testnet/devnet faucet drip          |
 | `getEscrowJob(params)`                   | Fetch a single escrow job by ID             |
 | `getEscrowJobs(params)`                  | List escrow jobs by role and status          |
 

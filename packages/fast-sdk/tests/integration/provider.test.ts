@@ -135,25 +135,6 @@ describe("FastProvider integration (real REST)", () => {
   );
 
   it.runIf(hasUrl && hasSigner)(
-    "faucetDrip is reachable with signer-derived recipient",
-    async () => {
-      const { pubKey, provider } = await setup();
-
-      try {
-        await provider.faucetDrip({
-          recipient: pubKey,
-          amount: 1n,
-          tokenId: null,
-        });
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-      }
-
-      expect(true).toBe(true);
-    },
-  );
-
-  it.runIf(hasUrl && hasSigner)(
     "submitTransaction full pipeline: getAccountInfo → build → sign → submit",
     async () => {
       const { signer, pubKey, provider } = await setup();

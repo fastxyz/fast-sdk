@@ -4,7 +4,6 @@ import { run } from "../../src/core/run";
 import {
   BcsEncodeError,
   FastProvider,
-  FaucetDisabledError,
   GeneralError,
   InvalidRequestError,
   IpRateLimitedError,
@@ -54,10 +53,8 @@ function mockNetworkError() {
 }
 
 const provider = new FastProvider({ url: "http://localhost:9999" });
-const faucetParams = {
-  recipient: new Uint8Array(32),
-  amount: 1n,
-  tokenId: null,
+const accountParams = {
+  address: "0000000000000000000000000000000000000000000000000000000000000001",
 };
 
 describe("Error handling", () => {
@@ -68,7 +65,7 @@ describe("Error handling", () => {
   describe("Layer 0: Network / transport", () => {
     it("throws on network failure", async () => {
       mockNetworkError();
-      await expect(provider.faucetDrip(faucetParams)).rejects.toThrow();
+      await expect(provider.getAccountInfo(accountParams)).rejects.toThrow();
     });
 
     it("throws RestTimeoutError on timeout", async () => {
@@ -93,19 +90,6 @@ describe("Error handling", () => {
   });
 
   describe("REST API errors", () => {
-    it("parses FAUCET_DISABLED", async () => {
-      mockRestError(403, {
-        code: "FAUCET_DISABLED",
-        message: "Faucet is disabled",
-      });
-      try {
-        await provider.faucetDrip(faucetParams);
-        expect.unreachable();
-      } catch (e) {
-        expect(e).toBeInstanceOf(FaucetDisabledError);
-      }
-    });
-
     it("parses UNEXPECTED_NONCE with structured details", async () => {
       mockRestError(409, {
         code: "UNEXPECTED_NONCE",
@@ -113,7 +97,7 @@ describe("Error handling", () => {
         details: { tx_nonce: 2, expected_nonce: 1 },
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(ProxyUnexpectedNonceError);
@@ -130,7 +114,7 @@ describe("Error handling", () => {
         message: "bad params",
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(InvalidRequestError);
@@ -143,7 +127,7 @@ describe("Error handling", () => {
         message: "resource not found",
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(NotFoundError);
@@ -156,7 +140,7 @@ describe("Error handling", () => {
         message: "something went wrong",
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(GeneralError);
@@ -170,7 +154,7 @@ describe("Error handling", () => {
         details: { retry_after_secs: 30 },
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(IpRateLimitedError);
@@ -186,7 +170,7 @@ describe("Error handling", () => {
         message: "validator down",
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(UpstreamError);
@@ -199,7 +183,7 @@ describe("Error handling", () => {
         message: "maintenance",
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(ServiceUnavailableError);
@@ -211,7 +195,7 @@ describe("Error handling", () => {
     it("wraps unknown code in RestError", async () => {
       mockRestError(418, { code: "TEAPOT", message: "I'm a teapot" });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(RestError);

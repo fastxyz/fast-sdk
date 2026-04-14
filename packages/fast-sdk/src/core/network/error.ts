@@ -1,8 +1,5 @@
 import { RestError } from "../error/network";
 import {
-  FaucetDisabledError,
-  FaucetThresholdExceededError,
-  FaucetThrottledError,
   GeneralError,
   InvalidRequestError,
   IpRateLimitedError,
@@ -27,12 +24,8 @@ export const parseRestError = (
       return new InvalidRequestError({ message });
     case "NOT_FOUND":
       return new NotFoundError({ message });
-    case "FAUCET_AMOUNT_EXCEEDED":
-      return new FaucetThresholdExceededError({ message });
     case "TOO_MANY_CERTIFICATES_REQUESTED":
       return new TooManyCertificatesRequestedError({ message });
-    case "FAUCET_DISABLED":
-      return new FaucetDisabledError({ message });
     case "UNEXPECTED_NONCE":
       return new ProxyUnexpectedNonceError({
         message,
@@ -41,8 +34,6 @@ export const parseRestError = (
       });
     case "VERIFIER_SIGNATURES_INVALID":
       return new VerifierSigsInvalidError({ message });
-    case "FAUCET_THROTTLED":
-      return new FaucetThrottledError({ message });
     case "INTERNAL_ERROR":
       return new GeneralError({ message });
     case "UPSTREAM_ERROR":

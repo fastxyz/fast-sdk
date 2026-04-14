@@ -20,60 +20,6 @@ describe("FastProvider", () => {
     });
   });
 
-  describe("faucetDrip param validation", () => {
-    const provider = new FastProvider({ url: "http://localhost:9999" });
-
-    const expectFetchError = async (fn: () => Promise<unknown>) => {
-      await expect(fn()).rejects.toThrow();
-    };
-
-    it("accepts hex string recipient + bigint amount", async () => {
-      await expectFetchError(() =>
-        provider.faucetDrip({
-          recipient: HEX_KEY_32,
-          amount: 500n,
-          tokenId: null,
-        }),
-      );
-    });
-
-    it("accepts Uint8Array recipient + number amount", async () => {
-      await expectFetchError(() =>
-        provider.faucetDrip({
-          recipient: new Uint8Array(32).fill(1),
-          amount: 100,
-          tokenId: null,
-        }),
-      );
-    });
-
-    it("accepts number[] recipient", async () => {
-      await expectFetchError(() =>
-        provider.faucetDrip({
-          recipient: Array.from({ length: 32 }, () => 0),
-          amount: 1n,
-          tokenId: null,
-        }),
-      );
-    });
-
-    it("accepts hex string tokenId", async () => {
-      await expectFetchError(() =>
-        provider.faucetDrip({
-          recipient: HEX_KEY_32,
-          amount: 1n,
-          tokenId: HEX_TOKEN_ID,
-        }),
-      );
-    });
-
-    it("rejects invalid recipient length", async () => {
-      await expect(() =>
-        provider.faucetDrip({ recipient: "abcd", amount: 1n, tokenId: null }),
-      ).rejects.toThrow();
-    });
-  });
-
   describe("getAccountInfo param validation", () => {
     const provider = new FastProvider({ url: "http://localhost:9999" });
 

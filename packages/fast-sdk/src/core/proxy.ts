@@ -71,30 +71,6 @@ export const submitTransaction = (url: string, params: TransactionEnvelope) =>
   });
 
 // ---------------------------------------------------------------------------
-// POST /v1/faucet-drip
-// ---------------------------------------------------------------------------
-
-export interface FaucetDripParams {
-  readonly recipient: Uint8Array;
-  readonly amount: bigint;
-  readonly tokenId: Uint8Array | null;
-}
-
-/** Request a faucet drip via `POST /v1/faucet-drip`. */
-export const faucetDrip = (url: string, params: FaucetDripParams) =>
-  Effect.gen(function* () {
-    yield* restCallEffect(url, {
-      method: "POST",
-      path: "/v1/faucet-drip",
-      body: {
-        recipient: addressToStr(params.recipient),
-        amount: params.amount.toString(),
-        token_id: params.tokenId ? tokenIdToHex(params.tokenId) : undefined,
-      },
-    });
-  });
-
-// ---------------------------------------------------------------------------
 // GET /v1/accounts/{address}
 // ---------------------------------------------------------------------------
 

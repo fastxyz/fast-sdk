@@ -2,8 +2,6 @@ import {
   type AccountInfoResponse,
   type EscrowJobRecord,
   type EscrowJobWithCerts,
-  FaucetDripInput,
-  type FaucetDripInputParams,
   GetAccountInfoInput,
   type GetAccountInfoInputParams,
   GetEscrowJobInput,
@@ -68,12 +66,6 @@ export class FastProvider {
     params: TransactionEnvelope,
   ): Promise<SubmitTransactionResult> {
     return run(proxy.submitTransaction(this._url, params));
-  }
-
-  /** Request a faucet drip for the given recipient. */
-  async faucetDrip(params: FaucetDripInputParams): Promise<void> {
-    const internal = Schema.decodeUnknownSync(FaucetDripInput)(params);
-    return run(proxy.faucetDrip(this._url, internal));
   }
 
   /**

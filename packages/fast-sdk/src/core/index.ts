@@ -30,10 +30,6 @@ export {
 } from "./error/network";
 export {
   DatabaseError,
-  FaucetDisabledError,
-  FaucetThresholdExceededError,
-  FaucetThrottledError,
-  FaucetTxnFailedError,
   GeneralError,
   InvalidRequestError,
   IpRateLimitedError,
@@ -47,7 +43,6 @@ export {
 export { parseRestError } from "./network/error";
 export { restCallEffect } from "./network/rest";
 export {
-  faucetDrip,
   getAccountInfo,
   getEscrowJob,
   getEscrowJobs,

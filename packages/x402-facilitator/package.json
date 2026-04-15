@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/x402-facilitator",
-  "version": "1.0.2",
+  "version": "1.0.1",
   "description": "Facilitator for the x402 HTTP Payment Protocol — verify and settle payments on-chain",
   "repository": {
     "type": "git",

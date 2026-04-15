@@ -75,6 +75,56 @@ These options work with every command:
 
 ## Commands
 
+### `fast access-key create`
+
+Create and register a CLI-managed access key for the selected owner account.
+
+```bash
+fast access-key create --account my-account
+```
+
+**Options:**
+- `--account <name>` — Owner account to authorize the access key
+- `--label <text>` — Access-key label (defaults to `FAST CLI access key`)
+- `--client-id <id>` — Client scope recorded in policy metadata (defaults to `app.fast.xyz`)
+- `--expires-in-hours <n>` — Expiry window in hours
+- `--max-total-spend-usdc <amount>` — Total USDC spend cap
+
+The CLI generates delegated signer material locally, submits the on-chain authorization with the owner account, and registers the resulting metadata with the FAST key manager so the key also appears in `app.fast.xyz`.
+
+---
+
+### `fast access-key list`
+
+List access keys for the selected owner account and show whether this CLI instance has local signer material for each key.
+
+```bash
+fast access-key list --account my-account
+```
+
+**Options:**
+- `--account <name>` — Owner account to inspect
+
+---
+
+### `fast access-key revoke <access-key-id>`
+
+Revoke an access key with the selected owner account.
+
+```bash
+fast access-key revoke 0xabc123... --account my-account
+```
+
+**Positional arguments:**
+- `<access-key-id>` — 32-byte access key identifier
+
+**Options:**
+- `--account <name>` — Owner account that owns the access key
+
+Revocation is submitted on-chain, mirrored to the key manager, and removes locally stored signer material for that key from this CLI instance.
+
+---
+
 ### `fast account create`
 
 Create a new Ed25519 account and store it in the local keystore.
@@ -366,7 +416,7 @@ The CLI stores data in `~/.fast/`:
 
 ```
 ~/.fast/
-  fast.db          # SQLite database (accounts, networks, history, encrypted keys)
+  fast.db          # SQLite database (accounts, networks, history, encrypted keys, access-key material)
 ```
 
 ## Environment Variables
@@ -374,6 +424,7 @@ The CLI stores data in `~/.fast/`:
 | Variable | Description |
 |----------|-------------|
 | `FAST_PASSWORD` | Default keystore password (avoids interactive prompt) |
+| `FAST_KEY_MANAGER_URL` | Override the key-manager base URL for `access-key` commands |
 
 ## Examples
 
@@ -391,6 +442,19 @@ fast info balance --account my-account
 
 # 4. Send tokens to someone
 fast send fast1recipient... 1.25 --account my-account --token USDC
+```
+
+### Provision a CLI access key
+
+```bash
+# Create and register a key that also appears in app.fast.xyz
+fast access-key create --account my-account --label "Automation signer"
+
+# Inspect all keys for the account
+fast access-key list --account my-account
+
+# Revoke a key when it is no longer needed
+fast access-key revoke 0xabc123... --account my-account
 ```
 
 ### Pay for an x402-protected API

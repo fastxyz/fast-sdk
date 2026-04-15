@@ -2,12 +2,14 @@ import { Effect, Layer, type Option } from "effect";
 import { type ClientError, InternalError } from "./errors/index.js";
 import { AllSetLive } from "./services/api/allset.js";
 import { FastRpcLive } from "./services/api/fast.js";
+import { KeyManagerApiLive } from "./services/api/key-manager.js";
 import { X402Service } from "./services/api/x402.js";
 import { AppConfigLive } from "./services/config/app.js";
 import { makeClientConfigLayer } from "./services/config/client.js";
 import { Output, OutputLive } from "./services/output.js";
 import { PromptLive } from "./services/prompt.js";
 import { AccountStore } from "./services/storage/account.js";
+import { AccessKeyStore } from "./services/storage/access-key.js";
 import { DatabaseLive } from "./services/storage/database.js";
 import { HistoryStore } from "./services/storage/history.js";
 import { NetworkConfigService } from "./services/storage/network.js";
@@ -42,7 +44,9 @@ export const makeAppLayer = (opts: GlobalOptions) => {
     NetworkConfigService.Default,
     HistoryStore.Default,
     AccountStore.Default,
+    AccessKeyStore.Default,
     X402Service.Default,
+    KeyManagerApiLive,
   ).pipe(Layer.provide(foundation));
 
   // Services that depend on tier1

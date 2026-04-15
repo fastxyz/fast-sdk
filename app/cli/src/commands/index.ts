@@ -1,6 +1,9 @@
 import type { Effect } from "effect";
 import type { CommandName } from "../cli.js";
 import type { ClientError } from "../errors/index.js";
+import { accessKeyCreate } from "./access-key/create.js";
+import { accessKeyList } from "./access-key/list.js";
+import { accessKeyRevoke } from "./access-key/revoke.js";
 import { accountCreate } from "./account/create.js";
 import { accountDelete } from "./account/delete.js";
 import { accountExport } from "./account/export.js";
@@ -23,6 +26,9 @@ import { pay } from "./pay.js";
 import { send } from "./send.js";
 
 export const commands = [
+  accessKeyCreate,
+  accessKeyList,
+  accessKeyRevoke,
   accountCreate,
   accountDelete,
   accountExport,

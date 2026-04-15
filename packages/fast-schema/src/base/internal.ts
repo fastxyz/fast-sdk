@@ -20,6 +20,9 @@ export type NetworkId = typeof NetworkId.Type;
 export const TransactionVersion = Schema.Literal('Release20260319', 'Release20260407');
 export type TransactionVersion = typeof TransactionVersion.Type;
 
+/** All transaction versions supported by this schema release. */
+export const SupportedTransactionVersions = TransactionVersion.literals;
+
 /** The latest transaction version — used as the default throughout the SDK. */
 export const LatestTransactionVersion: TransactionVersion = 'Release20260407';
 

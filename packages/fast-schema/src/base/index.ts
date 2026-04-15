@@ -45,6 +45,7 @@ export {
   LatestTransactionVersion,
   NetworkId,
   Nonce,
+  SupportedTransactionVersions,
   TransactionVersion,
   Quorum,
   Signature,

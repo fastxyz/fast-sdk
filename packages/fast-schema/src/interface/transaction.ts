@@ -136,7 +136,7 @@ export const EscrowInput = Schema.Union(
 );
 
 /** Single operation (13 variants, used inside Batch and Claims). */
-const OperationInput = Schema.Union(
+export const OperationInput = Schema.Union(
   Schema.Struct({
     type: Schema.Literal('TokenTransfer'),
     value: TokenTransferInput,
@@ -180,7 +180,7 @@ const OperationInput = Schema.Union(
 );
 
 /** Top-level claim (12 operation variants + Batch). */
-const ClaimTypeInput = Schema.Union(
+export const ClaimTypeInput = Schema.Union(
   ...OperationInput.members,
   Schema.Struct({
     type: Schema.Literal('Batch'),

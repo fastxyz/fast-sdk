@@ -152,6 +152,38 @@ If you use `@fastxyz/schema` directly, transaction factories are now versioned:
 
 ---
 
+### 7. Schema: TransactionVersionRegistry
+
+A new `TransactionVersionRegistry` centralizes all version-specific transaction
+logic. If you maintain code that handles multiple transaction versions (e.g.
+parsing transaction bodies, extracting operations), use the registry instead of
+manual version branching:
+
+```ts
+import { getTransactionVersionConfig } from "@fastxyz/schema";
+
+// Instead of if/else on version strings:
+const config = getTransactionVersionConfig(transactionVersion);
+
+// Wrap operations into version-specific claim format
+const claimFields = config.wrapOperations(operations);
+// → Release20260319: { claim: op } or { claim: { type: 'Batch', value: ops } }
+// → Release20260407: { claims: ops }
+
+// Extract operations from a decoded transaction body
+const ops = config.extractOperations(decodedTransaction);
+// → Always returns a flat array, regardless of version
+
+// Get the Effect Schema for validation
+const validated = Schema.decodeUnknownSync(config.inputSchema)(rawInput);
+```
+
+**Benefit:** When new transaction versions are added to `@fastxyz/schema`,
+downstream packages that use the registry need only a dependency bump — no
+code changes required.
+
+---
+
 ### Quick Checklist
 
 - [ ] Replace `{ rpcUrl: ... }` with `{ url: ... }` in `FastProvider` calls

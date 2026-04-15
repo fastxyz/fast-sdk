@@ -7,6 +7,7 @@
 
 import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
 import { bcsSchema } from '@fastxyz/schema';
+import { getTransactionVersionConfig, TransactionVersionRegistry } from '@fastxyz/schema';
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ export const VersionedTransactionBcs = bcsSchema.VersionedTransaction;
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const FAST_TRANSACTION_SIGNING_PREFIX = new TextEncoder().encode('VersionedTransaction::');
-const KNOWN_VERSIONS: TransactionVersionKey[] = ['Release20260319', 'Release20260407'];
+const KNOWN_VERSIONS = Object.keys(TransactionVersionRegistry) as TransactionVersionKey[];
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 
@@ -196,25 +197,9 @@ export function decodeEnvelope(envelope: string | number[] | Uint8Array): Decode
  * Handles both Release20260319 (.claim) and Release20260407 (.claims[]).
  */
 export function getTransferDetails(decoded: DecodedFastTransaction): TransferDetails | null {
-  let transfer: Record<string, unknown> | null = null;
-
-  if (decoded.version === 'Release20260407') {
-    // Release20260407: claims is a Vec<Operation>
-    const claims = (decoded as DecodedFastTransaction20260407).claims;
-    if (Array.isArray(claims)) {
-      transfer = findTokenTransferInOps(claims);
-    }
-  } else {
-    // Release20260319: claim is a single ClaimType (tagged union)
-    const claim = (decoded as DecodedFastTransaction20260319).claim;
-    if (isRecord(claim)) {
-      if ('TokenTransfer' in claim && isRecord(claim.TokenTransfer)) {
-        transfer = claim.TokenTransfer as Record<string, unknown>;
-      } else if ('Batch' in claim && Array.isArray(claim.Batch)) {
-        transfer = findTokenTransferInOps(claim.Batch);
-      }
-    }
-  }
+  const config = getTransactionVersionConfig(decoded.version);
+  const ops = config.extractOperations(decoded as unknown as Record<string, unknown>);
+  const transfer = findTokenTransferInOps(ops);
 
   if (!transfer) return null;
 

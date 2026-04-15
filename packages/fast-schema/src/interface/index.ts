@@ -23,6 +23,7 @@ export {
 export { PrivateKeyFromInput, type PrivateKeyInputParams } from './signing.ts';
 export {
   type BurnInputParams,
+  ClaimTypeInput,
   type CommitteeChangeInputParams,
   type EscrowCompleteInputParams,
   type EscrowCreateConfigInputParams,
@@ -32,6 +33,7 @@ export {
   type EscrowSubmitInputParams,
   type ExternalClaimInputParams,
   type MintInputParams,
+  OperationInput,
   type OperationInputParams,
   type StateInitializationInputParams,
   type StateResetInputParams,
@@ -47,3 +49,8 @@ export {
   type TransactionRelease20260407InputParams,
   type ValidatorConfigInputParams,
 } from './transaction.ts';
+export {
+  getTransactionVersionConfig,
+  TransactionVersionRegistry,
+  type TransactionVersionConfig,
+} from './transaction-registry.ts';

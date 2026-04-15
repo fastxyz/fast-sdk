@@ -10,7 +10,7 @@ description: >
 
 ## Agent Bootstrap
 
-**Run these steps before executing any `fast` command.**
+**Run these steps only once per session, on the very first `fast` command, or if `fast` is not found. Skip for subsequent commands.**
 
 ```sh
 # 1. Require Node.js ≥ 18
@@ -34,6 +34,90 @@ If `fast` is still not found after install, diagnose `PATH`:
 ```sh
 npm bin -g        # ensure this directory is on PATH
 npx @fastxyz/cli@latest --version   # fallback
+```
+
+---
+
+> **IMPORTANT — Agent rule:** Do NOT run version checks, npm install, or any shell bootstrap before every `fast` command. Only run the bootstrap above on the very first command in a session, or if `fast` is genuinely not found. For all other tasks, call the appropriate `fast` subcommand directly.
+
+---
+
+## Complete Command Reference
+
+Every supported subcommand is listed below. Use **exactly** these command names — do not invent alternatives.
+
+### `info` subcommands
+
+| Command | Description | Key flags |
+|---|---|---|
+| `fast info status` | Show **network health status** for the current network | `--network <name>`, `--json` |
+| `fast info balance` | Show USDC balances on Fast and bridgeable EVM chains | `--json` |
+| `fast info history` | Show transaction history | `--limit <n>` (number of records), `--json` |
+| `fast info tx <hash>` | Look up details for a **specific transaction** by hash | `--json` |
+| `fast info bridge-chains` | List all **bridge-compatible EVM chains** | `--json` |
+| `fast info bridge-tokens` | List all **bridge-compatible tokens** | `--json` |
+
+> **`info status` vs `info balance`:** Use `info status` for *network health*. Use `info balance` for *account balances*. These are different commands.
+
+> **`info tx` vs `info history`:** Use `info tx <hash>` to look up *one specific transaction* by hash. Use `info history` to browse *recent transactions* (with optional `--limit`).
+
+> **`info bridge-chains` vs `info bridge-tokens`:** Use `info bridge-chains` to list which EVM chains support bridging. Use `info bridge-tokens` to list which tokens can be bridged.
+
+### `account` subcommands
+
+| Command | Description | Key flags / args |
+|---|---|---|
+| `fast account list` | List all stored accounts | `--json` |
+| `fast account create` | Create a new account | `--name <alias>` (required for non-interactive), `--non-interactive` |
+| `fast account set-default <name>` | Set named account as the default | — |
+| `fast account export <name>` | Export the **private key** of a named account | — |
+| `fast account delete <name>` | Delete (remove) a named account | — |
+| `fast account import` | Import an existing key | `--name <alias>` |
+
+> **`account delete` is the only delete command.** There is no `account remove`.
+> **`account export` takes the account name as a positional argument**, not `--name`.
+> **`account set-default` takes the account name as a positional argument**.
+
+### `fund` subcommands
+
+| Command | Description | Key flags |
+|---|---|---|
+| `fast fund crypto <amount>` | Bridge USDC from an EVM chain into the Fast account | `--chain <chain>` (required), `--eip-7702` (gasless) |
+| `fast fund fiat` | Open a fiat on-ramp (mainnet only) | `--network mainnet` |
+
+### `send` command
+
+```sh
+fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chain <chain>] [--eip-7702]
+```
+
+| Argument / Flag | Description | Allowed values |
+|---|---|---|
+| `<address>` | Recipient address | `fast1...` (Fast network) or `0x...` (EVM) |
+| `<amount>` | Amount to send | numeric string, e.g. `"20"` |
+| `--token <TOKEN>` | Token to send (**always specify explicitly**) | `USDC` (default; `testUSDC` is an alias on testnet) |
+| `--from-chain <chain>` | Bridge from this EVM chain into Fast | e.g. `arbitrum-sepolia`, `base` |
+| `--to-chain <chain>` | Bridge from Fast to this EVM chain | e.g. `arbitrum-sepolia` |
+| `--eip-7702` | Gasless deposit (no ETH needed on EVM side) | flag, no value |
+
+> **Always pass `--token USDC` explicitly** when bridging or sending USDC — do not rely on the default.
+
+### `network` subcommands
+
+| Command | Description |
+|---|---|
+| `fast network list` | List configured networks |
+| `fast network set-default <name>` | Set the default network (`testnet` or `mainnet`) |
+| `fast network add <file> --name <name>` | Add a custom network from a JSON config file; **`--name` is required** |
+| `fast network remove <name>` | Remove a custom network by name |
+
+> **`network add` requires both arguments:** the config file path (positional) AND `--name <name>` (named flag). Omitting `--name` will fail.
+> **`network remove` is the correct command** to delete a network — do NOT use `network delete` or `network list`.
+
+### `pay` command
+
+```sh
+fast pay <url> [--method <METHOD>] [--body <data|@file>] [--dry-run]
 ```
 
 ---
@@ -98,7 +182,7 @@ with `--network mainnet` per command, or set a persistent default:
 fast network set-default mainnet
 ```
 
-Custom networks can be added from a JSON config file via `fast network add`.
+Custom networks can be added from a JSON config file via `fast network add <file> --name <name>`. Both arguments are required. Remove a custom network with `fast network remove <name>`.
 
 ### Password
 
@@ -123,6 +207,9 @@ fast account create
 
 # Non-interactive (no password, unencrypted key):
 fast account create --non-interactive --name agent-wallet
+
+# Then set it as default:
+fast account set-default agent-wallet
 ```
 
 ### 2. Check balances
@@ -133,6 +220,46 @@ fast info balance --json   # machine-readable
 ```
 
 `fast info balance` shows balances on Fast **and** on each bridgeable EVM chain.
+
+### Check network health status
+
+```sh
+fast info status        # ← use THIS for network health, NOT info balance
+fast info status --json
+```
+
+### Look up a transaction
+
+```sh
+fast info tx 0xabc123def456        # ← use THIS for a specific tx hash
+fast info history                  # ← use THIS for recent tx list
+fast info history --limit 10       # last 10 records
+```
+
+### List bridge-compatible chains and tokens
+
+```sh
+fast info bridge-chains    # ← lists which EVM chains support bridging
+fast info bridge-tokens    # ← lists which tokens can be bridged
+```
+
+### Add and remove custom networks
+
+```sh
+# Add — BOTH the file path AND --name are required:
+fast network add /etc/fast/custom-net.json --name custom-testnet
+
+# Remove — use 'network remove', NOT 'network delete':
+fast network remove custom-testnet
+```
+
+### Account management
+
+```sh
+fast account export my-wallet      # export private key of 'my-wallet'
+fast account delete old-wallet     # delete account named 'old-wallet' (NOT 'account remove')
+fast account set-default my-wallet # set 'my-wallet' as default
+```
 
 ### 3. Send USDC (Fast → Fast)
 
@@ -167,7 +294,7 @@ UserOperation via the AllSet Portal and Pimlico.
 ### 5. Bridge USDC from Fast → EVM
 
 ```sh
-fast send 0xYourEvmAddress 25 --to-chain arbitrum-sepolia
+fast send 0xYourEvmAddress 25 --token USDC --to-chain arbitrum-sepolia
 ```
 
 ### 6. Fund via fiat (mainnet only)
@@ -216,9 +343,9 @@ On mainnet, only `USDC` is valid.
 
 | You want | Command |
 |---|---|
-| EVM → Fast (standard) | `fast send <fast1-address> <amount> --from-chain <chain>` |
-| EVM → Fast (gasless, no ETH) | `fast send <fast1-address> <amount> --from-chain <chain> --eip-7702` |
-| Fast → EVM | `fast send <0x-address> <amount> --to-chain <chain>` |
+| EVM → Fast (standard) | `fast send <fast1-address> <amount> --token USDC --from-chain <chain>` |
+| EVM → Fast (gasless, no ETH) | `fast send <fast1-address> <amount> --token USDC --from-chain <chain> --eip-7702` |
+| Fast → EVM | `fast send <0x-address> <amount> --token USDC --to-chain <chain>` |
 | EVM → EVM | Not supported (`NOT_IMPLEMENTED`) |
 
 The address format determines direction: `0x` recipient → Fast→EVM; `fast1`

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BigIntFromNumberOrSelf,
+  BigIntFromNumberOrStringOrSelf,
   DecimalBigInt,
   DecimalIntBigInt,
   DecimalUintBigInt,
@@ -11,7 +11,7 @@ import {
   IntBigInt,
   IntNumber,
   UintBigInt,
-  UintBigIntFromNumberOrSelf,
+  UintBigIntFromNumberOrStringOrSelf,
   UintNumber,
 } from '../../../src/util/numeric.ts';
 import { Uint64, Uint256, Int320, HexUint64, DecimalUint256 } from '../../../src/util/instances.ts';
@@ -65,17 +65,21 @@ describe('DecimalBigInt', () => {
   });
 });
 
-describe('BigIntFromNumberOrSelf', () => {
+describe('BigIntFromNumberOrStringOrSelf', () => {
   it('converts number to bigint', () => {
-    expect(decodeSync(BigIntFromNumberOrSelf, 42)).toBe(42n);
+    expect(decodeSync(BigIntFromNumberOrStringOrSelf, 42)).toBe(42n);
   });
 
   it('passes through bigint', () => {
-    expect(decodeSync(BigIntFromNumberOrSelf, 42n)).toBe(42n);
+    expect(decodeSync(BigIntFromNumberOrStringOrSelf, 42n)).toBe(42n);
+  });
+
+  it('converts decimal string to bigint', () => {
+    expect(decodeSync(BigIntFromNumberOrStringOrSelf, '1776156806387000000')).toBe(1776156806387000000n);
   });
 
   it('encodes bigint back to bigint', () => {
-    expect(encodeSync(BigIntFromNumberOrSelf, 42n)).toBe(42n);
+    expect(encodeSync(BigIntFromNumberOrStringOrSelf, 42n)).toBe(42n);
   });
 });
 
@@ -206,8 +210,8 @@ describe('DecimalUintBigInt / DecimalIntBigInt', () => {
   });
 });
 
-describe('UintBigIntFromNumberOrSelf', () => {
-  const U64 = UintBigIntFromNumberOrSelf(64);
+describe('UintBigIntFromNumberOrStringOrSelf', () => {
+  const U64 = UintBigIntFromNumberOrStringOrSelf(64);
 
   it('converts number to bigint', () => {
     expect(decodeSync(U64, 42)).toBe(42n);

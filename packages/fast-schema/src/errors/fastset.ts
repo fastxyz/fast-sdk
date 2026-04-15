@@ -1,13 +1,13 @@
 import { Schema } from 'effect';
-import { BigIntFromNumberOrSelf, CamelCaseStruct, TypedVariant } from '../util/index.ts';
+import { BigIntFromNumberOrStringOrSelf, CamelCaseStruct, TypedVariant } from '../util/index.ts';
 
 /** FastSetError as a TypedVariant — decodes to { type, value } format. */
 export const FastSetErrorData = TypedVariant({
   UnexpectedNonce: CamelCaseStruct({
-    expected_nonce: BigIntFromNumberOrSelf,
+    expected_nonce: BigIntFromNumberOrStringOrSelf,
   }),
   InsufficientFunding: CamelCaseStruct({
-    current_balance: BigIntFromNumberOrSelf,
+    current_balance: BigIntFromNumberOrStringOrSelf,
   }),
   PreviousTransactionMustBeConfirmedFirst: CamelCaseStruct({
     pending_confirmation: Schema.Unknown,
@@ -16,10 +16,10 @@ export const FastSetErrorData = TypedVariant({
     error: Schema.String,
   }),
   MissingEarlierConfirmations: CamelCaseStruct({
-    current_nonce: BigIntFromNumberOrSelf,
+    current_nonce: BigIntFromNumberOrStringOrSelf,
   }),
   CertificateTooYoung: CamelCaseStruct({
-    resend_after_nanos: BigIntFromNumberOrSelf,
+    resend_after_nanos: BigIntFromNumberOrStringOrSelf,
   }),
   NonSubmittableOperation: Schema.Struct({
     reason: Schema.String,
@@ -48,8 +48,8 @@ export const ProxyErrorData = TypedVariant({
   DatabaseError: Schema.String,
   TooManyCertificatesRequested: null,
   UnexpectedNonce: CamelCaseStruct({
-    tx_nonce: BigIntFromNumberOrSelf,
-    expected_nonce: BigIntFromNumberOrSelf,
+    tx_nonce: BigIntFromNumberOrStringOrSelf,
+    expected_nonce: BigIntFromNumberOrStringOrSelf,
   }),
   InvalidRequest: Schema.String,
 });

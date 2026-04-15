@@ -12,7 +12,7 @@ import {
   TokenIdFromInput,
   UserDataFromInput,
 } from '../base/input.ts';
-import { BigIntFromNumberOrSelf } from '../util/index.ts';
+import { BigIntFromNumberOrStringOrSelf } from '../util/index.ts';
 
 export const TokenTransferInput = Schema.Struct({
   tokenId: TokenIdFromInput,
@@ -60,7 +60,7 @@ export const StateUpdateInput = Schema.Struct({
   previousState: StateFromInput,
   nextState: StateFromInput,
   computeClaimTxHash: StateKeyFromInput,
-  computeClaimTxTimestamp: BigIntFromNumberOrSelf,
+  computeClaimTxTimestamp: BigIntFromNumberOrStringOrSelf,
 });
 
 export const StateResetInput = Schema.Struct({
@@ -192,7 +192,7 @@ export const TransactionRelease20260319Input = Schema.Struct({
   networkId: NetworkIdFromInput,
   sender: AddressFromInput,
   nonce: NonceFromInput,
-  timestampNanos: BigIntFromNumberOrSelf,
+  timestampNanos: BigIntFromNumberOrStringOrSelf,
   claim: ClaimTypeInput,
   archival: Schema.Boolean,
   feeToken: Schema.NullOr(TokenIdFromInput),
@@ -203,7 +203,7 @@ export const TransactionRelease20260407Input = Schema.Struct({
   networkId: NetworkIdFromInput,
   sender: AddressFromInput,
   nonce: NonceFromInput,
-  timestampNanos: BigIntFromNumberOrSelf,
+  timestampNanos: BigIntFromNumberOrStringOrSelf,
   claims: Schema.Array(OperationInput),
   archival: Schema.Boolean,
   feeToken: Schema.NullOr(TokenIdFromInput),

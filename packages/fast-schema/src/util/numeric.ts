@@ -37,15 +37,21 @@ export const HexNumber = Schema.transform(Schema.String, Schema.Number, {
 });
 
 /**
- * Upcasts a `number | bigint` to `bigint`.
+ * Upcasts a `number | bigint | string` to `bigint`.
  *
  * Useful when JSON may contain either representation for the same field.
+ * Accepts strings to support JSON transports that serialize BigInt as
+ * decimal strings (e.g. Chrome extension port.postMessage).
  */
-export const BigIntFromNumberOrSelf = Schema.transform(Schema.Union(Schema.Number, Schema.BigIntFromSelf), Schema.BigIntFromSelf, {
-  strict: true,
-  decode: (n) => (typeof n === 'bigint' ? n : BigInt(n)),
-  encode: (n) => n,
-});
+export const BigIntFromNumberOrStringOrSelf = Schema.transform(
+  Schema.Union(Schema.Number, Schema.BigIntFromSelf, Schema.String),
+  Schema.BigIntFromSelf,
+  {
+    strict: true,
+    decode: (n) => (typeof n === 'bigint' ? n : BigInt(n)),
+    encode: (n) => n,
+  },
+);
 
 /** Branded unsigned integer `number` with range `0 .. 2^bits - 1`. */
 export const UintNumber = <N extends number>(bits: N) =>
@@ -76,7 +82,7 @@ export const DecimalUintBigInt = <N extends number>(bits: N) => Schema.compose(D
 export const DecimalIntBigInt = <N extends number>(bits: N) => Schema.compose(DecimalBigInt, IntBigInt(bits));
 
 /** number | bigint to branded unsigned bigint. */
-export const UintBigIntFromNumberOrSelf = <N extends number>(bits: N) => Schema.compose(BigIntFromNumberOrSelf, UintBigInt(bits));
+export const UintBigIntFromNumberOrStringOrSelf = <N extends number>(bits: N) => Schema.compose(BigIntFromNumberOrStringOrSelf, UintBigInt(bits));
 
 /** number | bigint to branded signed bigint. */
-export const IntBigIntFromNumberOrSelf = <N extends number>(bits: N) => Schema.compose(BigIntFromNumberOrSelf, IntBigInt(bits));
+export const IntBigIntFromNumberOrStringOrSelf = <N extends number>(bits: N) => Schema.compose(BigIntFromNumberOrStringOrSelf, IntBigInt(bits));

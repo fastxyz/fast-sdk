@@ -5,14 +5,14 @@ import {
   Uint8Array32FromNumberArray,
   Uint8Array64FromNumberArray,
   Uint8ArrayFromNumberArray,
-  Uint64FromNumberOrSelf,
+  Uint64FromNumberOrStringOrSelf,
 } from '../util/index.ts';
 import { NetworkId } from './internal.ts';
 
 export const AmountFromRpc = HexUint256.pipe(Schema.brand('Amount'));
 export const BalanceFromRpc = HexInt320.pipe(Schema.brand('Balance'));
-export const NonceFromRpc = Uint64FromNumberOrSelf.pipe(Schema.brand('Nonce'));
-export const QuorumFromRpc = Uint64FromNumberOrSelf.pipe(Schema.brand('Quorum'));
+export const NonceFromRpc = Uint64FromNumberOrStringOrSelf.pipe(Schema.brand('Nonce'));
+export const QuorumFromRpc = Uint64FromNumberOrStringOrSelf.pipe(Schema.brand('Quorum'));
 
 export const NetworkIdFromRpc = NetworkId;
 

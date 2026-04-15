@@ -30,7 +30,7 @@ export interface TransactionBuilderOptions {
   signer: Signer;
   /** Sender's next nonce, typically from {@link FastProvider.getAccountInfo}. */
   nonce: NonceInput;
-  /** BCS transaction version tag. Defaults to `"Release20260319"`. */
+  /** BCS transaction version tag. Defaults to `"Release20260407"`. */
   version?: TransactionVersion;
   /** Whether the transaction should be stored in archival nodes. Defaults to `false`. */
   archival?: boolean;
@@ -165,6 +165,9 @@ export class TransactionBuilder {
    * @returns A signed {@link TransactionEnvelope} ready for submission.
    */
   async sign(): Promise<TransactionEnvelope> {
+    if (this.operations.length === 0) {
+      throw new Error('TransactionBuilder.sign() requires at least one operation');
+    }
     const { signer, networkId, nonce, version, archival, feeToken } =
       this.options;
     const sender = await signer.getPublicKey();

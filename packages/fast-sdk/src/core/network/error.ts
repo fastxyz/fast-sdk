@@ -1,5 +1,6 @@
 import { RestError } from "../error/network";
 import {
+  DatabaseError,
   GeneralError,
   InvalidRequestError,
   IpRateLimitedError,
@@ -29,8 +30,8 @@ export const parseRestError = (
     case "UNEXPECTED_NONCE":
       return new ProxyUnexpectedNonceError({
         message,
-        txNonce: BigInt((d?.tx_nonce as number) ?? 0),
-        expectedNonce: BigInt((d?.expected_nonce as number) ?? 0),
+        txNonce: BigInt((d?.tx_nonce as string | number) ?? 0),
+        expectedNonce: BigInt((d?.expected_nonce as string | number) ?? 0),
       });
     case "VERIFIER_SIGNATURES_INVALID":
       return new VerifierSigsInvalidError({ message });
@@ -45,6 +46,8 @@ export const parseRestError = (
       });
     case "SERVICE_UNAVAILABLE":
       return new ServiceUnavailableError({ message });
+    case "DATABASE_ERROR":
+      return new DatabaseError({ message });
     default:
       return new RestError({ status, code, message, details });
   }

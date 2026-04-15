@@ -13,6 +13,9 @@ export const HexBigInt = Schema.transform(Schema.String, Schema.BigIntFromSelf, 
   decode: (s) => {
     const sign = s[0] === '-' ? -1n : 1n;
     const digits = s[0] === '-' ? s.slice(1) : s;
+    if (digits.length === 0 || !/^[0-9a-fA-F]+$/.test(digits)) {
+      throw new Error(`Invalid hex string: "${s}"`);
+    }
     return sign * BigInt(`0x${digits}`);
   },
   encode: (n) => n.toString(16),
@@ -24,7 +27,12 @@ export const DecimalNumber = Schema.NumberFromString;
 /** Decodes a hex string (no `0x` prefix) into a `number` and encodes back. */
 export const HexNumber = Schema.transform(Schema.String, Schema.Number, {
   strict: true,
-  decode: (s) => Number(`0x${s}`),
+  decode: (s) => {
+    if (s.length === 0 || !/^[0-9a-fA-F]+$/.test(s)) {
+      throw new Error(`Invalid hex string: "${s}"`);
+    }
+    return Number(`0x${s}`);
+  },
   encode: (n) => n.toString(16),
 });
 

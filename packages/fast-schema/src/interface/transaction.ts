@@ -179,7 +179,7 @@ export const OperationInput = Schema.Union(
   }),
 );
 
-/** Top-level claim (12 operation variants + Batch). */
+/** Top-level claim (13 operation variants + Batch). */
 export const ClaimTypeInput = Schema.Union(
   ...OperationInput.members,
   Schema.Struct({

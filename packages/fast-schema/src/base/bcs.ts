@@ -7,13 +7,14 @@ import {
   Uint64FromNumberOrSelf,
   Uint256FromNumberOrSelf,
 } from '../util/index.ts';
+import { NetworkId } from './internal.ts';
 
 export const AmountFromBcs = Uint256FromNumberOrSelf.pipe(Schema.brand('Amount'));
 export const BalanceFromBcs = Int320FromNumberOrSelf.pipe(Schema.brand('Balance'));
 export const NonceFromBcs = Uint64FromNumberOrSelf.pipe(Schema.brand('Nonce'));
 export const QuorumFromBcs = Uint64FromNumberOrSelf.pipe(Schema.brand('Quorum'));
 
-export const NetworkIdFromBcs = Schema.Literal('fast:localnet', 'fast:devnet', 'fast:testnet', 'fast:mainnet');
+export const NetworkIdFromBcs = NetworkId;
 
 export const AddressFromBcs = Uint8Array32FromNumberArray.pipe(Schema.brand('Address'));
 export const SignatureFromBcs = Uint8Array64FromNumberArray.pipe(Schema.brand('Signature'));

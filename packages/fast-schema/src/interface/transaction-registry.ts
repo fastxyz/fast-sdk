@@ -23,6 +23,9 @@ export interface TransactionVersionConfig {
 export const TransactionVersionRegistry: Record<TransactionVersion, TransactionVersionConfig> = {
   Release20260319: {
     wrapOperations(ops: OperationInputParams[]): Record<string, unknown> {
+      if (ops.length === 0) {
+        throw new Error('Release20260319 transactions require at least one operation');
+      }
       const claim = ops.length === 1
         ? ops[0]!
         : { type: 'Batch' as const, value: ops };

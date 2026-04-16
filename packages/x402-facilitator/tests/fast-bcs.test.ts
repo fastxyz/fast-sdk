@@ -237,5 +237,37 @@ describe('Fast BCS utilities', () => {
       const details = getTransferDetails(decoded as Parameters<typeof getTransferDetails>[0]);
       expect(details).toBeNull();
     });
+
+    it('extracts transfer details from typed variant format', () => {
+      const transaction = createTransaction();
+      const sender = transaction.sender;
+      const recipient = transaction.claim.TokenTransfer.recipient;
+      const tokenId = transaction.claim.TokenTransfer.token_id;
+
+      const typedDecoded = {
+        network_id: 'fast:testnet',
+        sender,
+        nonce: 1n,
+        timestamp_nanos: BigInt(1709712000000) * 1_000_000n,
+        claim: {
+          type: 'TokenTransfer',
+          value: {
+            tokenId,
+            recipient,
+            amount: 1_000_000n,
+            userData: null,
+          },
+        },
+        archival: false,
+        fee_token: null,
+      };
+
+      const details = getTransferDetails(typedDecoded as Parameters<typeof getTransferDetails>[0]);
+      expect(details).not.toBeNull();
+      expect(details!.sender).toBe(bytesToHex(sender));
+      expect(details!.recipient).toBe(bytesToHex(recipient));
+      expect(details!.amount).toBe(1_000_000n);
+      expect(details!.tokenId).toBe(bytesToHex(tokenId));
+    });
   });
 });

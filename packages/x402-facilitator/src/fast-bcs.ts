@@ -66,7 +66,7 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
  * number arrays. The Effect Schema encode path expects the exact Type format (real bigints,
  * branded Uint8Arrays), which the JSON-roundtripped data doesn't match.
  */
-function toBcsFormat(value: unknown): unknown {
+export function toBcsFormat(value: unknown): unknown {
   if (value === null || value === undefined) return value;
   if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') return value;
   if (typeof value === 'string') {
@@ -203,13 +203,24 @@ export function getTransferDetails(decoded: DecodedFastTransaction): TransferDet
 
   let transfer: Record<string, unknown> | null = null;
 
-  // RPC wire format: {TokenTransfer: {...}}
+  // Keyed variant format: {TokenTransfer: {...}}
   if ('TokenTransfer' in claim && isRecord(claim.TokenTransfer)) {
     transfer = claim.TokenTransfer as Record<string, unknown>;
   } else if ('Batch' in claim && Array.isArray(claim.Batch)) {
     for (const op of claim.Batch) {
       if (isRecord(op) && 'TokenTransfer' in op && isRecord(op.TokenTransfer)) {
         transfer = op.TokenTransfer as Record<string, unknown>;
+        break;
+      }
+    }
+  }
+  // Typed variant format: {type: "TokenTransfer", value: {...}}
+  else if (claim.type === 'TokenTransfer' && 'value' in claim && isRecord(claim.value)) {
+    transfer = claim.value as Record<string, unknown>;
+  } else if (claim.type === 'Batch' && 'value' in claim && Array.isArray(claim.value)) {
+    for (const op of claim.value as unknown[]) {
+      if (isRecord(op) && op.type === 'TokenTransfer' && 'value' in op && isRecord(op.value)) {
+        transfer = op.value as Record<string, unknown>;
         break;
       }
     }

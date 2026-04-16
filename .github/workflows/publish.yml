@@ -1,18 +1,21 @@
-name: Publish
+name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - main
+      - 'release/*'
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
   id-token: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     environment: npm-publishing
     steps:
@@ -24,10 +27,22 @@ jobs:
           registry-url: https://registry.npmjs.org/
 
       - run: pnpm install --frozen-lockfile
-
       - run: pnpm build
-
       - run: pnpm test
 
-      - name: Publish packages
-        run: pnpm changeset publish
+      # On main: create Version PR (if changesets exist) or publish (if versions bumped)
+      - name: Create Release PR or Publish
+        if: github.ref == 'refs/heads/main'
+        uses: changesets/action@v1
+        with:
+          publish: pnpm changeset publish --provenance --access public
+          title: 'chore: version packages'
+          commit: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # On release/* branches: publish prerelease directly
+      # Branch must have `changeset pre enter <tag>` + `changeset version` committed
+      - name: Publish Prerelease
+        if: startsWith(github.ref, 'refs/heads/release/')
+        run: pnpm changeset publish --provenance --access public

@@ -1,5 +1,17 @@
 # @fastxyz/sdk
 
+## 2.0.0-testnet.0
+
+### Major Changes
+
+- Breaking: Transaction format changed from single `claim` to `claims` array in Release20260407.
+  Added TransactionVersionRegistry, SupportedTransactionVersions, and version-aware transaction building.
+
+### Patch Changes
+
+- Updated dependencies
+  - @fastxyz/schema@2.0.0-testnet.0
+
 ## 1.1.0
 
 ### Minor Changes

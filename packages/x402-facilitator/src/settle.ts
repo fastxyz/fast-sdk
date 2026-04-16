@@ -12,6 +12,7 @@ import type { PaymentPayload, PaymentRequirement, SettleResponse, EvmPayload, Fa
 import { getNetworkType } from '@fastxyz/x402-types';
 import type { FacilitatorConfig } from './types.js';
 import { verify } from './verify.js';
+import { toBcsFormat } from './fast-bcs.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -32,7 +33,10 @@ interface FastTransactionCertificate {
 
 async function getCertificateHash(certificate: FastTransactionCertificate): Promise<string> {
   try {
-    return await hashHex(bcsSchema.VersionedTransaction, certificate.envelope.transaction as any);
+    // Convert from any input format (camelCase, typed variants, string bigints)
+    // to BCS-native format before hashing
+    const bcsInput = toBcsFormat(certificate.envelope.transaction);
+    return await hashHex(bcsSchema.VersionedTransaction, bcsInput as any);
   } catch {
     return '';
   }

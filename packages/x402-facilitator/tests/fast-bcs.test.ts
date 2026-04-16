@@ -88,6 +88,98 @@ describe('Fast BCS utilities', () => {
     });
   });
 
+  describe('serializeFastTransaction — format variants', () => {
+    // Reference bytes from BCS-native format
+    const referenceTransaction = createTransaction();
+    const referenceBytes = serializeFastTransaction(referenceTransaction);
+
+    it('handles camelCase keys with typed variants (Effect Schema decoded format)', () => {
+      const camelCase = {
+        networkId: 'fast:testnet',
+        sender: new Uint8Array(32).fill(0x01),
+        nonce: 1n,
+        timestampNanos: BigInt(1709712000000) * 1_000_000n,
+        claim: {
+          type: 'TokenTransfer',
+          value: {
+            tokenId: referenceTransaction.claim.TokenTransfer.token_id,
+            recipient: new Uint8Array(32).fill(0x02),
+            amount: 1_000_000n,
+            userData: null,
+          },
+        },
+        archival: false,
+        feeToken: null,
+      };
+
+      const serialized = serializeFastTransaction(camelCase);
+      expect(Array.from(serialized)).toEqual(Array.from(referenceBytes));
+    });
+
+    it('handles camelCase keys after JSON roundtrip (string bigints + number arrays)', () => {
+      // Simulates what the facilitator receives from x402-client via HTTP:
+      // bigints become decimal strings, Uint8Arrays become number arrays
+      const jsonRoundtripped = {
+        networkId: 'fast:testnet',
+        sender: Array.from(new Uint8Array(32).fill(0x01)),
+        nonce: '1',
+        timestampNanos: String(BigInt(1709712000000) * 1_000_000n),
+        claim: {
+          type: 'TokenTransfer',
+          value: {
+            tokenId: Array.from(referenceTransaction.claim.TokenTransfer.token_id),
+            recipient: Array.from(new Uint8Array(32).fill(0x02)),
+            amount: '1000000',
+            userData: null,
+          },
+        },
+        archival: false,
+        feeToken: null,
+      };
+
+      const serialized = serializeFastTransaction(jsonRoundtripped);
+      expect(Array.from(serialized)).toEqual(Array.from(referenceBytes));
+    });
+
+    it('handles RPC wire format (snake_case keys + keyed variants)', () => {
+      const rpcFormat = {
+        Release20260319: createTransaction(),
+      };
+
+      const serialized = serializeFastTransaction(rpcFormat as any);
+      expect(Array.from(serialized)).toEqual(Array.from(referenceBytes));
+    });
+  });
+
+  describe('unwrapFastTransaction — format variants', () => {
+    it('unwraps RPC wire format (keyed variant)', () => {
+      const transaction = createTransaction();
+      const result = unwrapFastTransaction({ Release20260319: transaction });
+      expect(result.network_id).toBe('fast:testnet');
+    });
+
+    it('unwraps Effect schema decoded format (typed variant)', () => {
+      const transaction = createTransaction();
+      const result = unwrapFastTransaction({ type: 'Release20260319', value: transaction });
+      expect((result as any).network_id ?? (result as any).networkId).toBeDefined();
+    });
+
+    it('unwraps already-unwrapped snake_case format', () => {
+      const transaction = createTransaction();
+      const result = unwrapFastTransaction(transaction);
+      expect(result.network_id).toBe('fast:testnet');
+    });
+
+    it('unwraps already-unwrapped camelCase format', () => {
+      const result = unwrapFastTransaction({ networkId: 'fast:testnet', sender: new Uint8Array(32) });
+      expect((result as any).networkId).toBe('fast:testnet');
+    });
+
+    it('throws on unrecognized format', () => {
+      expect(() => unwrapFastTransaction({ foo: 'bar' })).toThrow('unsupported_fast_transaction_format');
+    });
+  });
+
   describe('decodeEnvelope', () => {
     it('decodes a valid Release20260319 TokenTransfer envelope', () => {
       const transaction = createTransaction();
@@ -144,6 +236,38 @@ describe('Fast BCS utilities', () => {
 
       const details = getTransferDetails(decoded as Parameters<typeof getTransferDetails>[0]);
       expect(details).toBeNull();
+    });
+
+    it('extracts transfer details from typed variant format', () => {
+      const transaction = createTransaction();
+      const sender = transaction.sender;
+      const recipient = transaction.claim.TokenTransfer.recipient;
+      const tokenId = transaction.claim.TokenTransfer.token_id;
+
+      const typedDecoded = {
+        network_id: 'fast:testnet',
+        sender,
+        nonce: 1n,
+        timestamp_nanos: BigInt(1709712000000) * 1_000_000n,
+        claim: {
+          type: 'TokenTransfer',
+          value: {
+            tokenId,
+            recipient,
+            amount: 1_000_000n,
+            userData: null,
+          },
+        },
+        archival: false,
+        fee_token: null,
+      };
+
+      const details = getTransferDetails(typedDecoded as Parameters<typeof getTransferDetails>[0]);
+      expect(details).not.toBeNull();
+      expect(details!.sender).toBe(bytesToHex(sender));
+      expect(details!.recipient).toBe(bytesToHex(recipient));
+      expect(details!.amount).toBe(1_000_000n);
+      expect(details!.tokenId).toBe(bytesToHex(tokenId));
     });
   });
 });

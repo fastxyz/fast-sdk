@@ -31,18 +31,53 @@ Commit the generated `.changeset/*.md` file alongside your code changes.
 
 ## Stable release flow
 
-Stable releases are published from the `main` branch.
-
 ```
-1. Merge feature/develop to main (with changeset files)
-2. version.yml creates a "Version Packages" PR (bumps versions + updates CHANGELOG)
-3. Review and merge the Version PR
-4. publish.yml detects no pending changesets → builds, tests, publishes to npm @latest
+feature/develop ──push──→ main (with changeset files)
+                            │
+                    version.yml triggers
+                            │
+                    Creates "Version PR"
+                    (bumps versions + CHANGELOG)
+                            │
+                    Review & merge Version PR
+                            │
+                    publish.yml triggers
+                            │
+                    No pending changesets detected
+                            │
+                    Build → Test → Publish @latest
 ```
 
 ## Pre-release flow (testnet)
 
 Pre-releases use `pre-release/*` branches. These branches are disposable and never merged to main.
+
+```
+develop ──→ pre-release/testnet
+                │
+        pnpm pub:testnet (enter pre mode)
+        pnpm pub:changeset (if needed)
+        git push
+                │
+        version.yml triggers
+                │
+        Creates "Version PR (pre-release)"
+        (bumps to e.g. 2.0.0-testnet.0)
+                │
+        Review & merge Version PR
+                │
+        publish.yml triggers
+                │
+        Build → Test → Publish @testnet
+                │
+        ┌───────┴───────┐
+        │  Need another │──→ Push more changesets → repeat
+        │  iteration?   │
+        └───────┬───────┘
+                │ Done
+                ▼
+        Graduation (see below)
+```
 
 ```
 1. Create pre-release branch from develop (or main)
@@ -76,6 +111,20 @@ git push -u origin pre-release/testnet
 ### Graduating to stable release:
 
 Pre-release branches are **not** merged to main. Instead:
+
+```
+pre-release/testnet (disposable)     develop / feature branch
+        │                                    │
+        │ testing done ✅                    │
+        │                                    │
+        ▼                                    ▼
+  Delete branch                    Merge to main
+  git push origin --delete         (changeset files still intact)
+  pre-release/testnet                        │
+                                     version.yml → Version PR
+                                             │
+                                     Merge → publish.yml → @latest
+```
 
 ```bash
 # 1. Pre-release testing is done — go back to develop/main

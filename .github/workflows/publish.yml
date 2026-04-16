@@ -7,8 +7,6 @@ on:
       - 'release/*'
 
 permissions:
-  contents: write
-  pull-requests: write
   id-token: write
 
 env:
@@ -27,31 +25,27 @@ jobs:
           registry-url: https://registry.npmjs.org/
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm test
 
-      # Guard: ensure pre-release mode is not active on main
-      - name: Check for pre-release mode
-        if: github.ref == 'refs/heads/main'
+      # Skip if there are pending changesets (version.yml handles those)
+      - name: Check for pending changesets
+        id: changesets
         run: |
-          if [ -f .changeset/pre.json ]; then
-            echo "::error::pre.json detected on main branch. Run 'pnpm pub:exit-pre' before merging."
-            exit 1
+          if ls .changeset/*.md 1>/dev/null 2>&1; then
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+            echo "Pending changesets found — skipping publish (version.yml will create a Version PR)."
+          else
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+            echo "No pending changesets — proceeding to publish."
           fi
 
-      # main: Version PR + publish stable
-      - name: Create Release PR or Publish
-        if: github.ref == 'refs/heads/main'
-        uses: changesets/action@v1
-        with:
-          publish: pnpm changeset publish --provenance --access public
-          version: pnpm changeset version
-          title: 'chore: version packages'
-          commit: 'chore: version packages'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm build
 
-      # release/*: publish pre-release (versioning handled by version.yml)
-      - name: Publish Pre-Release
-        if: startsWith(github.ref, 'refs/heads/release/')
+      - name: Test
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm test
+
+      - name: Publish to npm
+        if: steps.changesets.outputs.pending == 'false'
         run: pnpm changeset publish --provenance --access public

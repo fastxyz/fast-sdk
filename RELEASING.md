@@ -115,16 +115,18 @@ git push
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `version.yml` | push to `release/*` | Create Version PR (pre-release versioning only) |
-| `publish.yml` | push to `main` | Create Version PR or publish stable release |
-| `publish.yml` | push to `release/*` | Publish pre-release (after Version PR merge) |
+| `version.yml` | push to `main` | Create Version PR (stable versioning) |
+| `version.yml` | push to `release/*` | Create Version PR (pre-release versioning) |
+| `publish.yml` | push to `main` or `release/*` | Publish to npm (only when no pending changesets) |
 
-Both workflows use:
-- `changesets/action@v1` for automated Version PR creation and publishing
-- OIDC `id-token` for npm authentication (no secrets needed)
-- `--provenance --access public` for npm provenance attestation
+**How it works:**
 
-`publish.yml` includes a pre-release guard on main: if `.changeset/pre.json` exists, the workflow fails with a clear error message to prevent accidental pre-release publishing from main.
+1. You push code with a changeset file → `version.yml` creates a Version PR (bumps versions + updates CHANGELOG)
+2. You merge the Version PR → `publish.yml` detects no pending changesets → builds, tests, publishes to npm
+
+`version.yml` uses `changesets/action@v1` for automated Version PR creation. It also includes a pre-release guard on main: if `.changeset/pre.json` exists, the workflow fails to prevent accidental pre-release publishing from main.
+
+`publish.yml` uses OIDC `id-token` for npm authentication (no secrets needed) and publishes with `--provenance --access public`.
 
 ## Release invariants
 

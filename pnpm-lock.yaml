@@ -242,14 +242,14 @@ importers:
         specifier: ^4.17.21
         version: 4.17.25
       '@types/node':
-        specifier: ^22.19.15
-        version: 22.19.15
+        specifier: ^25.5.0
+        version: 25.5.0
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
       vitest:
         specifier: ^1.6.0
-        version: 1.6.1(@types/node@22.19.15)(lightningcss@1.32.0)
+        version: 1.6.1(@types/node@25.5.0)(lightningcss@1.32.0)
 
   packages/x402-facilitator:
     dependencies:

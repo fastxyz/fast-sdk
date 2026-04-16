@@ -155,9 +155,12 @@ function detectVersion(transaction: Record<string, unknown>): TransactionVersion
 
 /** Infer version from a bare (unwrapped) transaction based on its fields. */
 function inferBareVersion(transaction: Record<string, unknown>): TransactionVersionKey {
-  if ('claims' in transaction && Array.isArray(transaction.claims)) {
-    return 'Release20260407';
-  }
+  const hasClaims = 'claims' in transaction && Array.isArray(transaction.claims);
+  const hasClaim = 'claim' in transaction;
+  if (hasClaims && !hasClaim) return 'Release20260407';
+  if (hasClaim && !hasClaims) return 'Release20260319';
+  // Ambiguous (both or neither) — prefer newer format if claims[] present
+  if (hasClaims) return 'Release20260407';
   return 'Release20260319';
 }
 

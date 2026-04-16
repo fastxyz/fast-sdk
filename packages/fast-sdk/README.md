@@ -269,3 +269,96 @@ Error hierarchy: Network → REST → Proxy → Validators
 pnpm build        # Build this package
 pnpm turbo test   # Run the repo test pipeline
 ```
+
+## Migrating to v2.0.0
+
+### Breaking Changes
+
+**Default transaction version changed to Release20260407**
+
+`TransactionBuilder` now defaults to `Release20260407` which uses a `claims` array instead of a single `claim`.
+
+**Before (v1.x):**
+```ts
+const builder = new TransactionBuilder({ networkId, signer, nonce });
+builder.addBurn({ tokenId, amount });
+const envelope = await builder.sign();
+// Produced: { claim: { Burn: { ... } } }
+```
+
+**After (v2.0):**
+```ts
+const builder = new TransactionBuilder({ networkId, signer, nonce });
+builder.addBurn({ tokenId, amount });
+const envelope = await builder.sign();
+// Produces: { claims: [{ Burn: { ... } }] }
+```
+
+**REST API migration**: `FastProvider` now uses REST endpoints. `ProviderOptions.rpcUrl` is renamed to `url`. Proxy paths changed from `/proxy` to `/proxy-rest`.
+
+**Before (v1.x):**
+```ts
+const provider = new FastProvider({ rpcUrl: 'https://api.fast.xyz/proxy' });
+```
+
+**After (v2.0):**
+```ts
+const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
+```
+
+**Faucet API removed**: `faucetDrip()` method and faucet error classes are no longer available.
+
+**Error classes replaced**:
+
+```diff
+  import {
+-   JsonRpcProtocolError,  // removed (no longer applicable)
+-   RpcError,              // removed → use RestError
+-   RpcTimeoutError,       // deprecated alias → use RestTimeoutError
++   RestError,
++   RestTimeoutError,
++   NotFoundError,
++   IpRateLimitedError,
+  } from "@fastxyz/sdk";
+```
+
+| v1.x | v2.0 | Status |
+|---|---|---|
+| `JsonRpcProtocolError` | — | Removed |
+| `RpcError` | `RestError` | Replaced |
+| `RpcTimeoutError` | `RestTimeoutError` | Deprecated alias (will be removed) |
+
+### New Features
+
+- **Escrow support**: `provider.getEscrowJob()` and `provider.getEscrowJobs()`
+- **Version-aware building**: `new TransactionBuilder({ ..., version: 'Release20260319' })` to build old-format transactions
+- **`addEscrow()`**: New builder method for escrow operations
+
+### Using the Old Transaction Format
+
+```ts
+const builder = new TransactionBuilder({
+  networkId: 'fast:mainnet',
+  signer,
+  nonce,
+  version: 'Release20260319', // Explicitly use old format
+});
+builder.addBurn({ tokenId, amount });
+const envelope = await builder.sign();
+// Produces: { claim: { Burn: { ... } } }
+```
+
+### Network Version Compatibility
+
+| Network Version | Schema | SDK | Default |
+|---|---|---|---|
+| Release20260319 | `>=1.0.0` | `>=1.0.0` | v1.x default |
+| Release20260407 | `>=2.0.0` | `>=2.0.0` | v2.x default |
+
+### Migration Checklist
+
+- Replace `{ rpcUrl: ... }` with `{ url: ... }` in `FastProvider` calls
+- Update proxy URLs from `/proxy` to `/proxy-rest`
+- Replace `JsonRpcProtocolError` / `RpcError` imports with `RestError`
+- Replace `RpcTimeoutError` with `RestTimeoutError`
+- Update any raw transaction field access: `.claim` → `.claims[]`

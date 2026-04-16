@@ -182,3 +182,58 @@ const bytes = serializeVersionedTransactionDomain(versioned);
 pnpm build        # Build this package
 pnpm turbo test   # Run the repo test pipeline
 ```
+
+## Migrating to v2.0.0
+
+### Breaking Changes
+
+**Transaction format: `claim` → `claims` array**
+
+In v1.x, transactions used a single `claim` field (Release20260319 format). In v2.0, the default transaction version is Release20260407, which uses a `claims` array.
+
+**Before (v1.x):**
+```ts
+// Wire format had { claim: { Transfer: { ... } } }
+const tx = Schema.decodeUnknownSync(TransactionFromRpc)(wireData);
+console.log(tx.claim.type); // 'Transfer'
+```
+
+**After (v2.0):**
+```ts
+// Wire format now has { claims: [{ Transfer: { ... } }] }
+const tx = Schema.decodeUnknownSync(TransactionFromRpc)(wireData);
+console.log(tx.claims[0].type); // 'Transfer'
+```
+
+### New Exports
+
+| Export | Description |
+|--------|-------------|
+| `TransactionVersionRegistry` | Map of version → config for building/parsing |
+| `SupportedTransactionVersions` | `['Release20260319', 'Release20260407']` |
+| `LatestTransactionVersion` | `'Release20260407'` |
+| `getTransactionVersionConfig(v)` | Get version config with runtime validation |
+| `*FromRest` schemas | REST API format codecs |
+| `bcsSchema.EscrowJob`, `bcsSchema.EscrowAction` | Escrow BCS types |
+
+### Using the Old Transaction Format
+
+If you need to interact with Release20260319 transactions:
+
+```ts
+import {
+  TransactionRelease20260319FromRpc,
+  TransactionRelease20260319FromInput,
+} from '@fastxyz/schema';
+
+// Decode old-format transactions
+const tx = Schema.decodeUnknownSync(TransactionRelease20260319FromRpc)(wireData);
+console.log(tx.claim.type); // single claim
+```
+
+### Network Version Compatibility
+
+| Network Version | Schema | SDK | Transaction Field |
+|---|---|---|---|
+| Release20260319 | `>=1.0.0` | `>=1.0.0` | `claim` (single) |
+| Release20260407 | `>=2.0.0` | `>=2.0.0` | `claims` (array) |

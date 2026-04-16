@@ -5,6 +5,9 @@ dist
 .DS_Store
 npm-debug.log*
 AGENTS.md
+.github/copilot-instructions.md
+.env
+.env.*
 
 .turbo
 coverage

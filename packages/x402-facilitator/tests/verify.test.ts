@@ -302,6 +302,77 @@ describe('verify', () => {
       expect(result.payer).toBeDefined();
     });
 
+    it('validates a certificate in typed variant format (Effect Schema decoded form)', async () => {
+      // Create a standard keyed-variant certificate first
+      const keyedCertificate = createFastCertificate(recipient, oneUsdcUnits, tokenId);
+
+      // Convert to typed variant format (what the SDK returns)
+      // then simulate JSON roundtrip (what the client sends to the facilitator):
+      // bigints → decimal strings, Uint8Arrays → number arrays
+      const keyedTransaction = keyedCertificate.envelope.transaction as Record<string, unknown>;
+      const innerTransaction = (keyedTransaction as any).Release20260319 as Record<string, unknown>;
+      const innerClaim = innerTransaction.claim as Record<string, unknown>;
+      const claimKey = Object.keys(innerClaim)[0]; // "TokenTransfer"
+      const claimValue = innerClaim[claimKey] as Record<string, unknown>;
+
+      const typedCertificate: FastTransactionCertificate = {
+        envelope: {
+          transaction: {
+            type: 'Release20260319',
+            value: {
+              networkId: innerTransaction.network_id,
+              sender: innerTransaction.sender,
+              nonce: String(innerTransaction.nonce),
+              timestampNanos: String(innerTransaction.timestamp_nanos),
+              claim: {
+                type: claimKey,
+                value: {
+                  tokenId: claimValue.token_id,
+                  recipient: claimValue.recipient,
+                  amount: String(claimValue.amount),
+                  userData: claimValue.user_data ?? null,
+                },
+              },
+              archival: innerTransaction.archival,
+              feeToken: innerTransaction.fee_token ?? null,
+            },
+          },
+          signature: {
+            type: 'Signature',
+            value: (keyedCertificate.envelope.signature as any).Signature,
+          },
+        },
+        signatures: keyedCertificate.signatures,
+      };
+
+      // Register the keyed-variant certificate in the proxy lookup
+      // (the network returns keyed-variant format)
+      proxyCertificates.set(certificateLookupKey(keyedCertificate), cloneCertificate(keyedCertificate));
+
+      const payload: PaymentPayload = {
+        x402Version: 1,
+        scheme: 'exact',
+        network: 'fast-testnet',
+        payload: { transactionCertificate: typedCertificate },
+      };
+
+      const requirement: PaymentRequirement = {
+        scheme: 'exact',
+        network: 'fast-testnet',
+        maxAmountRequired: oneUsdcUnits.toString(),
+        resource: '/api/data',
+        description: 'Test',
+        mimeType: 'application/json',
+        payTo: recipientHex,
+        maxTimeoutSeconds: 60,
+        asset: bytesToHex(tokenId),
+      };
+
+      const result = await verifyFastFixture(payload, requirement);
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBeDefined();
+    });
+
     it('rejects payment with an invalid sender signature', async () => {
       const certificate = createFastCertificate(recipient, oneUsdcUnits, tokenId, {
         tamperSenderSignature: true,

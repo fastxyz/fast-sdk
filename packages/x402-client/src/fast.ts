@@ -7,7 +7,9 @@
 
 import { FastProvider, Signer, TransactionBuilder, hashHex } from '@fastxyz/sdk';
 import { fromHex, fromFastAddress, toFastAddress } from '@fastxyz/sdk';
-import { bcsSchema } from '@fastxyz/schema';
+import { bcsSchema, VersionedTransactionFromBcs } from '@fastxyz/schema';
+import type { VersionedTransaction } from '@fastxyz/schema';
+import { Schema } from 'effect';
 import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResult } from './types.js';
 
 // ─── Cached Providers ─────────────────────────────────────────────────────────
@@ -160,8 +162,7 @@ export async function handleFastPayment(
   log(`  Transaction complete in ${Date.now() - txStartTime}ms`);
 
   const certificate = submitResult.value;
-  const tx = certificate.envelope.transaction;
-  const bcsInput = { [tx.type]: tx.value } as unknown as Parameters<typeof bcsSchema.VersionedTransaction.serialize>[0];
+  const bcsInput = Schema.encodeSync(VersionedTransactionFromBcs)(certificate.envelope.transaction as VersionedTransaction);
   const txHash = await hashHex(bcsSchema.VersionedTransaction, bcsInput);
   log(`  txHash: ${txHash}`);
 

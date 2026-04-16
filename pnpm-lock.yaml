@@ -197,6 +197,9 @@ importers:
       '@fastxyz/x402-types':
         specifier: workspace:*
         version: link:../x402-types
+      effect:
+        specifier: ^3.21.0
+        version: 3.21.0
       viem:
         specifier: ^2.46.2
         version: 2.47.6(typescript@6.0.2)
@@ -210,6 +213,43 @@ importers:
       vitest:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@22.19.15)(lightningcss@1.32.0)
+
+  packages/x402-e2e:
+    dependencies:
+      '@fastxyz/sdk':
+        specifier: workspace:*
+        version: link:../fast-sdk
+      '@fastxyz/x402-client':
+        specifier: workspace:*
+        version: link:../x402-client
+      '@fastxyz/x402-facilitator':
+        specifier: workspace:*
+        version: link:../x402-facilitator
+      '@fastxyz/x402-server':
+        specifier: workspace:*
+        version: link:../x402-server
+      '@fastxyz/x402-types':
+        specifier: workspace:*
+        version: link:../x402-types
+      dotenv:
+        specifier: ^16.5.0
+        version: 16.6.1
+      express:
+        specifier: ^4.21.2
+        version: 4.22.1
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@25.5.0)(lightningcss@1.32.0)
 
   packages/x402-facilitator:
     dependencies:
@@ -1877,6 +1917,10 @@ packages:
   dir-glob@3.0.1:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
     engines: {node: '>=8'}
+
+  dotenv@16.6.1:
+    resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
+    engines: {node: '>=12'}
 
   drizzle-kit@0.31.10:
     resolution: {integrity: sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw==}
@@ -4278,7 +4322,7 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 22.19.15
+      '@types/node': 25.5.0
 
   '@types/chai@5.2.3':
     dependencies:
@@ -4287,7 +4331,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 22.19.15
+      '@types/node': 25.5.0
 
   '@types/deep-eql@4.0.2': {}
 
@@ -4297,7 +4341,7 @@ snapshots:
 
   '@types/express-serve-static-core@4.19.8':
     dependencies:
-      '@types/node': 22.19.15
+      '@types/node': 25.5.0
       '@types/qs': 6.15.0
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -4627,6 +4671,8 @@ snapshots:
   dir-glob@3.0.1:
     dependencies:
       path-type: 4.0.0
+
+  dotenv@16.6.1: {}
 
   drizzle-kit@0.31.10:
     dependencies:

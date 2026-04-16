@@ -31,75 +31,61 @@ Commit the generated `.changeset/*.md` file alongside your code changes.
 
 ## Stable release flow
 
-Stable releases are published from the `main` branch automatically.
+Stable releases are published from the `main` branch.
 
 ```
-1. Merge feature branch to main (with changeset files)
-2. CI creates a "Version Packages" PR (bumps versions + updates CHANGELOG)
+1. Merge feature/develop to main (with changeset files)
+2. version.yml creates a "Version Packages" PR (bumps versions + updates CHANGELOG)
 3. Review and merge the Version PR
-4. CI automatically publishes to npm @latest
-```
-
-### Manual steps:
-
-```bash
-# 1. Add changeset (if not already done)
-pnpm pub:changeset
-
-# 2. Merge to main and let CI handle the rest
-git checkout main && git merge feature-branch
-git push
+4. publish.yml detects no pending changesets → builds, tests, publishes to npm @latest
 ```
 
 ## Pre-release flow (testnet)
 
-Pre-releases are versioned via `version.yml` and published via `publish.yml`, both on `release/*` branches.
+Pre-releases use `pre-release/*` branches. These branches are disposable and never merged to main.
 
 ```
-1. Create release branch and enter testnet pre-release mode
-2. Add changeset + push
-3. version.yml creates a Version PR (bumps to 2.0.0-testnet.0)
+1. Create pre-release branch from develop (or main)
+2. Enter testnet pre-release mode + push
+3. version.yml creates a Version PR (bumps to e.g. 2.0.0-testnet.0)
 4. Merge the Version PR
 5. publish.yml publishes to npm @testnet
-6. Repeat for subsequent pre-release iterations
+6. Repeat steps 2-5 for subsequent iterations
 ```
 
 ### Manual steps:
 
 ```bash
-# 1. Create release branch
-git checkout -b release/testnet
+# 1. Create pre-release branch
+git checkout develop
+git checkout -b pre-release/testnet
 
 # 2. Enter pre-release mode
 pnpm pub:testnet
 
-# 3. Add changeset (if not already done)
+# 3. Add changeset (if not already present)
 pnpm pub:changeset
 
 # 4. Commit and push
 git add -A && git commit -m "chore: enter testnet pre-release"
-git push -u origin release/testnet
+git push -u origin pre-release/testnet
 
-# 5. version.yml creates Version PR → merge it → publish.yml publishes
-
-# 6. For subsequent iterations, add more changesets and push
+# 5. version.yml creates Version PR → merge it → publish.yml publishes @testnet
 ```
 
-### Graduating from pre-release to stable:
+### Graduating to stable release:
+
+Pre-release branches are **not** merged to main. Instead:
 
 ```bash
-# 1. Exit pre-release mode on the release branch
-pnpm pub:exit-pre
-git add -A && git commit -m "chore: exit pre-release mode"
-
-# 2. Merge release branch to main
-git checkout main && git merge release/testnet
-git push
-
-# 3. CI creates Version PR (stable versions) → merge → CI publishes @latest
+# 1. Pre-release testing is done — go back to develop/main
+# 2. Merge develop (or feature branch) to main
+#    The original changeset files are still on main/develop
+#    (they were only consumed on the pre-release branch)
+# 3. version.yml creates Version PR (stable versions) → merge → publish.yml publishes @latest
+# 4. Delete the pre-release branch
+git push origin --delete pre-release/testnet
 ```
-
-> ⚠️ **Important:** Always run `pnpm pub:exit-pre` before merging to main. The publish workflow will fail if `pre.json` is detected on the main branch.
 
 ## Available npm scripts
 
@@ -107,7 +93,6 @@ git push
 |---|---|---|
 | `pub:changeset` | `pnpm changeset` | Create a new changeset |
 | `pub:testnet` | `changeset pre enter testnet` | Enter testnet pre-release mode |
-| `pub:exit-pre` | `changeset pre exit` | Exit pre-release mode |
 | `pub:version` | `changeset version` | Bump versions locally |
 | `pub:release` | `build + changeset publish` | Manual local publish (rarely needed) |
 
@@ -116,15 +101,15 @@ git push
 | Workflow | Trigger | Purpose |
 |---|---|---|
 | `version.yml` | push to `main` | Create Version PR (stable versioning) |
-| `version.yml` | push to `release/*` | Create Version PR (pre-release versioning) |
-| `publish.yml` | push to `main` or `release/*` | Publish to npm (only when no pending changesets) |
+| `version.yml` | push to `pre-release/*` | Create Version PR (pre-release versioning) |
+| `publish.yml` | push to `main` or `pre-release/*` | Publish to npm (only when no pending changesets) |
 
 **How it works:**
 
-1. You push code with a changeset file → `version.yml` creates a Version PR (bumps versions + updates CHANGELOG)
-2. You merge the Version PR → `publish.yml` detects no pending changesets → builds, tests, publishes to npm
+1. You push code with a changeset file → `version.yml` creates a Version PR
+2. You merge the Version PR → `publish.yml` detects no pending changesets → builds, tests, publishes
 
-`version.yml` uses `changesets/action@v1` for automated Version PR creation. It also includes a pre-release guard on main: if `.changeset/pre.json` exists, the workflow fails to prevent accidental pre-release publishing from main.
+`version.yml` includes a pre-release guard on main: if `.changeset/pre.json` exists, the workflow fails.
 
 `publish.yml` uses OIDC `id-token` for npm authentication (no secrets needed) and publishes with `--provenance --access public`.
 
@@ -133,6 +118,7 @@ git push
 - Only packages with a version bump are published; unchanged packages are skipped.
 - Do not manually edit package versions — always use `pnpm pub:changeset` + CI automation.
 - All packages publish with `--access public` (configured in `.changeset/config.json`).
+- `pre-release/*` branches are never merged to main — they are disposable.
 - Never use `git push --force`.
 
 ## Entrypoint policy

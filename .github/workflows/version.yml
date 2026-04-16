@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - 'release/*'
+      - 'pre-release/*'
 
 permissions:
   contents: write
@@ -39,11 +39,11 @@ jobs:
         with:
           version: pnpm changeset version
           title: >-
-            ${{ startsWith(github.ref, 'refs/heads/release/')
+            ${{ startsWith(github.ref, 'refs/heads/pre-release/')
                 && 'chore: version packages (pre-release)'
                 || 'chore: version packages' }}
           commit: >-
-            ${{ startsWith(github.ref, 'refs/heads/release/')
+            ${{ startsWith(github.ref, 'refs/heads/pre-release/')
                 && 'chore: version packages (pre-release)'
                 || 'chore: version packages' }}
         env:

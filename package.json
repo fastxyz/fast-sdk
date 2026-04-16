@@ -16,7 +16,6 @@
     "clean": "turbo clean && rm -rf node_modules",
     "pub:changeset": "pnpm changeset",
     "pub:testnet": "pnpm changeset pre enter testnet",
-    "pub:exit-pre": "pnpm changeset pre exit",
     "pub:version": "pnpm changeset version",
     "pub:release": "pnpm build && pnpm changeset publish --provenance --access public",
     "prepare": "husky"

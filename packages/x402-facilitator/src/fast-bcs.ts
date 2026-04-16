@@ -59,6 +59,12 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
 /**
  * Recursively convert from Effect schema decoded form (camelCase keys,
  * typed variants) to BCS-compatible format (snake_case keys, keyed variants).
+ *
+ * NOTE: We use a manual conversion here instead of Schema.encodeSync(VersionedTransactionFromBcs)
+ * because the facilitator receives data after a JSON roundtrip (client → HTTP → facilitator).
+ * During JSON serialization, bigints become decimal strings ("42") and Uint8Arrays become
+ * number arrays. The Effect Schema encode path expects the exact Type format (real bigints,
+ * branded Uint8Arrays), which the JSON-roundtripped data doesn't match.
  */
 function toBcsFormat(value: unknown): unknown {
   if (value === null || value === undefined) return value;

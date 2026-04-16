@@ -5,6 +5,8 @@ dist
 .DS_Store
 npm-debug.log*
 AGENTS.md
+.env
+.env.*
 
 .turbo
 coverage

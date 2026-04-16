@@ -35,6 +35,7 @@
     "@fastxyz/schema": "workspace:*",
     "@fastxyz/sdk": "workspace:*",
     "@fastxyz/x402-types": "workspace:*",
+    "effect": "^3.21.0",
     "viem": "^2.46.2"
   },
   "devDependencies": {

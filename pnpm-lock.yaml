@@ -197,6 +197,9 @@ importers:
       '@fastxyz/x402-types':
         specifier: workspace:*
         version: link:../x402-types
+      effect:
+        specifier: ^3.21.0
+        version: 3.21.0
       viem:
         specifier: ^2.46.2
         version: 2.47.6(typescript@6.0.2)

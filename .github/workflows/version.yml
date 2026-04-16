@@ -1,0 +1,34 @@
+name: Version
+
+on:
+  push:
+    branches:
+      - 'release/*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Create Version PR
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset version
+          title: 'chore: version packages (pre-release)'
+          commit: 'chore: version packages (pre-release)'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -344,11 +344,25 @@ function extractSenderSignature(signature: unknown): Uint8Array | null {
     return null;
   }
 
-  return toByteArray((signature as Record<string, unknown>).Signature);
+  const record = signature as Record<string, unknown>;
+
+  // Keyed variant: { Signature: bytes }
+  if (record.Signature !== undefined) {
+    return toByteArray(record.Signature);
+  }
+
+  // Typed variant from decoded schema: { type: "Signature", value: bytes }
+  if (record.type === 'Signature' && 'value' in record) {
+    return toByteArray(record.value);
+  }
+
+  return null;
 }
 
 function hasMultiSig(signature: unknown): boolean {
-  return Boolean(signature && typeof signature === 'object' && !Array.isArray(signature) && (signature as Record<string, unknown>).MultiSig);
+  if (!signature || typeof signature !== 'object' || Array.isArray(signature)) return false;
+  const record = signature as Record<string, unknown>;
+  return Boolean(record.MultiSig || record.type === 'MultiSig');
 }
 
 function parseCommitteeSignature(entry: unknown): { publicKey: Uint8Array; signature: Uint8Array } | null {

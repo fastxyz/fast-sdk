@@ -10,6 +10,38 @@ import { fromHex, fromFastAddress, toFastAddress } from '@fastxyz/sdk';
 import { bcsSchema } from '@fastxyz/schema';
 import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResult } from './types.js';
 
+// ─── BCS format conversion ───────────────────────────────────────────────────
+
+const CAMEL_TO_SNAKE: Record<string, string> = {
+  networkId: 'network_id',
+  timestampNanos: 'timestamp_nanos',
+  feeToken: 'fee_token',
+  tokenId: 'token_id',
+  userData: 'user_data',
+};
+
+/** Convert from decoded schema format (camelCase, typed variants) to BCS-compatible format. */
+function toBcsFormat(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') return value;
+  if (value instanceof Uint8Array) return Array.from(value);
+  if (Array.isArray(value)) return value.map(toBcsFormat);
+  if (typeof value !== 'object') return value;
+
+  const obj = value as Record<string, unknown>;
+
+  // Typed variant: {type: "Foo", value: {...}} → {Foo: {...}}
+  if (typeof obj.type === 'string' && 'value' in obj && Object.keys(obj).length === 2) {
+    return { [obj.type as string]: toBcsFormat(obj.value) };
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    result[CAMEL_TO_SNAKE[key] ?? key] = toBcsFormat(val);
+  }
+  return result;
+}
+
 // ─── Cached Providers ─────────────────────────────────────────────────────────
 
 const fastProviders: Record<string, FastProvider> = {};
@@ -160,8 +192,7 @@ export async function handleFastPayment(
   log(`  Transaction complete in ${Date.now() - txStartTime}ms`);
 
   const certificate = submitResult.value;
-  const tx = certificate.envelope.transaction;
-  const bcsInput = { [tx.type]: tx.value } as unknown as Parameters<typeof bcsSchema.VersionedTransaction.serialize>[0];
+  const bcsInput = toBcsFormat(certificate.envelope.transaction) as Parameters<typeof bcsSchema.VersionedTransaction.serialize>[0];
   const txHash = await hashHex(bcsSchema.VersionedTransaction, bcsInput);
   log(`  txHash: ${txHash}`);
 

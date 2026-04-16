@@ -42,6 +42,54 @@ export const VersionedTransactionBcs = bcsSchema.VersionedTransaction;
 
 const FAST_TRANSACTION_SIGNING_PREFIX = new TextEncoder().encode('VersionedTransaction::');
 
+// ─── camelCase → snake_case keys for BCS serialization ──────────────────────
+
+const CAMEL_TO_SNAKE: Record<string, string> = {
+  networkId: 'network_id',
+  timestampNanos: 'timestamp_nanos',
+  feeToken: 'fee_token',
+  tokenId: 'token_id',
+  userData: 'user_data',
+  verifierCommittee: 'verifier_committee',
+  verifierQuorum: 'verifier_quorum',
+  claimData: 'claim_data',
+  authorizedSigners: 'authorized_signers',
+};
+
+/**
+ * Recursively convert from Effect schema decoded form (camelCase keys,
+ * typed variants) to BCS-compatible format (snake_case keys, keyed variants).
+ */
+function toBcsFormat(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    // Convert decimal numeric strings to bigint (handles JSON roundtrip of bigints)
+    if (/^\d+$/.test(value)) return BigInt(value);
+    return value;
+  }
+  if (value instanceof Uint8Array) return Array.from(value);
+  if (Array.isArray(value)) return value.map(toBcsFormat);
+  if (!isRecord(value)) return value;
+
+  // Typed variant: {type: "Foo", value: {...}} → {Foo: {...}}
+  if (typeof value.type === 'string' && 'value' in value && Object.keys(value).length === 2) {
+    const variantValue = value.value;
+    if (variantValue === null || variantValue === undefined) {
+      return { [value.type as string]: variantValue };
+    }
+    return { [value.type as string]: toBcsFormat(variantValue) };
+  }
+
+  // Regular object: convert keys from camelCase to snake_case
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value)) {
+    const snakeKey = CAMEL_TO_SNAKE[key] ?? key;
+    result[snakeKey] = toBcsFormat(val);
+  }
+  return result;
+}
+
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -70,11 +118,23 @@ function toUint8Array(value: unknown): Uint8Array | null {
 // ─── Public Functions ────────────────────────────────────────────────────────
 
 export function unwrapFastTransaction(transaction: unknown): FastSerializableTransaction {
+  // RPC wire format: {Release20260319: {network_id: ..., ...}}
   if (isRecord(transaction) && 'Release20260319' in transaction && isRecord(transaction.Release20260319)) {
     return transaction.Release20260319 as FastSerializableTransaction;
   }
 
+  // Effect schema decoded format: {type: "Release20260319", value: {networkId: ..., ...}}
+  if (isRecord(transaction) && typeof transaction.type === 'string' && isRecord(transaction.value)) {
+    return transaction.value as FastSerializableTransaction;
+  }
+
+  // Already unwrapped (snake_case)
   if (isRecord(transaction) && typeof transaction.network_id === 'string') {
+    return transaction as FastSerializableTransaction;
+  }
+
+  // Already unwrapped (camelCase)
+  if (isRecord(transaction) && typeof transaction.networkId === 'string') {
     return transaction as FastSerializableTransaction;
   }
 
@@ -82,12 +142,22 @@ export function unwrapFastTransaction(transaction: unknown): FastSerializableTra
 }
 
 export function serializeFastTransaction(transaction: VersionedFastTransaction | FastSerializableTransaction): Uint8Array {
+  // Effect schema decoded form with camelCase keys — convert to BCS-compatible format
+  if (isRecord(transaction) && typeof transaction.networkId === 'string') {
+    const bcsCompatible = toBcsFormat(transaction) as Record<string, unknown>;
+    return VersionedTransactionBcs.serialize({
+      Release20260319: bcsCompatible,
+    } as any).toBytes();
+  }
+
+  // RPC wire format: {Release20260319: {network_id: ..., ...}}
   if (isRecord(transaction) && 'Release20260319' in transaction && isRecord(transaction.Release20260319)) {
     return VersionedTransactionBcs.serialize({
       Release20260319: transaction.Release20260319,
     } as any).toBytes();
   }
 
+  // Already unwrapped snake_case format
   return serializeVersionedTransaction(transaction as FastSerializableTransaction);
 }
 
@@ -126,6 +196,8 @@ export function getTransferDetails(decoded: DecodedFastTransaction): TransferDet
   if (!isRecord(claim)) return null;
 
   let transfer: Record<string, unknown> | null = null;
+
+  // RPC wire format: {TokenTransfer: {...}}
   if ('TokenTransfer' in claim && isRecord(claim.TokenTransfer)) {
     transfer = claim.TokenTransfer as Record<string, unknown>;
   } else if ('Batch' in claim && Array.isArray(claim.Batch)) {
@@ -140,20 +212,22 @@ export function getTransferDetails(decoded: DecodedFastTransaction): TransferDet
   if (!transfer) return null;
 
   const senderBytes = toUint8Array(decoded.sender);
+  // Handle both snake_case (token_id) and camelCase (tokenId) keys
   const recipientBytes = toUint8Array(transfer.recipient);
-  const tokenIdBytes = toUint8Array(transfer.token_id);
+  const tokenIdBytes = toUint8Array(transfer.token_id ?? transfer.tokenId);
 
   if (!senderBytes || !recipientBytes || !tokenIdBytes) {
     throw new Error('not_a_token_transfer');
   }
 
+  const rawAmount = transfer.amount ?? transfer.value;
   const amount =
-    typeof transfer.amount === 'bigint'
-      ? transfer.amount
-      : typeof transfer.amount === 'number'
-        ? BigInt(transfer.amount)
-        : typeof transfer.amount === 'string'
-          ? BigInt(transfer.amount)
+    typeof rawAmount === 'bigint'
+      ? rawAmount
+      : typeof rawAmount === 'number'
+        ? BigInt(rawAmount)
+        : typeof rawAmount === 'string'
+          ? BigInt(rawAmount)
           : (() => {
               throw new Error('not_a_token_transfer');
             })();

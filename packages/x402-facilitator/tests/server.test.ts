@@ -45,7 +45,7 @@ function findRoute(routes: ReturnType<typeof createFacilitatorRoutes>, method: s
 const testFacilitatorConfig: FacilitatorConfig = {
   fastNetworks: {
     'fast-testnet': {
-      rpcUrl: 'https://testnet.api.fast.xyz/proxy',
+      rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest',
       committeePublicKeys: ['aabb', 'ccdd', 'eeff'],
     },
   },
@@ -202,11 +202,11 @@ describe('createFacilitatorRoutes', () => {
         },
         fastNetworks: {
           'fast-testnet': {
-            rpcUrl: 'https://testnet.api.fast.xyz/proxy',
+            rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest',
             committeePublicKeys: [],
           },
           'fast-mainnet': {
-            rpcUrl: 'https://api.fast.xyz/proxy',
+            rpcUrl: 'https://api.fast.xyz/proxy-rest',
             committeePublicKeys: [],
           },
         },

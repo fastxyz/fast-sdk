@@ -332,7 +332,7 @@ fast network add my-custom-net --config ./network-config.json
 **Example JSON config (`network-config.json`):**
 ```json
 {
-  "rpcUrl": "https://api.fast.xyz/proxy",
+  "url": "https://api.fast.xyz/proxy-rest",
   "networkId": "fast:testnet",
   "chainType": "fast"
 }
@@ -412,6 +412,6 @@ fast pay https://api.example.com/premium --dry-run
 ## See Also
 
 - Root [README](../README.md) for monorepo overview
-- [@fastxyz/sdk](../packages/fast-sdk/README.md) for SDK documentation — the CLI uses this internally for signing and RPC
+- [@fastxyz/sdk](../packages/fast-sdk/README.md) for SDK documentation — the CLI uses this internally for signing and REST API calls
 - [@fastxyz/allset-sdk](../packages/allset-sdk/README.md) for bridging details
 - [Fast Documentation](https://docs.fast.xyz) for protocol-level details

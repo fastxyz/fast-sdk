@@ -5,10 +5,10 @@ import {
   HexIntBigInt,
   HexUintBigInt,
   IntBigInt,
-  IntBigIntFromNumberOrSelf,
+  IntBigIntFromNumberOrStringOrSelf,
   IntNumber,
   UintBigInt,
-  UintBigIntFromNumberOrSelf,
+  UintBigIntFromNumberOrStringOrSelf,
   UintNumber,
 } from './numeric.ts';
 
@@ -82,10 +82,10 @@ export const DecimalUint256 = DecimalUintBigInt(256);
 export const DecimalInt320 = DecimalIntBigInt(320);
 
 /** number or bigint to branded Uint64. */
-export const Uint64FromNumberOrSelf = UintBigIntFromNumberOrSelf(64);
+export const Uint64FromNumberOrStringOrSelf = UintBigIntFromNumberOrStringOrSelf(64);
 
 /** number or bigint to branded Uint256. */
-export const Uint256FromNumberOrSelf = UintBigIntFromNumberOrSelf(256);
+export const Uint256FromNumberOrStringOrSelf = UintBigIntFromNumberOrStringOrSelf(256);
 
 /** number or bigint to branded Int320. */
-export const Int320FromNumberOrSelf = IntBigIntFromNumberOrSelf(320);
+export const Int320FromNumberOrStringOrSelf = IntBigIntFromNumberOrStringOrSelf(320);

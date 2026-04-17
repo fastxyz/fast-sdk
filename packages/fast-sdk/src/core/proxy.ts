@@ -1,97 +1,237 @@
 import {
-  AccountInfoResponseFromRpc,
-  type FaucetDripParams,
-  FaucetDripParamsFromRpc,
-  type GetAccountInfoParams,
-  GetAccountInfoParamsFromRpc,
-  type GetPendingMultisigParams,
-  GetPendingMultisigParamsFromRpc,
-  type GetTokenInfoParams,
-  GetTokenInfoParamsFromRpc,
-  type GetTransactionCertificatesParams,
-  GetTransactionCertificatesParamsFromRpc,
-  ProxySubmitTransactionResultFromRpc,
-  SubmitTransactionParamsFromRpc,
-  TokenInfoResponseFromRpc,
-  TransactionCertificateFromRpc,
+  AccountInfoResponseFromRest,
+  AddressFromRest,
+  bcsSchema,
+  EscrowJobRecordFromRest,
+  EscrowJobWithCertsFromRest,
+  ProxySubmitTransactionResultFromRest,
+  SignatureOrMultiSigFromBcs,
+  TokenIdFromRest,
+  TokenInfoResponseFromRest,
+  TransactionCertificateFromRest,
   type TransactionEnvelope,
-  TransactionEnvelopeFromRpc,
+  TransactionEnvelopeFromRest,
+  VersionedTransactionFromBcs,
 } from "@fastxyz/schema";
-import { Effect, Schema } from "effect";
-import { rpcCallEffect } from "./network/rpc";
+import { Effect, Encoding, Schema } from "effect";
+import * as bcs from "./crypto/bcs";
+import { restCallEffect } from "./network/rest";
 
-/** Submit a signed transaction envelope via `proxy_submitTransaction`. */
-export const submitTransaction = (
-  rpcUrl: string,
-  params: TransactionEnvelope,
-) =>
+// ---------------------------------------------------------------------------
+// Helpers – convert internal domain types to REST wire strings.
+// We use `as never` to satisfy the Brand constraint at the call-site;
+// the actual Uint8Array values always satisfy the schema at runtime.
+// ---------------------------------------------------------------------------
+
+const addressToStr = (addr: Uint8Array): string =>
+  Schema.encodeSync(AddressFromRest)(addr as never);
+
+const tokenIdToHex = (id: Uint8Array): string =>
+  Schema.encodeSync(TokenIdFromRest)(id as never);
+
+// ---------------------------------------------------------------------------
+// POST /v1/submit-transaction
+// ---------------------------------------------------------------------------
+
+/** Submit a signed transaction envelope via `POST /v1/submit-transaction`. */
+export const submitTransaction = (url: string, params: TransactionEnvelope) =>
   Effect.gen(function* () {
-    const wire = yield* Schema.encode(SubmitTransactionParamsFromRpc)(params);
-    const result = yield* rpcCallEffect(
-      rpcUrl,
-      "proxy_submitTransaction",
-      wire,
+    // BCS-encode the VersionedTransaction → hex
+    const bcsEncoded = yield* Schema.encode(VersionedTransactionFromBcs)(
+      params.transaction,
     );
-    return yield* Schema.decodeUnknown(ProxySubmitTransactionResultFromRpc)(
+    const txBytes = yield* bcs.encode(
+      bcsSchema.VersionedTransaction,
+      bcsEncoded,
+    );
+    const txHex = Encoding.encodeHex(txBytes);
+
+    // BCS-encode the SignatureOrMultiSig → hex
+    const sigBcsEncoded = yield* Schema.encode(SignatureOrMultiSigFromBcs)(
+      params.signature,
+    );
+    const sigBytes = yield* bcs.encode(
+      bcsSchema.SignatureOrMultiSig,
+      sigBcsEncoded,
+    );
+    const sigHex = Encoding.encodeHex(sigBytes);
+
+    const result = yield* restCallEffect(url, {
+      method: "POST",
+      path: "/v1/submit-transaction",
+      body: {
+        transaction: txHex,
+        signature: sigHex,
+        witness_certificates: [],
+      },
+    });
+    return yield* Schema.decodeUnknown(ProxySubmitTransactionResultFromRest)(
       result,
     );
   });
 
-/** Request a faucet drip via `proxy_faucetDrip`. */
-export const faucetDrip = (rpcUrl: string, params: FaucetDripParams) =>
+// ---------------------------------------------------------------------------
+// GET /v1/accounts/{address}
+// ---------------------------------------------------------------------------
+
+export interface GetAccountInfoParams {
+  readonly address: Uint8Array;
+  readonly tokenBalancesFilter: readonly Uint8Array[] | null;
+  readonly stateKeyFilter: readonly Uint8Array[] | null;
+}
+
+/** Fetch account info via `GET /v1/accounts/{address}`. */
+export const getAccountInfo = (url: string, params: GetAccountInfoParams) =>
   Effect.gen(function* () {
-    const wire = yield* Schema.encode(FaucetDripParamsFromRpc)(params);
-    yield* rpcCallEffect(rpcUrl, "proxy_faucetDrip", wire);
+    const addr = addressToStr(params.address);
+    const result = yield* restCallEffect(url, {
+      method: "GET",
+      path: `/v1/accounts/${addr}`,
+      query: {
+        token_balances_filter: params.tokenBalancesFilter
+          ? params.tokenBalancesFilter.map(tokenIdToHex).join(",")
+          : undefined,
+        state_key_filter: params.stateKeyFilter
+          ? params.stateKeyFilter.map((k) => Encoding.encodeHex(k)).join(",")
+          : undefined,
+      },
+    });
+    return yield* Schema.decodeUnknown(AccountInfoResponseFromRest)(result);
   });
 
-/** Fetch account info via `proxy_getAccountInfo`. */
-export const getAccountInfo = (rpcUrl: string, params: GetAccountInfoParams) =>
-  Effect.gen(function* () {
-    const wire = yield* Schema.encode(GetAccountInfoParamsFromRpc)(params);
-    const result = yield* rpcCallEffect(rpcUrl, "proxy_getAccountInfo", wire);
-    return yield* Schema.decodeUnknown(AccountInfoResponseFromRpc)(result);
-  });
+// ---------------------------------------------------------------------------
+// GET /v1/accounts/{address}/pending-multisig-transactions
+// ---------------------------------------------------------------------------
 
-/** Fetch pending multisig transactions via `proxy_getPendingMultisigTransactions`. */
+export interface GetPendingMultisigParams {
+  readonly address: Uint8Array;
+}
+
+/** Fetch pending multisig transactions via `GET /v1/accounts/{address}/pending-multisig-transactions`. */
 export const getPendingMultisigTransactions = (
-  rpcUrl: string,
+  url: string,
   params: GetPendingMultisigParams,
 ) =>
   Effect.gen(function* () {
-    const wire = yield* Schema.encode(GetPendingMultisigParamsFromRpc)(params);
-    const result = yield* rpcCallEffect(
-      rpcUrl,
-      "proxy_getPendingMultisigTransactions",
-      wire,
-    );
+    const addr = addressToStr(params.address);
+    const result = yield* restCallEffect(url, {
+      method: "GET",
+      path: `/v1/accounts/${addr}/pending-multisig-transactions`,
+    });
     return yield* Schema.decodeUnknown(
-      Schema.Array(TransactionEnvelopeFromRpc),
+      Schema.Array(TransactionEnvelopeFromRest),
     )(result);
   });
 
-/** Fetch token metadata via `proxy_getTokenInfo`. */
-export const getTokenInfo = (rpcUrl: string, params: GetTokenInfoParams) =>
+// ---------------------------------------------------------------------------
+// GET /v1/tokens
+// ---------------------------------------------------------------------------
+
+export interface GetTokenInfoParams {
+  readonly tokenIds: readonly Uint8Array[];
+}
+
+/** Fetch token metadata via `GET /v1/tokens`. */
+export const getTokenInfo = (url: string, params: GetTokenInfoParams) =>
   Effect.gen(function* () {
-    const wire = yield* Schema.encode(GetTokenInfoParamsFromRpc)(params);
-    const result = yield* rpcCallEffect(rpcUrl, "proxy_getTokenInfo", wire);
-    return yield* Schema.decodeUnknown(TokenInfoResponseFromRpc)(result);
+    const result = yield* restCallEffect(url, {
+      method: "GET",
+      path: "/v1/tokens",
+      query: {
+        token_ids: params.tokenIds.map(tokenIdToHex).join(","),
+      },
+    });
+    return yield* Schema.decodeUnknown(TokenInfoResponseFromRest)(result);
   });
 
-/** Fetch finalized transaction certificates via `proxy_getTransactionCertificates`. */
+// ---------------------------------------------------------------------------
+// GET /v1/accounts/{address}/certificates
+// ---------------------------------------------------------------------------
+
+export interface GetTransactionCertificatesParams {
+  readonly address: Uint8Array;
+  readonly fromNonce: bigint;
+  readonly limit: number;
+}
+
+/** Fetch finalized transaction certificates via `GET /v1/accounts/{address}/certificates`. */
 export const getTransactionCertificates = (
-  rpcUrl: string,
+  url: string,
   params: GetTransactionCertificatesParams,
 ) =>
   Effect.gen(function* () {
-    const wire = yield* Schema.encode(GetTransactionCertificatesParamsFromRpc)(
-      params,
-    );
-    const result = yield* rpcCallEffect(
-      rpcUrl,
-      "proxy_getTransactionCertificates",
-      wire,
-    );
+    const addr = addressToStr(params.address);
+    const result = yield* restCallEffect(url, {
+      method: "GET",
+      path: `/v1/accounts/${addr}/certificates`,
+      query: {
+        from_nonce: params.fromNonce.toString(),
+        limit: params.limit.toString(),
+      },
+    });
     return yield* Schema.decodeUnknown(
-      Schema.Array(TransactionCertificateFromRpc),
+      Schema.Array(TransactionCertificateFromRest),
     )(result);
+  });
+
+// ---------------------------------------------------------------------------
+// GET /v1/escrow-jobs/{jobId}
+// ---------------------------------------------------------------------------
+
+export interface GetEscrowJobParams {
+  readonly jobId: Uint8Array;
+  readonly certs: boolean;
+}
+
+/** Fetch a single escrow job by ID via `GET /v1/escrow-jobs/{jobId}`. */
+export const getEscrowJob = (url: string, params: GetEscrowJobParams) =>
+  Effect.gen(function* () {
+    const jobIdHex = tokenIdToHex(params.jobId);
+    const result = yield* restCallEffect(url, {
+      method: "GET",
+      path: `/v1/escrow-jobs/${jobIdHex}`,
+      query: { certs: params.certs ? "true" : undefined },
+    });
+    if (params.certs) {
+      return yield* Schema.decodeUnknown(EscrowJobWithCertsFromRest)(result);
+    }
+    return yield* Schema.decodeUnknown(EscrowJobRecordFromRest)(result);
+  });
+
+// ---------------------------------------------------------------------------
+// GET /v1/escrow-jobs
+// ---------------------------------------------------------------------------
+
+export interface GetEscrowJobsParams {
+  readonly client?: Uint8Array;
+  readonly provider?: Uint8Array;
+  readonly evaluator?: Uint8Array;
+  readonly status?: string;
+  readonly certs: boolean;
+}
+
+/** Fetch escrow jobs by role filter via `GET /v1/escrow-jobs`. */
+export const getEscrowJobs = (url: string, params: GetEscrowJobsParams) =>
+  Effect.gen(function* () {
+    const result = yield* restCallEffect(url, {
+      method: "GET",
+      path: "/v1/escrow-jobs",
+      query: {
+        client: params.client ? addressToStr(params.client) : undefined,
+        provider: params.provider ? addressToStr(params.provider) : undefined,
+        evaluator: params.evaluator
+          ? addressToStr(params.evaluator)
+          : undefined,
+        status: params.status,
+        certs: params.certs ? "true" : undefined,
+      },
+    });
+    if (params.certs) {
+      return yield* Schema.decodeUnknown(
+        Schema.Array(EscrowJobWithCertsFromRest),
+      )(result);
+    }
+    return yield* Schema.decodeUnknown(Schema.Array(EscrowJobRecordFromRest))(
+      result,
+    );
   });

@@ -67,8 +67,8 @@ export const FastRpcLive = Layer.effect(
     const getRpcUrl = () =>
       networkConfig.resolve(config.network).pipe(
         Effect.map((n) => {
-          if (config.debug) process.stderr.write(`[debug] rpcUrl: ${n.rpcUrl}\n`);
-          return n.rpcUrl;
+          if (config.debug) process.stderr.write(`[debug] url: ${n.url}\n`);
+          return n.url;
         }),
         Effect.mapError(
           (e) => new FastSdkError({ message: e.message, cause: e }),

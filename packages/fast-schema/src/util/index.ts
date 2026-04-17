@@ -18,7 +18,7 @@ export {
   Int32,
   Int64,
   Int320,
-  Int320FromNumberOrSelf,
+  Int320FromNumberOrStringOrSelf,
   Uint8,
   Uint8Array32,
   Uint8Array32FromHex,
@@ -31,13 +31,13 @@ export {
   Uint16,
   Uint32,
   Uint64,
-  Uint64FromNumberOrSelf,
+  Uint64FromNumberOrStringOrSelf,
   Uint128,
   Uint256,
-  Uint256FromNumberOrSelf,
+  Uint256FromNumberOrStringOrSelf,
 } from './instances.ts';
 export {
-  BigIntFromNumberOrSelf,
+  BigIntFromNumberOrStringOrSelf,
   DecimalBigInt,
   DecimalIntBigInt,
   DecimalNumber,
@@ -47,10 +47,10 @@ export {
   HexNumber,
   HexUintBigInt,
   IntBigInt,
-  IntBigIntFromNumberOrSelf,
+  IntBigIntFromNumberOrStringOrSelf,
   IntNumber,
   UintBigInt,
-  UintBigIntFromNumberOrSelf,
+  UintBigIntFromNumberOrStringOrSelf,
   UintNumber,
 } from './numeric.ts';
 export type { SnakeToCamel } from './struct.ts';

@@ -12,8 +12,15 @@ export {
   makeClaimType,
   makeCommitteeChange,
   makeCommitteeConfig,
+  makeEscrow,
+  makeEscrowComplete,
+  makeEscrowCreateConfig,
+  makeEscrowCreateJob,
+  makeEscrowReject,
+  makeEscrowSubmit,
   makeExternalClaim,
   makeExternalClaimBody,
+  makeFixedAmountOrBps,
   makeMint,
   makeOperation,
   makeStateInitialization,
@@ -28,6 +35,8 @@ export {
 export {
   makeAccountInfoResponse,
   makeConfirmTransactionResponse,
+  makeEscrowJobRecord,
+  makeEscrowJobWithCerts,
   makeNonceRange,
   makePage,
   makePageRequest,
@@ -36,4 +45,4 @@ export {
   makeTokenInfoResponse,
   makeTokenMetadata,
 } from './response.ts';
-export { makeTransaction, makeVersionedTransaction } from './transaction.ts';
+export { makeTransaction, makeTransactionRelease20260319, makeTransactionRelease20260407, makeVersionedTransaction } from './transaction.ts';

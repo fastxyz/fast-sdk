@@ -14,6 +14,22 @@ export const Quorum = bcs.u64();
 export const ClaimData = bcs.vector(bcs.u8());
 export const Signature = bcs.fixedArray(64, bcs.u8());
 
+export const MultiSigConfig = bcs.struct('MultiSigConfig', {
+  authorized_signers: bcs.vector(PublicKeyBytes),
+  quorum: Quorum,
+  nonce: Nonce,
+});
+
+export const MultiSig = bcs.struct('MultiSig', {
+  config: MultiSigConfig,
+  signatures: bcs.vector(bcs.tuple([PublicKeyBytes, Signature])),
+});
+
+export const SignatureOrMultiSig = bcs.enum('SignatureOrMultiSig', {
+  Signature: Signature,
+  MultiSig: MultiSig,
+});
+
 export const AddressChange = bcs.enum('AddressChange', {
   Add: bcs.tuple([]),
   Remove: bcs.tuple([]),
@@ -102,7 +118,47 @@ export const CommitteeChange = bcs.struct('CommitteeChange', {
   epoch: bcs.u32(),
 });
 
-/** Single operation (12 variants, no Batch). Used inside Batch. */
+export const FixedAmountOrBps = bcs.enum('FixedAmountOrBps', {
+  Fixed: Amount,
+  Bps: bcs.u16(),
+});
+
+export const EscrowCreateConfig = bcs.struct('EscrowCreateConfig', {
+  token_id: TokenId,
+  evaluator: PublicKeyBytes,
+  evaluation_fee: FixedAmountOrBps,
+  min_evaluator_fee: Amount,
+});
+
+export const EscrowCreateJob = bcs.struct('EscrowCreateJob', {
+  config_id: bcs.fixedArray(32, bcs.u8()),
+  provider: PublicKeyBytes,
+  provider_fee: Amount,
+  description: bcs.string(),
+});
+
+export const EscrowSubmit = bcs.struct('EscrowSubmit', {
+  job_id: bcs.fixedArray(32, bcs.u8()),
+  deliverable: bcs.fixedArray(32, bcs.u8()),
+});
+
+export const EscrowReject = bcs.struct('EscrowReject', {
+  job_id: bcs.fixedArray(32, bcs.u8()),
+});
+
+export const EscrowComplete = bcs.struct('EscrowComplete', {
+  job_id: bcs.fixedArray(32, bcs.u8()),
+});
+
+export const Escrow = bcs.enum('Escrow', {
+  CreateConfig: EscrowCreateConfig,
+  CreateJob: EscrowCreateJob,
+  Submit: EscrowSubmit,
+  Reject: EscrowReject,
+  Complete: EscrowComplete,
+});
+
+/** Single operation (13 variants, no Batch). Used inside Batch and Claims. */
 export const Operation = bcs.enum('Operation', {
   TokenTransfer: TokenTransfer,
   TokenCreation: TokenCreation,
@@ -116,9 +172,10 @@ export const Operation = bcs.enum('Operation', {
   JoinCommittee: ValidatorConfig,
   LeaveCommittee: bcs.tuple([]),
   ChangeCommittee: CommitteeChange,
+  Escrow: Escrow,
 });
 
-/** Top-level claim type (12 operation variants + Batch). */
+/** Top-level claim type for Release20260319 (13 operation variants + Batch). */
 export const ClaimType = bcs.enum('ClaimType', {
   TokenTransfer: TokenTransfer,
   TokenCreation: TokenCreation,
@@ -132,6 +189,7 @@ export const ClaimType = bcs.enum('ClaimType', {
   JoinCommittee: ValidatorConfig,
   LeaveCommittee: bcs.tuple([]),
   ChangeCommittee: CommitteeChange,
+  Escrow: Escrow,
   Batch: bcs.vector(Operation),
 });
 
@@ -145,6 +203,17 @@ export const Transaction20260319 = bcs.struct('Transaction', {
   fee_token: bcs.option(TokenId),
 });
 
+export const Transaction20260407 = bcs.struct('Transaction20260407', {
+  network_id: bcs.string(),
+  sender: PublicKeyBytes,
+  nonce: Nonce,
+  timestamp_nanos: TimestampNanos,
+  claims: bcs.vector(Operation),
+  archival: bcs.bool(),
+  fee_token: bcs.option(TokenId),
+});
+
 export const VersionedTransaction = bcs.enum('VersionedTransaction', {
   Release20260319: Transaction20260319,
+  Release20260407: Transaction20260407,
 });

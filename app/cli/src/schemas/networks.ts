@@ -26,7 +26,7 @@ export const AllSetConfigSchema = Schema.Struct({
 export type AllSetConfig = typeof AllSetConfigSchema.Type;
 
 export const NetworkConfigSchema = Schema.Struct({
-  rpcUrl: Schema.String,
+  url: Schema.String,
   explorerUrl: Schema.String,
   networkId: Schema.String,
   allSet: Schema.optional(AllSetConfigSchema),

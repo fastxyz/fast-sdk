@@ -46,7 +46,7 @@ app.use(
     },
     fastNetworks: {
       'fast-testnet': {
-        rpcUrl: 'https://api.fast.xyz/proxy',
+        rpcUrl: 'https://api.fast.xyz/proxy-rest',
         committeePublicKeys: ['abc123...', 'def456...'], // Ed25519 public keys used to verify Fast network transactions
       },
     },

@@ -4,7 +4,7 @@ import {
   DecimalUint256,
   HexInt320,
   HexUint256,
-  Int320FromNumberOrSelf,
+  Int320FromNumberOrStringOrSelf,
   Uint8Array32,
   Uint8Array32FromHex0x,
   Uint8Array32FromNumberArray,
@@ -14,18 +14,19 @@ import {
   Uint8ArrayFromBech32m,
   Uint8ArrayFromHexOptional0x,
   Uint8ArrayFromNumberArray,
-  Uint64FromNumberOrSelf,
-  Uint256FromNumberOrSelf,
+  Uint64FromNumberOrStringOrSelf,
+  Uint256FromNumberOrStringOrSelf,
 } from '../util/index.ts';
+import { NetworkId } from './internal.ts';
 
-export const AmountFromInput = Schema.Union(Uint256FromNumberOrSelf, HexUint256, DecimalUint256).pipe(Schema.brand('Amount'));
+export const AmountFromInput = Schema.Union(Uint256FromNumberOrStringOrSelf, HexUint256, DecimalUint256).pipe(Schema.brand('Amount'));
 
-export const BalanceFromInput = Schema.Union(Int320FromNumberOrSelf, HexInt320, DecimalInt320).pipe(Schema.brand('Balance'));
+export const BalanceFromInput = Schema.Union(Int320FromNumberOrStringOrSelf, HexInt320, DecimalInt320).pipe(Schema.brand('Balance'));
 
-export const NonceFromInput = Uint64FromNumberOrSelf.pipe(Schema.brand('Nonce'));
-export const QuorumFromInput = Uint64FromNumberOrSelf.pipe(Schema.brand('Quorum'));
+export const NonceFromInput = Uint64FromNumberOrStringOrSelf.pipe(Schema.brand('Nonce'));
+export const QuorumFromInput = Uint64FromNumberOrStringOrSelf.pipe(Schema.brand('Quorum'));
 
-export const NetworkIdFromInput = Schema.Literal('fast:localnet', 'fast:devnet', 'fast:testnet', 'fast:mainnet');
+export const NetworkIdFromInput = NetworkId;
 
 export const AddressFromInput = Schema.Union(
   Uint8Array32,

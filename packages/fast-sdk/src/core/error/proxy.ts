@@ -1,11 +1,11 @@
 import { Data } from "effect";
 
 /**
- * Proxy-level errors (ProxyError, codes -32000 to -32015).
+ * Proxy-level errors.
  *
  * These are returned directly by the FastSet proxy server before
- * forwarding to validators. They cover request validation, faucet
- * limits, and proxy-specific issues.
+ * forwarding to validators. They cover request validation
+ * and proxy-specific issues.
  */
 
 /**
@@ -17,69 +17,6 @@ import { Data } from "effect";
  * Code: -32000
  */
 export class GeneralError extends Data.TaggedError("GeneralError")<{
-  readonly message: string;
-}> {}
-
-/**
- * Faucet is not enabled on this proxy.
- *
- * The proxy does not have a faucet key configured.
- *
- * Recovery: fund the account through other means (transfer from
- * another account, or contact the network operator).
- *
- * Code: -32001
- */
-export class FaucetDisabledError extends Data.TaggedError(
-  "FaucetDisabledError",
-)<{
-  readonly message: string;
-}> {}
-
-/**
- * Faucet drip requested too soon after a previous drip.
- *
- * Each recipient+token pair has a cooldown period between drips.
- * The error message contains the remaining cooldown in minutes.
- *
- * Recovery: wait for the cooldown to expire and retry.
- *
- * Code: -32003
- */
-export class FaucetThrottledError extends Data.TaggedError(
-  "FaucetThrottledError",
-)<{
-  readonly message: string;
-}> {}
-
-/**
- * Faucet drip transaction failed to execute on validators.
- *
- * The proxy attempted to submit the drip transaction but validators
- * rejected it. The usage timer is reset to prevent rapid retries.
- *
- * Recovery: wait for the cooldown and retry. Check the error message
- * for the underlying validator error.
- *
- * Code: -32004
- */
-export class FaucetTxnFailedError extends Data.TaggedError(
-  "FaucetTxnFailedError",
-)<{
-  readonly message: string;
-}> {}
-
-/**
- * Requested faucet drip amount exceeds the configured limit.
- *
- * Recovery: request a smaller amount. The error message contains
- * the requested amount and the maximum threshold.
- *
- * Code: -32005
- */
-export class FaucetThresholdExceededError extends Data.TaggedError(
-  "FaucetThresholdExceededError",
-)<{
   readonly message: string;
 }> {}
 
@@ -158,6 +95,31 @@ export class ProxyUnexpectedNonceError extends Data.TaggedError(
  */
 export class InvalidRequestError extends Data.TaggedError(
   "InvalidRequestError",
+)<{
+  readonly message: string;
+}> {}
+
+/** Resource not found (REST 404). */
+export class NotFoundError extends Data.TaggedError("NotFoundError")<{
+  readonly message: string;
+}> {}
+
+/** IP rate limited (REST 429). */
+export class IpRateLimitedError extends Data.TaggedError(
+  "IpRateLimitedError",
+)<{
+  readonly message: string;
+  readonly retryAfterSecs: number;
+}> {}
+
+/** Upstream validator error (REST 502). */
+export class UpstreamError extends Data.TaggedError("UpstreamError")<{
+  readonly message: string;
+}> {}
+
+/** Service unavailable / shutting down (REST 503). */
+export class ServiceUnavailableError extends Data.TaggedError(
+  "ServiceUnavailableError",
 )<{
   readonly message: string;
 }> {}

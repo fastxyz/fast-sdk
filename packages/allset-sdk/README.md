@@ -104,7 +104,7 @@ import { Signer, FastProvider } from '@fastxyz/sdk';
 import { executeWithdraw } from '@fastxyz/allset-sdk';
 
 const signer = new Signer('0xYourPrivateKey');
-const provider = new FastProvider({ rpcUrl: 'https://your-fast-rpc...' });
+const provider = new FastProvider({ url: 'https://your-fast-rpc...' });
 
 const result = await executeWithdraw({
   fastBridgeAddress: 'fast1bridge...',
@@ -129,7 +129,7 @@ import { Signer, FastProvider } from '@fastxyz/sdk';
 import { executeIntent, buildTransferIntent } from '@fastxyz/allset-sdk';
 
 const signer = new Signer('0xYourPrivateKey');
-const provider = new FastProvider({ rpcUrl: 'https://...' });
+const provider = new FastProvider({ url: 'https://...' });
 
 const result = await executeIntent({
   fastBridgeAddress: 'fast1bridge...',

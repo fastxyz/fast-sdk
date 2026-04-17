@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'pre-release/*'
 
 permissions:
   contents: read
@@ -26,9 +27,26 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm build
+      # Skip if there are pending changesets (version.yml handles those)
+      - name: Check for pending changesets
+        id: changesets
+        run: |
+          if ls .changeset/*.md 1>/dev/null 2>&1; then
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+            echo "Pending changesets found — skipping publish (version.yml will create a Version PR)."
+          else
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+            echo "No pending changesets — proceeding to publish."
+          fi
 
-      - run: pnpm test
+      - name: Build
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm build
 
-      - name: Publish packages
-        run: pnpm changeset publish
+      - name: Test
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm test
+
+      - name: Publish to npm
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm changeset publish --provenance --access public

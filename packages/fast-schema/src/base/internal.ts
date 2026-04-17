@@ -17,8 +17,14 @@ export const Quorum = Uint64.pipe(Schema.brand('Quorum'));
 export const NetworkId = Schema.Literal('fast:localnet', 'fast:devnet', 'fast:testnet', 'fast:mainnet');
 export type NetworkId = typeof NetworkId.Type;
 
-export const TransactionVersion = Schema.Literal('Release20260319');
+export const TransactionVersion = Schema.Literal('Release20260319', 'Release20260407');
 export type TransactionVersion = typeof TransactionVersion.Type;
+
+/** All transaction versions supported by this schema release. */
+export const SupportedTransactionVersions = TransactionVersion.literals;
+
+/** The latest transaction version — used as the default throughout the SDK. */
+export const LatestTransactionVersion: TransactionVersion = 'Release20260407';
 
 /** 32-byte Ed25519 public key. */
 export const Address = Uint8Array32.pipe(Schema.brand('Address'));

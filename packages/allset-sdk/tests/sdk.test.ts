@@ -582,7 +582,8 @@ test('executeIntent uses fastBridgeAddress as recipient in TokenTransfer', async
   // First submit is a TokenTransfer — verify the recipient in the signed envelope
   const envelope = submitCalls[0] as any;
   const tx = envelope.transaction.value; // VersionedTransaction.value = Transaction
-  const claim = tx.claim; // { type: 'TokenTransfer', value: { tokenId, recipient, ... } }
+  // Release20260407 uses `claims` (array) instead of `claim`
+  const claim = tx.claims?.[0] ?? tx.claim;
   assert.equal(claim.type, 'TokenTransfer');
   const expectedRecipient = Array.from(fastAddressToBytes(FAST_BRIDGE_ADDRESS));
   assert.deepEqual(Array.from(claim.value.recipient as Uint8Array), expectedRecipient);

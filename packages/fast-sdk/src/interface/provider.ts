@@ -1,9 +1,13 @@
 import {
   type AccountInfoResponse,
-  FaucetDripInput,
-  type FaucetDripInputParams,
+  type EscrowJobRecord,
+  type EscrowJobWithCerts,
   GetAccountInfoInput,
   type GetAccountInfoInputParams,
+  GetEscrowJobInput,
+  type GetEscrowJobInputParams,
+  GetEscrowJobsInput,
+  type GetEscrowJobsInputParams,
   GetPendingMultisigInput,
   type GetPendingMultisigInputParams,
   GetTokenInfoInput,
@@ -21,38 +25,37 @@ import { run } from "../core/run";
 
 /** Options for constructing a {@link FastProvider}. */
 export interface ProviderOptions {
-  /** The URL of the Fast proxy JSON-RPC endpoint. */
-  rpcUrl: string;
+  /** The base URL of the Fast proxy REST API. */
+  url: string;
 }
 
 /**
- * Typed JSON-RPC provider for the Fast proxy API.
+ * Typed REST provider for the Fast proxy API.
  *
- * Wraps the proxy's JSON-RPC methods with schema validation on both
+ * Wraps the proxy's REST endpoints with schema validation on both
  * inputs and outputs. All params are validated synchronously before
  * the network call; responses are decoded through Effect schemas.
  *
  * @example
  * ```ts
- * const provider = new FastProvider({ rpcUrl: "https://proxy.fast.xyz" });
+ * const provider = new FastProvider({ url: "https://proxy.fast.xyz" });
  * const account = await provider.getAccountInfo({
  *   address: publicKey,
  *   tokenBalancesFilter: null,
  *   stateKeyFilter: null,
- *   certificateByNonce: null,
  * });
  * ```
  */
 export class FastProvider {
-  private readonly _rpcUrl: string;
+  private readonly _url: string;
 
   constructor(opts: ProviderOptions) {
-    this._rpcUrl = opts.rpcUrl;
+    this._url = opts.url;
   }
 
-  /** The proxy RPC URL this provider was constructed with. */
-  get rpcUrl(): string {
-    return this._rpcUrl;
+  /** The proxy base URL this provider was constructed with. */
+  get url(): string {
+    return this._url;
   }
 
   /**
@@ -62,13 +65,7 @@ export class FastProvider {
   async submitTransaction(
     params: TransactionEnvelope,
   ): Promise<SubmitTransactionResult> {
-    return run(proxy.submitTransaction(this._rpcUrl, params));
-  }
-
-  /** Request a faucet drip for the given recipient. */
-  async faucetDrip(params: FaucetDripInputParams): Promise<void> {
-    const internal = Schema.decodeUnknownSync(FaucetDripInput)(params);
-    return run(proxy.faucetDrip(this._rpcUrl, internal));
+    return run(proxy.submitTransaction(this._url, params));
   }
 
   /**
@@ -79,7 +76,7 @@ export class FastProvider {
     params: GetAccountInfoInputParams,
   ): Promise<AccountInfoResponse> {
     const internal = Schema.decodeUnknownSync(GetAccountInfoInput)(params);
-    return run(proxy.getAccountInfo(this._rpcUrl, internal));
+    return run(proxy.getAccountInfo(this._url, internal));
   }
 
   /** Fetch pending multisig transactions for the given address. */
@@ -87,7 +84,7 @@ export class FastProvider {
     params: GetPendingMultisigInputParams,
   ): Promise<readonly TransactionEnvelope[]> {
     const internal = Schema.decodeUnknownSync(GetPendingMultisigInput)(params);
-    return run(proxy.getPendingMultisigTransactions(this._rpcUrl, internal));
+    return run(proxy.getPendingMultisigTransactions(this._url, internal));
   }
 
   /** Fetch metadata for one or more tokens by their IDs. */
@@ -95,7 +92,7 @@ export class FastProvider {
     params: GetTokenInfoInputParams,
   ): Promise<TokenInfoResponse> {
     const internal = Schema.decodeUnknownSync(GetTokenInfoInput)(params);
-    return run(proxy.getTokenInfo(this._rpcUrl, internal));
+    return run(proxy.getTokenInfo(this._url, internal));
   }
 
   /**
@@ -108,6 +105,25 @@ export class FastProvider {
     const internal = Schema.decodeUnknownSync(GetTransactionCertificatesInput)(
       params,
     );
-    return run(proxy.getTransactionCertificates(this._rpcUrl, internal));
+    return run(proxy.getTransactionCertificates(this._url, internal));
+  }
+
+  /** Fetch a single escrow job by ID, optionally including certificates. */
+  async getEscrowJob(
+    params: GetEscrowJobInputParams,
+  ): Promise<EscrowJobRecord | EscrowJobWithCerts> {
+    const internal = Schema.decodeUnknownSync(GetEscrowJobInput)(params);
+    return run(proxy.getEscrowJob(this._url, internal));
+  }
+
+  /**
+   * List escrow jobs filtered by role (client, provider, or evaluator).
+   * Optionally filter by status and include certificates.
+   */
+  async getEscrowJobs(
+    params: GetEscrowJobsInputParams,
+  ): Promise<readonly (EscrowJobRecord | EscrowJobWithCerts)[]> {
+    const internal = Schema.decodeUnknownSync(GetEscrowJobsInput)(params);
+    return run(proxy.getEscrowJobs(this._url, internal));
   }
 }

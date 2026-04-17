@@ -14,8 +14,10 @@
     "cli": "tsx app/cli/src/main.ts",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "clean": "turbo clean && rm -rf node_modules",
-    "version-packages": "changeset version",
-    "release": "pnpm build && changeset publish",
+    "pub:changeset": "pnpm changeset",
+    "pub:testnet": "pnpm changeset pre enter testnet",
+    "pub:version": "pnpm changeset version",
+    "pub:release": "pnpm build && pnpm changeset publish --provenance --access public",
     "prepare": "husky"
   },
   "devDependencies": {

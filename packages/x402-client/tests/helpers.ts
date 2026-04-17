@@ -19,7 +19,7 @@ export const mockFastWallet: FastWallet = {
   publicKey: 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
   // Valid bech32m address (same as bridge address for testing)
   address: 'fast1x0g58phuf0pf32e9uvp3mv6hak4z37ytpqyfzjzhfsehua9kmegqwzv0td',
-  rpcUrl: 'https://testnet.api.fast.xyz/proxy',
+  rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest',
 };
 
 // ─── Mock 402 Responses ───────────────────────────────────────────────────────

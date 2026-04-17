@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@fastxyz/cli", "@fastxyz/allset-sdk", "@fastxyz/x402-client", "@fastxyz/x402-facilitator", "@fastxyz/x402-server", "@fastxyz/x402-types"]
+  "ignore": ["@fastxyz/cli"]
 }

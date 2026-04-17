@@ -1,0 +1,16 @@
+{
+  "mode": "pre",
+  "tag": "testnet",
+  "initialVersions": {
+    "@fastxyz/cli": "1.0.1",
+    "@fastxyz/allset-sdk": "1.0.1",
+    "@fastxyz/schema": "1.0.1",
+    "@fastxyz/sdk": "1.0.1",
+    "@fastxyz/x402-client": "1.0.2",
+    "@fastxyz/x402-e2e": "0.0.1",
+    "@fastxyz/x402-facilitator": "1.0.2",
+    "@fastxyz/x402-server": "1.0.1",
+    "@fastxyz/x402-types": "1.0.1"
+  },
+  "changesets": []
+}

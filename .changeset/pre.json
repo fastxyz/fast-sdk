@@ -12,5 +12,7 @@
     "@fastxyz/x402-server": "1.0.1",
     "@fastxyz/x402-types": "1.0.1"
   },
-  "changesets": []
+  "changesets": [
+    "schema-sdk-v2"
+  ]
 }

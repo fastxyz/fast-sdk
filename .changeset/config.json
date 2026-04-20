@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@fastxyz/cli", "@fastxyz/x402-e2e"]
+  "ignore": ["@fastxyz/x402-e2e"]
 }

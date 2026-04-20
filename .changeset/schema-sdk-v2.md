@@ -4,6 +4,7 @@
 "@fastxyz/x402-client": patch
 "@fastxyz/x402-facilitator": patch
 "@fastxyz/allset-sdk": patch
+"@fastxyz/cli": patch
 ---
 
 Breaking: Transaction format changed from single `claim` to `claims` array in Release20260407.

@@ -7,6 +7,7 @@ import {
   TransactionCertificateFromRpc,
   TransactionEnvelopeFromRpc,
   TransactionFromRpc,
+  TransactionRelease20260319FromRpc,
   VersionedTransactionFromRpc,
 } from '../../../src/palette/rpc.ts';
 import { decodeSync, encodeSync, numArray32, numArray64 } from '../helpers.ts';
@@ -15,14 +16,24 @@ const ADDR = numArray32(1);
 const TOKEN_ID = numArray32(0x11);
 const SIG = numArray64(0xcc);
 
-const BURN_CLAIM = { Burn: { token_id: TOKEN_ID, amount: '64' } };
+const BURN_OP = { Burn: { token_id: TOKEN_ID, amount: '64' } };
 
 const TX_WIRE = {
   network_id: 'fast:testnet',
   sender: ADDR,
   nonce: 5,
   timestamp_nanos: 1000000000000,
-  claim: BURN_CLAIM,
+  claims: [BURN_OP],
+  archival: false,
+  fee_token: null,
+};
+
+const TX_WIRE_V1 = {
+  network_id: 'fast:testnet',
+  sender: ADDR,
+  nonce: 5,
+  timestamp_nanos: 1000000000000,
+  claim: BURN_OP,
   archival: false,
   fee_token: null,
 };
@@ -34,7 +45,8 @@ describe('TransactionFromRpc', () => {
     expect(result.sender).toBeInstanceOf(Uint8Array);
     expect(result.nonce).toBe(5n);
     expect(result.timestampNanos).toBe(1000000000000n);
-    expect(result.claim.type).toBe('Burn');
+    expect(result.claims).toHaveLength(1);
+    expect(result.claims[0].type).toBe('Burn');
     expect(result.archival).toBe(false);
     expect(result.feeToken).toBeNull();
   });
@@ -49,16 +61,29 @@ describe('TransactionFromRpc', () => {
   });
 });
 
+describe('TransactionRelease20260319FromRpc', () => {
+  it('decodes full transaction', () => {
+    const result = decodeSync(TransactionRelease20260319FromRpc, TX_WIRE_V1);
+    expect(result.networkId).toBe('fast:testnet');
+    expect(result.sender).toBeInstanceOf(Uint8Array);
+    expect(result.nonce).toBe(5n);
+    expect(result.timestampNanos).toBe(1000000000000n);
+    expect(result.claim.type).toBe('Burn');
+    expect(result.archival).toBe(false);
+    expect(result.feeToken).toBeNull();
+  });
+});
+
 describe('VersionedTransactionFromRpc', () => {
   it('decodes Release20260319 variant', () => {
-    const wire = { Release20260319: TX_WIRE };
+    const wire = { Release20260319: TX_WIRE_V1 };
     const result = decodeSync(VersionedTransactionFromRpc, wire);
     expect(result.type).toBe('Release20260319');
     expect(result.value.networkId).toBe('fast:testnet');
   });
 
   it('round-trips (encode produces bigints for nonce/timestamp)', () => {
-    const wire = { Release20260319: TX_WIRE };
+    const wire = { Release20260319: TX_WIRE_V1 };
     const decoded = decodeSync(VersionedTransactionFromRpc, wire);
     const encoded = encodeSync(VersionedTransactionFromRpc, decoded) as {
       Release20260319: Record<string, unknown>;
@@ -71,7 +96,7 @@ describe('VersionedTransactionFromRpc', () => {
 describe('TransactionEnvelopeFromRpc', () => {
   it('decodes with Signature', () => {
     const wire = {
-      transaction: { Release20260319: TX_WIRE },
+      transaction: { Release20260319: TX_WIRE_V1 },
       signature: { Signature: SIG },
     };
     const result = decodeSync(TransactionEnvelopeFromRpc, wire);
@@ -82,7 +107,7 @@ describe('TransactionEnvelopeFromRpc', () => {
 
   it('decodes with MultiSig', () => {
     const wire = {
-      transaction: { Release20260319: TX_WIRE },
+      transaction: { Release20260319: TX_WIRE_V1 },
       signature: {
         MultiSig: {
           config: {
@@ -103,7 +128,7 @@ describe('TransactionCertificateFromRpc', () => {
   it('decodes nested envelope + validator signatures', () => {
     const wire = {
       envelope: {
-        transaction: { Release20260319: TX_WIRE },
+        transaction: { Release20260319: TX_WIRE_V1 },
         signature: { Signature: SIG },
       },
       signatures: [[ADDR, SIG]],
@@ -131,7 +156,7 @@ describe('Response schemas', () => {
   it('ProxySubmitTransactionResultFromRpc: Success variant', () => {
     const certWire = {
       envelope: {
-        transaction: { Release20260319: TX_WIRE },
+        transaction: { Release20260319: TX_WIRE_V1 },
         signature: { Signature: SIG },
       },
       signatures: [[ADDR, SIG]],

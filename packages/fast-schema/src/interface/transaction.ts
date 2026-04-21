@@ -12,7 +12,7 @@ import {
   TokenIdFromInput,
   UserDataFromInput,
 } from '../base/input.ts';
-import { BigIntFromNumberOrSelf } from '../util/index.ts';
+import { BigIntFromNumberOrStringOrSelf } from '../util/index.ts';
 
 export const TokenTransferInput = Schema.Struct({
   tokenId: TokenIdFromInput,
@@ -60,7 +60,7 @@ export const StateUpdateInput = Schema.Struct({
   previousState: StateFromInput,
   nextState: StateFromInput,
   computeClaimTxHash: StateKeyFromInput,
-  computeClaimTxTimestamp: BigIntFromNumberOrSelf,
+  computeClaimTxTimestamp: BigIntFromNumberOrStringOrSelf,
 });
 
 export const StateResetInput = Schema.Struct({
@@ -95,8 +95,48 @@ export const CommitteeChangeInput = Schema.Struct({
   epoch: Schema.Number,
 });
 
-/** Single operation (12 variants, used inside Batch). */
-const OperationInput = Schema.Union(
+export const FixedAmountOrBpsInput = Schema.Union(
+  Schema.Struct({ type: Schema.Literal('Fixed'), value: AmountFromInput }),
+  Schema.Struct({ type: Schema.Literal('Bps'), value: Schema.Number }),
+);
+
+export const EscrowCreateConfigInput = Schema.Struct({
+  tokenId: TokenIdFromInput,
+  evaluator: AddressFromInput,
+  evaluationFee: FixedAmountOrBpsInput,
+  minEvaluatorFee: AmountFromInput,
+});
+
+export const EscrowCreateJobInput = Schema.Struct({
+  configId: TokenIdFromInput,
+  provider: AddressFromInput,
+  providerFee: AmountFromInput,
+  description: Schema.String,
+});
+
+export const EscrowSubmitInput = Schema.Struct({
+  jobId: TokenIdFromInput,
+  deliverable: TokenIdFromInput,
+});
+
+export const EscrowRejectInput = Schema.Struct({
+  jobId: TokenIdFromInput,
+});
+
+export const EscrowCompleteInput = Schema.Struct({
+  jobId: TokenIdFromInput,
+});
+
+export const EscrowInput = Schema.Union(
+  Schema.Struct({ type: Schema.Literal('CreateConfig'), value: EscrowCreateConfigInput }),
+  Schema.Struct({ type: Schema.Literal('CreateJob'), value: EscrowCreateJobInput }),
+  Schema.Struct({ type: Schema.Literal('Submit'), value: EscrowSubmitInput }),
+  Schema.Struct({ type: Schema.Literal('Reject'), value: EscrowRejectInput }),
+  Schema.Struct({ type: Schema.Literal('Complete'), value: EscrowCompleteInput }),
+);
+
+/** Single operation (13 variants, used inside Batch and Claims). */
+export const OperationInput = Schema.Union(
   Schema.Struct({
     type: Schema.Literal('TokenTransfer'),
     value: TokenTransferInput,
@@ -133,10 +173,14 @@ const OperationInput = Schema.Union(
     type: Schema.Literal('ChangeCommittee'),
     value: CommitteeChangeInput,
   }),
+  Schema.Struct({
+    type: Schema.Literal('Escrow'),
+    value: EscrowInput,
+  }),
 );
 
-/** Top-level claim (12 operation variants + Batch). */
-const ClaimTypeInput = Schema.Union(
+/** Top-level claim (13 operation variants + Batch). */
+export const ClaimTypeInput = Schema.Union(
   ...OperationInput.members,
   Schema.Struct({
     type: Schema.Literal('Batch'),
@@ -144,17 +188,33 @@ const ClaimTypeInput = Schema.Union(
   }),
 );
 
-export const TransactionInput = Schema.Struct({
+export const TransactionRelease20260319Input = Schema.Struct({
   networkId: NetworkIdFromInput,
   sender: AddressFromInput,
   nonce: NonceFromInput,
-  timestampNanos: BigIntFromNumberOrSelf,
+  timestampNanos: BigIntFromNumberOrStringOrSelf,
   claim: ClaimTypeInput,
   archival: Schema.Boolean,
   feeToken: Schema.NullOr(TokenIdFromInput),
 });
 
+/** Input schema for Release20260407 transactions. Uses `claims` (array of operations). */
+export const TransactionRelease20260407Input = Schema.Struct({
+  networkId: NetworkIdFromInput,
+  sender: AddressFromInput,
+  nonce: NonceFromInput,
+  timestampNanos: BigIntFromNumberOrStringOrSelf,
+  claims: Schema.Array(OperationInput),
+  archival: Schema.Boolean,
+  feeToken: Schema.NullOr(TokenIdFromInput),
+});
+
+/** Alias for the latest transaction input format. Currently {@link TransactionRelease20260407Input}. */
+export const TransactionInput = TransactionRelease20260407Input;
+
 export type TransactionInputParams = typeof TransactionInput.Encoded;
+export type TransactionRelease20260319InputParams = typeof TransactionRelease20260319Input.Encoded;
+export type TransactionRelease20260407InputParams = typeof TransactionRelease20260407Input.Encoded;
 export type OperationInputParams = typeof OperationInput.Encoded;
 export type TokenTransferInputParams = typeof TokenTransferInput.Encoded;
 export type TokenCreationInputParams = typeof TokenCreationInput.Encoded;
@@ -167,3 +227,9 @@ export type StateResetInputParams = typeof StateResetInput.Encoded;
 export type ExternalClaimInputParams = typeof ExternalClaimInput.Encoded;
 export type ValidatorConfigInputParams = typeof ValidatorConfigInput.Encoded;
 export type CommitteeChangeInputParams = typeof CommitteeChangeInput.Encoded;
+export type EscrowCreateConfigInputParams = typeof EscrowCreateConfigInput.Encoded;
+export type EscrowCreateJobInputParams = typeof EscrowCreateJobInput.Encoded;
+export type EscrowSubmitInputParams = typeof EscrowSubmitInput.Encoded;
+export type EscrowRejectInputParams = typeof EscrowRejectInput.Encoded;
+export type EscrowCompleteInputParams = typeof EscrowCompleteInput.Encoded;
+export type EscrowInputParams = typeof EscrowInput.Encoded;

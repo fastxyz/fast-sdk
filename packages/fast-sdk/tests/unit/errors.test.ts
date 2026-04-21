@@ -1,36 +1,36 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { rpcCallEffect } from "../../src/core/network/rpc";
+import { restCallEffect } from "../../src/core/network/rest";
 import { run } from "../../src/core/run";
 import {
   BcsEncodeError,
   FastProvider,
-  FaucetDisabledError,
   GeneralError,
-  InsufficientFundingError,
   InvalidRequestError,
-  JsonRpcProtocolError,
+  IpRateLimitedError,
+  NotFoundError,
   ProxyUnexpectedNonceError,
-  RpcError,
+  RestError,
+  RestTimeoutError,
   RpcTimeoutError,
-  UnexpectedNonceError,
-  ValidatorGenericError,
+  ServiceUnavailableError,
+  UpstreamError,
 } from "../../src/index";
 
-function mockRpcError(error: {
-  code: number;
-  message: string;
-  data?: unknown;
-}) {
+function mockRestError(
+  status: number,
+  error: { code: string; message: string; details?: unknown },
+) {
   vi.stubGlobal(
     "fetch",
     vi.fn(() =>
       Promise.resolve({
+        ok: false,
+        status,
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              jsonrpc: "2.0",
-              id: 1,
               error,
+              meta: { timestamp: "2025-01-01T00:00:00Z" },
             }),
           ),
       }),
@@ -52,11 +52,9 @@ function mockNetworkError() {
   );
 }
 
-const provider = new FastProvider({ rpcUrl: "http://localhost:9999" });
-const faucetParams = {
-  recipient: new Uint8Array(32),
-  amount: 1n,
-  tokenId: null,
+const provider = new FastProvider({ url: "http://localhost:9999" });
+const accountParams = {
+  address: "0000000000000000000000000000000000000000000000000000000000000001",
 };
 
 describe("Error handling", () => {
@@ -67,83 +65,39 @@ describe("Error handling", () => {
   describe("Layer 0: Network / transport", () => {
     it("throws on network failure", async () => {
       mockNetworkError();
-      await expect(provider.faucetDrip(faucetParams)).rejects.toThrow();
+      await expect(provider.getAccountInfo(accountParams)).rejects.toThrow();
     });
 
-    it("throws RpcTimeoutError on timeout", async () => {
+    it("throws RestTimeoutError on timeout", async () => {
       mockHangingFetch();
       try {
-        await run(rpcCallEffect("http://localhost:9999", "test", {}, 50));
+        await run(
+          restCallEffect("http://localhost:9999", {
+            method: "GET",
+            path: "/v1/test",
+            timeoutMs: 50,
+          }),
+        );
         expect.unreachable();
       } catch (e) {
-        expect(e).toBeInstanceOf(RpcTimeoutError);
-        if (e instanceof RpcTimeoutError) {
-          expect(e.method).toBe("test");
+        expect(e).toBeInstanceOf(RestTimeoutError);
+        if (e instanceof RestTimeoutError) {
+          expect(e.path).toBe("/v1/test");
           expect(e.timeoutMs).toBe(50);
         }
       }
     });
   });
 
-  describe("Layer 1: JSON-RPC protocol errors", () => {
-    it("parses method not found (-32601)", async () => {
-      mockRpcError({ code: -32601, message: "Method not found" });
-      try {
-        await provider.faucetDrip(faucetParams);
-        expect.unreachable();
-      } catch (e) {
-        expect(e).toBeInstanceOf(JsonRpcProtocolError);
-        if (e instanceof JsonRpcProtocolError) {
-          expect(e.code).toBe(-32601);
-          expect(e.message).toBe("Method not found");
-        }
-      }
-    });
-
-    it("parses invalid params (-32602)", async () => {
-      mockRpcError({ code: -32602, message: "Invalid params" });
-      try {
-        await provider.faucetDrip(faucetParams);
-        expect.unreachable();
-      } catch (e) {
-        expect(e).toBeInstanceOf(JsonRpcProtocolError);
-      }
-    });
-
-    it("parses parse error (-32700)", async () => {
-      mockRpcError({ code: -32700, message: "Parse error" });
-      try {
-        await provider.faucetDrip(faucetParams);
-        expect.unreachable();
-      } catch (e) {
-        expect(e).toBeInstanceOf(JsonRpcProtocolError);
-      }
-    });
-  });
-
-  describe("Layer 2: Proxy errors", () => {
-    it("parses FaucetDisabled (-32001)", async () => {
-      mockRpcError({
-        code: -32001,
-        message: "Faucet disabled",
-        data: { FaucetDisabled: null },
-      });
-      try {
-        await provider.faucetDrip(faucetParams);
-        expect.unreachable();
-      } catch (e) {
-        expect(e).toBeInstanceOf(FaucetDisabledError);
-      }
-    });
-
-    it("parses UnexpectedNonce (-32014) with structured data", async () => {
-      mockRpcError({
-        code: -32014,
+  describe("REST API errors", () => {
+    it("parses UNEXPECTED_NONCE with structured details", async () => {
+      mockRestError(409, {
+        code: "UNEXPECTED_NONCE",
         message: "expected nonce is 1 but tx has 2",
-        data: { UnexpectedNonce: { tx_nonce: 2, expected_nonce: 1 } },
+        details: { tx_nonce: 2, expected_nonce: 1 },
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(ProxyUnexpectedNonceError);
@@ -154,101 +108,100 @@ describe("Error handling", () => {
       }
     });
 
-    it("parses InvalidRequest (-32015)", async () => {
-      mockRpcError({
-        code: -32015,
-        message: "request error: bad params",
-        data: { InvalidRequest: "bad params" },
+    it("parses INVALID_REQUEST", async () => {
+      mockRestError(400, {
+        code: "INVALID_REQUEST",
+        message: "bad params",
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(InvalidRequestError);
       }
     });
 
-    it("parses GeneralError (-32000)", async () => {
-      mockRpcError({
-        code: -32000,
-        message: "something went wrong",
-        data: { GeneralError: "something went wrong" },
+    it("parses NOT_FOUND", async () => {
+      mockRestError(404, {
+        code: "NOT_FOUND",
+        message: "resource not found",
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toBeInstanceOf(NotFoundError);
+      }
+    });
+
+    it("parses INTERNAL_ERROR", async () => {
+      mockRestError(500, {
+        code: "INTERNAL_ERROR",
+        message: "something went wrong",
+      });
+      try {
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
         expect(e).toBeInstanceOf(GeneralError);
       }
     });
-  });
 
-  describe("Layer 3: FastSet/Validator errors", () => {
-    it("parses UnexpectedNonce from validator", async () => {
-      mockRpcError({
-        code: -32002,
-        message: "RPC error: unexpected nonce",
-        data: {
-          RpcError: { FastSet: { UnexpectedNonce: { expected_nonce: 5 } } },
-        },
+    it("parses IP_RATE_LIMITED", async () => {
+      mockRestError(429, {
+        code: "IP_RATE_LIMITED",
+        message: "rate limited",
+        details: { retry_after_secs: 30 },
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
-        expect(e).toBeInstanceOf(UnexpectedNonceError);
-        if (e instanceof UnexpectedNonceError) {
-          expect(e.expectedNonce).toBe(5n);
+        expect(e).toBeInstanceOf(IpRateLimitedError);
+        if (e instanceof IpRateLimitedError) {
+          expect(e.retryAfterSecs).toBe(30);
         }
       }
     });
 
-    it("parses InsufficientFunding from validator", async () => {
-      mockRpcError({
-        code: -32002,
-        message: "RPC error: insufficient funding",
-        data: {
-          RpcError: {
-            FastSet: { InsufficientFunding: { current_balance: 1000 } },
-          },
-        },
+    it("parses UPSTREAM_ERROR", async () => {
+      mockRestError(502, {
+        code: "UPSTREAM_ERROR",
+        message: "validator down",
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
-        expect(e).toBeInstanceOf(InsufficientFundingError);
-        if (e instanceof InsufficientFundingError) {
-          expect(e.currentBalance).toBe(1000n);
-        }
+        expect(e).toBeInstanceOf(UpstreamError);
       }
     });
 
-    it("falls back to ValidatorGenericError for unknown FastSet variant", async () => {
-      mockRpcError({
-        code: -32002,
-        message: "RPC error: something",
-        data: { RpcError: { Generic: "unknown validator error" } },
+    it("parses SERVICE_UNAVAILABLE", async () => {
+      mockRestError(503, {
+        code: "SERVICE_UNAVAILABLE",
+        message: "maintenance",
       });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
-        expect(e).toBeInstanceOf(ValidatorGenericError);
+        expect(e).toBeInstanceOf(ServiceUnavailableError);
       }
     });
   });
 
   describe("Fallback: unknown error codes", () => {
-    it("wraps unknown code in RpcError", async () => {
-      mockRpcError({ code: -99999, message: "alien error" });
+    it("wraps unknown code in RestError", async () => {
+      mockRestError(418, { code: "TEAPOT", message: "I'm a teapot" });
       try {
-        await provider.faucetDrip(faucetParams);
+        await provider.getAccountInfo(accountParams);
         expect.unreachable();
       } catch (e) {
-        expect(e).toBeInstanceOf(RpcError);
-        if (e instanceof RpcError) {
-          expect(e.code).toBe(-99999);
+        expect(e).toBeInstanceOf(RestError);
+        if (e instanceof RestError) {
+          expect(e.status).toBe(418);
+          expect(e.code).toBe("TEAPOT");
         }
       }
     });
@@ -263,13 +216,26 @@ describe("Error handling", () => {
       expect(err).toBeInstanceOf(Error);
     });
 
-    it("JsonRpcProtocolError has code and message", () => {
-      const err = new JsonRpcProtocolError({
-        code: -32601,
-        message: "Not found",
+    it("RestTimeoutError has _tag, path, timeoutMs", () => {
+      const err = new RestTimeoutError({
+        path: "/v1/test",
+        timeoutMs: 5000,
       });
-      expect(err.code).toBe(-32601);
-      expect(err.message).toBe("Not found");
+      expect(err._tag).toBe("RestTimeoutError");
+      expect(err.path).toBe("/v1/test");
+      expect(err.timeoutMs).toBe(5000);
+      expect(err).toBeInstanceOf(Error);
+    });
+
+    it("RestError has status, code, message", () => {
+      const err = new RestError({
+        status: 418,
+        code: "TEAPOT",
+        message: "I'm a teapot",
+        details: null,
+      });
+      expect(err.status).toBe(418);
+      expect(err.code).toBe("TEAPOT");
       expect(err).toBeInstanceOf(Error);
     });
 

@@ -37,7 +37,7 @@ const result = await x402Pay({
     privateKey: '0x...',
     publicKey: '0x...',
     address: 'fast1...',
-    rpcUrl: 'https://api.fast.xyz/proxy',
+    rpcUrl: 'https://api.fast.xyz/proxy-rest',
   },
 });
 
@@ -147,7 +147,7 @@ Get a token balance on the Fast network.
 import { getFastBalance } from '@fastxyz/x402-client';
 
 const balance = await getFastBalance(fastWallet, {
-  rpcUrl: 'https://api.fast.xyz/proxy',
+  rpcUrl: 'https://api.fast.xyz/proxy-rest',
   tokenId: 'abc123...',
 });
 console.log('Fast USDC balance:', balance); // bigint (smallest units)

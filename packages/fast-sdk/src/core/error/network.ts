@@ -1,22 +1,21 @@
 import { Data } from "effect";
 
-/** RPC call exceeded the timeout. */
+/** @deprecated Use `RestTimeoutError` instead. */
 export class RpcTimeoutError extends Data.TaggedError("RpcTimeoutError")<{
   readonly method: string;
   readonly timeoutMs: number;
 }> {}
 
-/** JSON-RPC protocol errors (-32700 to -32603). */
-export class JsonRpcProtocolError extends Data.TaggedError(
-  "JsonRpcProtocolError",
-)<{
-  readonly code: number;
-  readonly message: string;
+/** REST call exceeded the timeout. */
+export class RestTimeoutError extends Data.TaggedError("RestTimeoutError")<{
+  readonly path: string;
+  readonly timeoutMs: number;
 }> {}
 
-/** Fallback for unknown or unparseable RPC errors. */
-export class RpcError extends Data.TaggedError("RpcError")<{
-  readonly code: number;
+/** Fallback for unknown or unparseable REST errors. */
+export class RestError extends Data.TaggedError("RestError")<{
+  readonly status: number;
+  readonly code: string;
   readonly message: string;
-  readonly data: unknown;
+  readonly details: unknown;
 }> {}

@@ -3,6 +3,10 @@ export {
   type FaucetDripInputParams,
   GetAccountInfoInput,
   type GetAccountInfoInputParams,
+  GetEscrowJobInput,
+  type GetEscrowJobInputParams,
+  GetEscrowJobsInput,
+  type GetEscrowJobsInputParams,
   GetPendingMultisigInput,
   type GetPendingMultisigInputParams,
   GetTokenInfoInput,
@@ -19,9 +23,17 @@ export {
 export { PrivateKeyFromInput, type PrivateKeyInputParams } from './signing.ts';
 export {
   type BurnInputParams,
+  ClaimTypeInput,
   type CommitteeChangeInputParams,
+  type EscrowCompleteInputParams,
+  type EscrowCreateConfigInputParams,
+  type EscrowCreateJobInputParams,
+  type EscrowInputParams,
+  type EscrowRejectInputParams,
+  type EscrowSubmitInputParams,
   type ExternalClaimInputParams,
   type MintInputParams,
+  OperationInput,
   type OperationInputParams,
   type StateInitializationInputParams,
   type StateResetInputParams,
@@ -31,5 +43,14 @@ export {
   type TokenTransferInputParams,
   TransactionInput,
   type TransactionInputParams,
+  TransactionRelease20260319Input,
+  type TransactionRelease20260319InputParams,
+  TransactionRelease20260407Input,
+  type TransactionRelease20260407InputParams,
   type ValidatorConfigInputParams,
 } from './transaction.ts';
+export {
+  getTransactionVersionConfig,
+  TransactionVersionRegistry,
+  type TransactionVersionConfig,
+} from './transaction-registry.ts';

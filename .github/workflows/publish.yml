@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'pre-release/*'
 
 permissions:
   contents: read
@@ -26,9 +27,51 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm build
+      # Skip if there are un-versioned changesets (version.yml handles those).
+      # In pre-release mode changeset files persist after `changeset version`;
+      # they are tracked in pre.json.changesets, so we compare the two lists.
+      - name: Check for pending changesets
+        id: changesets
+        run: |
+          # Collect changeset .md files, excluding README
+          FILES=$(find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' -exec basename {} .md \; | sort)
 
-      - run: pnpm test
+          if [ -z "$FILES" ]; then
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+            echo "No changeset files — proceeding to publish."
+            exit 0
+          fi
 
-      - name: Publish packages
-        run: pnpm changeset publish
+          if [ -f .changeset/pre.json ]; then
+            # Pre-release: changesets stay on disk after versioning.
+            # Check if every file is already recorded in pre.json.changesets.
+            VERSIONED=$(node -e "
+              const p = JSON.parse(require('fs').readFileSync('.changeset/pre.json','utf8'));
+              p.changesets.forEach(c => console.log(c));
+            " | sort)
+
+            UNVERSIONED=$(comm -23 <(echo "$FILES") <(echo "$VERSIONED"))
+            if [ -n "$UNVERSIONED" ]; then
+              echo "pending=true" >> "$GITHUB_OUTPUT"
+              echo "Un-versioned changesets in pre-release mode: $UNVERSIONED"
+            else
+              echo "pending=false" >> "$GITHUB_OUTPUT"
+              echo "All changesets versioned (pre-release) — proceeding to publish."
+            fi
+          else
+            # Normal mode: any changeset file means pending
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+            echo "Pending changesets found — skipping publish (version.yml will create a Version PR)."
+          fi
+
+      - name: Build
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm build
+
+      - name: Test
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm test
+
+      - name: Publish to npm
+        if: steps.changesets.outputs.pending == 'false'
+        run: pnpm changeset publish --provenance --access public

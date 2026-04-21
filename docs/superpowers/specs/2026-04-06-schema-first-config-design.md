@@ -41,7 +41,7 @@ No hand-written interfaces anywhere. The schema IS the type definition.
 ```json
 {
   "testnet": {
-    "rpcUrl": "https://testnet.api.fast.xyz/proxy",
+    "rpcUrl": "https://testnet.api.fast.xyz/proxy-rest",
     "explorerUrl": "https://testnet.explorer.fast.xyz",
     "networkId": "fast:testnet",
     "allSet": { ... }

@@ -24,27 +24,28 @@ export {
   ValidatorGenericError,
 } from "./error/fastset";
 export {
-  JsonRpcProtocolError,
-  RpcError,
+  RestError,
+  RestTimeoutError,
   RpcTimeoutError,
 } from "./error/network";
 export {
   DatabaseError,
-  FaucetDisabledError,
-  FaucetThresholdExceededError,
-  FaucetThrottledError,
-  FaucetTxnFailedError,
   GeneralError,
   InvalidRequestError,
+  IpRateLimitedError,
+  NotFoundError,
   ProxyUnexpectedNonceError,
+  ServiceUnavailableError,
   TooManyCertificatesRequestedError,
+  UpstreamError,
   VerifierSigsInvalidError,
 } from "./error/proxy";
-export { parseRpcError } from "./network/error";
-export { rpcCallEffect } from "./network/rpc";
+export { parseRestError } from "./network/error";
+export { restCallEffect } from "./network/rest";
 export {
-  faucetDrip,
   getAccountInfo,
+  getEscrowJob,
+  getEscrowJobs,
   getPendingMultisigTransactions,
   getTokenInfo,
   getTransactionCertificates,

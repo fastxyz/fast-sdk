@@ -24,9 +24,9 @@ describe('AllSet Bridge', () => {
           address: 'fast1test',
           privateKey: '0x' + '01'.repeat(32),
           publicKey: '01'.repeat(32),
-          rpcUrl: 'https://testnet.api.fast.xyz/proxy',
+          rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest',
         },
-        { rpcUrl: 'https://testnet.api.fast.xyz/proxy', tokenId: 'abc123' },
+        { rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest', tokenId: 'abc123' },
       );
       expect(balance).toBe(0n);
     });
@@ -44,11 +44,11 @@ describe('AllSet Bridge', () => {
           address: 'fast1test',
           privateKey: '0x' + '01'.repeat(32),
           publicKey: '01'.repeat(32),
-          rpcUrl: 'https://testnet.api.fast.xyz/proxy',
+          rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest',
         },
         evmReceiverAddress: '0x' + 'ab'.repeat(20),
         amount: 1000000n,
-        rpcUrl: 'https://testnet.api.fast.xyz/proxy',
+        rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest',
         fastBridgeAddress: 'fast1bridge',
         relayerUrl: 'https://relayer.example.com',
         crossSignUrl: 'https://crosssign.example.com',

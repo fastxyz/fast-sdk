@@ -1,5 +1,6 @@
 import type {
   BurnInputParams,
+  EscrowInputParams,
   ExternalClaimInputParams,
   MintInputParams,
   NetworkId,
@@ -15,7 +16,7 @@ import type {
   TransactionEnvelope,
   TransactionVersion,
 } from "@fastxyz/schema";
-import { TransactionInput } from "@fastxyz/schema";
+import { getTransactionVersionConfig, LatestTransactionVersion } from "@fastxyz/schema";
 import { Schema } from "effect";
 import { buildSignedEnvelope } from "../core/crypto/envelope";
 import { run } from "../core/run";
@@ -29,7 +30,7 @@ export interface TransactionBuilderOptions {
   signer: Signer;
   /** Sender's next nonce, typically from {@link FastProvider.getAccountInfo}. */
   nonce: NonceInput;
-  /** BCS transaction version tag. Defaults to `"Release20260319"`. */
+  /** BCS transaction version tag. Defaults to `"Release20260407"`. */
   version?: TransactionVersion;
   /** Whether the transaction should be stored in archival nodes. Defaults to `false`. */
   archival?: boolean;
@@ -130,6 +131,12 @@ export class TransactionBuilder {
     return this;
   }
 
+  /** Add an escrow operation (CreateConfig, CreateJob, Submit, Reject, Complete). */
+  addEscrow(params: EscrowInputParams): this {
+    this.operations.push({ type: "Escrow", value: params });
+    return this;
+  }
+
   /** Update the nonce for the next {@link sign} call. */
   setNonce(nonce: NonceInput): this {
     this.options = { ...this.options, nonce };
@@ -158,29 +165,28 @@ export class TransactionBuilder {
    * @returns A signed {@link TransactionEnvelope} ready for submission.
    */
   async sign(): Promise<TransactionEnvelope> {
+    if (this.operations.length === 0) {
+      throw new Error('TransactionBuilder.sign() requires at least one operation');
+    }
     const { signer, networkId, nonce, version, archival, feeToken } =
       this.options;
     const sender = await signer.getPublicKey();
     const privateKey = await signer.getPrivateKey();
-
     const ops = this.operations;
-    const claim =
-      ops.length === 1 ? ops[0]! : { type: "Batch" as const, value: ops };
+    const type: TransactionVersion = version ?? LatestTransactionVersion;
 
-    const txInput = {
+    const config = getTransactionVersionConfig(type);
+    const internal = Schema.decodeUnknownSync(config.inputSchema)({
       networkId,
       sender,
       nonce,
       timestampNanos: BigInt(Date.now()) * 1_000_000n,
-      claim,
+      ...config.wrapOperations(ops),
       archival: archival ?? false,
       feeToken: feeToken ?? null,
-    };
-
-    const internal = Schema.decodeUnknownSync(TransactionInput)(txInput);
-    const type: TransactionVersion = version ?? "Release20260319";
+    });
     const versioned = { type, value: internal };
 
-    return run(buildSignedEnvelope(privateKey, versioned));
+    return run(buildSignedEnvelope(privateKey, versioned as Parameters<typeof buildSignedEnvelope>[1]));
   }
 }

@@ -40,7 +40,7 @@ import {
   UserDataFromRest,
   UserDataFromRpc,
 } from '../base/index.ts';
-import { BigIntFromNumberOrSelf } from '../util/index.ts';
+import { BigIntFromNumberOrStringOrSelf } from '../util/index.ts';
 
 export interface BasePalette {
   readonly Amount: S;
@@ -71,7 +71,7 @@ export const RpcPalette = {
   State: StateFromRpc,
   ClaimData: ClaimDataFromRpc,
   UserData: UserDataFromRpc,
-  BigInt: BigIntFromNumberOrSelf,
+  BigInt: BigIntFromNumberOrStringOrSelf,
 } satisfies BasePalette;
 
 export const RestPalette = {
@@ -87,7 +87,7 @@ export const RestPalette = {
   State: StateFromRest,
   ClaimData: ClaimDataFromRest,
   UserData: UserDataFromRest,
-  BigInt: BigIntFromNumberOrSelf,
+  BigInt: BigIntFromNumberOrStringOrSelf,
 } satisfies BasePalette;
 
 export const BcsPalette = {
@@ -103,5 +103,5 @@ export const BcsPalette = {
   State: StateFromBcs,
   ClaimData: ClaimDataFromBcs,
   UserData: UserDataFromBcs,
-  BigInt: BigIntFromNumberOrSelf,
+  BigInt: BigIntFromNumberOrStringOrSelf,
 } satisfies BasePalette;

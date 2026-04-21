@@ -27,7 +27,7 @@ npm install @fastxyz/sdk
 | Class                | Purpose                                      |
 | -------------------- | -------------------------------------------- |
 | `Signer`             | Holds an Ed25519 private key, signs messages |
-| `FastProvider`       | JSON-RPC client for the Fast proxy API       |
+| `FastProvider`       | REST client for the Fast proxy API           |
 | `TransactionBuilder` | Fluent builder for all transaction types     |
 
 **Typical flow:** Create Signer → Create Provider → Get account info → Build transaction → Sign → Submit.
@@ -57,11 +57,11 @@ const address = await signer.getFastAddress(); // "fast1..."
 import { FastProvider } from '@fastxyz/sdk';
 
 const provider = new FastProvider({
-  rpcUrl: 'https://api.fast.xyz/proxy',
+  url: 'https://api.fast.xyz/proxy-rest',
 });
 ```
 
-There is no default URL — `rpcUrl` is always required.
+There is no default URL — `url` is always required.
 
 ### 3. Check Account Info
 
@@ -194,7 +194,7 @@ const valid = await verify(signature, message, publicKey);
 
 ### FastProvider
 
-Typed JSON-RPC client for the Fast proxy API.
+Typed REST client for the Fast proxy API.
 
 | Method                                   | Description                                 |
 | ---------------------------------------- | ------------------------------------------- |
@@ -203,7 +203,8 @@ Typed JSON-RPC client for the Fast proxy API.
 | `getTokenInfo(params)`                   | Fetch token metadata                        |
 | `getTransactionCertificates(params)`     | Fetch finalized certificates                |
 | `getPendingMultisigTransactions(params)` | Fetch pending multisig txs                  |
-| `faucetDrip(params)`                     | Request testnet/devnet faucet drip          |
+| `getEscrowJob(params)`                   | Fetch a single escrow job by ID             |
+| `getEscrowJobs(params)`                  | List escrow jobs by role and status          |
 
 ### TransactionBuilder
 
@@ -221,7 +222,7 @@ const envelope = await builder.sign(); // Batch of 2 operations
 Supported operations: `addTokenTransfer`, `addTokenCreation`,
 `addTokenManagement`, `addMint`, `addBurn`,
 `addStateInitialization`, `addStateUpdate`, `addStateReset`,
-`addExternalClaim`, `addLeaveCommittee`.
+`addExternalClaim`, `addLeaveCommittee`, `addEscrow`.
 
 ### Conversion Utilities
 
@@ -260,7 +261,7 @@ try {
 }
 ```
 
-Error hierarchy: Network → JSON-RPC Protocol → Proxy → Validators
+Error hierarchy: Network → REST → Proxy → Validators
 
 ## Development
 
@@ -268,3 +269,96 @@ Error hierarchy: Network → JSON-RPC Protocol → Proxy → Validators
 pnpm build        # Build this package
 pnpm turbo test   # Run the repo test pipeline
 ```
+
+## Migrating to v2.0.0
+
+### Breaking Changes
+
+**Default transaction version changed to Release20260407**
+
+`TransactionBuilder` now defaults to `Release20260407` which uses a `claims` array instead of a single `claim`.
+
+**Before (v1.x):**
+```ts
+const builder = new TransactionBuilder({ networkId, signer, nonce });
+builder.addBurn({ tokenId, amount });
+const envelope = await builder.sign();
+// Produced: { claim: { Burn: { ... } } }
+```
+
+**After (v2.0):**
+```ts
+const builder = new TransactionBuilder({ networkId, signer, nonce });
+builder.addBurn({ tokenId, amount });
+const envelope = await builder.sign();
+// Produces: { claims: [{ Burn: { ... } }] }
+```
+
+**REST API migration**: `FastProvider` now uses REST endpoints. `ProviderOptions.rpcUrl` is renamed to `url`. Proxy paths changed from `/proxy` to `/proxy-rest`.
+
+**Before (v1.x):**
+```ts
+const provider = new FastProvider({ rpcUrl: 'https://api.fast.xyz/proxy' });
+```
+
+**After (v2.0):**
+```ts
+const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
+```
+
+**Faucet API removed**: `faucetDrip()` method and faucet error classes are no longer available.
+
+**Error classes replaced**:
+
+```diff
+  import {
+-   JsonRpcProtocolError,  // removed (no longer applicable)
+-   RpcError,              // removed → use RestError
+-   RpcTimeoutError,       // deprecated alias → use RestTimeoutError
++   RestError,
++   RestTimeoutError,
++   NotFoundError,
++   IpRateLimitedError,
+  } from "@fastxyz/sdk";
+```
+
+| v1.x | v2.0 | Status |
+|---|---|---|
+| `JsonRpcProtocolError` | — | Removed |
+| `RpcError` | `RestError` | Replaced |
+| `RpcTimeoutError` | `RestTimeoutError` | Deprecated alias (will be removed) |
+
+### New Features
+
+- **Escrow support**: `provider.getEscrowJob()` and `provider.getEscrowJobs()`
+- **Version-aware building**: `new TransactionBuilder({ ..., version: 'Release20260319' })` to build old-format transactions
+- **`addEscrow()`**: New builder method for escrow operations
+
+### Using the Old Transaction Format
+
+```ts
+const builder = new TransactionBuilder({
+  networkId: 'fast:mainnet',
+  signer,
+  nonce,
+  version: 'Release20260319', // Explicitly use old format
+});
+builder.addBurn({ tokenId, amount });
+const envelope = await builder.sign();
+// Produces: { claim: { Burn: { ... } } }
+```
+
+### Network Version Compatibility
+
+| Network Version | Schema | SDK | Default |
+|---|---|---|---|
+| Release20260319 | `>=1.0.0` | `>=1.0.0` | v1.x default |
+| Release20260407 | `>=2.0.0` | `>=2.0.0` | v2.x default |
+
+### Migration Checklist
+
+- Replace `{ rpcUrl: ... }` with `{ url: ... }` in `FastProvider` calls
+- Update proxy URLs from `/proxy` to `/proxy-rest`
+- Replace `JsonRpcProtocolError` / `RpcError` imports with `RestError`
+- Replace `RpcTimeoutError` with `RestTimeoutError`
+- Update any raw transaction field access: `.claim` → `.claims[]`

@@ -35,14 +35,14 @@ export const infoStatus: Command<InfoStatusArgs> = {
     const defaultLabel = isDefault ? " (default)" : "";
     yield* output.humanLine(`Network: ${config.network}${defaultLabel}`);
     yield* output.humanLine(
-      `  Fast RPC:      ${network.rpcUrl}        ${healthy ? "✓ healthy" : "✗ unreachable"}`,
+      `  Fast RPC:      ${network.url}        ${healthy ? "✓ healthy" : "✗ unreachable"}`,
     );
     yield* output.humanLine(`  Explorer:      ${network.explorerUrl}`);
 
     yield* output.ok({
       network: config.network,
       fast: {
-        rpcUrl: network.rpcUrl,
+        url: network.url,
         explorerUrl: network.explorerUrl,
         healthy,
       },

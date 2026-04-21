@@ -16,11 +16,11 @@ import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResu
 
 const fastProviders: Record<string, FastProvider> = {};
 
-function getFastProvider(rpcUrl: string): FastProvider {
-  if (!fastProviders[rpcUrl]) {
-    fastProviders[rpcUrl] = new FastProvider({ rpcUrl });
+function getFastProvider(url: string): FastProvider {
+  if (!fastProviders[url]) {
+    fastProviders[url] = new FastProvider({ url });
   }
-  return fastProviders[rpcUrl];
+  return fastProviders[url];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

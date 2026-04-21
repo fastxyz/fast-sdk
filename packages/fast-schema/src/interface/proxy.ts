@@ -102,8 +102,23 @@ export const GetTransactionCertificatesInput = Schema.Struct({
   limit: Schema.Number,
 });
 
+export const GetEscrowJobInput = Schema.Struct({
+  jobId: TokenIdFromInput,
+  certs: Schema.optionalWith(Schema.Boolean, { default: () => false }),
+});
+
+export const GetEscrowJobsInput = Schema.Struct({
+  client: Schema.optional(AddressFromInput),
+  provider: Schema.optional(AddressFromInput),
+  evaluator: Schema.optional(AddressFromInput),
+  status: Schema.optional(Schema.String),
+  certs: Schema.optionalWith(Schema.Boolean, { default: () => false }),
+});
+
 export type FaucetDripInputParams = typeof FaucetDripInput.Encoded;
 export type GetAccountInfoInputParams = typeof GetAccountInfoInput.Encoded;
 export type GetPendingMultisigInputParams = typeof GetPendingMultisigInput.Encoded;
 export type GetTokenInfoInputParams = typeof GetTokenInfoInput.Encoded;
 export type GetTransactionCertificatesInputParams = typeof GetTransactionCertificatesInput.Encoded;
+export type GetEscrowJobInputParams = typeof GetEscrowJobInput.Encoded;
+export type GetEscrowJobsInputParams = typeof GetEscrowJobsInput.Encoded;

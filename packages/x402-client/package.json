@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/x402-client",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Client SDK for the x402 HTTP Payment Protocol — pay for x402-protected content",
   "repository": {
     "type": "git",

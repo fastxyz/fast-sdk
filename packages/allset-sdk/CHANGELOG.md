@@ -1,4 +1,4 @@
-# @fastxyz/cli
+# @fastxyz/allset-sdk
 
 ## 1.0.2
 
@@ -9,9 +9,6 @@
   Fixed x402 serialization format handling for Effect Schema decoded transactions.
   Updated x402-facilitator with version-agnostic BCS handling and format variant support.
   Internal dependency updates for allset-sdk.
-
-## 1.0.1
-
-### Patch Changes
-
-- Fix CLI npm publish: include dist and drizzle migration files in package
+- Updated dependencies [6b184ec]
+  - @fastxyz/schema@2.0.0
+  - @fastxyz/sdk@2.0.0

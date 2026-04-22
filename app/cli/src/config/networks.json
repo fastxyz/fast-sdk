@@ -1,8 +1,5 @@
 {
   "testnet": {
-    "url": "https://testnet.api.fast.xyz/proxy-rest",
-    "explorerUrl": "https://testnet.explorer.fast.xyz",
-    "networkId": "fast:testnet",
     "allSet": {
       "crossSignUrl": "https://testnet.cross-sign.allset.fast.xyz",
       "portalApiUrl": "https://testnet.allset.fast.xyz/api",
@@ -41,9 +38,6 @@
     }
   },
   "mainnet": {
-    "url": "https://api.fast.xyz/proxy-rest",
-    "explorerUrl": "https://explorer.fast.xyz",
-    "networkId": "fast:mainnet",
     "allSet": {
       "crossSignUrl": "https://cross-sign.allset.fast.xyz",
       "portalApiUrl": "https://allset.fast.xyz/api",

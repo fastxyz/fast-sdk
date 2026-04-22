@@ -39,3 +39,16 @@ export const BundledNetworksSchema = Schema.Record({
   value: NetworkConfigSchema,
 });
 export type BundledNetworks = typeof BundledNetworksSchema.Type;
+
+/** Schema for entries in the bundled networks.json file.
+ * Only contains allSet config — url/explorerUrl/networkId come from @fastxyz/sdk constants. */
+export const BundledNetworkEntrySchema = Schema.Struct({
+  allSet: Schema.optional(AllSetConfigSchema),
+});
+export type BundledNetworkEntry = typeof BundledNetworkEntrySchema.Type;
+
+export const BundledNetworkEntriesSchema = Schema.Record({
+  key: Schema.String,
+  value: BundledNetworkEntrySchema,
+});
+export type BundledNetworkEntries = typeof BundledNetworkEntriesSchema.Type;

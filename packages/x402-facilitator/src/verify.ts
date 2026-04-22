@@ -479,7 +479,7 @@ async function fetchFastCertificateByNonce(
     return null;
   }
 
-  const provider = new FastProvider({ url: fastConfig.rpcUrl });
+  const provider = new FastProvider({ url: fastConfig.rpcUrl, networkId: getExpectedFastNetworkId(network) ?? network });
   const certs = await provider.getTransactionCertificates({
     address: senderPublicKey,
     fromNonce: BigInt(nonce),

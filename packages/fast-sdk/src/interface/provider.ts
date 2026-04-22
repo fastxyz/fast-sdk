@@ -27,20 +27,24 @@ import type { FastNetwork } from "../networks/index.js";
 /**
  * Options for constructing a {@link FastProvider}.
  *
- * Provide a `network` (recommended) to use a {@link FastNetwork} definition
- * such as the built-in `mainnet` or `testnet`, or a custom network object.
- * Alternatively, supply a bare `url` string for backward compatibility.
+ * `url` and `networkId` are required; `explorerUrl` is optional.
+ * The built-in {@link FastNetwork} constants (`mainnet`, `testnet`) satisfy
+ * this interface directly.
  *
  * @example
  * ```ts
- * import { FastProvider, mainnet } from "@fastxyz/sdk";
+ * import { FastProvider, mainnet, testnet } from "@fastxyz/sdk";
  *
- * const provider = new FastProvider({ network: mainnet });
+ * const provider = new FastProvider(mainnet);
+ * const provider = new FastProvider(testnet);
+ * const provider = new FastProvider({ url: "https://...", networkId: "fast:devnet" });
  * ```
  */
-export type ProviderOptions =
-  | { network: FastNetwork; url?: never }
-  | { url: string; network?: never };
+export interface ProviderOptions {
+  url: string;
+  networkId: string;
+  explorerUrl?: string;
+}
 
 /**
  * Typed REST provider for the Fast proxy API.
@@ -53,7 +57,7 @@ export type ProviderOptions =
  * ```ts
  * import { FastProvider, mainnet } from "@fastxyz/sdk";
  *
- * const provider = new FastProvider({ network: mainnet });
+ * const provider = new FastProvider(mainnet);
  * const account = await provider.getAccountInfo({
  *   address: publicKey,
  *   tokenBalancesFilter: null,
@@ -65,8 +69,11 @@ export class FastProvider {
   private readonly _network: FastNetwork;
 
   constructor(opts: ProviderOptions) {
-    this._network =
-      opts.network ?? { url: opts.url, explorerUrl: "", networkId: "" };
+    this._network = {
+      url: opts.url,
+      networkId: opts.networkId,
+      explorerUrl: opts.explorerUrl ?? "",
+    };
   }
 
   /** The {@link FastNetwork} this provider targets. */

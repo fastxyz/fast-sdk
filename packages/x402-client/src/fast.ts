@@ -16,11 +16,12 @@ import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResu
 
 const fastProviders: Record<string, FastProvider> = {};
 
-function getFastProvider(url: string): FastProvider {
-  if (!fastProviders[url]) {
-    fastProviders[url] = new FastProvider({ url });
+function getFastProvider(url: string, networkId: string): FastProvider {
+  const key = `${url}:${networkId}`;
+  if (!fastProviders[key]) {
+    fastProviders[key] = new FastProvider({ url, networkId });
   }
-  return fastProviders[url];
+  return fastProviders[key];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -98,7 +99,7 @@ export async function handleFastPayment(
   log(`  RPC: ${rpcUrl}`);
   log(`  Payer: ${wallet.address}`);
 
-  const provider = getFastProvider(rpcUrl);
+  const provider = getFastProvider(rpcUrl, resolveNetworkId(fastReq.network));
 
   log(`[Fast] Creating Signer from private key...`);
   const signer = new Signer(wallet.privateKey);

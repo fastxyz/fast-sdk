@@ -15,13 +15,13 @@ describe("FastProvider", () => {
 
   describe("construction", () => {
     it("stores url", () => {
-      const provider = new FastProvider({ url: "http://localhost:9999" });
+      const provider = new FastProvider({ url: "http://localhost:9999", networkId: "fast:localnet" });
       expect(provider.url).toBe("http://localhost:9999");
     });
   });
 
   describe("getAccountInfo param validation", () => {
-    const provider = new FastProvider({ url: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999", networkId: "fast:localnet" });
 
     const expectFetchError = async (fn: () => Promise<unknown>) => {
       await expect(fn()).rejects.toThrow();
@@ -84,7 +84,7 @@ describe("FastProvider", () => {
   });
 
   describe("getPendingMultisigTransactions param validation", () => {
-    const provider = new FastProvider({ url: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999", networkId: "fast:localnet" });
 
     it("accepts hex address", async () => {
       await expect(
@@ -102,7 +102,7 @@ describe("FastProvider", () => {
   });
 
   describe("getTokenInfo param validation", () => {
-    const provider = new FastProvider({ url: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999", networkId: "fast:localnet" });
 
     it("accepts hex token IDs", async () => {
       await expect(
@@ -122,7 +122,7 @@ describe("FastProvider", () => {
   });
 
   describe("getTransactionCertificates param validation", () => {
-    const provider = new FastProvider({ url: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999", networkId: "fast:localnet" });
 
     it("accepts hex address + bigint nonce", async () => {
       await expect(
@@ -146,7 +146,7 @@ describe("FastProvider", () => {
   });
 
   describe("submitTransaction via TransactionBuilder", () => {
-    const provider = new FastProvider({ url: "http://localhost:9999" });
+    const provider = new FastProvider({ url: "http://localhost:9999", networkId: "fast:localnet" });
 
     it("accepts a signed envelope (fails at fetch, not validation)", async () => {
       const signer = new Signer(new Uint8Array(32).fill(10));

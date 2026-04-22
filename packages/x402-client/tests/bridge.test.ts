@@ -26,7 +26,7 @@ describe('AllSet Bridge', () => {
           publicKey: '01'.repeat(32),
           rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest',
         },
-        { rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest', tokenId: 'abc123' },
+        { rpcUrl: 'https://testnet.api.fast.xyz/proxy-rest', tokenId: 'abc123', networkId: 'fast:testnet' },
       );
       expect(balance).toBe(0n);
     });

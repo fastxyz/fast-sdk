@@ -54,14 +54,20 @@ const address = await signer.getFastAddress(); // "fast1..."
 ### 2. Connect to the Network
 
 ```ts
-import { FastProvider } from '@fastxyz/sdk';
+import { FastProvider, mainnet, testnet } from '@fastxyz/sdk';
 
+// Use a built-in network constant (recommended)
+const provider = new FastProvider(mainnet);
+const provider = new FastProvider(testnet);
+
+// Or supply a custom network
 const provider = new FastProvider({
   url: 'https://api.fast.xyz/proxy-rest',
+  networkId: 'fast:mainnet',
 });
 ```
 
-There is no default URL — `url` is always required.
+The built-in `mainnet` and `testnet` constants satisfy `ProviderOptions` directly and carry the correct `url`, `networkId`, and `explorerUrl`.
 
 ### 3. Check Account Info
 
@@ -195,6 +201,21 @@ const valid = await verify(signature, message, publicKey);
 ### FastProvider
 
 Typed REST client for the Fast proxy API.
+
+```ts
+import { FastProvider, mainnet, testnet } from '@fastxyz/sdk';
+
+// Built-in network constants (recommended)
+const provider = new FastProvider(mainnet);
+const provider = new FastProvider(testnet);
+
+// Custom network
+const provider = new FastProvider({
+  url: 'https://mynode.example.com',
+  networkId: 'fast:mainnet',
+  explorerUrl: 'https://explorer.fast.xyz', // optional
+});
+```
 
 | Method                                   | Description                                 |
 | ---------------------------------------- | ------------------------------------------- |
@@ -362,3 +383,37 @@ const envelope = await builder.sign();
 - Replace `JsonRpcProtocolError` / `RpcError` imports with `RestError`
 - Replace `RpcTimeoutError` with `RestTimeoutError`
 - Update any raw transaction field access: `.claim` → `.claims[]`
+
+---
+
+## Migrating to v2.1.0
+
+### Breaking Changes
+
+**`ProviderOptions` now requires `networkId`**
+
+`FastProvider` now requires both `url` and `networkId`. Use the built-in `mainnet`/`testnet` constants, or pass `networkId` explicitly.
+
+**Before (v2.0):**
+```ts
+const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
+```
+
+**After (v2.1):**
+```ts
+import { FastProvider, mainnet } from '@fastxyz/sdk';
+
+const provider = new FastProvider(mainnet); // simplest
+
+// Or explicitly:
+const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest', networkId: 'fast:mainnet' });
+```
+
+### New Features
+
+- **`mainnet` / `testnet` constants**: built-in `FastNetwork` objects with correct `url`, `networkId`, and `explorerUrl`.
+- **`FastNetwork` type**: define custom networks with the same shape.
+
+### Migration Checklist
+
+- Pass `networkId` (or use `mainnet`/`testnet`) in all `FastProvider` calls

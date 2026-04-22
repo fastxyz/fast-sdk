@@ -67,10 +67,10 @@ npm install @fastxyz/sdk
 ### Build and Submit a Transaction
 
 ```ts
-import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/sdk';
+import { FastProvider, Signer, TransactionBuilder, mainnet } from '@fastxyz/sdk';
 
 const signer = new Signer('abcdef0123456789...');
-const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
+const provider = new FastProvider(mainnet);
 
 const account = await provider.getAccountInfo({
   address: await signer.getPublicKey(),

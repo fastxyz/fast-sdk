@@ -479,7 +479,12 @@ async function fetchFastCertificateByNonce(
     return null;
   }
 
-  const provider = new FastProvider({ url: fastConfig.rpcUrl, networkId: getExpectedFastNetworkId(network) ?? (network as NetworkId) });
+  const networkId = getExpectedFastNetworkId(network);
+  if (!networkId) {
+    throw new Error(`Cannot resolve NetworkId for unknown fast network: "${network}"`);
+  }
+
+  const provider = new FastProvider({ url: fastConfig.rpcUrl, networkId });
   const certs = await provider.getTransactionCertificates({
     address: senderPublicKey,
     fromNonce: BigInt(nonce),

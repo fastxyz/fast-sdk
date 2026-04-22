@@ -73,7 +73,7 @@ export class FastProvider {
     this._network = {
       url: opts.url,
       networkId: opts.networkId,
-      explorerUrl: opts.explorerUrl ?? "",
+      explorerUrl: opts.explorerUrl,
     };
   }
 

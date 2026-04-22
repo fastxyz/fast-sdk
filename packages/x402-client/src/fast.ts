@@ -66,7 +66,11 @@ export function stringifyPaymentPayload(data: unknown): string {
  * Resolve the Fast network ID from the x402 network name.
  */
 function resolveNetworkId(network: string): NetworkId {
-  return network === 'fast-mainnet' ? 'fast:mainnet' : 'fast:testnet';
+  switch (network) {
+    case 'fast-mainnet': return 'fast:mainnet';
+    case 'fast-testnet': return 'fast:testnet';
+    default: throw new Error(`Unknown Fast network: "${network}"`);
+  }
 }
 
 /**
@@ -138,7 +142,7 @@ export async function handleFastPayment(
   log(`  Amount: ${fastReq.maxAmountRequired} raw → ${amountHuman} USDC`);
   const txStartTime = Date.now();
 
-  const networkId = resolveNetworkId(fastReq.network) as 'fast:mainnet' | 'fast:testnet';
+  const networkId = resolveNetworkId(fastReq.network);
   const builder = new TransactionBuilder({
     networkId,
     signer,

@@ -16,8 +16,9 @@ Add built-in Fast network constants and require `networkId` in `FastProvider`.
 
 **New exports from `@fastxyz/sdk/networks`:**
 
-- `mainnet` — built-in `FastNetwork` for the Fast mainnet (`fast:mainnet`)
-- `testnet` — built-in `FastNetwork` for the Fast testnet (`fast:testnet`)
+- `mainnet` — built-in `FastNetwork` for the Fast mainnet (`fast:mainnet`), includes `defaultToken` (USDC)
+- `testnet` — built-in `FastNetwork` for the Fast testnet (`fast:testnet`), includes `defaultToken` (testUSDC)
+- `FastToken` — interface for token metadata `{ tokenId, symbol, decimals }`
 
 **Before (v2.0):**
 ```ts

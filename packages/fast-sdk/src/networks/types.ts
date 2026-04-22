@@ -19,5 +19,5 @@ export interface FastNetwork {
   /** Network identifier, e.g. `"fast:mainnet"`. */
   networkId: NetworkId;
   /** Default token for this network (e.g. USDC on mainnet, testUSDC on testnet). */
-  token?: FastToken;
+  defaultToken?: FastToken;
 }

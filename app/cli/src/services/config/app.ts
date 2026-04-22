@@ -1,10 +1,13 @@
 import { Context, Layer } from "effect";
-import appManifest from "../../config/app.json" with { type: "json" };
+import pkg from "../../../package.json" with { type: "json" };
 import { bundledNetworks } from "../../config/networks.js";
 import type { BundledNetworks, NetworkConfig } from "../../schemas/networks.js";
 
-export const getAppName = (): string => appManifest.name;
-export const getVersion = (): string => appManifest.version;
+// Binary name ("fast") is the first key of the `bin` field in package.json
+const appName = (Object.keys(pkg.bin) as string[])[0] ?? "fast";
+
+export const getAppName = (): string => appName;
+export const getVersion = (): string => pkg.version;
 export const getBundledNetworks = (): BundledNetworks => bundledNetworks;
 export const isBundledNetwork = (name: string): boolean =>
   Object.hasOwn(bundledNetworks, name);

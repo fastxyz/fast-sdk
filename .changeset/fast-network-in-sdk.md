@@ -2,6 +2,7 @@
 "@fastxyz/sdk": minor
 "@fastxyz/x402-client": patch
 "@fastxyz/x402-facilitator": patch
+"@fastxyz/cli": patch
 ---
 
 Add built-in Fast network constants and require `networkId` in `FastProvider`.
@@ -45,3 +46,8 @@ const provider = new FastProvider({                      // custom / explicit
 ### `@fastxyz/x402-facilitator`
 
 - `getExpectedFastNetworkId` return type narrowed from `string | null` to `NetworkId | null`.
+
+### `@fastxyz/cli`
+
+- Built-in `mainnet` / `testnet` network definitions now sourced directly from `@fastxyz/sdk/networks`.
+- App name and version now read from `package.json` (no separate `config/app.json`).

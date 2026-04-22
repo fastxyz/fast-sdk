@@ -34,7 +34,8 @@ import type { FastNetwork } from "../networks/index.js";
  *
  * @example
  * ```ts
- * import { FastProvider, mainnet, testnet } from "@fastxyz/sdk";
+ * import { FastProvider } from "@fastxyz/sdk";
+ * import { mainnet, testnet } from "@fastxyz/sdk/networks";
  *
  * const provider = new FastProvider(mainnet);
  * const provider = new FastProvider(testnet);
@@ -56,7 +57,8 @@ export interface ProviderOptions {
  *
  * @example
  * ```ts
- * import { FastProvider, mainnet } from "@fastxyz/sdk";
+ * import { FastProvider } from "@fastxyz/sdk";
+ * import { mainnet } from "@fastxyz/sdk/networks";
  *
  * const provider = new FastProvider(mainnet);
  * const account = await provider.getAccountInfo({

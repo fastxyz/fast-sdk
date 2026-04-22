@@ -41,7 +41,6 @@ export {
   VerifyError,
 } from "./interface/errors";
 export type { FastNetwork } from "./networks/index.js";
-export { mainnet, testnet } from "./networks/index.js";
 export type { ProviderOptions } from "./interface/provider";
 export { FastProvider } from "./interface/provider";
 export { Signer, verify, verifyTypedData } from "./interface/signer";

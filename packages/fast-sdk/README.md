@@ -54,7 +54,8 @@ const address = await signer.getFastAddress(); // "fast1..."
 ### 2. Connect to the Network
 
 ```ts
-import { FastProvider, mainnet, testnet } from '@fastxyz/sdk';
+import { FastProvider } from '@fastxyz/sdk';
+import { mainnet, testnet } from '@fastxyz/sdk/networks';
 
 // Use a built-in network constant (recommended)
 const provider = new FastProvider(mainnet);
@@ -203,7 +204,8 @@ const valid = await verify(signature, message, publicKey);
 Typed REST client for the Fast proxy API.
 
 ```ts
-import { FastProvider, mainnet, testnet } from '@fastxyz/sdk';
+import { FastProvider } from '@fastxyz/sdk';
+import { mainnet, testnet } from '@fastxyz/sdk/networks';
 
 // Built-in network constants (recommended)
 const provider = new FastProvider(mainnet);
@@ -401,7 +403,8 @@ const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
 
 **After (v2.1):**
 ```ts
-import { FastProvider, mainnet } from '@fastxyz/sdk';
+import { FastProvider } from '@fastxyz/sdk';
+import { mainnet } from '@fastxyz/sdk/networks';
 
 const provider = new FastProvider(mainnet); // simplest
 

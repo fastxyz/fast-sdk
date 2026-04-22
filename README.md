@@ -67,7 +67,8 @@ npm install @fastxyz/sdk
 ### Build and Submit a Transaction
 
 ```ts
-import { FastProvider, Signer, TransactionBuilder, mainnet } from '@fastxyz/sdk';
+import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/sdk';
+import { mainnet } from '@fastxyz/sdk/networks';
 
 const signer = new Signer('abcdef0123456789...');
 const provider = new FastProvider(mainnet);

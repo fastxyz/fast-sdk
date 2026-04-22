@@ -22,6 +22,7 @@ import {
 import { Schema } from "effect";
 import * as proxy from "../core/proxy";
 import { run } from "../core/run";
+import type { NetworkId } from "@fastxyz/schema";
 import type { FastNetwork } from "../networks/index.js";
 
 /**
@@ -42,7 +43,7 @@ import type { FastNetwork } from "../networks/index.js";
  */
 export interface ProviderOptions {
   url: string;
-  networkId: string;
+  networkId: NetworkId;
   explorerUrl?: string;
 }
 

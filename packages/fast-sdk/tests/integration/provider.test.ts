@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { NetworkId } from "@fastxyz/schema";
 import {
   FastProvider,
   NotFoundError,
@@ -9,7 +10,7 @@ import {
 const env = {
   url: process.env.FAST_TEST_URL,
   signerPrivateKey: process.env.FAST_TEST_SIGNER_PRIVATE_KEY,
-  networkId: process.env.FAST_TEST_NETWORK_ID,
+  networkId: process.env.FAST_TEST_NETWORK_ID as NetworkId | undefined,
 } as const;
 
 const hasUrl = Boolean(env.url);

@@ -8,7 +8,7 @@
 import { FastProvider, Signer, TransactionBuilder, hashHex } from '@fastxyz/sdk';
 import { fromHex, fromFastAddress, toFastAddress } from '@fastxyz/sdk';
 import { bcsSchema, VersionedTransactionFromBcs } from '@fastxyz/schema';
-import type { VersionedTransaction } from '@fastxyz/schema';
+import type { VersionedTransaction, NetworkId } from '@fastxyz/schema';
 import { Schema } from 'effect';
 import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResult } from './types.js';
 
@@ -16,7 +16,7 @@ import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResu
 
 const fastProviders: Record<string, FastProvider> = {};
 
-function getFastProvider(url: string, networkId: string): FastProvider {
+function getFastProvider(url: string, networkId: NetworkId): FastProvider {
   const key = `${url}:${networkId}`;
   if (!fastProviders[key]) {
     fastProviders[key] = new FastProvider({ url, networkId });
@@ -65,7 +65,7 @@ export function stringifyPaymentPayload(data: unknown): string {
 /**
  * Resolve the Fast network ID from the x402 network name.
  */
-function resolveNetworkId(network: string): string {
+function resolveNetworkId(network: string): NetworkId {
   return network === 'fast-mainnet' ? 'fast:mainnet' : 'fast:testnet';
 }
 

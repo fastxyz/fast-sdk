@@ -2,6 +2,8 @@
  * x402 Client Types
  */
 
+import type { NetworkId } from '@fastxyz/schema';
+
 // Re-export shared types from x402-types
 export type {
   PaymentRequirement,
@@ -77,7 +79,7 @@ export interface BridgeConfig {
   tokenEvmAddress: string;
   tokenFastTokenId: string;
   /** Fast network ID for allset-sdk (e.g. 'fast:testnet') */
-  networkId: string;
+  networkId: NetworkId;
 }
 
 /**

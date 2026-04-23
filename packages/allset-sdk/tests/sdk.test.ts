@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test, onTestFinished } from 'vitest';
 import { FastError } from '../src/errors.ts';
 import { encodeFunctionData } from 'viem';
-import { Signer, FastProvider } from '@fastxyz/sdk';
+import { Signer, FastProvider } from '../../fast-sdk/src/index.ts';
 import { Schema } from 'effect';
 import { TransactionCertificateFromRpc } from '@fastxyz/schema';
 
@@ -10,6 +10,8 @@ import {
   // address
   fastAddressToBytes32,
   fastAddressToBytes,
+  FastAccountClient,
+  createDelegatedAccessKeySigner,
   // deposit
   buildDepositTransaction,
   encodeDepositCalldata,
@@ -30,6 +32,8 @@ import {
   // eip7702
   smartDeposit,
   InsufficientBalanceError,
+  createPasskeyOwnerSigner,
+  createTransactionSigningMessage,
 } from '../src/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
@@ -43,6 +47,26 @@ const CROSS_SIGN_URL = 'https://testnet.cross-sign.allset.fast.xyz';
 const TOKEN_FAST_ID = 'd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46';
 
 const MOCK_CROSS_SIGN_TX = [...Array(32).fill(0), ...Array(32).fill(0x11)];
+
+function rpcResult(result: unknown): Response {
+  const encodeValue = (_key: string, value: unknown): unknown => {
+    if (typeof value === 'bigint') {
+      return Number(value);
+    }
+    return value;
+  };
+
+  return new Response(
+    JSON.stringify(
+      { jsonrpc: '2.0', id: 1, result },
+      encodeValue,
+    ),
+    {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+    },
+  );
+}
 
 // Decoded TypeScript-form certificate (decoded from real testnet wire data)
 const MOCK_CERTIFICATE = Schema.decodeUnknownSync(TransactionCertificateFromRpc)({
@@ -97,12 +121,18 @@ const MOCK_CERTIFICATE = Schema.decodeUnknownSync(TransactionCertificateFromRpc)
   ],
 });
 
+const MOCK_CERTIFICATE_RPC = Schema.encodeSync(TransactionCertificateFromRpc)(MOCK_CERTIFICATE);
+
 // ---------------------------------------------------------------------------
 // Entrypoint Tests
 // ---------------------------------------------------------------------------
 
 test('single entrypoint exposes all public API', () => {
   assert.equal(typeof fastAddressToBytes32, 'function');
+  assert.equal(typeof FastAccountClient, 'function');
+  assert.equal(typeof createDelegatedAccessKeySigner, 'function');
+  assert.equal(typeof createPasskeyOwnerSigner, 'function');
+  assert.equal(typeof createTransactionSigningMessage, 'function');
   assert.equal(typeof buildDepositTransaction, 'function');
   assert.equal(typeof buildTransferIntent, 'function');
   assert.equal(typeof createEvmWallet, 'function');
@@ -122,6 +152,181 @@ test('removed APIs are no longer exported', async () => {
   assert.equal('loadNetworksConfig' in mod, false);
   assert.equal('getAllSetDir' in mod, false);
   assert.equal('initUserConfig' in mod, false);
+});
+
+// ---------------------------------------------------------------------------
+// Account Client / Signer Tests
+// ---------------------------------------------------------------------------
+
+test('FastAccountClient submits a delegated access key authorization envelope', async () => {
+  const provider = new FastProvider({ rpcUrl: 'http://localhost:9999' });
+  const signer = createDelegatedAccessKeySigner({
+    address: FAST_ADDRESS,
+    policy: {
+      client_id: 'app.fast.xyz',
+      expires_at: '2026-04-30T00:00:00Z',
+      allowed_operations: ['TokenTransfer'],
+      allowed_tokens: ['USDC'],
+      max_total_spend: '1000000',
+    },
+    authorizeTransaction: async () => ({
+      access_key_id: 'ak_test_123',
+      signature: [9, 9, 9],
+      policy: {
+        client_id: 'app.fast.xyz',
+        expires_at: '2026-04-30T00:00:00Z',
+        allowed_operations: ['TokenTransfer'],
+        allowed_tokens: ['USDC'],
+        max_total_spend: '1000000',
+      },
+    }),
+  });
+
+  globalThis.fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as {
+      method: string;
+      params: {
+        transaction?: {
+          Release20260319?: {
+            nonce?: number;
+          };
+        };
+        signature?: {
+          DelegatedAccessKey?: {
+            access_key_id?: string;
+            signature?: number[];
+            policy?: { client_id?: string };
+          };
+        };
+      };
+    };
+
+    if (body.method === 'proxy_getAccountInfo') {
+      return rpcResult({ next_nonce: 4 });
+    }
+
+    if (body.method === 'proxy_submitTransaction') {
+      assert.equal(body.params.transaction?.Release20260319?.nonce, '4');
+      assert.equal(body.params.signature?.DelegatedAccessKey?.access_key_id, 'ak_test_123');
+      assert.deepEqual(body.params.signature?.DelegatedAccessKey?.signature, [9, 9, 9]);
+      assert.equal(body.params.signature?.DelegatedAccessKey?.policy?.client_id, 'app.fast.xyz');
+      return rpcResult({ Success: MOCK_CERTIFICATE_RPC });
+    }
+
+    throw new Error(`Unexpected RPC method: ${body.method}`);
+  };
+
+  const client = await FastAccountClient.connect({ provider, signer });
+  const identity = await client.getAccountIdentity();
+  assert.equal(identity.address, FAST_ADDRESS);
+  assert.equal(identity.signer.kind, 'delegated-access-key');
+  assert.equal(identity.signer.role, 'delegated');
+
+  const result = await client.submit({
+    nonce: 4,
+    claim: {
+      type: 'TokenTransfer',
+      value: {
+        tokenId: new Array(32).fill(0),
+        recipient: fastAddressToBytes(FAST_ADDRESS),
+        amount: '1',
+        userData: null,
+      },
+    },
+  });
+
+  assert.ok(result.txHash);
+  assert.ok(result.certificate.envelope);
+});
+
+test('FastAccountClient prepares and submits a passkey-owner transaction', async () => {
+  const provider = new FastProvider({ rpcUrl: 'http://localhost:9999' });
+  let authorizeCalls = 0;
+  const signer = createPasskeyOwnerSigner({
+    address: FAST_ADDRESS,
+    authorizeTransaction: async () => {
+      authorizeCalls += 1;
+      return {
+        credential_id: 'credential-1',
+        authenticator_data: 'auth-data',
+        client_data_json: 'client-data',
+        signature: 'sig',
+        rp_id: 'app.fast.xyz',
+        challenge: 'challenge-1',
+      };
+    },
+  });
+
+  globalThis.fetch = async (_input, init) => {
+    const rawBody = String(init?.body);
+    const body = JSON.parse(rawBody) as {
+      method: string;
+      params: {
+        transaction?: {
+          Release20260319?: {
+            nonce?: number;
+            timestamp_nanos?: number;
+          };
+        };
+        signature?: {
+          PasskeyOwner?: {
+            credential_id?: string;
+            rp_id?: string;
+            challenge?: string;
+          };
+        };
+      };
+    };
+
+    if (body.method === 'proxy_submitTransaction') {
+      assert.equal(body.params.transaction?.Release20260319?.nonce, '11');
+      assert.match(rawBody, /"timestamp_nanos":"1773281639713000000"/);
+      assert.equal(body.params.signature?.PasskeyOwner?.credential_id, 'credential-1');
+      assert.equal(body.params.signature?.PasskeyOwner?.rp_id, 'app.fast.xyz');
+      assert.equal(body.params.signature?.PasskeyOwner?.challenge, 'challenge-1');
+      return rpcResult({ Success: MOCK_CERTIFICATE_RPC });
+    }
+
+    if (body.method === 'proxy_getAccountInfo') {
+      return rpcResult({ next_nonce: 11 });
+    }
+
+    throw new Error(`Unexpected RPC method: ${body.method}`);
+  };
+
+  const client = await FastAccountClient.connect({ provider, signer });
+  const prepared = await client.prepareTransaction({
+    claim: {
+      type: 'TokenTransfer',
+      value: {
+        tokenId: new Array(32).fill(0),
+        recipient: fastAddressToBytes(FAST_ADDRESS),
+        amount: '1',
+        userData: null,
+      },
+    },
+    nonce: 11,
+    timestampNanos: 1773281639713000000n,
+  });
+
+  assert.ok(prepared.txHash);
+  assert.deepEqual(
+    Array.from(prepared.signingMessage),
+    Array.from(createTransactionSigningMessage(prepared.transaction)),
+  );
+
+  const authorized = await client.authorizePreparedTransaction(prepared);
+  assert.equal(authorized.authorization.address, FAST_ADDRESS);
+  assert.equal(authorizeCalls, 1);
+
+  const result = await client.submitPreparedTransaction(
+    authorized.preparedTransaction,
+    authorized.authorization,
+  );
+
+  assert.equal(authorizeCalls, 1);
+  assert.ok(result.txHash);
+  assert.ok(result.certificate.envelope);
 });
 
 // ---------------------------------------------------------------------------

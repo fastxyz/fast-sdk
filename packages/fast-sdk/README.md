@@ -61,11 +61,8 @@ import { mainnet, testnet } from '@fastxyz/sdk/networks';
 const provider = new FastProvider(mainnet);
 const provider = new FastProvider(testnet);
 
-// Or supply a custom network
-const provider = new FastProvider({
-  url: 'https://api.fast.xyz/proxy-rest',
-  networkId: 'fast:mainnet',
-});
+// Or supply just a URL
+const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
 ```
 
 The built-in `mainnet` and `testnet` constants satisfy `ProviderOptions` directly and carry the correct `url`, `networkId`, and `explorerUrl`. Passing only `url` is also valid — `networkId` is optional.
@@ -211,10 +208,9 @@ import { mainnet, testnet } from '@fastxyz/sdk/networks';
 const provider = new FastProvider(mainnet);
 const provider = new FastProvider(testnet);
 
-// Custom network
+// Custom URL
 const provider = new FastProvider({
   url: 'https://mynode.example.com',
-  networkId: 'fast:mainnet',
   explorerUrl: 'https://explorer.fast.xyz', // optional
 });
 ```

@@ -17,7 +17,7 @@ export interface FastNetwork {
   /** Block explorer base URL. */
   explorerUrl?: string;
   /** Network identifier, e.g. `"fast:mainnet"`. */
-  networkId: NetworkId;
+  networkId?: NetworkId;
   /** Default token for this network (e.g. USDC on mainnet, testUSDC on testnet). */
   defaultToken?: FastToken;
 }

@@ -28,7 +28,7 @@ import type { FastNetwork } from "../networks/index.js";
 /**
  * Options for constructing a {@link FastProvider}.
  *
- * `url` and `networkId` are required; `explorerUrl` is optional.
+ * `url` is required; `networkId` and `explorerUrl` are optional.
  * The built-in {@link FastNetwork} constants (`mainnet`, `testnet`) satisfy
  * this interface directly.
  *
@@ -39,12 +39,13 @@ import type { FastNetwork } from "../networks/index.js";
  *
  * const provider = new FastProvider(mainnet);
  * const provider = new FastProvider(testnet);
+ * const provider = new FastProvider({ url: "https://..." });
  * const provider = new FastProvider({ url: "https://...", networkId: "fast:devnet" });
  * ```
  */
 export interface ProviderOptions {
   url: string;
-  networkId: NetworkId;
+  networkId?: NetworkId;
   explorerUrl?: string;
 }
 

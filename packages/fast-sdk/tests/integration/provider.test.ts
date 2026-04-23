@@ -20,7 +20,7 @@ const hasSigner = Boolean(env.signerPrivateKey);
 const setup = async () => {
   const signer = new Signer(env.signerPrivateKey!);
   const pubKey = await signer.getPublicKey();
-  const provider = new FastProvider({ url: env.url!, networkId: env.networkId ?? "fast:testnet" });
+  const provider = new FastProvider({ url: env.url!, networkId: env.networkId });
   return { signer, pubKey, provider };
 };
 
@@ -217,7 +217,7 @@ describe("FastProvider integration (real REST)", () => {
   it.runIf(hasUrl)(
     "getAccountInfo with invalid address throws",
     async () => {
-      const provider = new FastProvider({ url: env.url!, networkId: env.networkId ?? "fast:testnet" });
+      const provider = new FastProvider({ url: env.url!, networkId: env.networkId });
       const badAddr = new Uint8Array(32); // all zeros, likely no account
 
       // Should either succeed (account exists) or throw a typed error

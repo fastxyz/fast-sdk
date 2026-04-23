@@ -7,6 +7,7 @@
 
 import { executeWithdraw } from '@fastxyz/allset-sdk';
 import { FastProvider, Signer, toFastAddress, toHex } from '@fastxyz/sdk';
+import type { NetworkId } from '@fastxyz/schema';
 import type { FastWallet } from './types.js';
 
 // ─── Public Types ─────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ export interface BridgeParams {
   /** Token ID on Fast network (hex, no 0x prefix) */
   tokenFastTokenId: string;
   /** Fast network ID (e.g. 'fast:testnet') */
-  networkId: string;
+  networkId: NetworkId;
   /** Verbose logging */
   verbose?: boolean;
   /** Log collector */
@@ -49,8 +50,8 @@ export interface BridgeResult {
 /**
  * Get USDC balance on Fast network.
  */
-export async function getFastBalance(wallet: FastWallet, options: { rpcUrl: string; tokenId: string }): Promise<bigint> {
-  const provider = new FastProvider({ url: options.rpcUrl });
+export async function getFastBalance(wallet: FastWallet, options: { rpcUrl: string; tokenId: string; networkId: NetworkId }): Promise<bigint> {
+  const provider = new FastProvider({ url: options.rpcUrl, networkId: options.networkId });
   const signer = new Signer(wallet.privateKey);
   const publicKey = await signer.getPublicKey();
 
@@ -110,7 +111,7 @@ export async function bridgeFastusdcToUsdc(params: BridgeParams): Promise<Bridge
   log(`  To: ${evmReceiverAddress}`);
 
   try {
-    const provider = new FastProvider({ url: rpcUrl });
+    const provider = new FastProvider({ url: rpcUrl, networkId });
     const signer = new Signer(fastWallet.privateKey);
 
     // Verify address matches

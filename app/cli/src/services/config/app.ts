@@ -1,18 +1,13 @@
-import { Context, Layer, Schema } from "effect";
-import appManifest from "../../config/app.json" with { type: "json" };
-import networksRaw from "../../config/networks.json" with { type: "json" };
-import {
-  type BundledNetworks,
-  BundledNetworksSchema,
-  type NetworkConfig,
-} from "../../schemas/networks.js";
+import { Context, Layer } from "effect";
+import pkg from "../../../package.json" with { type: "json" };
+import { bundledNetworks } from "../../config/networks.js";
+import type { BundledNetworks, NetworkConfig } from "../../schemas/networks.js";
 
-const bundledNetworks: BundledNetworks = Schema.decodeUnknownSync(
-  BundledNetworksSchema,
-)(networksRaw);
+// Binary name ("fast") is the first key of the `bin` field in package.json
+const appName = (Object.keys(pkg.bin) as string[])[0] ?? "fast";
 
-export const getAppName = (): string => appManifest.name;
-export const getVersion = (): string => appManifest.version;
+export const getAppName = (): string => appName;
+export const getVersion = (): string => pkg.version;
 export const getBundledNetworks = (): BundledNetworks => bundledNetworks;
 export const isBundledNetwork = (name: string): boolean =>
   Object.hasOwn(bundledNetworks, name);

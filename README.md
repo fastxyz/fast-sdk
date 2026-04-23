@@ -68,9 +68,10 @@ npm install @fastxyz/sdk
 
 ```ts
 import { FastProvider, Signer, TransactionBuilder } from '@fastxyz/sdk';
+import { mainnet } from '@fastxyz/sdk/networks';
 
 const signer = new Signer('abcdef0123456789...');
-const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
+const provider = new FastProvider(mainnet);
 
 const account = await provider.getAccountInfo({
   address: await signer.getPublicKey(),

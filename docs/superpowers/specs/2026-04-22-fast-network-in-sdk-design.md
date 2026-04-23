@@ -33,8 +33,8 @@ const provider = new FastProvider({ url: '...', networkId: 'fast:mainnet' });
 export interface FastNetwork {
   /** Proxy REST API base URL. */
   url: string;
-  /** Network identifier (e.g. "fast:mainnet"). */
-  networkId: NetworkId;
+  /** Network identifier (e.g. "fast:mainnet"). Optional — built-in constants always set it. */
+  networkId?: NetworkId;
   /** Block explorer base URL (optional). */
   explorerUrl?: string;
   /** Default token for this network (optional). */
@@ -74,7 +74,7 @@ export const testnet: FastNetwork = {
 ```ts
 export interface ProviderOptions {
   url: string;
-  networkId: NetworkId;
+  networkId?: NetworkId;
   explorerUrl?: string;
 }
 ```
@@ -116,7 +116,7 @@ app/cli/src/
 
 ## Backward Compatibility
 
-- `ProviderOptions.networkId` is now required (breaking from v2.0).
+- `ProviderOptions.networkId` is now optional (backward-compatible with v2.0).
 - `provider.network` getter returns the `FastNetwork` object.
 - `provider.url` getter preserved.
 

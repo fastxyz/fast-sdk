@@ -1,6 +1,6 @@
 import type { FastNetwork } from "./types.js";
 
-export const testnet: FastNetwork = {
+export const testnet = {
   url: "https://testnet.api.fast.xyz/proxy-rest",
   explorerUrl: "https://testnet.explorer.fast.xyz",
   networkId: "fast:testnet",
@@ -9,4 +9,4 @@ export const testnet: FastNetwork = {
     symbol: "testUSDC",
     decimals: 6,
   },
-};
+} satisfies FastNetwork;

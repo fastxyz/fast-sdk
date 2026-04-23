@@ -14,6 +14,7 @@ import {
   type GetTokenInfoInputParams,
   GetTransactionCertificatesInput,
   type GetTransactionCertificatesInputParams,
+  type NetworkId,
   type SubmitTransactionResult,
   type TokenInfoResponse,
   type TransactionCertificate,
@@ -22,7 +23,6 @@ import {
 import { Schema } from "effect";
 import * as proxy from "../core/proxy";
 import { run } from "../core/run";
-import type { NetworkId } from "@fastxyz/schema";
 import type { FastNetwork } from "../networks/index.js";
 
 /**

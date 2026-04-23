@@ -4,7 +4,7 @@ import type { NetworkConfig } from "../schemas/networks.js";
 export const bundledNetworks: Record<string, NetworkConfig> = {
   testnet: {
     url: sdkTestnet.url,
-    explorerUrl: sdkTestnet.explorerUrl ?? "",
+    explorerUrl: sdkTestnet.explorerUrl,
     networkId: sdkTestnet.networkId,
     allSet: {
       crossSignUrl: "https://testnet.cross-sign.allset.fast.xyz",
@@ -45,7 +45,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
   },
   mainnet: {
     url: sdkMainnet.url,
-    explorerUrl: sdkMainnet.explorerUrl ?? "",
+    explorerUrl: sdkMainnet.explorerUrl,
     networkId: sdkMainnet.networkId,
     allSet: {
       crossSignUrl: "https://cross-sign.allset.fast.xyz",

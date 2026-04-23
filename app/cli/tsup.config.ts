@@ -14,9 +14,11 @@ export default defineConfig({
     '@fastxyz/schema',
     '@fastxyz/sdk',
     '@fastxyz/x402-client',
+    '@mysten/bcs',
     '@noble/curves',
     '@noble/ciphers',
     '@noble/hashes',
+    'json-with-bigint',
   ],
   banner: {
     js: '#!/usr/bin/env node',

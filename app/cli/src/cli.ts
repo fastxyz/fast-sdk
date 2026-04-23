@@ -157,6 +157,70 @@ const accountGroup = command(
 );
 
 // ---------------------------------------------------------------------------
+// Access key commands
+// ---------------------------------------------------------------------------
+
+const accessKeyCreateParser = command(
+  "create",
+  object({
+    cmd: constant("access-key-create" as const),
+    label: optional(
+      option("--label", string({ metavar: "LABEL" }), {
+        description: message`Label shown in wallet UIs`,
+      }),
+    ),
+    clientId: optional(
+      option("--client-id", string({ metavar: "CLIENT_ID" }), {
+        description: message`Policy client ID (defaults to app.fast.xyz)`,
+      }),
+    ),
+    token: optional(
+      option("--token", string({ metavar: "TOKEN" }), {
+        description: message`Allowed token symbol (defaults to USDC)`,
+      }),
+    ),
+    expiresInHours: withDefault(
+      option("--expires-in-hours", integer(), {
+        description: message`Lifetime in hours`,
+      }),
+      24 * 30,
+    ),
+    maxTotalSpendUsdc: withDefault(
+      option("--max-total-spend-usdc", string({ metavar: "AMOUNT" }), {
+        description: message`Spend cap in whole-token units`,
+      }),
+      "250.00",
+    ),
+  }),
+  { description: message`Create and register a CLI-managed access key` },
+);
+
+const accessKeyListParser = command(
+  "list",
+  object({
+    cmd: constant("access-key-list" as const),
+  }),
+  { description: message`List access keys for the selected account` },
+);
+
+const accessKeyRevokeParser = command(
+  "revoke",
+  object({
+    cmd: constant("access-key-revoke" as const),
+    accessKeyId: argument(string({ metavar: "ACCESS_KEY_ID" }), {
+      description: message`Access key ID to revoke`,
+    }),
+  }),
+  { description: message`Revoke an access key using the selected owner account` },
+);
+
+const accessKeyGroup = command(
+  "access-key",
+  or(accessKeyCreateParser, accessKeyListParser, accessKeyRevokeParser),
+  { description: message`Manage FAST access keys` },
+);
+
+// ---------------------------------------------------------------------------
 // Network commands
 // ---------------------------------------------------------------------------
 
@@ -439,7 +503,7 @@ const payParser = command(
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
-const commands = or(accountGroup, networkGroup, infoGroup, sendParser, fundGroup, payParser);
+const commands = or(accessKeyGroup, accountGroup, networkGroup, infoGroup, sendParser, fundGroup, payParser);
 
 export const parser = merge(globalOptions, commands);
 
@@ -448,6 +512,9 @@ export const parser = merge(globalOptions, commands);
 // ---------------------------------------------------------------------------
 
 export type AccountCreateArgs = InferValue<typeof accountCreateParser>;
+export type AccessKeyCreateArgs = InferValue<typeof accessKeyCreateParser>;
+export type AccessKeyListArgs = InferValue<typeof accessKeyListParser>;
+export type AccessKeyRevokeArgs = InferValue<typeof accessKeyRevokeParser>;
 export type AccountImportArgs = InferValue<typeof accountImportParser>;
 export type AccountListArgs = InferValue<typeof accountListParser>;
 export type AccountSetDefaultArgs = InferValue<typeof accountSetDefaultParser>;

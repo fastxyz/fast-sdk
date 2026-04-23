@@ -148,9 +148,10 @@ if (argv.length === 0 || argv.includes("--help")) {
 
 // ── Full parse ──────────────────────────────────────────────────────────────
 
-const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay"] as const;
+const KNOWN_COMMANDS = ["access-key", "account", "network", "info", "send", "fund", "pay"] as const;
 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
+  "access-key": ["create", "list", "revoke"],
   account: ["create", "import", "list", "set-default", "export", "delete"],
   network: ["list", "add", "set-default", "remove"],
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
@@ -220,6 +221,24 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     },
   },
   // ── Subcommands with required args/options ─────────────────────────────────
+  "access-key create": {
+    usage: "fast access-key create [--label <label>] [--client-id <client-id>] [--token <token>] [--expires-in-hours <hours>] [--max-total-spend-usdc <amount>]",
+    options: ["--label", "--client-id", "--token", "--expires-in-hours", "--max-total-spend-usdc"],
+    check: () => null,
+  },
+  "access-key list": {
+    usage: "fast access-key list",
+    options: [],
+    check: () => null,
+  },
+  "access-key revoke": {
+    usage: "fast access-key revoke <access-key-id>",
+    options: [],
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <access-key-id>";
+      return null;
+    },
+  },
   "fund crypto": {
     usage: "fast fund crypto <amount> --chain <chain> [--token <token>]",
     options: ["--chain", "--token", "--eip-7702"],

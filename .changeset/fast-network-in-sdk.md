@@ -5,11 +5,9 @@
 "@fastxyz/cli": patch
 ---
 
-Add built-in Fast network constants and require `networkId` in `FastProvider`.
+Add built-in Fast network constants to `@fastxyz/sdk`.
 
 ### `@fastxyz/sdk`
-
-**Breaking:** `ProviderOptions` now requires `networkId` in addition to `url`. Provide it explicitly or use the new built-in constants.
 
 **New exports from `@fastxyz/sdk`:**
 
@@ -20,6 +18,8 @@ Add built-in Fast network constants and require `networkId` in `FastProvider`.
 - `mainnet` — built-in `FastNetwork` for the Fast mainnet (`fast:mainnet`), includes `defaultToken` (USDC)
 - `testnet` — built-in `FastNetwork` for the Fast testnet (`fast:testnet`), includes `defaultToken` (testUSDC)
 - `FastToken` — interface for token metadata `{ tokenId, symbol, decimals }`
+
+`ProviderOptions` gains optional `networkId` and `explorerUrl` fields. The built-in constants satisfy `ProviderOptions` directly.
 
 **Before (v2.0):**
 ```ts

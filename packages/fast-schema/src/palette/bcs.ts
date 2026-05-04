@@ -54,10 +54,11 @@ import {
 import { BcsPalette } from "./definition.ts";
 
 const p = BcsPalette;
+const bcsOpts = { unitEncoding: "bcs" } as const;
 
 export const TokenTransferFromBcs = makeTokenTransfer(p);
 export const TokenCreationFromBcs = makeTokenCreation(p);
-export const TokenManagementFromBcs = makeTokenManagement(p);
+export const TokenManagementFromBcs = makeTokenManagement(p, bcsOpts);
 export const MintFromBcs = makeMint(p);
 export const BurnFromBcs = makeBurn(p);
 export const StateInitializationFromBcs = makeStateInitialization(p);
@@ -69,7 +70,6 @@ export const ExternalClaimFromBcs = makeExternalClaim(p);
 export const ValidatorConfigFromBcs = makeValidatorConfig(p);
 export const CommitteeConfigFromBcs = makeCommitteeConfig(p);
 export const CommitteeChangeFromBcs = makeCommitteeChange(p);
-const bcsOpts = { unitEncoding: "bcs" } as const;
 export const FixedAmountOrBpsFromBcs = makeFixedAmountOrBps(p, bcsOpts);
 export const EscrowCreateConfigFromBcs = makeEscrowCreateConfig(p, bcsOpts);
 export const EscrowCreateJobFromBcs = makeEscrowCreateJob(p);

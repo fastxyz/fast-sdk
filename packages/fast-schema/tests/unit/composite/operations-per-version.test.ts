@@ -62,4 +62,12 @@ describe('SupportedOperations drift guards', () => {
       expect(v407.has(tag)).toBe(true);
     }
   });
+
+  it('Release20260319SupportedOperations covers every variant (count guard)', () => {
+    expect(Release20260319SupportedOperations.length).toBe(12);
+  });
+
+  it('Release20260407SupportedOperations covers every variant (count guard)', () => {
+    expect(Release20260407SupportedOperations.length).toBe(13);
+  });
 });

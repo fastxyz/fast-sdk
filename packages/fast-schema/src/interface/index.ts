@@ -49,8 +49,4 @@ export {
   type TransactionRelease20260407InputParams,
   type ValidatorConfigInputParams,
 } from './transaction.ts';
-export {
-  getTransactionVersionConfig,
-  TransactionVersionRegistry,
-  type TransactionVersionConfig,
-} from './transaction-registry.ts';
+export { encodeAsVersion } from './encode-as-version.ts';

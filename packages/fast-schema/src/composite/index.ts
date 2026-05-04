@@ -46,3 +46,31 @@ export {
   makeTokenMetadata,
 } from './response.ts';
 export { makeTransaction, makeTransactionRelease20260319, makeTransactionRelease20260407, makeVersionedTransaction } from './transaction.ts';
+
+// New exports for the canonical-LatestTransaction refactor:
+export {
+  OperationRelease20260319,
+  OperationRelease20260407,
+  Release20260319SupportedOperations,
+  Release20260407SupportedOperations,
+} from './operations-per-version.ts';
+
+export type {
+  Release20260319Operation,
+  Release20260407Operation,
+} from './operations-per-version.ts';
+
+export { LatestTransaction } from './latest.ts';
+export type { Operation } from './latest.ts';
+
+export {
+  LatestFromRelease20260319,
+  LatestFromRelease20260407,
+  LatestFromVersionedTransaction,
+  VersionBridges,
+} from './latest-bridges.ts';
+
+export type {
+  OperationFor,
+  SupportedOpTagFor,
+} from './latest-bridges.ts';

@@ -14,22 +14,40 @@ export const accountList: Command<AccountListArgs> = {
       const entries = yield* accounts.list();
 
       yield* output.humanTable(
-        ["NAME", "FAST ADDRESS", "EVM ADDRESS", "DEFAULT"],
-        entries.map((e) => [
-          e.name,
-          e.fastAddress,
-          e.kind === "single" ? e.evmAddress : "(multisig)",
-          e.isDefault ? "✓" : "",
-        ]),
+        ["NAME", "KIND", "FAST ADDRESS", "EVM ADDRESS", "DEFAULT"],
+        entries.map((e) => {
+          const kind =
+            e.kind === "single"
+              ? "single"
+              : `multisig ${e.multisigConfig.quorum}-of-${e.multisigConfig.signers.length}`;
+          return [
+            e.name,
+            kind,
+            e.fastAddress,
+            e.kind === "single" ? e.evmAddress : "—",
+            e.isDefault ? "✓" : "",
+          ];
+        }),
       );
       yield* output.ok({
-        accounts: entries.map((e) => ({
-          name: e.name,
-          kind: e.kind,
-          fastAddress: e.fastAddress,
-          evmAddress: e.kind === "single" ? e.evmAddress : null,
-          isDefault: e.isDefault,
-        })),
+        accounts: entries.map((e) =>
+          e.kind === "single"
+            ? {
+                name: e.name,
+                kind: "single",
+                fastAddress: e.fastAddress,
+                evmAddress: e.evmAddress,
+                isDefault: e.isDefault,
+              }
+            : {
+                name: e.name,
+                kind: "multisig",
+                fastAddress: e.fastAddress,
+                quorum: e.multisigConfig.quorum,
+                signerCount: e.multisigConfig.signers.length,
+                isDefault: e.isDefault,
+              },
+        ),
       });
     }),
 };

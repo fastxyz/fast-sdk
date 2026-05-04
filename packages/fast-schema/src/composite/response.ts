@@ -135,7 +135,7 @@ export const makeProxySubmitTransactionResult = <
     Success: makeTransactionCertificate(p),
     IncompleteVerifierSigs: null,
     IncompleteMultiSig: null,
-  });
+  }, { unitEncoding: 'bcs' });
 
 export const makeEscrowJobRecord = <TAddr extends S, TId extends S, TAmt extends S>(p: {
   Address: TAddr;

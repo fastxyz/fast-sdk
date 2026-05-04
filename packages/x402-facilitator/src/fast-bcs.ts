@@ -6,8 +6,8 @@
  */
 
 import { toHex, fromHex, toFastAddress, fromFastAddress } from '@fastxyz/sdk';
-import { bcsSchema } from '@fastxyz/schema';
-import { getTransactionVersionConfig, TransactionVersionRegistry } from '@fastxyz/schema';
+import { bcsSchema, LatestFromVersionedTransaction, SupportedTransactionVersions } from '@fastxyz/schema';
+import { Schema } from 'effect';
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ export const VersionedTransactionBcs = bcsSchema.VersionedTransaction;
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const FAST_TRANSACTION_SIGNING_PREFIX = new TextEncoder().encode('VersionedTransaction::');
-const KNOWN_VERSIONS = Object.keys(TransactionVersionRegistry) as TransactionVersionKey[];
+const KNOWN_VERSIONS = SupportedTransactionVersions;
 
 // ─── camelCase → snake_case keys for BCS serialization ────────────────────
 
@@ -290,8 +290,9 @@ export function decodeEnvelope(envelope: string | number[] | Uint8Array): Decode
  * Handles both Release20260319 (.claim) and Release20260407 (.claims[]).
  */
 export function getTransferDetails(decoded: DecodedFastTransaction): TransferDetails | null {
-  const config = getTransactionVersionConfig(decoded.version);
-  const ops = config.extractOperations(decoded as unknown as Record<string, unknown>);
+  const { version: _version, ...inner } = decoded as unknown as { version: string } & Record<string, unknown>;
+  const latest = Schema.decodeUnknownSync(LatestFromVersionedTransaction)({ [_version]: inner });
+  const ops = [...latest.claims] as unknown[];
   const transfer = findTokenTransferInOps(ops);
 
   if (!transfer) return null;

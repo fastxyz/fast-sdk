@@ -159,3 +159,52 @@ describe("MultiSigSigner construction", () => {
     await expect(signer.getSignerPublicKey()).rejects.toThrow(NotAuthorizedSignerError);
   });
 });
+
+describe("MultiSigSigner.signEnvelopeFor", () => {
+  it("produces a MultiSig envelope with one partial signature", async () => {
+    const SECRET_A = new Uint8Array(32).fill(0xaa);
+    const SECRET_B = new Uint8Array(32).fill(0xbb);
+    const pkA = await getPublicKeyAsync(SECRET_A);
+    const pkB = await getPublicKeyAsync(SECRET_B);
+    const config = {
+      authorized_signers: [pkA, pkB],
+      quorum: 2n,
+      nonce: 0n,
+    };
+    const signer = new MultiSigSigner({ config, secretKey: SECRET_A });
+    const sender = await signer.getDerivedAddressBytes();
+
+    // Build a versioned transaction by hand (single TokenTransfer).
+    // Using TransactionBuilder against a throw-away Signer is the
+    // simplest way to construct a valid VersionedTransaction shape.
+    const { Signer } = await import("../../src/index");
+    const { TransactionBuilder } = await import("../../src/index");
+    const builder = new TransactionBuilder({
+      networkId: "fast:testnet" as const,
+      signer: new Signer(SECRET_A), // construction only; we replace sender below
+      nonce: 0n,
+    });
+    const stubEnvelope = await builder
+      .addTokenTransfer({
+        tokenId: new Uint8Array(32),
+        recipient: new Uint8Array(32),
+        amount: 1n,
+        userData: null,
+      })
+      .sign();
+
+    // Replace sender to simulate a tx originated by the multisig wallet
+    const versioned = {
+      ...stubEnvelope.transaction,
+      value: { ...stubEnvelope.transaction.value, sender },
+    };
+
+    const envelope = await signer.signEnvelopeFor(versioned);
+    expect(envelope.transaction).toBe(versioned);
+    expect(envelope.signature.type).toBe("MultiSig");
+    if (envelope.signature.type !== "MultiSig") throw new Error("unreachable");
+    expect(envelope.signature.value.config).toEqual(config);
+    expect(envelope.signature.value.signatures).toHaveLength(1);
+    expect(envelope.signature.value.signatures[0]![0]).toEqual(pkA);
+  });
+});

@@ -1,7 +1,14 @@
-import { bcsSchema } from "@fastxyz/schema";
+import {
+  bcsSchema,
+  type SignatureOrMultiSig,
+  type TransactionEnvelope,
+  type VersionedTransaction,
+  VersionedTransactionFromBcs,
+} from "@fastxyz/schema";
 import { getPublicKeyAsync } from "@noble/ed25519";
-import { Data, Redacted } from "effect";
-import { hash } from "../core/crypto/bcs";
+import { Data, Redacted, Schema } from "effect";
+import { domainEncode, hash } from "../core/crypto/bcs";
+import { signMessage } from "../core/crypto/signing";
 import { run } from "../core/run";
 import { toFastAddress } from "./convert";
 
@@ -156,5 +163,38 @@ export class MultiSigSigner {
   async getFastAddress(): Promise<string> {
     await this.ensureValid();
     return deriveMultiSigAddress(this.config);
+  }
+
+  /**
+   * Sign an existing `VersionedTransaction` and produce a transaction
+   * envelope wrapping a `MultiSig` partial signature for this signer.
+   *
+   * Used by co-signers in the multisig vote flow: the initiator built
+   * the versioned transaction; co-signers fetch it from the proxy,
+   * sign over the same bytes, and submit. The proxy aggregates
+   * partials across co-signers until quorum is reached.
+   */
+  async signEnvelopeFor(
+    transaction: VersionedTransaction,
+  ): Promise<TransactionEnvelope> {
+    await this.ensureValid();
+    const pubkey = await this.getSignerPublicKey();
+    const bcsEncoded = await run(
+      Schema.encode(VersionedTransactionFromBcs)(transaction),
+    );
+    const messageWithDomain = await run(
+      domainEncode(bcsSchema.VersionedTransaction, bcsEncoded),
+    );
+    const sig = await run(
+      signMessage(Redacted.value(this.secretKey), messageWithDomain),
+    );
+    const multiSig: SignatureOrMultiSig = {
+      type: "MultiSig",
+      value: {
+        config: this.config,
+        signatures: [[pubkey, sig]],
+      },
+    };
+    return { transaction, signature: multiSig };
   }
 }

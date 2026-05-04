@@ -40,6 +40,20 @@ import {
   UserDataFromRest,
   UserDataFromRpc,
 } from '../base/index.ts';
+import {
+  AddressFromTransport,
+  AmountFromTransport,
+  BalanceFromTransport,
+  ClaimDataFromTransport,
+  NetworkIdFromTransport,
+  NonceFromTransport,
+  QuorumFromTransport,
+  SignatureFromTransport,
+  StateFromTransport,
+  StateKeyFromTransport,
+  TokenIdFromTransport,
+  UserDataFromTransport,
+} from '../base/transport.ts';
 import { BigIntFromNumberOrStringOrSelf } from '../util/index.ts';
 
 export interface BasePalette {
@@ -87,6 +101,22 @@ export const RestPalette = {
   State: StateFromRest,
   ClaimData: ClaimDataFromRest,
   UserData: UserDataFromRest,
+  BigInt: BigIntFromNumberOrStringOrSelf,
+} satisfies BasePalette;
+
+export const TransportPalette = {
+  Amount: AmountFromTransport,
+  Balance: BalanceFromTransport,
+  Nonce: NonceFromTransport,
+  Quorum: QuorumFromTransport,
+  NetworkId: NetworkIdFromTransport,
+  Address: AddressFromTransport,
+  Signature: SignatureFromTransport,
+  TokenId: TokenIdFromTransport,
+  StateKey: StateKeyFromTransport,
+  State: StateFromTransport,
+  ClaimData: ClaimDataFromTransport,
+  UserData: UserDataFromTransport,
   BigInt: BigIntFromNumberOrStringOrSelf,
 } satisfies BasePalette;
 

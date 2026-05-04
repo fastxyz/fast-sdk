@@ -568,6 +568,30 @@ const multisigPendingParser = command(
   { description: message`List pending multisig transactions for the active wallet` },
 );
 
+const multisigVoteParser = command(
+  "vote",
+  object({
+    cmd: constant("multisig-vote" as const),
+    tx: optional(
+      option("--tx", string({ metavar: "HASH" }), {
+        description: message`Transaction hash to sign (required when multiple are pending)`,
+      }),
+    ),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`Local single-signer account to sign as`,
+      }),
+    ),
+    yes: withDefault(
+      option("--yes", {
+        description: message`Skip the interactive confirmation`,
+      }),
+      false,
+    ),
+  }),
+  { description: message`Sign a pending multisig transaction` },
+);
+
 const multisigGroup = command(
   "multisig",
   or(
@@ -575,6 +599,7 @@ const multisigGroup = command(
     multisigExportParser,
     multisigImportParser,
     multisigPendingParser,
+    multisigVoteParser,
   ),
   { description: message`Multisig wallet operations` },
 );
@@ -629,6 +654,7 @@ export type MultisigInitArgs = InferValue<typeof multisigInitParser>;
 export type MultisigExportArgs = InferValue<typeof multisigExportParser>;
 export type MultisigImportArgs = InferValue<typeof multisigImportParser>;
 export type MultisigPendingArgs = InferValue<typeof multisigPendingParser>;
+export type MultisigVoteArgs = InferValue<typeof multisigVoteParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

@@ -25,6 +25,7 @@ import {
   multisigImport,
   multisigInit,
   multisigPending,
+  multisigVote,
 } from "./multisig/index.js";
 import { pay } from "./pay.js";
 import { send } from "./send.js";
@@ -43,6 +44,7 @@ export const commands = [
   multisigImport,
   multisigInit,
   multisigPending,
+  multisigVote,
   infoBalance,
   infoBridgeChains,
   infoBridgeTokens,

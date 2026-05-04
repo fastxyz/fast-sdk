@@ -155,7 +155,7 @@ const SUBCOMMANDS: Record<string, readonly string[]> = {
   network: ["list", "add", "set-default", "remove"],
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["usdc", "fastusd"],
-  multisig: ["init", "export", "import", "pending"],
+  multisig: ["init", "export", "import", "pending", "vote"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -365,6 +365,11 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   "multisig pending": {
     usage: "fast multisig pending [--as <name>] [--account <name>]",
     options: ["--as"],
+    check: () => null,
+  },
+  "multisig vote": {
+    usage: "fast multisig vote [--tx <hash>] [--as <name>] [--yes]",
+    options: ["--tx", "--as", "--yes"],
     check: () => null,
   },
   "multisig import": {

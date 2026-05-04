@@ -1,6 +1,6 @@
 import { bcsSchema } from "@fastxyz/schema";
 import { getPublicKeyAsync } from "@noble/ed25519";
-import { Data } from "effect";
+import { Data, Redacted } from "effect";
 import { hash } from "../core/crypto/bcs";
 import { run } from "../core/run";
 import { toFastAddress } from "./convert";
@@ -97,4 +97,58 @@ export async function assertAuthorizedSigner(
   const pk = await getPublicKeyAsync(secretKey);
   const matched = config.authorized_signers.some((s) => bytesEqual(s, pk));
   if (!matched) throw new NotAuthorizedSignerError();
+}
+
+export interface MultiSigSignerInit {
+  config: MultiSigConfig;
+  secretKey: Uint8Array;
+}
+
+/**
+ * A multisig member signer.
+ *
+ * Wraps a `MultiSigConfig` and a single member's ed25519 secret key.
+ * Validation is lazy: the constructor stores the config + secret without
+ * checking; the first method call invokes {@link assertAuthorizedSigner}
+ * (which validates the config and confirms the secret derives a pubkey
+ * present in `config.authorized_signers`). Subsequent calls reuse the
+ * cached "validated" flag and cached public key.
+ *
+ * The secret key is wrapped in `Redacted` so it never appears in logs,
+ * stack traces, or `inspect`/`toString` output.
+ */
+export class MultiSigSigner {
+  readonly config: MultiSigConfig;
+  private readonly secretKey: Redacted.Redacted<Uint8Array>;
+  private validatedOnce = false;
+  private cachedPublicKey?: Uint8Array;
+
+  constructor(init: MultiSigSignerInit) {
+    this.config = init.config;
+    this.secretKey = Redacted.make(init.secretKey);
+  }
+
+  private async ensureValid(): Promise<void> {
+    if (this.validatedOnce) return;
+    await assertAuthorizedSigner(this.config, Redacted.value(this.secretKey));
+    this.validatedOnce = true;
+  }
+
+  async getSignerPublicKey(): Promise<Uint8Array> {
+    await this.ensureValid();
+    this.cachedPublicKey ??= await getPublicKeyAsync(
+      Redacted.value(this.secretKey),
+    );
+    return this.cachedPublicKey;
+  }
+
+  async getDerivedAddressBytes(): Promise<Uint8Array> {
+    await this.ensureValid();
+    return deriveMultiSigAddressBytes(this.config);
+  }
+
+  async getFastAddress(): Promise<string> {
+    await this.ensureValid();
+    return deriveMultiSigAddress(this.config);
+  }
 }

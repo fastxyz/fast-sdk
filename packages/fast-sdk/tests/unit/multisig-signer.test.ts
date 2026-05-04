@@ -8,6 +8,7 @@ import {
   deriveMultiSigAddress,
   deriveMultiSigAddressBytes,
   MultiSigConfigInvalidError,
+  MultiSigSigner,
   NotAuthorizedSignerError,
 } from "../../src/interface/multisig-signer";
 
@@ -123,5 +124,38 @@ describe("assertAuthorizedSigner", () => {
     await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(
       MultiSigConfigInvalidError,
     );
+  });
+});
+
+describe("MultiSigSigner construction", () => {
+  const SECRET_A = new Uint8Array(32).fill(0xaa);
+  const SECRET_B = new Uint8Array(32).fill(0xbb);
+
+  it("constructs with a member secret and exposes pubkey", async () => {
+    const pkA = await getPublicKeyAsync(SECRET_A);
+    const pkB = await getPublicKeyAsync(SECRET_B);
+    const config = { authorized_signers: [pkA, pkB], quorum: 2n, nonce: 0n };
+    const signer = new MultiSigSigner({ config, secretKey: SECRET_A });
+    expect(await signer.getSignerPublicKey()).toEqual(pkA);
+  });
+
+  it("getFastAddress returns derived multisig bech32m", async () => {
+    const pkA = await getPublicKeyAsync(SECRET_A);
+    const pkB = await getPublicKeyAsync(SECRET_B);
+    const config = { authorized_signers: [pkA, pkB], quorum: 2n, nonce: 0n };
+    const signer = new MultiSigSigner({ config, secretKey: SECRET_A });
+    const fromSigner = await signer.getFastAddress();
+    const direct = await deriveMultiSigAddress(config);
+    expect(fromSigner).toBe(direct);
+  });
+
+  it("rejects construction when secret is not in authorized_signers", async () => {
+    const pkA = await getPublicKeyAsync(SECRET_A);
+    const pkB = await getPublicKeyAsync(SECRET_B);
+    const config = { authorized_signers: [pkA, pkB], quorum: 2n, nonce: 0n };
+    const stranger = new Uint8Array(32).fill(0xcc);
+    // Construction is sync; validation happens lazily on first method call
+    const signer = new MultiSigSigner({ config, secretKey: stranger });
+    await expect(signer.getSignerPublicKey()).rejects.toThrow(NotAuthorizedSignerError);
   });
 });

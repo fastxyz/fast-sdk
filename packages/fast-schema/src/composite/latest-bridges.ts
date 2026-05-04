@@ -73,12 +73,12 @@ const wireOpType = (wireOp: unknown): string => {
 
 /**
  * Encode a decoded Operation (`{ type, value? }`) back to BCS wire form
- * (`{ Key: value }` or `{ Key: [] }`). Silently falls back to the raw value
- * if encoding fails (bridging logic only; the outer schema will re-validate).
+ * (`{ Key: value }` or `{ Key: [] }`). Returns an Either: Right with the
+ * wire form, or Left with the ParseIssue. This allows callers to propagate
+ * encoding failures rather than silently falling back.
  */
-const encodeOpToWire = (decodedOp: unknown): unknown => {
-  const result = ParseResult.encodeUnknownEither(OperationFromBcs)(decodedOp);
-  return Either.isRight(result) ? result.right : decodedOp;
+const encodeOpToWire = (decodedOp: unknown): Either.Either<unknown, ParseResult.ParseIssue> => {
+  return ParseResult.encodeUnknownEither(OperationFromBcs)(decodedOp);
 };
 
 
@@ -100,7 +100,7 @@ export const LatestFromRelease20260319 = Schema.transformOrFail(
   LatestTransaction,
   {
     strict: false,
-    decode: (release319, _opts, _ast) => {
+    decode: (release319, _opts, ast) => {
       // `release319` is `TransactionRelease20260319FromBcs.Type` (camelCase decoded).
       // Must return `LatestTransaction.Encoded` (snake_case 407 wire).
       //
@@ -109,13 +109,34 @@ export const LatestFromRelease20260319 = Schema.transformOrFail(
       // - Other: single op in decoded form — encode back to wire
       const claim = release319.claim as { type: string; value?: unknown };
 
-      let claimsWire: unknown[];
+      // Reject empty Batch on decode (must be symmetric with encode-side rejection of empty claims).
+      if (claim.type === 'Batch' && (claim.value as unknown[])?.length === 0) {
+        return ParseResult.fail(
+          new ParseResult.Type(
+            ast,
+            release319,
+            'Release20260319 transactions cannot have an empty Batch',
+          ),
+        );
+      }
+
+      // Encode operations back to wire form, propagating any encoding failures.
+      let encodeResults: Array<Either.Either<unknown, ParseResult.ParseIssue>>;
       if (claim.type === 'Batch') {
         const batchOps = (claim.value as unknown[]) ?? [];
-        claimsWire = batchOps.map(encodeOpToWire);
+        encodeResults = batchOps.map(encodeOpToWire);
       } else {
-        claimsWire = [encodeOpToWire(claim)];
+        encodeResults = [encodeOpToWire(claim)];
       }
+
+      // Check for encoding failures and propagate the first one.
+      const failure = encodeResults.find(Either.isLeft);
+      if (failure !== undefined && Either.isLeft(failure)) {
+        return ParseResult.fail(failure.left);
+      }
+
+      // All encodes succeeded; extract wire forms.
+      const claimsWire = encodeResults.map((result) => (Either.getOrThrow(result) as unknown));
 
       return ParseResult.succeed({
         network_id: release319.networkId,

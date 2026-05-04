@@ -109,12 +109,13 @@ describe('LatestFromRelease20260319 — upcast (decode)', () => {
     expect(latest.claims[1].type).toBe('TokenTransfer');
   });
 
-  it('upcasts an empty Batch claim into an empty claims array', () => {
+  it('REJECTS an empty Batch claim on decode (symmetric with encode rejection of empty claims)', () => {
     const wireBatch = { Batch: [] };
-    const latest = Schema.decodeUnknownSync(LatestFromRelease20260319)(
-      wireRelease319Tx(wireBatch) as never,
-    );
-    expect(latest.claims).toHaveLength(0);
+    expect(() =>
+      Schema.decodeUnknownSync(LatestFromRelease20260319)(
+        wireRelease319Tx(wireBatch) as never,
+      ),
+    ).toThrow(/empty Batch/i);
   });
 });
 

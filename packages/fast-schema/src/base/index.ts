@@ -82,3 +82,17 @@ export {
   TokenIdFromRpc,
   UserDataFromRpc,
 } from "./rpc.ts";
+export {
+  AddressFromTransport,
+  AmountFromTransport,
+  BalanceFromTransport,
+  ClaimDataFromTransport,
+  NetworkIdFromTransport,
+  NonceFromTransport,
+  QuorumFromTransport,
+  SignatureFromTransport,
+  StateFromTransport,
+  StateKeyFromTransport,
+  TokenIdFromTransport,
+  UserDataFromTransport,
+} from "./transport.ts";

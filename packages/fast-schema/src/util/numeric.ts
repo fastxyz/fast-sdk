@@ -1,4 +1,4 @@
-import { Schema } from 'effect';
+import { ParseResult, Schema } from 'effect';
 
 /** Decodes a decimal string into a `bigint` and encodes back. Built-in. */
 export const DecimalBigInt = Schema.BigInt;
@@ -8,32 +8,32 @@ export const DecimalBigInt = Schema.BigInt;
  *
  * Negative values use a `-` prefix: `"-1f4"` decodes to `-500n`.
  */
-export const HexBigInt = Schema.transform(Schema.String, Schema.BigIntFromSelf, {
+export const HexBigInt = Schema.transformOrFail(Schema.String, Schema.BigIntFromSelf, {
   strict: true,
-  decode: (s) => {
+  decode: (s, _opts, ast) => {
     const sign = s[0] === '-' ? -1n : 1n;
     const digits = s[0] === '-' ? s.slice(1) : s;
     if (digits.length === 0 || !/^[0-9a-fA-F]+$/.test(digits)) {
-      throw new Error(`Invalid hex string: "${s}"`);
+      return ParseResult.fail(new ParseResult.Type(ast, s, `Invalid hex string: "${s}"`));
     }
-    return sign * BigInt(`0x${digits}`);
+    return ParseResult.succeed(sign * BigInt(`0x${digits}`));
   },
-  encode: (n) => n.toString(16),
+  encode: (n) => ParseResult.succeed(n.toString(16)),
 });
 
 /** Decodes a decimal string into a `number` and encodes back. Built-in. */
 export const DecimalNumber = Schema.NumberFromString;
 
 /** Decodes a hex string (no `0x` prefix) into a `number` and encodes back. */
-export const HexNumber = Schema.transform(Schema.String, Schema.Number, {
+export const HexNumber = Schema.transformOrFail(Schema.String, Schema.Number, {
   strict: true,
-  decode: (s) => {
+  decode: (s, _opts, ast) => {
     if (s.length === 0 || !/^[0-9a-fA-F]+$/.test(s)) {
-      throw new Error(`Invalid hex string: "${s}"`);
+      return ParseResult.fail(new ParseResult.Type(ast, s, `Invalid hex string: "${s}"`));
     }
-    return Number(`0x${s}`);
+    return ParseResult.succeed(Number(`0x${s}`));
   },
-  encode: (n) => n.toString(16),
+  encode: (n) => ParseResult.succeed(n.toString(16)),
 });
 
 /**
@@ -43,13 +43,19 @@ export const HexNumber = Schema.transform(Schema.String, Schema.Number, {
  * Accepts strings to support JSON transports that serialize BigInt as
  * decimal strings (e.g. Chrome extension port.postMessage).
  */
-export const BigIntFromNumberOrStringOrSelf = Schema.transform(
+export const BigIntFromNumberOrStringOrSelf = Schema.transformOrFail(
   Schema.Union(Schema.Number, Schema.BigIntFromSelf, Schema.String),
   Schema.BigIntFromSelf,
   {
     strict: true,
-    decode: (n) => (typeof n === 'bigint' ? n : BigInt(n)),
-    encode: (n) => n,
+    decode: (n, _opts, ast) => {
+      try {
+        return ParseResult.succeed(typeof n === 'bigint' ? n : BigInt(n));
+      } catch (e) {
+        return ParseResult.fail(new ParseResult.Type(ast, n, `Cannot convert to bigint: ${String(e)}`));
+      }
+    },
+    encode: (n) => ParseResult.succeed(n),
   },
 );
 
@@ -94,17 +100,17 @@ export const IntBigIntFromNumberOrStringOrSelf = <N extends number>(bits: N) => 
  * over the legacy JSON-RPC wire. Use in `RpcPalette` where wire-fidelity matters.
  * For tolerant user-input parsing, use `HexBigInt`.
  */
-export const HexLowerBigInt = Schema.transform(Schema.String, Schema.BigIntFromSelf, {
+export const HexLowerBigInt = Schema.transformOrFail(Schema.String, Schema.BigIntFromSelf, {
   strict: true,
-  decode: (s) => {
+  decode: (s, _opts, ast) => {
     const sign = s[0] === '-' ? -1n : 1n;
     const digits = s[0] === '-' ? s.slice(1) : s;
     if (digits.length === 0 || !/^[0-9a-f]+$/.test(digits)) {
-      throw new Error(`Invalid lowercase hex string: "${s}"`);
+      return ParseResult.fail(new ParseResult.Type(ast, s, `Invalid lowercase hex string: "${s}"`));
     }
-    return sign * BigInt(`0x${digits}`);
+    return ParseResult.succeed(sign * BigInt(`0x${digits}`));
   },
-  encode: (n) => n.toString(16),
+  encode: (n) => ParseResult.succeed(n.toString(16)),
 });
 
 /** Strict-lowercase hex string to branded unsigned bigint. */
@@ -114,3 +120,28 @@ export const HexLowerUintBigInt = <N extends number>(bits: N) =>
 /** Strict-lowercase hex string to branded signed bigint. */
 export const HexLowerIntBigInt = <N extends number>(bits: N) =>
   Schema.compose(HexLowerBigInt, IntBigInt(bits));
+
+/**
+ * Upcasts a `number | bigint` to `bigint`.
+ *
+ * Strict counterpart to `BigIntFromNumberOrStringOrSelf` — rejects string
+ * input. Use in `RestPalette` (wire-faithful: REST never emits stringified
+ * bigints; only `TransportPalette` accepts the post-`String(bigint)` form).
+ */
+export const BigIntFromNumberOrSelf = Schema.transformOrFail(
+  Schema.Union(Schema.Number, Schema.BigIntFromSelf),
+  Schema.BigIntFromSelf,
+  {
+    strict: true,
+    decode: (n) => ParseResult.succeed(typeof n === 'bigint' ? n : BigInt(n)),
+    encode: (n) => ParseResult.succeed(n),
+  },
+);
+
+/** number | bigint to branded unsigned bigint. */
+export const UintBigIntFromNumberOrSelf = <N extends number>(bits: N) =>
+  Schema.compose(BigIntFromNumberOrSelf, UintBigInt(bits));
+
+/** number | bigint to branded signed bigint. */
+export const IntBigIntFromNumberOrSelf = <N extends number>(bits: N) =>
+  Schema.compose(BigIntFromNumberOrSelf, IntBigInt(bits));

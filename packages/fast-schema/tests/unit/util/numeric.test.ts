@@ -1,5 +1,7 @@
+import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 import {
+  BigIntFromNumberOrSelf,
   BigIntFromNumberOrStringOrSelf,
   DecimalBigInt,
   DecimalIntBigInt,
@@ -12,8 +14,10 @@ import {
   HexNumber,
   HexUintBigInt,
   IntBigInt,
+  IntBigIntFromNumberOrSelf,
   IntNumber,
   UintBigInt,
+  UintBigIntFromNumberOrSelf,
   UintBigIntFromNumberOrStringOrSelf,
   UintNumber,
 } from '../../../src/util/numeric.ts';
@@ -305,5 +309,65 @@ describe('HexLowerIntBigInt', () => {
   it('accepts negative input', () => {
     const HexLowerInt64 = HexLowerIntBigInt(64);
     expect(decodeSync(HexLowerInt64, '-ff')).toBe(-255n);
+  });
+});
+
+describe('BigIntFromNumberOrSelf (strict — no string)', () => {
+  it('accepts bigint passthrough', () => {
+    expect(decodeSync(BigIntFromNumberOrSelf, 42n)).toBe(42n);
+  });
+
+  it('accepts number', () => {
+    expect(decodeSync(BigIntFromNumberOrSelf, 42)).toBe(42n);
+  });
+
+  it('rejects string (this is the wire-fidelity contract for REST)', () => {
+    expect(() => decodeSync(BigIntFromNumberOrSelf, '42')).toThrow();
+  });
+});
+
+describe('UintBigIntFromNumberOrSelf', () => {
+  it('rejects negative number', () => {
+    const u = UintBigIntFromNumberOrSelf(64);
+    expect(() => decodeSync(u, -1)).toThrow();
+  });
+
+  it('rejects out-of-range', () => {
+    const u = UintBigIntFromNumberOrSelf(8);
+    expect(() => decodeSync(u, 256)).toThrow();
+  });
+
+  it('accepts in-range bigint', () => {
+    const u = UintBigIntFromNumberOrSelf(64);
+    expect(decodeSync(u, 100n)).toBe(100n);
+  });
+});
+
+describe('IntBigIntFromNumberOrSelf', () => {
+  it('accepts negative number', () => {
+    const i = IntBigIntFromNumberOrSelf(64);
+    expect(decodeSync(i, -1)).toBe(-1n);
+  });
+
+  it('accepts in-range bigint', () => {
+    const i = IntBigIntFromNumberOrSelf(64);
+    expect(decodeSync(i, -100n)).toBe(-100n);
+  });
+});
+
+describe('Union fall-through (item #10a)', () => {
+  it('HexBigInt failure in a Union does not block the next branch', () => {
+    const tolerantHex = Schema.Union(HexBigInt, Schema.Literal('fallback'));
+    // 'fallback' is not valid hex — the HexBigInt branch must FAIL CLEANLY
+    // (return ParseError) rather than throw, so the Literal branch can succeed.
+    expect(decodeSync(tolerantHex, 'fallback')).toBe('fallback');
+  });
+
+  it('BigIntFromNumberOrStringOrSelf failure in a Union does not block the next branch', () => {
+    // BigInt('not-a-number') would throw SyntaxError under Schema.transform,
+    // short-circuiting the Union. Under transformOrFail it returns ParseError,
+    // letting Union fall through to the literal branch.
+    const tolerant = Schema.Union(BigIntFromNumberOrStringOrSelf, Schema.Literal('skip'));
+    expect(decodeSync(tolerant, 'skip')).toBe('skip');
   });
 });

@@ -124,7 +124,13 @@ export class MultiSigSigner {
   private cachedPublicKey?: Uint8Array;
 
   constructor(init: MultiSigSignerInit) {
-    this.config = init.config;
+    this.config = {
+      authorized_signers: init.config.authorized_signers.map(
+        (s) => new Uint8Array(s),
+      ),
+      quorum: init.config.quorum,
+      nonce: init.config.nonce,
+    };
     this.secretKey = Redacted.make(init.secretKey);
   }
 

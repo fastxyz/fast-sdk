@@ -1,3 +1,27 @@
+/**
+ * Legacy JSON-RPC wire-form primitives.
+ *
+ * This palette describes the wire format the Fast network used before the
+ * REST migration (PR #76, Apr 2026). It survives the migration solely
+ * because `allset-sdk/src/bridge.ts` still encodes `TransactionCertificate`
+ * to it for the AllSet cross-sign service — a JSON-RPC service that has
+ * not migrated.
+ *
+ * **Direction in production:** encode-only. The cross-sign request handler
+ * calls `Schema.encodeSync(TransactionCertificateFromRpc)(...)` to produce
+ * the wire payload. Decode is exercised only by hand-authored test fixtures
+ * (see `packages/allset-sdk/tests/sdk.test.ts`).
+ *
+ * **Wire shape:**
+ *   - Addresses, byte arrays: hex strings (no 0x prefix), numeric arrays in some places
+ *   - Amount / Balance: lowercase hex via Rust's `to_str_radix(16)` (no 0x, sign only on signed types)
+ *   - Nonce / Quorum: JSON numbers (u64)
+ *
+ * Do not extend this palette without coordinating with the cross-sign
+ * service owners. Once cross-sign migrates to REST, this entire palette
+ * (and `TransactionCertificateFromRpc` etc.) can be deleted.
+ */
+
 import { Schema } from 'effect';
 import {
   HexLowerInt320,

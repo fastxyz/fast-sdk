@@ -155,7 +155,7 @@ const SUBCOMMANDS: Record<string, readonly string[]> = {
   network: ["list", "add", "set-default", "remove"],
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["usdc", "fastusd"],
-  multisig: ["init"],
+  multisig: ["init", "export"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -351,6 +351,14 @@ const SUBCOMMAND_REQUIREMENTS: Record<
         return "Missing required option: --config-nonce <n>";
       if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
         return "Missing required option: --name <alias>";
+      return null;
+    },
+  },
+  "multisig export": {
+    usage: "fast multisig export <name> [--out <path>]",
+    options: ["--out"],
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
       return null;
     },
   },

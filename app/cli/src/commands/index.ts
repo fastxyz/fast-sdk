@@ -20,7 +20,7 @@ import { networkAdd } from "./network/add.js";
 import { networkList } from "./network/list.js";
 import { networkRemove } from "./network/remove.js";
 import { networkSetDefault } from "./network/set-default.js";
-import { multisigInit } from "./multisig/index.js";
+import { multisigExport, multisigInit } from "./multisig/index.js";
 import { pay } from "./pay.js";
 import { send } from "./send.js";
 
@@ -34,6 +34,7 @@ export const commands = [
   fundFastUsd,
   fundUsdcCrypto,
   fundUsdcFiat,
+  multisigExport,
   multisigInit,
   infoBalance,
   infoBridgeChains,

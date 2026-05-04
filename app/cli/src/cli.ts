@@ -496,9 +496,19 @@ const multisigInitParser = command(
   { description: message`Create a multisig wallet config` },
 );
 
+const multisigExportParser = command(
+  "export",
+  object({
+    cmd: constant("multisig-export" as const),
+    name: argument(string({ metavar: "NAME" })),
+    out: optional(option("--out", string({ metavar: "PATH" }))),
+  }),
+  { description: message`Export a multisig wallet config as JSON` },
+);
+
 const multisigGroup = command(
   "multisig",
-  multisigInitParser,
+  or(multisigInitParser, multisigExportParser),
   { description: message`Multisig wallet operations` },
 );
 
@@ -549,6 +559,7 @@ export type FundFastUsdArgs = InferValue<typeof fundFastUsdParser>;
 export type PayArgs = InferValue<typeof payParser>;
 
 export type MultisigInitArgs = InferValue<typeof multisigInitParser>;
+export type MultisigExportArgs = InferValue<typeof multisigExportParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

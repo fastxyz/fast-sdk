@@ -28,19 +28,10 @@ export const FastSetErrorData = TypedVariant({
 
 export type FastSetErrorData = typeof FastSetErrorData.Type;
 
-/** json_rpc::Error wrapper — FastSet or Generic. */
-export const JsonRpcError = TypedVariant({
-  FastSet: FastSetErrorData,
-  Generic: Schema.String,
-});
-
-export type JsonRpcError = typeof JsonRpcError.Type;
-
 /** ProxyError — all variants as a TypedVariant. */
 export const ProxyErrorData = TypedVariant({
   GeneralError: Schema.String,
   FaucetDisabled: null,
-  RpcError: JsonRpcError,
   FaucetThrottled: Schema.Unknown,
   FaucetTxnFailed: Schema.Unknown,
   FaucetThresholdExceeded: Schema.Unknown,

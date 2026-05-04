@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FastSetErrorData, JsonRpcError, ProxyErrorData } from '../../src/errors/fastset.ts';
+import { FastSetErrorData, ProxyErrorData } from '../../src/errors/fastset.ts';
 import { decodeSync, encodeSync } from './helpers.ts';
 
 describe('FastSetErrorData', () => {
@@ -85,30 +85,6 @@ describe('FastSetErrorData', () => {
   });
 });
 
-describe('JsonRpcError', () => {
-  it('decodes FastSet with nested error', () => {
-    const result = decodeSync(JsonRpcError, {
-      FastSet: { UnexpectedNonce: { expected_nonce: 5 } },
-    });
-    expect(result.type).toBe('FastSet');
-    expect(result.value).toEqual({
-      type: 'UnexpectedNonce',
-      value: { expectedNonce: 5n },
-    });
-  });
-
-  it('decodes Generic error', () => {
-    const result = decodeSync(JsonRpcError, { Generic: 'some error' });
-    expect(result).toEqual({ type: 'Generic', value: 'some error' });
-  });
-
-  it('round-trips Generic', () => {
-    const decoded = decodeSync(JsonRpcError, { Generic: 'oops' });
-    const encoded = encodeSync(JsonRpcError, decoded);
-    expect(encoded).toEqual({ Generic: 'oops' });
-  });
-});
-
 describe('ProxyErrorData', () => {
   it('decodes unit variant FaucetDisabled', () => {
     const result = decodeSync(ProxyErrorData, 'FaucetDisabled');
@@ -145,21 +121,6 @@ describe('ProxyErrorData', () => {
       type: 'UnexpectedNonce',
       value: { txNonce: 2n, expectedNonce: 1n },
     });
-  });
-
-  it('decodes deeply nested RpcError → FastSet → InsufficientFunding', () => {
-    const result = decodeSync(ProxyErrorData, {
-      RpcError: {
-        FastSet: { InsufficientFunding: { current_balance: 999 } },
-      },
-    });
-    expect(result.type).toBe('RpcError');
-    // @ts-expect-error - value is unknown at this level
-    const rpcErr = result.value as { type: string; value: unknown };
-    expect(rpcErr.type).toBe('FastSet');
-    const fastSetErr = rpcErr.value as { type: string; value: unknown };
-    expect(fastSetErr.type).toBe('InsufficientFunding');
-    expect(fastSetErr.value).toEqual({ currentBalance: 999n });
   });
 
   it('encodes FaucetDisabled back to string', () => {

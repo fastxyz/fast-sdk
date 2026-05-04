@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { getPublicKeyAsync } from "@noble/ed25519";
 import { fromHex, toHex } from "../../src/index";
 import {
+  assertAuthorizedSigner,
   deriveMultiSigAddress,
   deriveMultiSigAddressBytes,
+  MultiSigConfigInvalidError,
+  NotAuthorizedSignerError,
 } from "../../src/interface/multisig-signer";
 
 const fixtures = JSON.parse(
@@ -39,5 +43,85 @@ describe("deriveMultiSigAddress", () => {
     };
     const addr = await deriveMultiSigAddress(config);
     expect(addr.startsWith("fast1")).toBe(true);
+  });
+});
+
+describe("assertAuthorizedSigner", () => {
+  const SECRET_A = new Uint8Array(32).fill(0xaa);
+  const SECRET_B = new Uint8Array(32).fill(0xbb);
+
+  it("returns void when secret derives a pubkey in authorized_signers", async () => {
+    const pkA = await getPublicKeyAsync(SECRET_A);
+    const pkB = await getPublicKeyAsync(SECRET_B);
+    const config = {
+      authorized_signers: [pkA, pkB],
+      quorum: 2n,
+      nonce: 0n,
+    };
+    await expect(assertAuthorizedSigner(config, SECRET_A)).resolves.toBeUndefined();
+  });
+
+  it("throws NotAuthorizedSignerError when secret is not a member", async () => {
+    const pkA = await getPublicKeyAsync(SECRET_A);
+    const otherSecret = new Uint8Array(32).fill(0xcc);
+    const config = {
+      authorized_signers: [pkA, await getPublicKeyAsync(SECRET_B)],
+      quorum: 2n,
+      nonce: 0n,
+    };
+    await expect(assertAuthorizedSigner(config, otherSecret)).rejects.toThrow(
+      NotAuthorizedSignerError,
+    );
+  });
+
+  it("throws MultiSigConfigInvalidError on quorum < 1", async () => {
+    const config = {
+      authorized_signers: [
+        await getPublicKeyAsync(SECRET_A),
+        await getPublicKeyAsync(SECRET_B),
+      ],
+      quorum: 0n,
+      nonce: 0n,
+    };
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(
+      MultiSigConfigInvalidError,
+    );
+  });
+
+  it("throws MultiSigConfigInvalidError on quorum > signer count", async () => {
+    const config = {
+      authorized_signers: [
+        await getPublicKeyAsync(SECRET_A),
+        await getPublicKeyAsync(SECRET_B),
+      ],
+      quorum: 3n,
+      nonce: 0n,
+    };
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(
+      MultiSigConfigInvalidError,
+    );
+  });
+
+  it("throws MultiSigConfigInvalidError on signer count < 2", async () => {
+    const config = {
+      authorized_signers: [await getPublicKeyAsync(SECRET_A)],
+      quorum: 1n,
+      nonce: 0n,
+    };
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(
+      MultiSigConfigInvalidError,
+    );
+  });
+
+  it("throws MultiSigConfigInvalidError on duplicate signers", async () => {
+    const pkA = await getPublicKeyAsync(SECRET_A);
+    const config = {
+      authorized_signers: [pkA, pkA],
+      quorum: 2n,
+      nonce: 0n,
+    };
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(
+      MultiSigConfigInvalidError,
+    );
   });
 });

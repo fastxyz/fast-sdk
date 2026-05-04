@@ -1,7 +1,9 @@
 export {
   FixedUint8Array,
   FixedUint8ArrayFromHex,
+  FixedUint8ArrayFromHexOptional0x,
   FixedUint8ArrayFromNumberArray,
+  Strip0xHex,
   Uint8ArrayFromBase64,
   Uint8ArrayFromBech32m,
   Uint8ArrayFromHex,

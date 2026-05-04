@@ -5,6 +5,7 @@ import {
   HexInt320,
   HexUint256,
   Int320FromNumberOrStringOrSelf,
+  Strip0xHex,
   Uint8Array32,
   Uint8Array32FromHex0x,
   Uint8Array32FromNumberArray,
@@ -21,13 +22,13 @@ import { NetworkId } from "./internal.ts";
 
 export const AmountFromInput = Schema.Union(
   Uint256FromNumberOrStringOrSelf,
-  HexUint256,
+  Schema.compose(Strip0xHex, HexUint256),
   DecimalUint256,
 ).pipe(Schema.brand("Amount"));
 
 export const BalanceFromInput = Schema.Union(
   Int320FromNumberOrStringOrSelf,
-  HexInt320,
+  Schema.compose(Strip0xHex, HexInt320),
   DecimalInt320,
 ).pipe(Schema.brand("Balance"));
 

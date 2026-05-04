@@ -20,7 +20,12 @@ import { networkAdd } from "./network/add.js";
 import { networkList } from "./network/list.js";
 import { networkRemove } from "./network/remove.js";
 import { networkSetDefault } from "./network/set-default.js";
-import { multisigExport, multisigImport, multisigInit } from "./multisig/index.js";
+import {
+  multisigExport,
+  multisigImport,
+  multisigInit,
+  multisigPending,
+} from "./multisig/index.js";
 import { pay } from "./pay.js";
 import { send } from "./send.js";
 
@@ -37,6 +42,7 @@ export const commands = [
   multisigExport,
   multisigImport,
   multisigInit,
+  multisigPending,
   infoBalance,
   infoBridgeChains,
   infoBridgeTokens,

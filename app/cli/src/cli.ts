@@ -555,9 +555,27 @@ const multisigImportParser = command(
   { description: message`Import an existing multisig wallet` },
 );
 
+const multisigPendingParser = command(
+  "pending",
+  object({
+    cmd: constant("multisig-pending" as const),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`Local single-signer account to check "have I signed"`,
+      }),
+    ),
+  }),
+  { description: message`List pending multisig transactions for the active wallet` },
+);
+
 const multisigGroup = command(
   "multisig",
-  or(multisigInitParser, multisigExportParser, multisigImportParser),
+  or(
+    multisigInitParser,
+    multisigExportParser,
+    multisigImportParser,
+    multisigPendingParser,
+  ),
   { description: message`Multisig wallet operations` },
 );
 
@@ -610,6 +628,7 @@ export type PayArgs = InferValue<typeof payParser>;
 export type MultisigInitArgs = InferValue<typeof multisigInitParser>;
 export type MultisigExportArgs = InferValue<typeof multisigExportParser>;
 export type MultisigImportArgs = InferValue<typeof multisigImportParser>;
+export type MultisigPendingArgs = InferValue<typeof multisigPendingParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

@@ -1,21 +1,43 @@
-import { Schema } from 'effect';
-import type { S } from '../palette/definition.ts';
-import { CamelCaseStruct, TypedVariant } from '../util/index.ts';
+import { Schema } from "effect";
+import type { S } from "../palette/definition.ts";
+import { CamelCaseStruct, TypedVariant } from "../util/index.ts";
 
 /** `Add` | `Remove` — unit enum for address list changes. */
-export const makeAddressChange = <Mode extends 'serde' | 'bcs' = 'serde'>(options?: { unitEncoding: Mode }) =>
-  TypedVariant({ Add: null, Remove: null }, options);
+export const makeAddressChange = <
+  Mode extends "serde" | "bcs" = "serde",
+>(options?: {
+  unitEncoding: Mode;
+}) => TypedVariant({ Add: null, Remove: null }, options);
 
 export const AddressChange = makeAddressChange();
 
-export const makeTokenTransfer = <TId extends S, TAddr extends S, TAmt extends S, TUd extends S>(p: {
+export const makeTokenTransfer = <
+  TId extends S,
+  TAddr extends S,
+  TAmt extends S,
+  TUd extends S,
+>(p: {
   TokenId: TId;
   Address: TAddr;
   Amount: TAmt;
   UserData: TUd;
-}) => CamelCaseStruct({ token_id: p.TokenId, recipient: p.Address, amount: p.Amount, user_data: p.UserData });
+}) =>
+  CamelCaseStruct({
+    token_id: p.TokenId,
+    recipient: p.Address,
+    amount: p.Amount,
+    user_data: p.UserData,
+  });
 
-export const makeTokenCreation = <TAmt extends S, TAddr extends S, TUd extends S>(p: { Amount: TAmt; Address: TAddr; UserData: TUd }) =>
+export const makeTokenCreation = <
+  TAmt extends S,
+  TAddr extends S,
+  TUd extends S,
+>(p: {
+  Amount: TAmt;
+  Address: TAddr;
+  UserData: TUd;
+}) =>
   CamelCaseStruct({
     token_name: Schema.String,
     decimals: Schema.Number,
@@ -24,7 +46,13 @@ export const makeTokenCreation = <TAmt extends S, TAddr extends S, TUd extends S
     user_data: p.UserData,
   });
 
-export const makeTokenManagement = <TId extends S, TNonce extends S, TAddr extends S, TUd extends S, Mode extends 'serde' | 'bcs' = 'serde'>(
+export const makeTokenManagement = <
+  TId extends S,
+  TNonce extends S,
+  TAddr extends S,
+  TUd extends S,
+  Mode extends "serde" | "bcs" = "serde",
+>(
   p: { TokenId: TId; Nonce: TNonce; Address: TAddr; UserData: TUd },
   options?: { unitEncoding: Mode },
 ) =>
@@ -36,16 +64,36 @@ export const makeTokenManagement = <TId extends S, TNonce extends S, TAddr exten
     user_data: p.UserData,
   });
 
-export const makeMint = <TId extends S, TAddr extends S, TAmt extends S>(p: { TokenId: TId; Address: TAddr; Amount: TAmt }) =>
-  CamelCaseStruct({ token_id: p.TokenId, recipient: p.Address, amount: p.Amount });
+export const makeMint = <TId extends S, TAddr extends S, TAmt extends S>(p: {
+  TokenId: TId;
+  Address: TAddr;
+  Amount: TAmt;
+}) =>
+  CamelCaseStruct({
+    token_id: p.TokenId,
+    recipient: p.Address,
+    amount: p.Amount,
+  });
 
-export const makeBurn = <TId extends S, TAmt extends S>(p: { TokenId: TId; Amount: TAmt }) =>
-  CamelCaseStruct({ token_id: p.TokenId, amount: p.Amount });
+export const makeBurn = <TId extends S, TAmt extends S>(p: {
+  TokenId: TId;
+  Amount: TAmt;
+}) => CamelCaseStruct({ token_id: p.TokenId, amount: p.Amount });
 
-export const makeStateInitialization = <TKey extends S, TSt extends S>(p: { StateKey: TKey; State: TSt }) =>
-  CamelCaseStruct({ key: p.StateKey, initial_state: p.State });
+export const makeStateInitialization = <TKey extends S, TSt extends S>(p: {
+  StateKey: TKey;
+  State: TSt;
+}) => CamelCaseStruct({ key: p.StateKey, initial_state: p.State });
 
-export const makeStateUpdate = <TKey extends S, TSt extends S, TBi extends S>(p: { StateKey: TKey; State: TSt; BigInt: TBi }) =>
+export const makeStateUpdate = <
+  TKey extends S,
+  TSt extends S,
+  TBi extends S,
+>(p: {
+  StateKey: TKey;
+  State: TSt;
+  BigInt: TBi;
+}) =>
   CamelCaseStruct({
     key: p.StateKey,
     previous_state: p.State,
@@ -54,37 +102,78 @@ export const makeStateUpdate = <TKey extends S, TSt extends S, TBi extends S>(p:
     compute_claim_tx_timestamp: p.BigInt,
   });
 
-export const makeStateReset = <TKey extends S, TSt extends S>(p: { StateKey: TKey; State: TSt }) =>
-  CamelCaseStruct({ key: p.StateKey, reset_state: p.State });
+export const makeStateReset = <TKey extends S, TSt extends S>(p: {
+  StateKey: TKey;
+  State: TSt;
+}) => CamelCaseStruct({ key: p.StateKey, reset_state: p.State });
 
-export const makeExternalClaimBody = <TAddr extends S, TQ extends S, TCD extends S>(p: { Address: TAddr; Quorum: TQ; ClaimData: TCD }) =>
-  CamelCaseStruct({ verifier_committee: Schema.Array(p.Address), verifier_quorum: p.Quorum, claim_data: p.ClaimData });
+export const makeExternalClaimBody = <
+  TAddr extends S,
+  TQ extends S,
+  TCD extends S,
+>(p: {
+  Address: TAddr;
+  Quorum: TQ;
+  ClaimData: TCD;
+}) =>
+  CamelCaseStruct({
+    verifier_committee: Schema.Array(p.Address),
+    verifier_quorum: p.Quorum,
+    claim_data: p.ClaimData,
+  });
 
-export const makeVerifierSig = <TAddr extends S, TSig extends S>(p: { Address: TAddr; Signature: TSig }) =>
-  CamelCaseStruct({ verifier_addr: p.Address, sig: p.Signature });
+export const makeVerifierSig = <TAddr extends S, TSig extends S>(p: {
+  Address: TAddr;
+  Signature: TSig;
+}) => CamelCaseStruct({ verifier_addr: p.Address, sig: p.Signature });
 
-export const makeExternalClaim = <TAddr extends S, TQ extends S, TCD extends S, TSig extends S>(p: {
+export const makeExternalClaim = <
+  TAddr extends S,
+  TQ extends S,
+  TCD extends S,
+  TSig extends S,
+>(p: {
   Address: TAddr;
   Quorum: TQ;
   ClaimData: TCD;
   Signature: TSig;
-}) => Schema.Struct({ claim: makeExternalClaimBody(p), signatures: Schema.Array(makeVerifierSig(p)) });
+}) =>
+  Schema.Struct({
+    claim: makeExternalClaimBody(p),
+    signatures: Schema.Array(makeVerifierSig(p)),
+  });
 
 export const makeValidatorConfig = <TAddr extends S>(p: { Address: TAddr }) =>
-  CamelCaseStruct({ address: p.Address, host: Schema.String, rpc_port: Schema.Number });
+  CamelCaseStruct({
+    address: p.Address,
+    host: Schema.String,
+    rpc_port: Schema.Number,
+  });
 
-export const makeCommitteeConfig = <TAddr extends S>(p: { Address: TAddr }) => Schema.Struct({ validators: Schema.Array(makeValidatorConfig(p)) });
+export const makeCommitteeConfig = <TAddr extends S>(p: { Address: TAddr }) =>
+  Schema.Struct({ validators: Schema.Array(makeValidatorConfig(p)) });
 
 export const makeCommitteeChange = <TAddr extends S>(p: { Address: TAddr }) =>
-  CamelCaseStruct({ new_committee: makeCommitteeConfig(p), epoch: Schema.Number });
+  CamelCaseStruct({
+    new_committee: makeCommitteeConfig(p),
+    epoch: Schema.Number,
+  });
 
 /** `Fixed(Amount)` | `Bps(u16)` — evaluation fee type. */
-export const makeFixedAmountOrBps = <TAmt extends S, Mode extends 'serde' | 'bcs' = 'serde'>(
+export const makeFixedAmountOrBps = <
+  TAmt extends S,
+  Mode extends "serde" | "bcs" = "serde",
+>(
   p: { Amount: TAmt },
   options?: { unitEncoding: Mode },
 ) => TypedVariant({ Fixed: p.Amount, Bps: Schema.Number }, options);
 
-export const makeEscrowCreateConfig = <TId extends S, TAddr extends S, TAmt extends S, Mode extends 'serde' | 'bcs' = 'serde'>(
+export const makeEscrowCreateConfig = <
+  TId extends S,
+  TAddr extends S,
+  TAmt extends S,
+  Mode extends "serde" | "bcs" = "serde",
+>(
   p: { TokenId: TId; Address: TAddr; Amount: TAmt },
   options?: { unitEncoding: Mode },
 ) =>
@@ -95,7 +184,11 @@ export const makeEscrowCreateConfig = <TId extends S, TAddr extends S, TAmt exte
     min_evaluator_fee: p.Amount,
   });
 
-export const makeEscrowCreateJob = <TId extends S, TAddr extends S, TAmt extends S>(p: {
+export const makeEscrowCreateJob = <
+  TId extends S,
+  TAddr extends S,
+  TAmt extends S,
+>(p: {
   TokenId: TId;
   Address: TAddr;
   Amount: TAmt;
@@ -117,7 +210,12 @@ export const makeEscrowComplete = <TId extends S>(p: { TokenId: TId }) =>
   CamelCaseStruct({ job_id: p.TokenId });
 
 /** The 5 Escrow sub-variants as a TypedVariant. */
-export const makeEscrow = <TId extends S, TAddr extends S, TAmt extends S, Mode extends 'serde' | 'bcs' = 'serde'>(
+export const makeEscrow = <
+  TId extends S,
+  TAddr extends S,
+  TAmt extends S,
+  Mode extends "serde" | "bcs" = "serde",
+>(
   p: { TokenId: TId; Address: TAddr; Amount: TAmt },
   options?: { unitEncoding: Mode },
 ) =>
@@ -145,7 +243,7 @@ export const makeOperation = <
   TQ extends S,
   TCD extends S,
   TSig extends S,
-  Mode extends 'serde' | 'bcs' = 'serde',
+  Mode extends "serde" | "bcs" = "serde",
 >(
   p: {
     TokenId: TId;
@@ -194,7 +292,7 @@ export const makeClaimType = <
   TQ extends S,
   TCD extends S,
   TSig extends S,
-  Mode extends 'serde' | 'bcs' = 'serde',
+  Mode extends "serde" | "bcs" = "serde",
 >(
   p: {
     TokenId: TId;

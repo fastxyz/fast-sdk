@@ -43,12 +43,15 @@
  */
 
 import { Either, ParseResult, Schema } from 'effect';
+import type { TransactionVersion } from '../base/internal.ts';
 import {
   OperationFromBcs,
   TransactionRelease20260319FromBcs,
   TransactionRelease20260407FromBcs,
+  VersionedTransactionFromBcs,
 } from '../palette/bcs.ts';
 import { LatestTransaction } from './latest.ts';
+import type { Operation } from './latest.ts';
 import {
   Release20260319SupportedOperations,
   Release20260407SupportedOperations,
@@ -272,5 +275,135 @@ export const LatestFromRelease20260407 = Schema.transformOrFail(
       if (Either.isLeft(decoded)) return ParseResult.fail(decoded.left);
       return ParseResult.succeed(decoded.right as never);
     },
+  },
+);
+
+// ---------------------------------------------------------------------------
+// VersionBridges — typed registry, single source of truth for "what versions
+// exist and what each one supports"
+// ---------------------------------------------------------------------------
+
+interface BridgeEntry {
+  readonly schema: typeof LatestFromRelease20260319 | typeof LatestFromRelease20260407;
+  readonly supportedOperations: readonly string[];
+}
+
+export const VersionBridges = {
+  Release20260319: {
+    schema: LatestFromRelease20260319,
+    supportedOperations: Release20260319SupportedOperations,
+  },
+  Release20260407: {
+    schema: LatestFromRelease20260407,
+    supportedOperations: Release20260407SupportedOperations,
+  },
+} as const satisfies Record<TransactionVersion, BridgeEntry>;
+
+// Type-level helpers derived from VersionBridges
+export type SupportedOpTagFor<V extends TransactionVersion> =
+  (typeof VersionBridges)[V]['supportedOperations'][number];
+
+export type OperationFor<V extends TransactionVersion> = Extract<
+  Operation,
+  { type: SupportedOpTagFor<V> }
+>;
+
+// ---------------------------------------------------------------------------
+// LatestFromVersionedTransaction — auto-dispatch decoder
+//
+// Decode (always succeeds): given a VersionedTransaction wire form, dispatches
+// on the version tag to the appropriate per-version bridge's decode path.
+//
+// Encode REFUSES: callers must pick a target version explicitly via
+// encodeAsVersion(latest, version).
+// ---------------------------------------------------------------------------
+
+export const LatestFromVersionedTransaction = Schema.transformOrFail(
+  VersionedTransactionFromBcs,
+  LatestTransaction,
+  {
+    strict: false,
+    decode: (versioned, _opts, ast) => {
+      // `versioned` is `VersionedTransactionFromBcs.Type`:
+      //   { type: 'Release20260319', value: TransactionRelease20260319FromBcs.Type }
+      //   | { type: 'Release20260407', value: TransactionRelease20260407FromBcs.Type }
+      //
+      // Must return `LatestTransaction.Encoded` (snake_case 407 wire form).
+      //
+      // Strategy (encode → bridge-decode → re-encode):
+      //   1. Re-encode `versioned.value` through the per-release BCS schema → wire bytes
+      //   2. Decode those wire bytes through the version bridge → LatestTransaction.Type
+      //   3. Re-encode LatestTransaction.Type → LatestTransaction.Encoded
+      //
+      // We switch on versioned.type to pick the right source schema (and bridge),
+      // rather than going through VersionBridges[type].schema.from (which isn't a
+      // public API of Schema.transformOrFail).
+      const { type, value } = versioned as
+        | { type: 'Release20260319'; value: typeof TransactionRelease20260319FromBcs.Type }
+        | { type: 'Release20260407'; value: typeof TransactionRelease20260407FromBcs.Type };
+
+      switch (type) {
+        case 'Release20260319': {
+          // Re-encode the decoded 319 value back to wire form.
+          const wireResult = ParseResult.encodeUnknownEither(TransactionRelease20260319FromBcs)(
+            value,
+          );
+          if (Either.isLeft(wireResult)) return ParseResult.fail(wireResult.left);
+
+          // Decode through the 319 bridge → LatestTransaction.Type.
+          const latestResult = ParseResult.decodeUnknownEither(LatestFromRelease20260319)(
+            wireResult.right,
+          );
+          if (Either.isLeft(latestResult)) return ParseResult.fail(latestResult.left);
+
+          // Re-encode LatestTransaction.Type → LatestTransaction.Encoded.
+          const encodedResult = ParseResult.encodeUnknownEither(LatestTransaction)(
+            latestResult.right,
+          );
+          if (Either.isLeft(encodedResult)) return ParseResult.fail(encodedResult.left);
+
+          return ParseResult.succeed(encodedResult.right as never);
+        }
+        case 'Release20260407': {
+          // Re-encode the decoded 407 value back to wire form.
+          const wireResult = ParseResult.encodeUnknownEither(TransactionRelease20260407FromBcs)(
+            value,
+          );
+          if (Either.isLeft(wireResult)) return ParseResult.fail(wireResult.left);
+
+          // Decode through the 407 bridge → LatestTransaction.Type.
+          const latestResult = ParseResult.decodeUnknownEither(LatestFromRelease20260407)(
+            wireResult.right,
+          );
+          if (Either.isLeft(latestResult)) return ParseResult.fail(latestResult.left);
+
+          // Re-encode LatestTransaction.Type → LatestTransaction.Encoded.
+          const encodedResult = ParseResult.encodeUnknownEither(LatestTransaction)(
+            latestResult.right,
+          );
+          if (Either.isLeft(encodedResult)) return ParseResult.fail(encodedResult.left);
+
+          return ParseResult.succeed(encodedResult.right as never);
+        }
+        default: {
+          const exhaustiveCheck: never = type;
+          return ParseResult.fail(
+            new ParseResult.Type(
+              ast,
+              versioned,
+              `Unknown transaction version: ${String(exhaustiveCheck)}`,
+            ),
+          );
+        }
+      }
+    },
+    encode: (_latest, _opts, ast) =>
+      ParseResult.fail(
+        new ParseResult.Type(
+          ast,
+          _latest,
+          'LatestFromVersionedTransaction does not support encode — use encodeAsVersion(latest, version) which requires an explicit target version',
+        ),
+      ),
   },
 );

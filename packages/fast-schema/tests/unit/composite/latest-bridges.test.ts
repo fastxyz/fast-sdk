@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   LatestFromRelease20260319,
   LatestFromRelease20260407,
+  LatestFromVersionedTransaction,
+  VersionBridges,
 } from '../../../src/composite/latest-bridges.ts';
+import { SupportedTransactionVersions } from '../../../src/base/internal.ts';
 
 // ---------------------------------------------------------------------------
 // Wire-format fixture builders (BCS encoded form)
@@ -267,5 +270,64 @@ describe('LatestFromRelease20260407 — identity passthrough', () => {
     expect(() =>
       Schema.encodeSync(LatestFromRelease20260407)(latest),
     ).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// VersionBridges record
+// ---------------------------------------------------------------------------
+
+describe('VersionBridges record', () => {
+  it('has an entry for every supported transaction version', () => {
+    const bridgeKeys = Object.keys(VersionBridges).sort();
+    const supported = [...SupportedTransactionVersions].sort();
+    expect(bridgeKeys).toEqual(supported);
+  });
+
+  it('Release20260319 entry includes correct supportedOperations', () => {
+    expect([...VersionBridges.Release20260319.supportedOperations]).toContain('TokenTransfer');
+    expect([...VersionBridges.Release20260319.supportedOperations]).not.toContain('Escrow');
+  });
+
+  it('Release20260407 entry includes Escrow', () => {
+    expect([...VersionBridges.Release20260407.supportedOperations]).toContain('Escrow');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LatestFromVersionedTransaction — auto-dispatch decoder
+// ---------------------------------------------------------------------------
+
+describe('LatestFromVersionedTransaction — auto-dispatch decoder', () => {
+  it('decodes a Release20260319-tagged transaction via the 20260319 bridge', () => {
+    const release319WireWrapped = {
+      Release20260319: wireRelease319Tx(wireTokenTransfer()),
+    };
+    const latest = Schema.decodeUnknownSync(LatestFromVersionedTransaction)(
+      release319WireWrapped as never,
+    );
+    expect(latest.claims).toHaveLength(1);
+  });
+
+  it('decodes a Release20260407-tagged transaction via the 20260407 bridge', () => {
+    const release407WireWrapped = {
+      Release20260407: wireRelease407Tx([wireTokenTransfer()]),
+    };
+    const latest = Schema.decodeUnknownSync(LatestFromVersionedTransaction)(
+      release407WireWrapped as never,
+    );
+    expect(latest.claims).toHaveLength(1);
+  });
+
+  it('refuses to encode (must use encodeAsVersion)', () => {
+    const release407WireWrapped = {
+      Release20260407: wireRelease407Tx([wireTokenTransfer()]),
+    };
+    const latest = Schema.decodeUnknownSync(LatestFromVersionedTransaction)(
+      release407WireWrapped as never,
+    );
+    expect(() =>
+      Schema.encodeSync(LatestFromVersionedTransaction)(latest as never),
+    ).toThrow(/encodeAsVersion/i);
   });
 });

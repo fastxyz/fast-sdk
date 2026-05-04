@@ -506,9 +506,58 @@ const multisigExportParser = command(
   { description: message`Export a multisig wallet config as JSON` },
 );
 
+const multisigImportParser = command(
+  "import",
+  merge(
+    object({
+      cmd: constant("multisig-import" as const),
+      name: optional(
+        option("--name", string({ metavar: "ALIAS" }), {
+          description: message`Local alias for the multisig wallet (required when not using --from)`,
+        }),
+      ),
+      network: optional(
+        option("--network", string({ metavar: "NAME" }), {
+          description: message`Network the wallet config targets (defaults to current)`,
+        }),
+      ),
+      setDefault: withDefault(
+        option("--set-default", {
+          description: message`Mark this wallet as the default account`,
+        }),
+        false,
+      ),
+    }),
+    or(
+      object({
+        from: option("--from", string({ metavar: "FILE" }), {
+          description: message`Path to a multisig wallet config JSON to import`,
+        }),
+      }),
+      object({
+        signers: option("--signers", string({ metavar: "ADDR,..." }), {
+          description: message`Comma-separated bech32 fast addresses (sorted/dedup'd)`,
+        }),
+        quorum: option("--quorum", integer({ metavar: "N" }), {
+          description: message`Number of signatures required to authorize a transaction`,
+        }),
+        configNonce: option("--config-nonce", string({ metavar: "U64" }), {
+          description: message`Nonce included in the multisig config (decimal u64)`,
+        }),
+        expectAddress: optional(
+          option("--expect-address", string({ metavar: "ADDR" }), {
+            description: message`If set, verify the derived address matches this value`,
+          }),
+        ),
+      }),
+    ),
+  ),
+  { description: message`Import an existing multisig wallet` },
+);
+
 const multisigGroup = command(
   "multisig",
-  or(multisigInitParser, multisigExportParser),
+  or(multisigInitParser, multisigExportParser, multisigImportParser),
   { description: message`Multisig wallet operations` },
 );
 
@@ -560,6 +609,7 @@ export type PayArgs = InferValue<typeof payParser>;
 
 export type MultisigInitArgs = InferValue<typeof multisigInitParser>;
 export type MultisigExportArgs = InferValue<typeof multisigExportParser>;
+export type MultisigImportArgs = InferValue<typeof multisigImportParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

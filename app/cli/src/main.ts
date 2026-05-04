@@ -155,7 +155,7 @@ const SUBCOMMANDS: Record<string, readonly string[]> = {
   network: ["list", "add", "set-default", "remove"],
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["usdc", "fastusd"],
-  multisig: ["init", "export"],
+  multisig: ["init", "export", "import"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -359,6 +359,47 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     options: ["--out"],
     check: (positionals) => {
       if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "multisig import": {
+    usage:
+      "fast multisig import (--from <file> | --signers <addr,...> --quorum <n> --config-nonce <n>) [--name <alias>] [--network <name>] [--set-default] [--expect-address <addr>]",
+    options: [
+      "--from",
+      "--signers",
+      "--quorum",
+      "--config-nonce",
+      "--expect-address",
+      "--name",
+      "--network",
+      "--set-default",
+    ],
+    check: (_positionals, allArgv) => {
+      const hasFrom = allArgv.some(
+        (a) => a === "--from" || a.startsWith("--from="),
+      );
+      const hasSigners = allArgv.some(
+        (a) => a === "--signers" || a.startsWith("--signers="),
+      );
+      if (hasFrom && hasSigners) {
+        return "--from and --signers are mutually exclusive";
+      }
+      if (!hasFrom && !hasSigners) {
+        return "Missing required option: --from <file> or --signers <addr,...>";
+      }
+      if (hasSigners) {
+        if (!allArgv.some((a) => a === "--quorum" || a.startsWith("--quorum=")))
+          return "Missing required option: --quorum <n>";
+        if (
+          !allArgv.some(
+            (a) => a === "--config-nonce" || a.startsWith("--config-nonce="),
+          )
+        )
+          return "Missing required option: --config-nonce <n>";
+        if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
+          return "Missing required option: --name <alias>";
+      }
       return null;
     },
   },

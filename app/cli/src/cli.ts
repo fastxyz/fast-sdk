@@ -343,6 +343,11 @@ const sendParser = command(
       }),
       false,
     ),
+    as: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`Local single-signer member to sign as (multisig wallets only)`,
+      }),
+    ),
   }),
   { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
 );

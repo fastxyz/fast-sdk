@@ -1,4 +1,8 @@
-import { bcsSchema, VersionedTransactionFromBcs } from "@fastxyz/schema";
+import {
+  bcsSchema,
+  type TransactionEnvelope,
+  VersionedTransactionFromBcs,
+} from "@fastxyz/schema";
 import {
   encodeDepositCalldata,
   fastAddressToBytes32,
@@ -34,6 +38,7 @@ import { FastRpc } from "../services/api/fast.js";
 import { ClientConfig } from "../services/config/client.js";
 import { Output } from "../services/output.js";
 import { Prompt } from "../services/prompt.js";
+import { resolveSigner } from "../services/signer-resolver.js";
 import { AccountStore } from "../services/storage/account.js";
 import { HistoryStore } from "../services/storage/history.js";
 import { NetworkConfigService } from "../services/storage/network.js";
@@ -191,21 +196,42 @@ export const send: Command<SendArgs> = {
 
       const amountRaw = BigInt(Math.round(amountFloat * 10 ** decimals));
 
-      // Resolve account and password
+      // Resolve account.
+      // EVM-bridging routes require a single-signer account (we need the seed
+      // to sign EVM transactions). Fast → Fast tolerates multisig and uses
+      // resolveSigner to dispatch on account kind.
       const accountInfo = yield* accounts.resolveAccount(config.account);
-      if (accountInfo.kind !== "single") {
+      if (
+        (route === "evm-to-fast" || route === "fast-to-evm") &&
+        accountInfo.kind !== "single"
+      ) {
         return yield* Effect.fail(
           new WalletKindMismatchError({
             name: accountInfo.name,
             expected: "single",
-            hint: "Use a single-signer account for `fast send`.",
+            hint: "EVM bridging requires a single-signer account.",
           }),
         );
       }
-      const pwd = accountInfo.encrypted
-        ? yield* prompt.password()
-        : null;
-      const { seed } = yield* accounts.export(accountInfo.name, pwd);
+
+      // Password resolution.
+      // - single + encrypted: prompt for the keystore password.
+      // - single + unencrypted: no password needed.
+      // - multisig: prompt for the resolved member's keystore password
+      //   (resolveSigner will pick the member and call accounts.export).
+      const pwd: string | null =
+        accountInfo.kind === "single"
+          ? accountInfo.encrypted
+            ? yield* prompt.password()
+            : null
+          : yield* prompt.password();
+
+      // The route-specific guard above narrows EVM routes to single-signer.
+      // Pre-derive the "from" address used in the confirmation prompt + history.
+      const fromAddress =
+        route === "evm-to-fast" && accountInfo.kind === "single"
+          ? accountInfo.evmAddress
+          : accountInfo.fastAddress;
 
       // Interactive confirmation
       if (!config.nonInteractive && !config.json) {
@@ -218,7 +244,7 @@ export const send: Command<SendArgs> = {
 
         yield* output.humanLine(`Send ${args.amount} ${resolvedTokenName}`);
         yield* output.humanLine(
-          `  From:  ${accountInfo.name} (${route === "evm-to-fast" ? accountInfo.evmAddress : accountInfo.fastAddress})`,
+          `  From:  ${accountInfo.name} (${fromAddress})`,
         );
         yield* output.humanLine(`  To:    ${args.address}`);
         yield* output.humanLine(`  Route: ${routeLabel}`);
@@ -234,6 +260,18 @@ export const send: Command<SendArgs> = {
 
       if (route === "evm-to-fast") {
         // ── EVM → Fast (bridge-in) ──────────────────────────────────────────
+        // Single-signer guard above ensures kind === "single" here.
+        if (accountInfo.kind !== "single") {
+          return yield* Effect.fail(
+            new WalletKindMismatchError({
+              name: accountInfo.name,
+              expected: "single",
+              hint: "EVM bridging requires a single-signer account.",
+            }),
+          );
+        }
+        const { seed } = yield* accounts.export(accountInfo.name, pwd);
+
         const allset = network.allSet;
         if (!allset) {
           return yield* Effect.fail(
@@ -304,6 +342,17 @@ export const send: Command<SendArgs> = {
         }
       } else if (route === "fast-to-evm") {
         // ── Fast → EVM (bridge-out) ─────────────────────────────────────────
+        if (accountInfo.kind !== "single") {
+          return yield* Effect.fail(
+            new WalletKindMismatchError({
+              name: accountInfo.name,
+              expected: "single",
+              hint: "EVM bridging requires a single-signer account.",
+            }),
+          );
+        }
+        const { seed } = yield* accounts.export(accountInfo.name, pwd);
+
         const allset = network.allSet;
         if (!allset) {
           return yield* Effect.fail(
@@ -337,53 +386,120 @@ export const send: Command<SendArgs> = {
         estimatedTime = bridgeResult.estimatedTime ?? "1-5 minutes";
       } else {
         // ── Fast → Fast ─────────────────────────────────────────────────────
-        const signer = new Signer(seed);
-
-        const publicKey = yield* Effect.tryPromise({
-          try: () => signer.getPublicKey(),
-          catch: (cause) =>
-            new TransactionFailedError({
-              message: "Failed to get public key",
-              cause,
-            }),
+        // Polymorphic: works for single-signer + multisig accounts.
+        const resolved = yield* resolveSigner({
+          account: accountInfo,
+          asMember: args.as,
+          password: pwd,
         });
-
-        const accountInfoRpc = yield* rpc.getAccountInfo({
-          address: publicKey,
-          tokenBalancesFilter: null,
-          stateKeyFilter: null,
-          certificateByNonce: null,
-        } as never);
-        const nonce = (accountInfoRpc as any)?.nextNonce ?? 0n;
 
         const recipientBytes = new Uint8Array(
           bech32m.fromWords(bech32m.decode(args.address).words),
         );
+        const tokenTransfer = {
+          tokenId: tokenInfo.fastTokenId,
+          recipient: recipientBytes,
+          amount: amountRaw,
+          userData: null,
+        };
 
-        const builder = new TransactionBuilder({
-          networkId: network.networkId as any,
-          signer,
-          nonce,
-        });
+        let envelope: TransactionEnvelope;
+        if (resolved.kind === "single") {
+          const senderPubkey = yield* Effect.tryPromise({
+            try: () => resolved.signer.getPublicKey(),
+            catch: (cause) =>
+              new TransactionFailedError({
+                message: "Failed to get public key",
+                cause,
+              }),
+          });
+          const accountInfoRpc = yield* rpc.getAccountInfo({
+            address: senderPubkey,
+            tokenBalancesFilter: null,
+            stateKeyFilter: null,
+            certificateByNonce: null,
+          } as never);
+          const nonce = (accountInfoRpc as any)?.nextNonce ?? 0n;
 
-        const envelope = yield* Effect.tryPromise({
-          try: () =>
-            builder
-              .addTokenTransfer({
-                tokenId: tokenInfo.fastTokenId,
-                recipient: recipientBytes,
-                amount: amountRaw,
-                userData: null,
+          envelope = yield* Effect.tryPromise({
+            try: () =>
+              new TransactionBuilder({
+                networkId: network.networkId as any,
+                signer: resolved.signer,
+                nonce,
               })
-              .sign(),
-          catch: (cause) =>
-            new TransactionFailedError({
-              message: "Failed to build transaction",
-              cause,
-            }),
-        });
+                .addTokenTransfer(tokenTransfer)
+                .sign(),
+            catch: (cause) =>
+              new TransactionFailedError({
+                message: "Failed to build transaction",
+                cause,
+              }),
+          });
+        } else {
+          const senderBytes = yield* Effect.tryPromise({
+            try: () => resolved.signer.getDerivedAddressBytes(),
+            catch: (cause) =>
+              new TransactionFailedError({
+                message: "Failed to derive multisig address",
+                cause,
+              }),
+          });
+          const accountInfoRpc = yield* rpc.getAccountInfo({
+            address: senderBytes,
+            tokenBalancesFilter: null,
+            stateKeyFilter: null,
+            certificateByNonce: null,
+          } as never);
+          const nonce = (accountInfoRpc as any)?.nextNonce ?? 0n;
 
-        yield* rpc.submitTransaction(envelope);
+          envelope = yield* Effect.tryPromise({
+            try: () =>
+              resolved.signer.signTransaction({
+                networkId: network.networkId as any,
+                nonce,
+                operations: [
+                  { type: "TokenTransfer" as const, value: tokenTransfer },
+                ],
+              }),
+            catch: (cause) =>
+              new TransactionFailedError({
+                message: "Failed to sign multisig transaction",
+                cause,
+              }),
+          });
+        }
+
+        const submitResult = yield* rpc.submitTransaction(envelope);
+
+        // Multisig partial: the proxy returns IncompleteMultiSig until quorum.
+        // Skip hash computation + history record; we have no on-chain cert yet.
+        const submitObj =
+          (submitResult as { type?: string } | null) ?? null;
+        if (submitObj?.type === "IncompleteMultiSig") {
+          const quorum =
+            resolved.kind === "multisig"
+              ? resolved.account.multisigConfig.quorum
+              : 1;
+          yield* output.humanLine(
+            `Submitted as multisig partial: 1/${quorum} signatures collected.`,
+          );
+          yield* output.humanLine(
+            `Cosigners can run \`fast multisig pending\` to view, \`fast multisig vote\` to sign.`,
+          );
+          yield* output.ok({
+            status: "incomplete-multisig",
+            wallet: accountInfo.name,
+            fastAddress: accountInfo.fastAddress,
+            signedAs:
+              resolved.kind === "multisig"
+                ? resolved.memberAccount.name
+                : accountInfo.name,
+            signedCount: 1,
+            quorum,
+          });
+          return;
+        }
 
         // Compute the transaction hash from the signed envelope
         const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(
@@ -420,10 +536,7 @@ export const send: Command<SendArgs> = {
         makeHistoryEntry({
           hash: txHash,
           type: "transfer",
-          from:
-            route === "evm-to-fast"
-              ? accountInfo.evmAddress
-              : accountInfo.fastAddress,
+          from: fromAddress,
           to: args.address,
           amount: amountRaw.toString(),
           formatted: args.amount,
@@ -460,10 +573,7 @@ export const send: Command<SendArgs> = {
 
       yield* output.ok({
         txHash,
-        from:
-          route === "evm-to-fast"
-            ? accountInfo.evmAddress
-            : accountInfo.fastAddress,
+        from: fromAddress,
         to: args.address,
         amount: amountRaw.toString(),
         formatted: args.amount,

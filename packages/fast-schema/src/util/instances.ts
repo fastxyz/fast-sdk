@@ -7,9 +7,11 @@ import {
   HexLowerUintBigInt,
   HexUintBigInt,
   IntBigInt,
+  IntBigIntFromNumberOrSelf,
   IntBigIntFromNumberOrStringOrSelf,
   IntNumber,
   UintBigInt,
+  UintBigIntFromNumberOrSelf,
   UintBigIntFromNumberOrStringOrSelf,
   UintNumber,
 } from './numeric.ts';
@@ -97,3 +99,12 @@ export const Uint256FromNumberOrStringOrSelf = UintBigIntFromNumberOrStringOrSel
 
 /** number or bigint to branded Int320. */
 export const Int320FromNumberOrStringOrSelf = IntBigIntFromNumberOrStringOrSelf(320);
+
+/** number | bigint to branded Uint64 (REST wire-faithful — no string). */
+export const Uint64FromNumberOrSelf = UintBigIntFromNumberOrSelf(64);
+
+/** number | bigint to branded Uint256 (REST wire-faithful — no string). */
+export const Uint256FromNumberOrSelf = UintBigIntFromNumberOrSelf(256);
+
+/** number | bigint to branded Int320 (REST wire-faithful — no string). */
+export const Int320FromNumberOrSelf = IntBigIntFromNumberOrSelf(320);

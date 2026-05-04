@@ -1,5 +1,9 @@
 import {
+  AddressFromInput,
   bcsSchema,
+  NonceFromInput,
+  QuorumFromInput,
+  SignatureFromInput,
   type SignatureOrMultiSig,
   type TransactionEnvelope,
   type VersionedTransaction,
@@ -177,7 +181,6 @@ export class MultiSigSigner {
   async signEnvelopeFor(
     transaction: VersionedTransaction,
   ): Promise<TransactionEnvelope> {
-    await this.ensureValid();
     const pubkey = await this.getSignerPublicKey();
     const bcsEncoded = await run(
       Schema.encode(VersionedTransactionFromBcs)(transaction),
@@ -185,14 +188,38 @@ export class MultiSigSigner {
     const messageWithDomain = await run(
       domainEncode(bcsSchema.VersionedTransaction, bcsEncoded),
     );
-    const sig = await run(
+    const rawSig = await run(
       signMessage(Redacted.value(this.secretKey), messageWithDomain),
+    );
+
+    // Brand pubkey + sig and convert config to the camelCase Type shape
+    // expected by SignatureOrMultiSig (the schema's CamelCaseStruct rename).
+    const brandedPubkey = await run(
+      Schema.decodeUnknown(AddressFromInput)(pubkey),
+    );
+    const brandedSig = await run(
+      Schema.decodeUnknown(SignatureFromInput)(rawSig),
+    );
+    const brandedAuthorizedSigners = await Promise.all(
+      this.config.authorized_signers.map((s) =>
+        run(Schema.decodeUnknown(AddressFromInput)(s)),
+      ),
+    );
+    const brandedQuorum = await run(
+      Schema.decodeUnknown(QuorumFromInput)(this.config.quorum),
+    );
+    const brandedNonce = await run(
+      Schema.decodeUnknown(NonceFromInput)(this.config.nonce),
     );
     const multiSig: SignatureOrMultiSig = {
       type: "MultiSig",
       value: {
-        config: this.config,
-        signatures: [[pubkey, sig]],
+        config: {
+          authorizedSigners: brandedAuthorizedSigners,
+          quorum: brandedQuorum,
+          nonce: brandedNonce,
+        },
+        signatures: [[brandedPubkey, brandedSig]],
       },
     };
     return { transaction, signature: multiSig };

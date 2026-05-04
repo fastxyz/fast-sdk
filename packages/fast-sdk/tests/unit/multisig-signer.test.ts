@@ -1,8 +1,15 @@
-import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  bcsSchema,
+  type VersionedTransaction,
+  VersionedTransactionFromBcs,
+} from "@fastxyz/schema";
 import { getPublicKeyAsync } from "@noble/ed25519";
-import { fromHex, toHex } from "../../src/index";
+import { Schema } from "effect";
+import { describe, expect, it } from "vitest";
+import { run } from "../../src/core/run";
+import { fromHex, Signer, TransactionBuilder, toHex } from "../../src/index";
 import {
   assertAuthorizedSigner,
   deriveMultiSigAddress,
@@ -13,10 +20,7 @@ import {
 } from "../../src/interface/multisig-signer";
 
 const fixtures = JSON.parse(
-  readFileSync(
-    join(__dirname, "fixtures/multisig-addresses.json"),
-    "utf8",
-  ),
+  readFileSync(join(__dirname, "fixtures/multisig-addresses.json"), "utf8"),
 ) as Array<{
   comment: string;
   config: { authorized_signers: string[]; quorum: string; nonce: string };
@@ -59,7 +63,9 @@ describe("assertAuthorizedSigner", () => {
       quorum: 2n,
       nonce: 0n,
     };
-    await expect(assertAuthorizedSigner(config, SECRET_A)).resolves.toBeUndefined();
+    await expect(
+      assertAuthorizedSigner(config, SECRET_A),
+    ).resolves.toBeUndefined();
   });
 
   it("throws NotAuthorizedSignerError when secret is not a member", async () => {
@@ -156,7 +162,9 @@ describe("MultiSigSigner construction", () => {
     const stranger = new Uint8Array(32).fill(0xcc);
     // Construction is sync; validation happens lazily on first method call
     const signer = new MultiSigSigner({ config, secretKey: stranger });
-    await expect(signer.getSignerPublicKey()).rejects.toThrow(NotAuthorizedSignerError);
+    await expect(signer.getSignerPublicKey()).rejects.toThrow(
+      NotAuthorizedSignerError,
+    );
   });
 });
 
@@ -177,8 +185,6 @@ describe("MultiSigSigner.signEnvelopeFor", () => {
     // Build a versioned transaction by hand (single TokenTransfer).
     // Using TransactionBuilder against a throw-away Signer is the
     // simplest way to construct a valid VersionedTransaction shape.
-    const { Signer } = await import("../../src/index");
-    const { TransactionBuilder } = await import("../../src/index");
     const builder = new TransactionBuilder({
       networkId: "fast:testnet" as const,
       signer: new Signer(SECRET_A), // construction only; we replace sender below
@@ -193,18 +199,36 @@ describe("MultiSigSigner.signEnvelopeFor", () => {
       })
       .sign();
 
-    // Replace sender to simulate a tx originated by the multisig wallet
+    // Replace sender to simulate a tx originated by the multisig wallet.
+    // The spread loses the brand on `sender`; cast back to VersionedTransaction
+    // since runtime shape is unchanged (test-only).
     const versioned = {
       ...stubEnvelope.transaction,
       value: { ...stubEnvelope.transaction.value, sender },
-    };
+    } as VersionedTransaction;
 
     const envelope = await signer.signEnvelopeFor(versioned);
     expect(envelope.transaction).toBe(versioned);
     expect(envelope.signature.type).toBe("MultiSig");
     if (envelope.signature.type !== "MultiSig") throw new Error("unreachable");
-    expect(envelope.signature.value.config).toEqual(config);
+    // Envelope config is camelCase + branded (the SignatureOrMultiSig.Type shape).
+    // Compare structurally — toEqual treats branded Uint8Arrays as equal to plain ones.
+    expect(envelope.signature.value.config.authorizedSigners).toEqual([
+      pkA,
+      pkB,
+    ]);
+    expect(envelope.signature.value.config.quorum).toBe(config.quorum);
+    expect(envelope.signature.value.config.nonce).toBe(config.nonce);
     expect(envelope.signature.value.signatures).toHaveLength(1);
     expect(envelope.signature.value.signatures[0]![0]).toEqual(pkA);
+
+    // Byte-equivalence: a single-signer Signer.signTypedData over the same
+    // versioned tx must produce the same 64-byte signature as a multisig
+    // partial. This is what makes proxy aggregation correct.
+    const single = await new Signer(SECRET_A).signTypedData(
+      bcsSchema.VersionedTransaction,
+      await run(Schema.encode(VersionedTransactionFromBcs)(versioned)),
+    );
+    expect(envelope.signature.value.signatures[0]![1]).toEqual(single);
   });
 });

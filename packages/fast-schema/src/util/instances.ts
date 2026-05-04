@@ -3,6 +3,8 @@ import {
   DecimalIntBigInt,
   DecimalUintBigInt,
   HexIntBigInt,
+  HexLowerIntBigInt,
+  HexLowerUintBigInt,
   HexUintBigInt,
   IntBigInt,
   IntBigIntFromNumberOrStringOrSelf,
@@ -71,6 +73,12 @@ export const HexUint256 = HexUintBigInt(256);
 
 /** Hex string to branded Int320. */
 export const HexInt320 = HexIntBigInt(320);
+
+/** Strict-lowercase hex string to branded Uint256 (RPC wire form). */
+export const HexLowerUint256 = HexLowerUintBigInt(256);
+
+/** Strict-lowercase hex string to branded Int320 (RPC wire form). */
+export const HexLowerInt320 = HexLowerIntBigInt(320);
 
 /** Decimal string to branded Uint64. */
 export const DecimalUint64 = DecimalUintBigInt(64);

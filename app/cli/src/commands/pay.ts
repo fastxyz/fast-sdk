@@ -3,7 +3,7 @@ import { Signer, toHex } from "@fastxyz/sdk";
 import type { EvmChainConfig, EvmWallet, FastWallet } from "@fastxyz/x402-client";
 import { Effect } from "effect";
 import type { PayArgs } from "../cli.js";
-import { InternalError, InvalidPaymentLinkError, InvalidUsageError } from "../errors/index.js";
+import { InternalError, InvalidPaymentLinkError, InvalidUsageError, WalletKindMismatchError } from "../errors/index.js";
 import { validateHeader, validateHttpMethod, validateUrl } from "../services/validate.js";
 import { makeHistoryEntry } from "../schemas/history.js";
 import type { NetworkConfig } from "../schemas/networks.js";
@@ -143,8 +143,10 @@ export const pay: Command<PayArgs> = {
       const accountInfo = yield* accounts.resolveAccount(config.account);
       if (accountInfo.kind !== "single") {
         return yield* Effect.fail(
-          new InvalidUsageError({
-            message: `Account "${accountInfo.name}" is a multisig wallet; pay is not supported for multisig`,
+          new WalletKindMismatchError({
+            name: accountInfo.name,
+            expected: "single",
+            hint: "Use a single-signer account for `fast pay`.",
           }),
         );
       }

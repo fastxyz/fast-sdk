@@ -11,6 +11,7 @@ import {
   DefaultAccountError,
   NoDefaultAccountError,
   PasswordRequiredError,
+  WalletKindMismatchError,
   WrongPasswordError,
 } from "../../errors/index.js";
 import {
@@ -311,7 +312,15 @@ const exportAccount = (
       "Failed to read account",
     );
     if (!row) return yield* Effect.fail(new AccountNotFoundError({ name }));
-
+    if (row.kind === "multisig") {
+      return yield* Effect.fail(
+        new WalletKindMismatchError({
+          name,
+          expected: "single",
+          hint: 'Use "fast multisig export" to export a wallet config.',
+        }),
+      );
+    }
     if (row.encryptedKey === null) {
       return yield* Effect.fail(
         new DatabaseError({

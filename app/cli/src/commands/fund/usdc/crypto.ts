@@ -16,6 +16,7 @@ import {
   TokenNotFoundError,
   TransactionFailedError,
   UnsupportedChainError,
+  WalletKindMismatchError,
 } from "../../../errors/index.js";
 import { InvalidUsageError } from "../../../errors/usage.js";
 import { makeHistoryEntry } from "../../../schemas/history.js";
@@ -66,8 +67,10 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
       const accountInfo = yield* accounts.resolveAccount(config.account);
       if (accountInfo.kind !== "single") {
         return yield* Effect.fail(
-          new InvalidUsageError({
-            message: `Account "${accountInfo.name}" is a multisig wallet; fund crypto is not supported for multisig`,
+          new WalletKindMismatchError({
+            name: accountInfo.name,
+            expected: "single",
+            hint: "Use a single-signer account for `fast fund usdc crypto`.",
           }),
         );
       }

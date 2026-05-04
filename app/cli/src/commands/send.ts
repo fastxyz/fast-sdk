@@ -21,11 +21,11 @@ import {
   InvalidAddressError,
   InvalidAmountError,
   InvalidNetworkConfigError,
-  InvalidUsageError,
   FundingRequiredError,
   TokenNotFoundError,
   TransactionFailedError,
   UnsupportedChainError,
+  WalletKindMismatchError,
 } from "../errors/index.js";
 import { InvalidUsageError } from "../errors/usage.js";
 import { makeHistoryEntry } from "../schemas/history.js";
@@ -195,8 +195,10 @@ export const send: Command<SendArgs> = {
       const accountInfo = yield* accounts.resolveAccount(config.account);
       if (accountInfo.kind !== "single") {
         return yield* Effect.fail(
-          new InvalidUsageError({
-            message: `Account "${accountInfo.name}" is a multisig wallet; send is not supported for multisig`,
+          new WalletKindMismatchError({
+            name: accountInfo.name,
+            expected: "single",
+            hint: "Use a single-signer account for `fast send`.",
           }),
         );
       }

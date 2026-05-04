@@ -13,6 +13,10 @@ import {
   PasswordRequiredError,
   WrongPasswordError,
 } from "../../errors/index.js";
+import {
+  type MultiSigWalletConfig,
+  stringifyMultiSigWalletConfig,
+} from "../../schemas/multisig-wallet.js";
 import { loadSeed, storeSeed } from "../crypto.js";
 import {
   DatabaseService,
@@ -20,25 +24,53 @@ import {
   type DrizzleDB,
 } from "./database.js";
 
-export interface AccountInfo {
-  readonly name: string;
-  readonly fastAddress: string;
-  readonly evmAddress: string;
-  readonly isDefault: boolean;
-  readonly encrypted: boolean;
-  readonly createdAt: string;
-}
+export type AccountInfo =
+  | {
+      readonly kind: "single";
+      readonly name: string;
+      readonly fastAddress: string;
+      readonly evmAddress: string;
+      readonly isDefault: boolean;
+      readonly encrypted: boolean;
+      readonly createdAt: string;
+    }
+  | {
+      readonly kind: "multisig";
+      readonly name: string;
+      readonly fastAddress: string;
+      readonly multisigConfig: MultiSigWalletConfig;
+      readonly isDefault: boolean;
+      readonly createdAt: string;
+    };
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
 
-const rowToInfo = (row: typeof accounts.$inferSelect): AccountInfo => ({
-  name: row.name,
-  fastAddress: row.fastAddress,
-  evmAddress: row.evmAddress,
-  isDefault: row.isDefault,
-  encrypted: row.encrypted,
-  createdAt: row.createdAt,
-});
+const rowToInfo = (row: typeof accounts.$inferSelect): AccountInfo => {
+  if (row.kind === "multisig") {
+    if (row.multisigConfig === null) {
+      throw new Error(
+        `account "${row.name}" is multisig but multisig_config is null`,
+      );
+    }
+    return {
+      kind: "multisig",
+      name: row.name,
+      fastAddress: row.fastAddress,
+      multisigConfig: JSON.parse(row.multisigConfig) as MultiSigWalletConfig,
+      isDefault: row.isDefault,
+      createdAt: row.createdAt,
+    };
+  }
+  return {
+    kind: "single",
+    name: row.name,
+    fastAddress: row.fastAddress,
+    evmAddress: row.evmAddress ?? "",
+    encrypted: row.encrypted ?? false,
+    isDefault: row.isDefault,
+    createdAt: row.createdAt,
+  };
+};
 
 const deriveEvmAddress = (seed: Uint8Array): string => {
   const pubkey = secp256k1.getPublicKey(seed, false);
@@ -112,10 +144,12 @@ const storeAccount = (
           .insert(accounts)
           .values({
             name,
+            kind: "single",
             fastAddress,
             evmAddress,
             encryptedKey: Buffer.from(keyBlob),
             encrypted: isEncrypted,
+            multisigConfig: null,
             isDefault: isFirst,
             createdAt,
           })
@@ -124,11 +158,74 @@ const storeAccount = (
     );
 
     return {
+      kind: "single" as const,
       name,
       fastAddress,
       evmAddress,
       isDefault: isFirst,
       encrypted: isEncrypted,
+      createdAt,
+    };
+  });
+
+const createMultiSig = (
+  handle: DatabaseShape,
+  config: MultiSigWalletConfig,
+  setDefault: boolean,
+) =>
+  Effect.gen(function* () {
+    const existing = yield* handle.query(
+      (db) => getAccountByName(db, config.name),
+      "Failed to check existing account",
+    );
+    if (existing) {
+      return yield* Effect.fail(new AccountExistsError({ name: config.name }));
+    }
+
+    const isFirst = yield* handle.query(
+      (db) => countAccounts(db) === 0,
+      "Failed to count accounts",
+    );
+    const createdAt = new Date().toISOString();
+
+    yield* handle.query(
+      (db) =>
+        db
+          .insert(accounts)
+          .values({
+            name: config.name,
+            kind: "multisig",
+            fastAddress: config.fastAddress,
+            evmAddress: null,
+            encryptedKey: null,
+            encrypted: null,
+            multisigConfig: stringifyMultiSigWalletConfig(config),
+            isDefault: isFirst || setDefault,
+            createdAt,
+          })
+          .run(),
+      "Failed to store multisig account",
+    );
+
+    if (setDefault && !isFirst) {
+      yield* handle.query((db) => {
+        db.update(accounts)
+          .set({ isDefault: false })
+          .where(eq(accounts.isDefault, true))
+          .run();
+        db.update(accounts)
+          .set({ isDefault: true })
+          .where(eq(accounts.name, config.name))
+          .run();
+      }, "Failed to mark multisig as default");
+    }
+
+    return {
+      kind: "multisig" as const,
+      name: config.name,
+      fastAddress: config.fastAddress,
+      multisigConfig: config,
+      isDefault: isFirst || setDefault,
       createdAt,
     };
   });
@@ -215,9 +312,18 @@ const exportAccount = (
     );
     if (!row) return yield* Effect.fail(new AccountNotFoundError({ name }));
 
+    if (row.encryptedKey === null) {
+      return yield* Effect.fail(
+        new DatabaseError({
+          message: `account "${name}" has no encrypted key`,
+          cause: null,
+        }),
+      );
+    }
+    const encryptedKey = row.encryptedKey;
     const seed = yield* Effect.tryPromise({
       try: () =>
-        loadSeed(new Uint8Array(row.encryptedKey), password, row.encrypted),
+        loadSeed(new Uint8Array(encryptedKey), password, row.encrypted ?? false),
       catch: (cause) => {
         if (cause instanceof WrongPasswordError) return cause;
         if (cause instanceof PasswordRequiredError) return cause;
@@ -264,6 +370,8 @@ const ServiceEffect = Effect.gen(function* () {
       storeAccount(handle, name, seed, password),
     import: (name: string, seed: Uint8Array, password: string | null) =>
       storeAccount(handle, name, seed, password),
+    createMultiSig: (config: MultiSigWalletConfig, setDefault: boolean) =>
+      createMultiSig(handle, config, setDefault),
     setDefault: (name: string) => setDefault(handle, name),
     delete: (name: string) => deleteAccount(handle, name),
     export: (name: string, password: string | null) =>

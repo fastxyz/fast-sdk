@@ -41,7 +41,7 @@ export const infoBalance: Command<InfoBalanceArgs> = {
 
       const account = yield* accounts.resolveAccount(config.account);
       const fastAddress = account.fastAddress;
-      const evmAddress = account.evmAddress;
+      const evmAddress = account.kind === "single" ? account.evmAddress : null;
       const senderBytes = fromFastAddress(fastAddress);
 
       // Fetch all Fast token balances
@@ -63,11 +63,22 @@ export const infoBalance: Command<InfoBalanceArgs> = {
 
       yield* output.humanLine(`Balances for ${account.name}`);
       yield* output.humanLine(`  Fast address: ${fastAddress}`);
-      yield* output.humanLine(`  EVM address:  ${evmAddress}`);
+      if (evmAddress !== null) {
+        yield* output.humanLine(`  EVM address:  ${evmAddress}`);
+      }
       yield* output.humanLine("");
 
       if (!networkConfig.allSet) {
         yield* output.humanLine("No bridge chains configured for this network.");
+        yield* output.ok({ address: fastAddress, evmAddress, balances: [] });
+        return;
+      }
+
+      // For multisig accounts (no EVM address), skip EVM balance lookups
+      if (evmAddress === null) {
+        yield* output.humanLine(
+          "Multisig wallet — EVM chain balances are not available.",
+        );
         yield* output.ok({ address: fastAddress, evmAddress, balances: [] });
         return;
       }

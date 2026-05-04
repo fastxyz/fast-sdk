@@ -18,15 +18,16 @@ export const accountList: Command<AccountListArgs> = {
         entries.map((e) => [
           e.name,
           e.fastAddress,
-          e.evmAddress,
+          e.kind === "single" ? e.evmAddress : "(multisig)",
           e.isDefault ? "✓" : "",
         ]),
       );
       yield* output.ok({
         accounts: entries.map((e) => ({
           name: e.name,
+          kind: e.kind,
           fastAddress: e.fastAddress,
-          evmAddress: e.evmAddress,
+          evmAddress: e.kind === "single" ? e.evmAddress : null,
           isDefault: e.isDefault,
         })),
       });

@@ -64,6 +64,13 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
       // Resolve network and account
       const network = yield* networkConfig.resolve(config.network);
       const accountInfo = yield* accounts.resolveAccount(config.account);
+      if (accountInfo.kind !== "single") {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: `Account "${accountInfo.name}" is a multisig wallet; fund crypto is not supported for multisig`,
+          }),
+        );
+      }
 
       if (!network.allSet) {
         return yield* Effect.fail(

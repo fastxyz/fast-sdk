@@ -21,6 +21,7 @@ import {
   InvalidAddressError,
   InvalidAmountError,
   InvalidNetworkConfigError,
+  InvalidUsageError,
   FundingRequiredError,
   TokenNotFoundError,
   TransactionFailedError,
@@ -192,6 +193,13 @@ export const send: Command<SendArgs> = {
 
       // Resolve account and password
       const accountInfo = yield* accounts.resolveAccount(config.account);
+      if (accountInfo.kind !== "single") {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: `Account "${accountInfo.name}" is a multisig wallet; send is not supported for multisig`,
+          }),
+        );
+      }
       const pwd = accountInfo.encrypted
         ? yield* prompt.password()
         : null;

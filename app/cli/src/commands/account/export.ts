@@ -1,6 +1,7 @@
 import { toHex } from "@fastxyz/sdk";
 import { Effect } from "effect";
 import type { AccountExportArgs } from "../../cli.js";
+import { InvalidUsageError } from "../../errors/index.js";
 import { ClientConfig } from "../../services/config/client.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
@@ -25,6 +26,13 @@ export const accountExport: Command<AccountExportArgs> = {
       if (!confirmed) return;
 
       const accountInfo = yield* accounts.get(accountName);
+      if (accountInfo.kind !== "single") {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: `Account "${accountName}" is a multisig wallet; cannot export a private key`,
+          }),
+        );
+      }
       const pwd = accountInfo.encrypted
         ? yield* prompt.password()
         : null;
@@ -37,7 +45,7 @@ export const accountExport: Command<AccountExportArgs> = {
         name: entry.name,
         privateKey: privateKeyHex,
         fastAddress: entry.fastAddress,
-        evmAddress: entry.evmAddress,
+        evmAddress: entry.kind === "single" ? entry.evmAddress : null,
       });
     }),
 };

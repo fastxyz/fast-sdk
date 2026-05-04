@@ -6,6 +6,9 @@ import {
   DecimalUintBigInt,
   HexBigInt,
   HexIntBigInt,
+  HexLowerBigInt,
+  HexLowerIntBigInt,
+  HexLowerUintBigInt,
   HexNumber,
   HexUintBigInt,
   IntBigInt,
@@ -249,5 +252,58 @@ describe('Predefined instances', () => {
     const val = 999999999999999999n;
     const dec = encodeSync(DecimalUint256, val);
     expect(decodeSync(DecimalUint256, dec)).toBe(val);
+  });
+});
+
+describe('HexLowerBigInt', () => {
+  it('decodes lowercase hex', () => {
+    expect(decodeSync(HexLowerBigInt, 'ff')).toBe(255n);
+    expect(decodeSync(HexLowerBigInt, 'deadbeef')).toBe(0xdeadbeefn);
+  });
+
+  it('rejects uppercase hex', () => {
+    expect(() => decodeSync(HexLowerBigInt, 'FF')).toThrow(/lowercase hex/);
+    expect(() => decodeSync(HexLowerBigInt, 'DeadBeef')).toThrow(/lowercase hex/);
+  });
+
+  it('rejects 0x prefix', () => {
+    expect(() => decodeSync(HexLowerBigInt, '0xff')).toThrow(/lowercase hex/);
+  });
+
+  it('rejects empty string', () => {
+    expect(() => decodeSync(HexLowerBigInt, '')).toThrow(/lowercase hex/);
+  });
+
+  it('decodes negative lowercase hex', () => {
+    expect(decodeSync(HexLowerBigInt, '-1f4')).toBe(-500n);
+  });
+
+  it('encodes bigint as lowercase hex', () => {
+    expect(encodeSync(HexLowerBigInt, 0xabcdn)).toBe('abcd');
+    expect(encodeSync(HexLowerBigInt, -500n)).toBe('-1f4');
+  });
+
+  it('round-trips', () => {
+    const decoded = decodeSync(HexLowerBigInt, 'deadbeef');
+    expect(encodeSync(HexLowerBigInt, decoded)).toBe('deadbeef');
+  });
+});
+
+describe('HexLowerUintBigInt', () => {
+  it('rejects negative input', () => {
+    const HexLowerUint64 = HexLowerUintBigInt(64);
+    expect(() => decodeSync(HexLowerUint64, '-1')).toThrow();
+  });
+
+  it('accepts in-range positive', () => {
+    const HexLowerUint64 = HexLowerUintBigInt(64);
+    expect(decodeSync(HexLowerUint64, 'ff')).toBe(255n);
+  });
+});
+
+describe('HexLowerIntBigInt', () => {
+  it('accepts negative input', () => {
+    const HexLowerInt64 = HexLowerIntBigInt(64);
+    expect(decodeSync(HexLowerInt64, '-ff')).toBe(-255n);
   });
 });

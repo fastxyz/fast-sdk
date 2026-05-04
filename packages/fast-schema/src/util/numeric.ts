@@ -86,3 +86,31 @@ export const UintBigIntFromNumberOrStringOrSelf = <N extends number>(bits: N) =>
 
 /** number | bigint to branded signed bigint. */
 export const IntBigIntFromNumberOrStringOrSelf = <N extends number>(bits: N) => Schema.compose(BigIntFromNumberOrStringOrSelf, IntBigInt(bits));
+
+/**
+ * Strict lowercase hex variant of `HexBigInt`.
+ *
+ * Enforces `^-?[0-9a-f]+$` — the exact form emitted by Rust's `to_str_radix(16)`
+ * over the legacy JSON-RPC wire. Use in `RpcPalette` where wire-fidelity matters.
+ * For tolerant user-input parsing, use `HexBigInt`.
+ */
+export const HexLowerBigInt = Schema.transform(Schema.String, Schema.BigIntFromSelf, {
+  strict: true,
+  decode: (s) => {
+    const sign = s[0] === '-' ? -1n : 1n;
+    const digits = s[0] === '-' ? s.slice(1) : s;
+    if (digits.length === 0 || !/^[0-9a-f]+$/.test(digits)) {
+      throw new Error(`Invalid lowercase hex string: "${s}"`);
+    }
+    return sign * BigInt(`0x${digits}`);
+  },
+  encode: (n) => n.toString(16),
+});
+
+/** Strict-lowercase hex string to branded unsigned bigint. */
+export const HexLowerUintBigInt = <N extends number>(bits: N) =>
+  Schema.compose(HexLowerBigInt, UintBigInt(bits));
+
+/** Strict-lowercase hex string to branded signed bigint. */
+export const HexLowerIntBigInt = <N extends number>(bits: N) =>
+  Schema.compose(HexLowerBigInt, IntBigInt(bits));

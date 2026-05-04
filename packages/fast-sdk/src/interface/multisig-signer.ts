@@ -1,11 +1,18 @@
 import {
   AddressFromInput,
   bcsSchema,
+  getTransactionVersionConfig,
+  LatestTransactionVersion,
+  type NetworkId,
   NonceFromInput,
+  type NonceInput,
+  type OperationInputParams,
   QuorumFromInput,
   SignatureFromInput,
   type SignatureOrMultiSig,
+  type TokenIdInput,
   type TransactionEnvelope,
+  type TransactionVersion,
   type VersionedTransaction,
   VersionedTransactionFromBcs,
 } from "@fastxyz/schema";
@@ -223,5 +230,39 @@ export class MultiSigSigner {
       },
     };
     return { transaction, signature: multiSig };
+  }
+
+  /**
+   * Build a `VersionedTransaction` with `sender = derivedMultiSigAddress`
+   * and sign it as a multisig partial. Used by the initiate flow
+   * (`fast send` from a multisig wallet, `fast token mint` etc.).
+   *
+   * Cosigners later vote on the same transaction via {@link signEnvelopeFor}.
+   */
+  async signTransaction(opts: {
+    networkId: NetworkId;
+    nonce: NonceInput;
+    operations: OperationInputParams[];
+    version?: TransactionVersion;
+    archival?: boolean;
+    feeToken?: TokenIdInput | null;
+  }): Promise<TransactionEnvelope> {
+    if (opts.operations.length === 0) {
+      throw new Error("signTransaction requires at least one operation");
+    }
+    const sender = await this.getDerivedAddressBytes();
+    const type: TransactionVersion = opts.version ?? LatestTransactionVersion;
+    const versionConfig = getTransactionVersionConfig(type);
+    const internal = Schema.decodeUnknownSync(versionConfig.inputSchema)({
+      networkId: opts.networkId,
+      sender,
+      nonce: opts.nonce,
+      timestampNanos: BigInt(Date.now()) * 1_000_000n,
+      ...versionConfig.wrapOperations(opts.operations),
+      archival: opts.archival ?? false,
+      feeToken: opts.feeToken ?? null,
+    });
+    const versioned = { type, value: internal } as VersionedTransaction;
+    return this.signEnvelopeFor(versioned);
   }
 }

@@ -232,3 +232,38 @@ describe("MultiSigSigner.signEnvelopeFor", () => {
     expect(envelope.signature.value.signatures[0]![1]).toEqual(single);
   });
 });
+
+describe("MultiSigSigner.signTransaction", () => {
+  it("builds a versioned tx with sender=derived and signs as partial", async () => {
+    const SECRET_A = new Uint8Array(32).fill(0xaa);
+    const SECRET_B = new Uint8Array(32).fill(0xbb);
+    const pkA = await getPublicKeyAsync(SECRET_A);
+    const pkB = await getPublicKeyAsync(SECRET_B);
+    const config = {
+      authorized_signers: [pkA, pkB],
+      quorum: 2n,
+      nonce: 0n,
+    };
+    const signer = new MultiSigSigner({ config, secretKey: SECRET_A });
+    const sender = await signer.getDerivedAddressBytes();
+
+    const envelope = await signer.signTransaction({
+      networkId: "fast:testnet" as const,
+      nonce: 0n,
+      operations: [
+        {
+          type: "TokenTransfer",
+          value: {
+            tokenId: new Uint8Array(32),
+            recipient: new Uint8Array(32),
+            amount: 1n,
+            userData: null,
+          },
+        },
+      ],
+    });
+
+    expect(envelope.transaction.value.sender).toEqual(sender);
+    expect(envelope.signature.type).toBe("MultiSig");
+  });
+});

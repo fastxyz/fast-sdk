@@ -462,10 +462,59 @@ const payParser = command(
 );
 
 // ---------------------------------------------------------------------------
+// Multisig commands
+// ---------------------------------------------------------------------------
+
+const multisigInitParser = command(
+  "init",
+  object({
+    cmd: constant("multisig-init" as const),
+    signers: option("--signers", string({ metavar: "ADDR_OR_NAME,..." }), {
+      description: message`Comma-separated bech32 addresses or local account names`,
+    }),
+    quorum: option("--quorum", integer({ metavar: "N" }), {
+      description: message`Number of signatures required to authorize a transaction`,
+    }),
+    configNonce: option("--config-nonce", string({ metavar: "U64" }), {
+      description: message`Nonce included in the multisig config (decimal u64)`,
+    }),
+    name: option("--name", string({ metavar: "ALIAS" }), {
+      description: message`Local alias for the multisig wallet`,
+    }),
+    network: optional(
+      option("--network", string({ metavar: "NAME" }), {
+        description: message`Network the wallet config targets (defaults to current)`,
+      }),
+    ),
+    setDefault: withDefault(
+      option("--set-default", {
+        description: message`Mark this wallet as the default account`,
+      }),
+      false,
+    ),
+  }),
+  { description: message`Create a multisig wallet config` },
+);
+
+const multisigGroup = command(
+  "multisig",
+  multisigInitParser,
+  { description: message`Multisig wallet operations` },
+);
+
+// ---------------------------------------------------------------------------
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
-const commands = or(accountGroup, networkGroup, infoGroup, sendParser, fundGroup, payParser);
+const commands = or(
+  accountGroup,
+  networkGroup,
+  infoGroup,
+  sendParser,
+  fundGroup,
+  payParser,
+  multisigGroup,
+);
 
 export const parser = merge(globalOptions, commands);
 
@@ -498,6 +547,8 @@ export type FundUsdcFiatArgs = InferValue<typeof fundUsdcFiatParser>;
 export type FundUsdcCryptoArgs = InferValue<typeof fundUsdcCryptoParser>;
 export type FundFastUsdArgs = InferValue<typeof fundFastUsdParser>;
 export type PayArgs = InferValue<typeof payParser>;
+
+export type MultisigInitArgs = InferValue<typeof multisigInitParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

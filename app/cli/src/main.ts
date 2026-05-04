@@ -148,13 +148,14 @@ if (argv.length === 0 || argv.includes("--help")) {
 
 // ── Full parse ──────────────────────────────────────────────────────────────
 
-const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay"] as const;
+const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay", "multisig"] as const;
 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
   account: ["create", "import", "list", "set-default", "export", "delete"],
   network: ["list", "add", "set-default", "remove"],
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["usdc", "fastusd"],
+  multisig: ["init"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -325,6 +326,33 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     usage: "fast info history [--from <address>] [--to <address>] [--token <token>] [--limit <n>] [--offset <n>]",
     options: ["--from", "--to", "--token", "--limit", "--offset"],
     check: () => null,
+  },
+  "multisig init": {
+    usage:
+      "fast multisig init --signers <addr|name,...> --quorum <n> --config-nonce <n> --name <alias> [--network <name>] [--set-default]",
+    options: [
+      "--signers",
+      "--quorum",
+      "--config-nonce",
+      "--name",
+      "--network",
+      "--set-default",
+    ],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--signers" || a.startsWith("--signers=")))
+        return "Missing required option: --signers <addr|name,...>";
+      if (!allArgv.some((a) => a === "--quorum" || a.startsWith("--quorum=")))
+        return "Missing required option: --quorum <n>";
+      if (
+        !allArgv.some(
+          (a) => a === "--config-nonce" || a.startsWith("--config-nonce="),
+        )
+      )
+        return "Missing required option: --config-nonce <n>";
+      if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
+        return "Missing required option: --name <alias>";
+      return null;
+    },
   },
 };
 

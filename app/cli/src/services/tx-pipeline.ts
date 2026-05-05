@@ -61,8 +61,12 @@ const opAsBuilderCall = (
     case "Escrow":
       return builder.addEscrow(op.value);
     default:
+      // JoinCommittee / ChangeCommittee are valid OperationInputParams variants
+      // but TransactionBuilder doesn't expose builder methods for them yet.
+      // The multisig path bypasses this switch and hands operations to
+      // signTransaction directly, so it isn't affected.
       throw new Error(
-        `unsupported operation type: ${(op as { type: string }).type}`,
+        `single-signer dispatch doesn't support op type: ${(op as { type: string }).type}`,
       );
   }
 };

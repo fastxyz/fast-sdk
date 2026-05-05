@@ -486,11 +486,6 @@ const multisigInitParser = command(
     name: option("--name", string({ metavar: "ALIAS" }), {
       description: message`Local alias for the multisig wallet`,
     }),
-    network: optional(
-      option("--network", string({ metavar: "NAME" }), {
-        description: message`Network the wallet config targets (defaults to current)`,
-      }),
-    ),
     setDefault: withDefault(
       option("--set-default", {
         description: message`Mark this wallet as the default account`,
@@ -519,11 +514,6 @@ const multisigImportParser = command(
       name: optional(
         option("--name", string({ metavar: "ALIAS" }), {
           description: message`Local alias for the multisig wallet (required when not using --from)`,
-        }),
-      ),
-      network: optional(
-        option("--network", string({ metavar: "NAME" }), {
-          description: message`Network the wallet config targets (defaults to current)`,
         }),
       ),
       setDefault: withDefault(

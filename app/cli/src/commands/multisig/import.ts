@@ -141,7 +141,7 @@ export const multisigImport: Command<MultisigImportArgs> = {
 
         // Apply CLI overrides on top of the file config.
         const finalName = args.name ?? parsed.name;
-        const finalNetwork = args.network ?? parsed.network;
+        const finalNetwork = parsed.network;
 
         const nameErr = validateName(finalName, "Wallet name");
         if (nameErr) {
@@ -238,7 +238,7 @@ export const multisigImport: Command<MultisigImportArgs> = {
           );
         }
 
-        const network = args.network ?? config.network;
+        const network = config.network;
 
         const candidate = {
           version: 1 as const,

@@ -119,7 +119,7 @@ export const multisigInit: Command<MultisigInitArgs> = {
       }
 
       // Resolve network.
-      const network = args.network ?? config.network;
+      const network = config.network;
 
       // Derive the multisig fast address.
       const sdkConfig: MultiSigConfig = {

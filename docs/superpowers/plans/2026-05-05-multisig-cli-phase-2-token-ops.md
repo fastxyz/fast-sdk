@@ -1181,7 +1181,7 @@ git commit -m "feat(cli): token burn command"
 
 `fast token manage --token <id|name> [--admin <addr>] [--add-minters <addr,...>] [--remove-minters <addr,...>] [--memo <s>]` updates token admin and/or minters. At least one of `--admin / --add-minters / --remove-minters` is required. Active account must be the current admin (proxy enforces).
 
-The `TokenManagement` BCS layout includes an `update_id` field — the per-token admin nonce that monotonically increases on each management op. The CLI fetches the token's current `updateId` via `getTokenInfo` and submits with the next value (`current + 1n`).
+The `TokenManagement` BCS layout includes an `update_id` field — the per-token admin nonce. The CLI fetches the token's **current** `updateId` via `getTokenInfo` and submits that value verbatim. The validator increments after settlement (confirmed against the Rust reference CLI and validator unit tests). Submitting `current + 1` is rejected.
 
 - [ ] **Step 1: Add parser**
 
@@ -1341,7 +1341,6 @@ export const tokenManage: Command<TokenManageArgs> = {
         );
       }
       const currentUpdateId = found[1].updateId;
-      const nextUpdateId = currentUpdateId + 1n;
 
       // Build mints array
       const mintsChange: Array<readonly [{ type: "Add" | "Remove" }, Uint8Array]> = [];
@@ -1405,7 +1404,7 @@ export const tokenManage: Command<TokenManageArgs> = {
           type: "TokenManagement",
           value: {
             tokenId,
-            updateId: nextUpdateId,
+            updateId: currentUpdateId,
             newAdmin,
             mints: mintsChange,
             userData,
@@ -1424,7 +1423,7 @@ export const tokenManage: Command<TokenManageArgs> = {
         yield* output.ok({
           status: "incomplete-multisig",
           tokenId: toHex(tokenId),
-          updateId: nextUpdateId.toString(),
+          updateId: currentUpdateId.toString(),
           wallet: accountInfo.name,
         });
         return;
@@ -1435,7 +1434,7 @@ export const tokenManage: Command<TokenManageArgs> = {
       yield* output.ok({
         status: "success",
         tokenId: toHex(tokenId),
-        updateId: nextUpdateId.toString(),
+        updateId: currentUpdateId.toString(),
         newAdmin: args.admin ?? null,
         addMinters: splitAddrs(args.addMinters),
         removeMinters: splitAddrs(args.removeMinters),

@@ -98,8 +98,11 @@ export const tokenManage: Command<TokenManageArgs> = {
           new TokenNotFoundError({ token: args.token }),
         );
       }
+      // Validator expects the operation to carry the token's CURRENT updateId
+      // (it increments after settlement). Submitting current + 1 is rejected.
+      // See fastset-multisig-cli/src/main.rs (uses current_update_id verbatim)
+      // and fastset validator_tests confirming sequential ops use 0, 1, 2,...
       const currentUpdateId = found[1].updateId;
-      const nextUpdateId = currentUpdateId + 1n;
 
       // Build mints array
       const mintsChange: Array<
@@ -164,7 +167,7 @@ export const tokenManage: Command<TokenManageArgs> = {
           type: "TokenManagement",
           value: {
             tokenId,
-            updateId: nextUpdateId,
+            updateId: currentUpdateId,
             newAdmin,
             mints: mintsChange,
             userData,
@@ -183,7 +186,7 @@ export const tokenManage: Command<TokenManageArgs> = {
         yield* output.ok({
           status: "incomplete-multisig",
           tokenId: toHex(tokenId),
-          updateId: nextUpdateId.toString(),
+          updateId: currentUpdateId.toString(),
           wallet: accountInfo.name,
         });
         return;
@@ -194,7 +197,7 @@ export const tokenManage: Command<TokenManageArgs> = {
       yield* output.ok({
         status: "success",
         tokenId: toHex(tokenId),
-        updateId: nextUpdateId.toString(),
+        updateId: currentUpdateId.toString(),
         newAdmin: args.admin ?? null,
         addMinters: splitAddrs(args.addMinters),
         removeMinters: splitAddrs(args.removeMinters),

@@ -682,9 +682,47 @@ const tokenBurnParser = command(
   { description: message`Burn tokens from the active account's balance` },
 );
 
+const tokenManageParser = command(
+  "manage",
+  object({
+    cmd: constant("token-manage" as const),
+    token: option("--token", string({ metavar: "ID_OR_NAME" }), {
+      description: message`Token id (hex, 64 chars, optional 0x) or registered token name`,
+    }),
+    admin: optional(
+      option("--admin", string({ metavar: "ADDR" }), {
+        description: message`Transfer admin to this bech32 fast1... address`,
+      }),
+    ),
+    addMinters: optional(
+      option("--add-minters", string({ metavar: "ADDR,..." }), {
+        description: message`Comma-separated minter addresses to add`,
+      }),
+    ),
+    removeMinters: optional(
+      option("--remove-minters", string({ metavar: "ADDR,..." }), {
+        description: message`Comma-separated minter addresses to remove`,
+      }),
+    ),
+    memo: optional(
+      option("--memo", string({ metavar: "STRING" }), {
+        description: message`UserData memo (max 32 bytes UTF-8)`,
+      }),
+    ),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+  }),
+  {
+    description: message`Update a token's admin or minters (caller must be current admin)`,
+  },
+);
+
 const tokenGroup = command(
   "token",
-  or(tokenCreateParser, tokenMintParser, tokenBurnParser),
+  or(tokenCreateParser, tokenMintParser, tokenBurnParser, tokenManageParser),
   { description: message`Token operations` },
 );
 
@@ -744,6 +782,7 @@ export type MultisigVoteArgs = InferValue<typeof multisigVoteParser>;
 export type TokenCreateArgs = InferValue<typeof tokenCreateParser>;
 export type TokenMintArgs = InferValue<typeof tokenMintParser>;
 export type TokenBurnArgs = InferValue<typeof tokenBurnParser>;
+export type TokenManageArgs = InferValue<typeof tokenManageParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

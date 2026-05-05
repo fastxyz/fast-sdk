@@ -156,7 +156,7 @@ const SUBCOMMANDS: Record<string, readonly string[]> = {
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["usdc", "fastusd"],
   multisig: ["init", "export", "import", "pending", "vote"],
-  token: ["create", "mint", "burn"],
+  token: ["create", "mint", "burn", "manage"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -423,6 +423,34 @@ const SUBCOMMAND_REQUIREMENTS: Record<
         return "Missing required option: --token <id|name>";
       if (!allArgv.some((a) => a === "--amount" || a.startsWith("--amount=")))
         return "Missing required option: --amount <n>";
+      return null;
+    },
+  },
+  "token manage": {
+    usage:
+      "fast token manage --token <id|name> [--admin <addr>] [--add-minters <addr,...>] [--remove-minters <addr,...>] [--memo <s>] [--as <name>]",
+    options: [
+      "--token",
+      "--admin",
+      "--add-minters",
+      "--remove-minters",
+      "--memo",
+      "--as",
+    ],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
+        return "Missing required option: --token <id|name>";
+      const hasAdmin = allArgv.some(
+        (a) => a === "--admin" || a.startsWith("--admin="),
+      );
+      const hasAdd = allArgv.some(
+        (a) => a === "--add-minters" || a.startsWith("--add-minters="),
+      );
+      const hasRemove = allArgv.some(
+        (a) => a === "--remove-minters" || a.startsWith("--remove-minters="),
+      );
+      if (!hasAdmin && !hasAdd && !hasRemove)
+        return "At least one of --admin, --add-minters, --remove-minters must be provided";
       return null;
     },
   },

@@ -22,7 +22,7 @@
  * aggregation semantics that vote.ts and send.ts rely on.
  */
 
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -42,10 +42,16 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { Effect, Layer, Ref, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
+  AddressDerivationMismatchError,
   AlreadyVotedError,
   DatabaseError,
   NotAMemberError,
+  WalletKindMismatchError,
 } from "../../src/errors/index.js";
+import {
+  parseMultiSigWalletConfig,
+  stringifyMultiSigWalletConfig,
+} from "../../src/schemas/multisig-wallet.js";
 import { resolveSigner } from "../../src/services/signer-resolver.js";
 import {
   type AccountInfo,
@@ -443,5 +449,124 @@ describe("multisig 2-of-3 integration", () => {
     expect(err).toBeInstanceOf(NotAMemberError);
     if (!(err instanceof NotAMemberError)) throw new Error("unreachable");
     expect(err.walletName).toBe("treasury");
+  });
+
+  it("multisig import --from with mismatched fastAddress → AddressDerivationMismatchError", async () => {
+    const aliceAddr = await fastAddressOf(SEED(0xaa));
+    const bobAddr = await fastAddressOf(SEED(0xbb));
+    const carolAddr = await fastAddressOf(SEED(0xcc));
+
+    const sortedSigners = [aliceAddr, bobAddr, carolAddr].sort();
+    const sdkConfig = {
+      authorized_signers: sortedSigners.map((a) => fromFastAddress(a)),
+      quorum: 2n,
+      nonce: 0n,
+    };
+    const realFastAddr = await deriveMultiSigAddress(sdkConfig);
+
+    // Pick a different valid fast address that does NOT match the derivation.
+    // Use alice's own single-signer fast address as a tampered value — it's a
+    // well-formed bech32 fast1… string, but obviously not what
+    // deriveMultiSigAddress(sortedSigners, 2, 0) produces.
+    const tamperedFastAddr = aliceAddr;
+    expect(tamperedFastAddr).not.toBe(realFastAddr);
+
+    const dir = mkdtempSync(join(tmpdir(), "fast-cli-multisig-import-"));
+    const filePath = join(dir, "treasury.json");
+    const walletConfig = {
+      version: 1 as const,
+      name: "treasury",
+      signers: sortedSigners,
+      quorum: 2,
+      configNonce: "0",
+      fastAddress: tamperedFastAddr,
+      network: "testnet",
+    };
+    writeFileSync(filePath, `${stringifyMultiSigWalletConfig(walletConfig)}\n`);
+
+    // Replicate the verification flow from import.ts:113-141 at the service
+    // level — read file, parse, derive, compare.
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const content = yield* Effect.try({
+          try: () => readFileSync(filePath, "utf-8"),
+          catch: (e) => new Error(String(e)),
+        });
+        const parsed = yield* parseMultiSigWalletConfig(content);
+        const sorted = [...parsed.signers].sort();
+        const nonceBig = BigInt(parsed.configNonce);
+        const derived = yield* Effect.tryPromise({
+          try: () =>
+            deriveMultiSigAddress({
+              authorized_signers: sorted.map((s) => fromFastAddress(s)),
+              quorum: BigInt(parsed.quorum),
+              nonce: nonceBig,
+            }),
+          catch: (cause) => new Error(String(cause)),
+        });
+        if (derived !== parsed.fastAddress) {
+          return yield* Effect.fail(
+            new AddressDerivationMismatchError({
+              expected: parsed.fastAddress,
+              derived,
+            }),
+          );
+        }
+        return null;
+      }),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag !== "Failure") throw new Error("unreachable");
+    const err = exit.cause._tag === "Fail" ? exit.cause.error : null;
+    expect(err).toBeInstanceOf(AddressDerivationMismatchError);
+    if (!(err instanceof AddressDerivationMismatchError))
+      throw new Error("unreachable");
+    expect(err.expected).toBe(tamperedFastAddr);
+    expect(err.derived).toBe(realFastAddr);
+  });
+
+  it("account export against multisig row → WalletKindMismatchError", async () => {
+    const layer = makeBaseLayer();
+    const aliceAddr = await fastAddressOf(SEED(0xaa));
+    const bobAddr = await fastAddressOf(SEED(0xbb));
+    const carolAddr = await fastAddressOf(SEED(0xcc));
+
+    const sortedSigners = [aliceAddr, bobAddr, carolAddr].sort();
+    const sdkConfig = {
+      authorized_signers: sortedSigners.map((a) => fromFastAddress(a)),
+      quorum: 2n,
+      nonce: 0n,
+    };
+    const multisigFastAddr = await deriveMultiSigAddress(sdkConfig);
+
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const accounts = yield* AccountStore;
+        yield* accounts.createMultiSig(
+          {
+            version: 1,
+            name: "treasury",
+            signers: sortedSigners,
+            quorum: 2,
+            configNonce: "0",
+            fastAddress: multisigFastAddr,
+            network: "testnet",
+          },
+          true,
+        );
+
+        return yield* accounts.export("treasury", null);
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag !== "Failure") throw new Error("unreachable");
+    const err = exit.cause._tag === "Fail" ? exit.cause.error : null;
+    expect(err).toBeInstanceOf(WalletKindMismatchError);
+    if (!(err instanceof WalletKindMismatchError))
+      throw new Error("unreachable");
+    expect(err.expected).toBe("single");
+    expect(err.name).toBe("treasury");
   });
 });

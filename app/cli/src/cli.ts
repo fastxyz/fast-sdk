@@ -663,9 +663,28 @@ const tokenMintParser = command(
   { description: message`Mint tokens to a recipient (caller must be a minter)` },
 );
 
+const tokenBurnParser = command(
+  "burn",
+  object({
+    cmd: constant("token-burn" as const),
+    token: option("--token", string({ metavar: "ID_OR_NAME" }), {
+      description: message`Token id (hex, 64 chars, optional 0x) or registered token name`,
+    }),
+    amount: option("--amount", string({ metavar: "AMOUNT" }), {
+      description: message`Decimal amount; scaled by the token's decimals`,
+    }),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+  }),
+  { description: message`Burn tokens from the active account's balance` },
+);
+
 const tokenGroup = command(
   "token",
-  or(tokenCreateParser, tokenMintParser),
+  or(tokenCreateParser, tokenMintParser, tokenBurnParser),
   { description: message`Token operations` },
 );
 
@@ -724,6 +743,7 @@ export type MultisigVoteArgs = InferValue<typeof multisigVoteParser>;
 
 export type TokenCreateArgs = InferValue<typeof tokenCreateParser>;
 export type TokenMintArgs = InferValue<typeof tokenMintParser>;
+export type TokenBurnArgs = InferValue<typeof tokenBurnParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

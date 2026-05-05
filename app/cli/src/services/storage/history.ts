@@ -17,7 +17,7 @@ export interface HistoryFilters {
 
 const rowToEntry = (row: typeof history.$inferSelect): HistoryEntry => ({
   hash: row.hash,
-  type: row.type as "transfer",
+  type: row.type as HistoryEntry["type"],
   from: row.from,
   to: row.to,
   amount: row.amount,

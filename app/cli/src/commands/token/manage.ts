@@ -6,12 +6,14 @@ import {
   InvalidUsageError,
   TokenNotFoundError,
 } from "../../errors/index.js";
+import { makeHistoryEntry } from "../../schemas/history.js";
 import { FastRpc } from "../../services/api/fast.js";
 import { ClientConfig } from "../../services/config/client.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { resolveSigner } from "../../services/signer-resolver.js";
 import { AccountStore } from "../../services/storage/account.js";
+import { HistoryStore } from "../../services/storage/history.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 import { resolveToken } from "../../services/token-resolver.js";
 import { submitOperation } from "../../services/tx-pipeline.js";
@@ -70,6 +72,7 @@ export const tokenManage: Command<TokenManageArgs> = {
       const output = yield* Output;
       const prompt = yield* Prompt;
       const rpc = yield* FastRpc;
+      const historyStore = yield* HistoryStore;
 
       const network = yield* networks.resolve(config.network);
 
@@ -191,6 +194,25 @@ export const tokenManage: Command<TokenManageArgs> = {
         });
         return;
       }
+
+      // Record in local history (only on success — incomplete-multisig has no cert)
+      const explorerUrl = `${network.explorerUrl}/txs/${result.txHash}`;
+      yield* historyStore.record(
+        makeHistoryEntry({
+          hash: result.txHash,
+          type: "token-manage",
+          from: accountInfo.fastAddress,
+          to: "",
+          amount: "0",
+          formatted: "0",
+          tokenName: args.token,
+          tokenId: toHex(tokenId),
+          network: config.network,
+          status: "confirmed",
+          timestamp: new Date().toISOString(),
+          explorerUrl,
+        }),
+      );
 
       yield* output.humanLine(`Token managed.`);
       yield* output.humanLine(`  Transaction: ${result.txHash}`);

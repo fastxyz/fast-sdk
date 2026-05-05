@@ -5,12 +5,14 @@ import {
   InvalidAmountError,
   TokenNotFoundError,
 } from "../../errors/index.js";
+import { makeHistoryEntry } from "../../schemas/history.js";
 import { FastRpc } from "../../services/api/fast.js";
 import { ClientConfig } from "../../services/config/client.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { resolveSigner } from "../../services/signer-resolver.js";
 import { AccountStore } from "../../services/storage/account.js";
+import { HistoryStore } from "../../services/storage/history.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 import { resolveToken } from "../../services/token-resolver.js";
 import { submitOperation } from "../../services/tx-pipeline.js";
@@ -45,6 +47,7 @@ export const tokenBurn: Command<TokenBurnArgs> = {
       const output = yield* Output;
       const prompt = yield* Prompt;
       const rpc = yield* FastRpc;
+      const historyStore = yield* HistoryStore;
 
       const network = yield* networks.resolve(config.network);
 
@@ -128,6 +131,25 @@ export const tokenBurn: Command<TokenBurnArgs> = {
         });
         return;
       }
+
+      // Record in local history (only on success — incomplete-multisig has no cert)
+      const explorerUrl = `${network.explorerUrl}/txs/${result.txHash}`;
+      yield* historyStore.record(
+        makeHistoryEntry({
+          hash: result.txHash,
+          type: "token-burn",
+          from: accountInfo.fastAddress,
+          to: "",
+          amount: amount.toString(),
+          formatted: args.amount,
+          tokenName: args.token,
+          tokenId: toHex(tokenId),
+          network: config.network,
+          status: "confirmed",
+          timestamp: new Date().toISOString(),
+          explorerUrl,
+        }),
+      );
 
       yield* output.humanLine(`Burned ${args.amount}.`);
       yield* output.humanLine(`  Transaction: ${result.txHash}`);

@@ -1,16 +1,19 @@
-import { fromFastAddress } from "@fastxyz/sdk";
+import { fromFastAddress, getTokenId, toHex } from "@fastxyz/sdk";
 import { Effect } from "effect";
 import type { TokenCreateArgs } from "../../cli.js";
 import {
   InvalidAddressError,
   InvalidAmountError,
+  TransactionFailedError,
 } from "../../errors/index.js";
+import { makeHistoryEntry } from "../../schemas/history.js";
 import { FastRpc } from "../../services/api/fast.js";
 import { ClientConfig } from "../../services/config/client.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
 import { resolveSigner } from "../../services/signer-resolver.js";
 import { AccountStore } from "../../services/storage/account.js";
+import { HistoryStore } from "../../services/storage/history.js";
 import { NetworkConfigService } from "../../services/storage/network.js";
 import { submitOperation } from "../../services/tx-pipeline.js";
 import type { Command } from "../index.js";
@@ -54,6 +57,7 @@ export const tokenCreate: Command<TokenCreateArgs> = {
       const config = yield* ClientConfig;
       const output = yield* Output;
       const prompt = yield* Prompt;
+      const historyStore = yield* HistoryStore;
       yield* FastRpc;
 
       if (args.decimals < 0 || args.decimals > 18) {
@@ -162,6 +166,37 @@ export const tokenCreate: Command<TokenCreateArgs> = {
         return;
       }
 
+      // Record in local history (only on success — incomplete-multisig has no cert)
+      const senderBytes = yield* Effect.tryPromise({
+        try: () =>
+          resolved.kind === "single"
+            ? resolved.signer.getPublicKey()
+            : resolved.signer.getDerivedAddressBytes(),
+        catch: (cause) =>
+          new TransactionFailedError({
+            message: "Failed to derive sender bytes for token id",
+            cause,
+          }),
+      });
+      const tokenId = getTokenId(senderBytes, result.nonce, 0n);
+      const explorerUrl = `${network.explorerUrl}/txs/${result.txHash}`;
+      yield* historyStore.record(
+        makeHistoryEntry({
+          hash: result.txHash,
+          type: "token-create",
+          from: accountInfo.fastAddress,
+          to: "",
+          amount: initialSupply.toString(),
+          formatted: args.initialSupply,
+          tokenName: args.name,
+          tokenId: toHex(tokenId),
+          network: config.network,
+          status: "confirmed",
+          timestamp: new Date().toISOString(),
+          explorerUrl,
+        }),
+      );
+
       yield* output.humanLine(`Created token "${args.name}".`);
       yield* output.humanLine(`  Transaction: ${result.txHash}`);
       yield* output.ok({
@@ -171,6 +206,7 @@ export const tokenCreate: Command<TokenCreateArgs> = {
         initialSupply: args.initialSupply,
         txHash: result.txHash,
         admin: accountInfo.fastAddress,
+        tokenId: toHex(tokenId),
       });
     }),
 };

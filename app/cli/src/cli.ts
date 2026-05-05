@@ -500,8 +500,14 @@ const multisigExportParser = command(
   "export",
   object({
     cmd: constant("multisig-export" as const),
-    name: argument(string({ metavar: "NAME" })),
-    out: optional(option("--out", string({ metavar: "PATH" }))),
+    name: argument(string({ metavar: "NAME" }), {
+      description: message`Local alias of the multisig wallet to export`,
+    }),
+    out: optional(
+      option("--out", string({ metavar: "PATH" }), {
+        description: message`Write the wallet config JSON to this path (default: stdout)`,
+      }),
+    ),
   }),
   { description: message`Export a multisig wallet config as JSON` },
 );

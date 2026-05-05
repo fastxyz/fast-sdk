@@ -148,7 +148,7 @@ if (argv.length === 0 || argv.includes("--help")) {
 
 // ── Full parse ──────────────────────────────────────────────────────────────
 
-const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay", "multisig"] as const;
+const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay", "multisig", "token"] as const;
 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
   account: ["create", "import", "list", "set-default", "export", "delete"],
@@ -156,6 +156,7 @@ const SUBCOMMANDS: Record<string, readonly string[]> = {
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["usdc", "fastusd"],
   multisig: ["init", "export", "import", "pending", "vote"],
+  token: ["create"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -371,6 +372,33 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     usage: "fast multisig vote [--tx <hash>] [--as <name>] [--yes]",
     options: ["--tx", "--as", "--yes"],
     check: () => null,
+  },
+  "token create": {
+    usage:
+      "fast token create --name <s> --decimals <n> --initial-supply <amt> [--minters <addr,...>] [--memo <s>] [--as <name>]",
+    options: [
+      "--name",
+      "--decimals",
+      "--initial-supply",
+      "--minters",
+      "--memo",
+      "--as",
+    ],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
+        return "Missing required option: --name <s>";
+      if (
+        !allArgv.some((a) => a === "--decimals" || a.startsWith("--decimals="))
+      )
+        return "Missing required option: --decimals <n>";
+      if (
+        !allArgv.some(
+          (a) => a === "--initial-supply" || a.startsWith("--initial-supply="),
+        )
+      )
+        return "Missing required option: --initial-supply <amt>";
+      return null;
+    },
   },
   "multisig import": {
     usage:

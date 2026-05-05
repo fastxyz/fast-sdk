@@ -606,6 +606,48 @@ const multisigGroup = command(
 );
 
 // ---------------------------------------------------------------------------
+// Token commands
+// ---------------------------------------------------------------------------
+
+const tokenCreateParser = command(
+  "create",
+  object({
+    cmd: constant("token-create" as const),
+    name: option("--name", string({ metavar: "STRING" }), {
+      description: message`Human-readable token name`,
+    }),
+    decimals: option("--decimals", integer({ metavar: "0-18" }), {
+      description: message`Number of fractional digits (0-18)`,
+    }),
+    initialSupply: option("--initial-supply", string({ metavar: "AMOUNT" }), {
+      description: message`Initial total supply (decimal; will be scaled by decimals)`,
+    }),
+    minters: optional(
+      option("--minters", string({ metavar: "ADDR,..." }), {
+        description: message`Comma-separated bech32 addresses authorized to mint`,
+      }),
+    ),
+    memo: optional(
+      option("--memo", string({ metavar: "STRING" }), {
+        description: message`UserData memo (max 32 bytes UTF-8)`,
+      }),
+    ),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+  }),
+  { description: message`Create a new token` },
+);
+
+const tokenGroup = command(
+  "token",
+  tokenCreateParser,
+  { description: message`Token operations` },
+);
+
+// ---------------------------------------------------------------------------
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
@@ -617,6 +659,7 @@ const commands = or(
   fundGroup,
   payParser,
   multisigGroup,
+  tokenGroup,
 );
 
 export const parser = merge(globalOptions, commands);
@@ -656,6 +699,8 @@ export type MultisigExportArgs = InferValue<typeof multisigExportParser>;
 export type MultisigImportArgs = InferValue<typeof multisigImportParser>;
 export type MultisigPendingArgs = InferValue<typeof multisigPendingParser>;
 export type MultisigVoteArgs = InferValue<typeof multisigVoteParser>;
+
+export type TokenCreateArgs = InferValue<typeof tokenCreateParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

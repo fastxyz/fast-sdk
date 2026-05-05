@@ -29,6 +29,7 @@ import {
 } from "./multisig/index.js";
 import { pay } from "./pay.js";
 import { send } from "./send.js";
+import { tokenCreate } from "./token/index.js";
 
 export const commands = [
   accountCreate,
@@ -57,6 +58,7 @@ export const commands = [
   networkSetDefault,
   send,
   pay,
+  tokenCreate,
 ];
 
 /**

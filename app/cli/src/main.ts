@@ -156,7 +156,7 @@ const SUBCOMMANDS: Record<string, readonly string[]> = {
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["usdc", "fastusd"],
   multisig: ["init", "export", "import", "pending", "vote"],
-  token: ["create"],
+  token: ["create", "mint"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -397,6 +397,20 @@ const SUBCOMMAND_REQUIREMENTS: Record<
         )
       )
         return "Missing required option: --initial-supply <amt>";
+      return null;
+    },
+  },
+  "token mint": {
+    usage:
+      "fast token mint --token <id|name> --to <addr> --amount <n> [--as <name>]",
+    options: ["--token", "--to", "--amount", "--as"],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
+        return "Missing required option: --token <id|name>";
+      if (!allArgv.some((a) => a === "--to" || a.startsWith("--to=")))
+        return "Missing required option: --to <addr>";
+      if (!allArgv.some((a) => a === "--amount" || a.startsWith("--amount=")))
+        return "Missing required option: --amount <n>";
       return null;
     },
   },

@@ -29,7 +29,7 @@ import {
 } from "./multisig/index.js";
 import { pay } from "./pay.js";
 import { send } from "./send.js";
-import { tokenCreate } from "./token/index.js";
+import { tokenCreate, tokenMint } from "./token/index.js";
 
 export const commands = [
   accountCreate,
@@ -59,6 +59,7 @@ export const commands = [
   send,
   pay,
   tokenCreate,
+  tokenMint,
 ];
 
 /**

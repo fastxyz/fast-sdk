@@ -641,9 +641,31 @@ const tokenCreateParser = command(
   { description: message`Create a new token` },
 );
 
+const tokenMintParser = command(
+  "mint",
+  object({
+    cmd: constant("token-mint" as const),
+    token: option("--token", string({ metavar: "ID_OR_NAME" }), {
+      description: message`Token id (hex, 64 chars, optional 0x) or registered token name`,
+    }),
+    to: option("--to", string({ metavar: "ADDR" }), {
+      description: message`Bech32 fast1... recipient address`,
+    }),
+    amount: option("--amount", string({ metavar: "AMOUNT" }), {
+      description: message`Decimal amount; scaled by the token's decimals`,
+    }),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+  }),
+  { description: message`Mint tokens to a recipient (caller must be a minter)` },
+);
+
 const tokenGroup = command(
   "token",
-  tokenCreateParser,
+  or(tokenCreateParser, tokenMintParser),
   { description: message`Token operations` },
 );
 
@@ -701,6 +723,7 @@ export type MultisigPendingArgs = InferValue<typeof multisigPendingParser>;
 export type MultisigVoteArgs = InferValue<typeof multisigVoteParser>;
 
 export type TokenCreateArgs = InferValue<typeof tokenCreateParser>;
+export type TokenMintArgs = InferValue<typeof tokenMintParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

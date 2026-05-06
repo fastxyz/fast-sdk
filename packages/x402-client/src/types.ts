@@ -112,6 +112,8 @@ export interface PaymentDetails {
   amount: string;
   recipient: string;
   txHash: string;
+  /** The token id (hex string) actually paid, mirrored from the server's payment requirement. */
+  asset?: string;
   bridged?: boolean;
   bridgeTxHash?: string;
 }

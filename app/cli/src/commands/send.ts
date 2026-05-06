@@ -33,6 +33,7 @@ import { AccountStore } from "../services/storage/account.js";
 import { HistoryStore } from "../services/storage/history.js";
 import { NetworkConfigService } from "../services/storage/network.js";
 import { resolveToken } from "../services/token-resolver.js";
+import { selectSendTokenName } from "./send-token-helper.js";
 import type { Command } from "./index.js";
 
 export const send: Command<SendArgs> = {
@@ -120,15 +121,7 @@ export const send: Command<SendArgs> = {
 
       // Resolve token name: use provided value or default to first token on the network
       const tokenChain = fromChain ?? toChain;
-      const resolvedTokenName =
-        args.token ??
-        (() => {
-          const chains = network.allSet?.chains ?? {};
-          const firstChain = Object.values(chains)[0];
-          return firstChain
-            ? (Object.keys(firstChain.tokens)[0] ?? "USDC")
-            : "USDC";
-        })();
+      const resolvedTokenName = selectSendTokenName(args.token, network, tokenChain);
 
       // Resolve token using the appropriate chain context
       const tokenInfo = yield* Effect.try({

@@ -35,8 +35,11 @@ fast info balance
 # Send USDC
 fast send fast1abc...xyz 10
 
-# Bridge from Arbitrum Sepolia to Fast
-fast fund crypto 50 --chain arbitrum-sepolia
+# Bridge from Arbitrum Sepolia to Fast (USDC → fastUSDC)
+fast fund usdc crypto 50 --chain arbitrum-sepolia
+
+# Or get a unified Fast web-app URL to fund fastUSD (mainnet only)
+fast fund fastusd --amount 50
 
 # Pay an x402-protected API
 fast pay https://api.example.com/resource
@@ -98,6 +101,7 @@ fast account import --name my-imported-account --private-key 0x...
 ```
 
 **Options:**
+
 - `--name <alias>` — Optional human-readable alias for the imported account
 - `--private-key <hex>` — Hex-encoded 32-byte private key
 - `--key-file <path>` — Path to a JSON file containing a `privateKey` field
@@ -157,10 +161,12 @@ fast send fast1recipient... 10.5 --token USDC
 ```
 
 **Positional arguments:**
+
 - `<address>` — Recipient address (`fast1...` for Fast, `0x...` for EVM)
 - `<amount>` — Human-readable amount (for example, `10` or `1.5`)
 
 **Options:**
+
 - `--from-chain <chain>` — Source EVM chain for EVM → Fast transfers
 - `--to-chain <chain>` — Destination EVM chain for Fast → EVM transfers
 - `--token <token>` — Token symbol or token ID (defaults to the first configured bridge token, typically `USDC`)
@@ -212,6 +218,7 @@ fast info history --from fast1... --limit 20
 ```
 
 **Options:**
+
 - `--from <address>` — Filter by sender address
 - `--to <address>` — Filter by recipient address
 - `--token <token>` — Filter by token name or token ID
@@ -240,39 +247,70 @@ fast info bridge-tokens
 
 ---
 
-### `fast fund fiat`
+### `fast fund usdc fiat`
 
-Get a fiat on-ramp URL for funding a Fast address.
+Get a fiat on-ramp URL for funding a Fast address with USDC. The URL targets
+[ramp.fast.xyz](https://ramp.fast.xyz). The deposit lands on Fast as
+**fastUSDC** (the EVM-bridged variant of USDC).
 
 ```bash
-fast fund fiat --network mainnet
+fast fund usdc fiat --network mainnet
 ```
 
 **Requirements:**
-- Only available on `mainnet`
-- Prints a funding URL for you to open in your browser
 
-**Options:**
-- `--address <fast-address>` — Fund a specific Fast address directly (otherwise uses the selected account)
-- `--network <name>` — Must be `mainnet`
+- Mainnet only (Ramp does not support testnet).
+- Active account or `--address <fast1...>`.
 
 ---
 
-### `fast fund crypto <amount>`
+### `fast fund usdc crypto <amount>`
 
-Bridge crypto from an EVM chain to the Fast network.
+Bridge USDC from an EVM chain to the Fast network. The deposit lands as
+**fastUSDC** on Fast.
 
 ```bash
-fast fund crypto 10.5 --chain arbitrum-sepolia --token USDC
+fast fund usdc crypto 10.5 --chain arbitrum-sepolia --token USDC
 ```
 
 **Positional arguments:**
-- `<amount>` — Human-readable amount
+
+- `<amount>` — Human-readable amount to bridge (e.g., `10.5`).
 
 **Options:**
-- `--chain <chain>` — Source EVM chain (required)
-- `--token <token>` — Token symbol or token ID (defaults to `USDC` / `testUSDC`)
-- `--eip-7702` — Use the smart deposit flow when supported
+
+- `--chain <chain>` — Source EVM chain (required).
+- `--token <token>` — Token symbol or token ID (defaults to `USDC` / `testUSDC`).
+- `--eip-7702` — Use the smart deposit flow (gas paid in USDC via paymaster).
+
+---
+
+### `fast fund fastusd`
+
+Print an `app.fast.xyz/send` URL that opens the unified Fast web app to fund
+your account with **fastUSD** (a Fast-native token, separate from fastUSDC).
+The web app handles fiat-onramp, crypto-bridge, and wallet-to-wallet funding
+under the hood; the CLI's job is just to produce the URL.
+
+```bash
+fast fund fastusd
+# → https://app.fast.xyz/send?to=fast1...
+
+fast fund fastusd --amount 25
+# → https://app.fast.xyz/send?to=fast1...&amount=25
+
+fast fund fastusd --to fast1someoneelse --amount 10
+# → https://app.fast.xyz/send?to=fast1someoneelse&amount=10
+```
+
+**Options:**
+
+- `--to <fast1...>` — Recipient Fast address (default: active account).
+- `--amount <decimal>` — Optional amount; if omitted, the web app prompts.
+
+**Requirements:**
+
+- Mainnet only.
 
 ---
 
@@ -285,9 +323,11 @@ fast pay https://api.example.com/premium
 ```
 
 **Positional arguments:**
+
 - `<url>` — URL of the x402-protected resource (required)
 
 **Options:**
+
 - `--dry-run` — Show payment details without actually paying
 - `--method <GET|POST|...>` — HTTP method (default: GET)
 - `--header <key:value>` — Custom request header (can be repeated)
@@ -324,12 +364,15 @@ fast network add my-custom-net --config ./network-config.json
 ```
 
 **Positional arguments:**
+
 - `<name>` — Unique name for the network
 
 **Options:**
+
 - `--config <path>` — Path to a JSON file with the network configuration (required)
 
 **Example JSON config (`network-config.json`):**
+
 ```json
 {
   "url": "https://api.fast.xyz/proxy-rest",
@@ -383,8 +426,11 @@ The CLI stores data in `~/.fast/`:
 # 1. Create an account
 fast account create --name my-account
 
-# 2. Get a fiat on-ramp URL
-fast fund fiat --network mainnet --address fast1...
+# 2. Get a fiat on-ramp URL (USDC → fastUSDC)
+fast fund usdc fiat --network mainnet --address fast1...
+
+# 2b. Or open the unified Fast web app to fund fastUSD
+fast fund fastusd --network mainnet
 
 # 3. Check your balance
 fast info balance --account my-account

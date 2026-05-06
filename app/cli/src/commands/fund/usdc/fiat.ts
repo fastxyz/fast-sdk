@@ -46,6 +46,6 @@ export const fundUsdcFiat: Command<FundUsdcFiatArgs> = {
       yield* output.humanLine(`  ${url}`);
       yield* output.humanLine("");
 
-      yield* output.ok({ url, address, tokenName: "USDC" });
+      yield* output.ok({ url, address, tokenName: "fastUSDC" });
     }),
 };

@@ -19,7 +19,8 @@
   "scripts": {
     "build": "tsup",
     "prepack": "tsup",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "test": "vitest run"
   },
   "dependencies": {
     "@clack/core": "^1.2.0",

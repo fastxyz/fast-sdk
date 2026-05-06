@@ -170,3 +170,9 @@ pnpm cli --help
 ## License
 
 MIT
+
+## Legal
+
+Use of the SDK constitutes acceptance of both [Terms of Service](pi2labs.org/terms-of-service) and [Acceptable Use Policy](pi2labs.org/acceptable-use-policy)
+
+

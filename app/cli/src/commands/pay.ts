@@ -14,6 +14,7 @@ import { AccountStore } from "../services/storage/account.js";
 import { HistoryStore } from "../services/storage/history.js";
 import { NetworkConfigService } from "../services/storage/network.js";
 import type { Command } from "./index.js";
+import { labelAssetForPayment } from "./pay-asset-label.js";
 
 const parseHeaders = (raw: readonly string[]): Record<string, string> => {
   const headers: Record<string, string> = {};
@@ -54,6 +55,7 @@ export const pay: Command<PayArgs> = {
 
       const headers = parseHeaders(args.header);
       const body = yield* resolveBody(args.body);
+      const network = yield* networkConfig.resolve(config.network);
 
       // Validate inputs
       const urlErr = validateUrl(args.url);
@@ -91,7 +93,9 @@ export const pay: Command<PayArgs> = {
           yield* output.humanLine(`  Network: ${opt.network}`);
           yield* output.humanLine(`  Amount:  ${opt.maxAmountRequired}`);
           yield* output.humanLine(`  Pay to:  ${opt.payTo}`);
-          yield* output.humanLine(`  Asset:   ${opt.asset ?? "USDC"}`);
+          yield* output.humanLine(
+            `  Asset:   ${labelAssetForPayment(network, opt.asset)}`,
+          );
           yield* output.humanLine("");
         }
         yield* output.ok({
@@ -103,7 +107,6 @@ export const pay: Command<PayArgs> = {
       }
 
       // -- Normal mode: resolve account + wallets --
-      const network = yield* networkConfig.resolve(config.network);
       const accountInfo = yield* accounts.resolveAccount(config.account);
       const pwd = accountInfo.encrypted
         ? yield* prompt.password()
@@ -179,7 +182,7 @@ export const pay: Command<PayArgs> = {
             to: p.recipient,
             amount: p.amount,
             formatted: p.amount,
-            tokenName: "USDC",
+            tokenName: labelAssetForPayment(network, p.asset),
             tokenId: "",
             network: p.network,
             status: "confirmed",

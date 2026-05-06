@@ -1,15 +1,15 @@
 import { Effect } from "effect";
-import type { FundFiatArgs } from "../../cli.js";
-import { InvalidAddressError, InvalidUsageError } from "../../errors/index.js";
-import { ClientConfig } from "../../services/config/client.js";
-import { Output } from "../../services/output.js";
-import { AccountStore } from "../../services/storage/account.js";
-import type { Command } from "../index.js";
+import type { FundUsdcFiatArgs } from "../../../cli.js";
+import { InvalidAddressError, InvalidUsageError } from "../../../errors/index.js";
+import { ClientConfig } from "../../../services/config/client.js";
+import { Output } from "../../../services/output.js";
+import { AccountStore } from "../../../services/storage/account.js";
+import type { Command } from "../../index.js";
 
 const RAMP_BASE = "https://ramp.fast.xyz";
 
-export const fundFiat: Command<FundFiatArgs> = {
-  cmd: "fund-fiat",
+export const fundUsdcFiat: Command<FundUsdcFiatArgs> = {
+  cmd: "fund-usdc-fiat",
   handler: (args) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore;

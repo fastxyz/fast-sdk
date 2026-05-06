@@ -6,28 +6,28 @@ import {
 } from "@fastxyz/allset-sdk";
 import { toHex } from "@fastxyz/sdk";
 import { Effect } from "effect";
-import type { FundCryptoArgs } from "../../cli.js";
+import type { FundUsdcCryptoArgs } from "../../../cli.js";
 import {
   FundingRequiredError,
   InvalidAmountError,
   InvalidNetworkConfigError,
   TransactionFailedError,
   UnsupportedChainError,
-} from "../../errors/index.js";
-import { makeHistoryEntry } from "../../schemas/history.js";
-import { AllSet } from "../../services/api/allset.js";
-import { ClientConfig } from "../../services/config/client.js";
-import { Output } from "../../services/output.js";
-import { Prompt } from "../../services/prompt.js";
-import { AccountStore } from "../../services/storage/account.js";
-import { HistoryStore } from "../../services/storage/history.js";
-import { NetworkConfigService } from "../../services/storage/network.js";
-import { resolveToken } from "../../services/token-resolver.js";
-import type { Command } from "../index.js";
+} from "../../../errors/index.js";
+import { makeHistoryEntry } from "../../../schemas/history.js";
+import { AllSet } from "../../../services/api/allset.js";
+import { ClientConfig } from "../../../services/config/client.js";
+import { Output } from "../../../services/output.js";
+import { Prompt } from "../../../services/prompt.js";
+import { AccountStore } from "../../../services/storage/account.js";
+import { HistoryStore } from "../../../services/storage/history.js";
+import { NetworkConfigService } from "../../../services/storage/network.js";
+import { resolveToken } from "../../../services/token-resolver.js";
+import type { Command } from "../../index.js";
 
-export const fundCrypto: Command<FundCryptoArgs> = {
-  cmd: "fund-crypto",
-  handler: (args: FundCryptoArgs) =>
+export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
+  cmd: "fund-usdc-crypto",
+  handler: (args: FundUsdcCryptoArgs) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore;
       const bridge = yield* AllSet;

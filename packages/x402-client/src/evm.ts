@@ -132,6 +132,7 @@ export async function handleEvmPayment(
     const fastBalance = await getFastBalance(fastWallet, {
       rpcUrl: bridgeConfig.rpcUrl,
       tokenId: bridgeConfig.tokenFastTokenId,
+      networkId: bridgeConfig.networkId,
     });
     log(`  Fast USDC balance: ${Number(fastBalance) / 1e6}`);
 

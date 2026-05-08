@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { NetworkId } from "@fastxyz/schema";
 
 export const AllSetChainTokenSchema = Schema.Struct({
   evmAddress: Schema.String,
@@ -28,7 +29,7 @@ export type AllSetConfig = typeof AllSetConfigSchema.Type;
 export const NetworkConfigSchema = Schema.Struct({
   url: Schema.String,
   explorerUrl: Schema.String,
-  networkId: Schema.String,
+  networkId: NetworkId,
   allSet: Schema.optional(AllSetConfigSchema),
 });
 export type NetworkConfig = typeof NetworkConfigSchema.Type;

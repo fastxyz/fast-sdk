@@ -20,7 +20,7 @@ import {
   unwrapFastTransaction,
 } from './fast-bcs.js';
 import { FastProvider } from '@fastxyz/sdk';
-import { serializeVersionedTransactionDomain, type TransactionCertificate } from '@fastxyz/schema';
+import { serializeVersionedTransactionDomain, type TransactionCertificate, type NetworkId } from '@fastxyz/schema';
 
 // ─── Internal Types ──────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ function getFastNetworkConfig(network: string, config: FacilitatorConfig): Facil
 /**
  * Convert x402 Fast network name to CAIP-2 network id.
  */
-function getExpectedFastNetworkId(network: string): string | null {
+function getExpectedFastNetworkId(network: string): NetworkId | null {
   if (network === 'fast-testnet') return 'fast:testnet';
   if (network === 'fast-mainnet') return 'fast:mainnet';
   return null;
@@ -479,7 +479,12 @@ async function fetchFastCertificateByNonce(
     return null;
   }
 
-  const provider = new FastProvider({ url: fastConfig.rpcUrl });
+  const networkId = getExpectedFastNetworkId(network);
+  if (!networkId) {
+    throw new Error(`Cannot resolve NetworkId for unknown fast network: "${network}"`);
+  }
+
+  const provider = new FastProvider({ url: fastConfig.rpcUrl, networkId });
   const certs = await provider.getTransactionCertificates({
     address: senderPublicKey,
     fromNonce: BigInt(nonce),

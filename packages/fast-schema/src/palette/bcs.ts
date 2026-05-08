@@ -1,3 +1,5 @@
+import { Schema } from "effect";
+import { VersionedTransaction as VersionedTransactionBcsType } from "../base/bcs-layout.ts";
 import {
   makeMultiSig,
   makeMultiSigConfig,
@@ -5,7 +7,7 @@ import {
   makeTransactionCertificate,
   makeTransactionEnvelope,
   makeValidatedTransaction,
-} from '../composite/envelope.ts';
+} from "../composite/envelope.ts";
 import {
   makeBurn,
   makeClaimType,
@@ -30,7 +32,7 @@ import {
   makeTokenTransfer,
   makeValidatorConfig,
   makeVerifierSig,
-} from '../composite/operations.ts';
+} from "../composite/operations.ts";
 import {
   makeAccountInfoResponse,
   makeConfirmTransactionResponse,
@@ -42,11 +44,14 @@ import {
   makeSubmitTransactionResponse,
   makeTokenInfoResponse,
   makeTokenMetadata,
-} from '../composite/response.ts';
-import { makeTransaction, makeTransactionRelease20260319, makeTransactionRelease20260407, makeVersionedTransaction } from '../composite/transaction.ts';
-import { BcsPalette } from './definition.ts';
-import { Schema } from 'effect';
-import { VersionedTransaction as VersionedTransactionBcsType } from '../base/bcs-layout.ts';
+} from "../composite/response.ts";
+import {
+  makeTransaction,
+  makeTransactionRelease20260319,
+  makeTransactionRelease20260407,
+  makeVersionedTransaction,
+} from "../composite/transaction.ts";
+import { BcsPalette } from "./definition.ts";
 
 const p = BcsPalette;
 
@@ -64,7 +69,7 @@ export const ExternalClaimFromBcs = makeExternalClaim(p);
 export const ValidatorConfigFromBcs = makeValidatorConfig(p);
 export const CommitteeConfigFromBcs = makeCommitteeConfig(p);
 export const CommitteeChangeFromBcs = makeCommitteeChange(p);
-const bcsOpts = { unitEncoding: 'bcs' } as const;
+const bcsOpts = { unitEncoding: "bcs" } as const;
 export const FixedAmountOrBpsFromBcs = makeFixedAmountOrBps(p, bcsOpts);
 export const EscrowCreateConfigFromBcs = makeEscrowCreateConfig(p, bcsOpts);
 export const EscrowCreateJobFromBcs = makeEscrowCreateJob(p);
@@ -74,8 +79,14 @@ export const EscrowCompleteFromBcs = makeEscrowComplete(p);
 export const EscrowFromBcs = makeEscrow(p, bcsOpts);
 export const OperationFromBcs = makeOperation(p, bcsOpts);
 export const ClaimTypeFromBcs = makeClaimType(p, bcsOpts);
-export const TransactionRelease20260319FromBcs = makeTransactionRelease20260319(p, bcsOpts);
-export const TransactionRelease20260407FromBcs = makeTransactionRelease20260407(p, bcsOpts);
+export const TransactionRelease20260319FromBcs = makeTransactionRelease20260319(
+  p,
+  bcsOpts,
+);
+export const TransactionRelease20260407FromBcs = makeTransactionRelease20260407(
+  p,
+  bcsOpts,
+);
 export const TransactionFromBcs = makeTransaction(p, bcsOpts);
 export const VersionedTransactionFromBcs = makeVersionedTransaction(p, bcsOpts);
 export const MultiSigConfigFromBcs = makeMultiSigConfig(p);
@@ -89,14 +100,16 @@ export const PageRequestFromBcs = makePageRequest(p);
 export const TokenMetadataFromBcs = makeTokenMetadata(p);
 export const AccountInfoResponseFromBcs = makeAccountInfoResponse(p);
 export const TokenInfoResponseFromBcs = makeTokenInfoResponse(p);
-export const SubmitTransactionResponseFromBcs = makeSubmitTransactionResponse(p);
-export const ConfirmTransactionResponseFromBcs = makeConfirmTransactionResponse(p);
-export const ProxySubmitTransactionResultFromBcs = makeProxySubmitTransactionResult(p);
+export const SubmitTransactionResponseFromBcs =
+  makeSubmitTransactionResponse(p);
+export const ConfirmTransactionResponseFromBcs =
+  makeConfirmTransactionResponse(p);
+export const ProxySubmitTransactionResultFromBcs =
+  makeProxySubmitTransactionResult(p);
 export const EscrowJobRecordFromBcs = makeEscrowJobRecord(p);
 export const EscrowJobWithCertsFromBcs = makeEscrowJobWithCerts(p);
 
 // ─── Serialization Utilities ─────────────────────────────────────────────────
-
 /**
  * Serialize a domain-typed VersionedTransaction to BCS bytes.
  *

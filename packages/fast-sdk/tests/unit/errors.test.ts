@@ -52,7 +52,7 @@ function mockNetworkError() {
   );
 }
 
-const provider = new FastProvider({ url: "http://localhost:9999" });
+const provider = new FastProvider({ url: "http://localhost:9999", networkId: "fast:localnet" });
 const accountParams = {
   address: "0000000000000000000000000000000000000000000000000000000000000001",
 };

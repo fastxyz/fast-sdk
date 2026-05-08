@@ -14,6 +14,7 @@ import {
   type GetTokenInfoInputParams,
   GetTransactionCertificatesInput,
   type GetTransactionCertificatesInputParams,
+  type NetworkId,
   type SubmitTransactionResult,
   type TokenInfoResponse,
   type TransactionCertificate,
@@ -22,11 +23,30 @@ import {
 import { Schema } from "effect";
 import * as proxy from "../core/proxy";
 import { run } from "../core/run";
+import type { FastNetwork } from "../networks/index.js";
 
-/** Options for constructing a {@link FastProvider}. */
+/**
+ * Options for constructing a {@link FastProvider}.
+ *
+ * `url` is required; `networkId` and `explorerUrl` are optional.
+ * The built-in {@link FastNetwork} constants (`mainnet`, `testnet`) satisfy
+ * this interface directly.
+ *
+ * @example
+ * ```ts
+ * import { FastProvider } from "@fastxyz/sdk";
+ * import { mainnet, testnet } from "@fastxyz/sdk/networks";
+ *
+ * const provider = new FastProvider(mainnet);
+ * const provider = new FastProvider(testnet);
+ * const provider = new FastProvider({ url: "https://..." });
+ * const provider = new FastProvider({ url: "https://...", networkId: "fast:devnet" });
+ * ```
+ */
 export interface ProviderOptions {
-  /** The base URL of the Fast proxy REST API. */
   url: string;
+  networkId?: NetworkId;
+  explorerUrl?: string;
 }
 
 /**
@@ -38,7 +58,10 @@ export interface ProviderOptions {
  *
  * @example
  * ```ts
- * const provider = new FastProvider({ url: "https://proxy.fast.xyz" });
+ * import { FastProvider } from "@fastxyz/sdk";
+ * import { mainnet } from "@fastxyz/sdk/networks";
+ *
+ * const provider = new FastProvider(mainnet);
  * const account = await provider.getAccountInfo({
  *   address: publicKey,
  *   tokenBalancesFilter: null,
@@ -47,15 +70,24 @@ export interface ProviderOptions {
  * ```
  */
 export class FastProvider {
-  private readonly _url: string;
+  private readonly _network: FastNetwork;
 
   constructor(opts: ProviderOptions) {
-    this._url = opts.url;
+    this._network = {
+      url: opts.url,
+      networkId: opts.networkId,
+      explorerUrl: opts.explorerUrl,
+    };
+  }
+
+  /** The {@link FastNetwork} this provider targets. */
+  get network(): FastNetwork {
+    return this._network;
   }
 
   /** The proxy base URL this provider was constructed with. */
   get url(): string {
-    return this._url;
+    return this._network.url;
   }
 
   /**
@@ -65,7 +97,7 @@ export class FastProvider {
   async submitTransaction(
     params: TransactionEnvelope,
   ): Promise<SubmitTransactionResult> {
-    return run(proxy.submitTransaction(this._url, params));
+    return run(proxy.submitTransaction(this._network.url, params));
   }
 
   /**
@@ -76,7 +108,7 @@ export class FastProvider {
     params: GetAccountInfoInputParams,
   ): Promise<AccountInfoResponse> {
     const internal = Schema.decodeUnknownSync(GetAccountInfoInput)(params);
-    return run(proxy.getAccountInfo(this._url, internal));
+    return run(proxy.getAccountInfo(this._network.url, internal));
   }
 
   /** Fetch pending multisig transactions for the given address. */
@@ -84,7 +116,7 @@ export class FastProvider {
     params: GetPendingMultisigInputParams,
   ): Promise<readonly TransactionEnvelope[]> {
     const internal = Schema.decodeUnknownSync(GetPendingMultisigInput)(params);
-    return run(proxy.getPendingMultisigTransactions(this._url, internal));
+    return run(proxy.getPendingMultisigTransactions(this._network.url, internal));
   }
 
   /** Fetch metadata for one or more tokens by their IDs. */
@@ -92,7 +124,7 @@ export class FastProvider {
     params: GetTokenInfoInputParams,
   ): Promise<TokenInfoResponse> {
     const internal = Schema.decodeUnknownSync(GetTokenInfoInput)(params);
-    return run(proxy.getTokenInfo(this._url, internal));
+    return run(proxy.getTokenInfo(this._network.url, internal));
   }
 
   /**
@@ -105,7 +137,7 @@ export class FastProvider {
     const internal = Schema.decodeUnknownSync(GetTransactionCertificatesInput)(
       params,
     );
-    return run(proxy.getTransactionCertificates(this._url, internal));
+    return run(proxy.getTransactionCertificates(this._network.url, internal));
   }
 
   /** Fetch a single escrow job by ID, optionally including certificates. */
@@ -113,7 +145,7 @@ export class FastProvider {
     params: GetEscrowJobInputParams,
   ): Promise<EscrowJobRecord | EscrowJobWithCerts> {
     const internal = Schema.decodeUnknownSync(GetEscrowJobInput)(params);
-    return run(proxy.getEscrowJob(this._url, internal));
+    return run(proxy.getEscrowJob(this._network.url, internal));
   }
 
   /**
@@ -124,6 +156,6 @@ export class FastProvider {
     params: GetEscrowJobsInputParams,
   ): Promise<readonly (EscrowJobRecord | EscrowJobWithCerts)[]> {
     const internal = Schema.decodeUnknownSync(GetEscrowJobsInput)(params);
-    return run(proxy.getEscrowJobs(this._url, internal));
+    return run(proxy.getEscrowJobs(this._network.url, internal));
   }
 }

@@ -17,11 +17,15 @@
     "./core": {
       "import": "./dist/core/index.js",
       "types": "./dist/core/index.d.ts"
+    },
+    "./networks": {
+      "import": "./dist/networks/index.js",
+      "types": "./dist/networks/index.d.ts"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/core/index.ts --format esm --dts",
-    "dev": "tsup src/index.ts src/core/index.ts --format esm --watch --dts"
+    "build": "tsup src/index.ts src/core/index.ts src/networks/index.ts --format esm --dts",
+    "dev": "tsup src/index.ts src/core/index.ts src/networks/index.ts --format esm --watch --dts"
   },
   "dependencies": {
     "@fastxyz/schema": "workspace:*",

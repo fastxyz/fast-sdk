@@ -332,7 +332,7 @@ export async function executeDeposit(
  * import { Signer, FastProvider } from '@fastxyz/sdk';
  *
  * const signer = new Signer(privateKeyHex);
- * const provider = new FastProvider({ url: 'https://proxy.fast.xyz' });
+ * const provider = new FastProvider({ url: 'https://proxy.fast.xyz', networkId: 'fast:mainnet' });
  *
  * const intent = buildTransferIntent(tokenEvmAddress, receiverEvmAddress);
  * const result = await executeIntent({
@@ -531,7 +531,7 @@ export async function executeIntent(
  * import { Signer, FastProvider } from '@fastxyz/sdk';
  *
  * const signer = new Signer(privateKeyHex);
- * const provider = new FastProvider({ url: 'https://proxy.fast.xyz' });
+ * const provider = new FastProvider({ url: 'https://proxy.fast.xyz', networkId: 'fast:mainnet' });
  *
  * const result = await executeWithdraw({
  *   fastBridgeAddress: 'fast1...',

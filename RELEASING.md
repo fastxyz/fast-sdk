@@ -12,12 +12,20 @@ Trusted publishing is the expected path for this repo. Do not add a long-lived n
 
 ## Packages published
 
+All `@fastxyz/*` packages in this monorepo are published to npm except `@fastxyz/x402-e2e`.
+
 | Package | Path |
 |---|---|
 | `@fastxyz/schema` | `packages/fast-schema/` |
 | `@fastxyz/sdk` | `packages/fast-sdk/` |
+| `@fastxyz/allset-sdk` | `packages/allset-sdk/` |
+| `@fastxyz/x402-types` | `packages/x402-types/` |
+| `@fastxyz/x402-client` | `packages/x402-client/` |
+| `@fastxyz/x402-server` | `packages/x402-server/` |
+| `@fastxyz/x402-facilitator` | `packages/x402-facilitator/` |
+| `@fastxyz/cli` | `app/cli/` |
 
-> Other packages (`allset-sdk`, `x402-*`, `cli`) are excluded from automated versioning via `.changeset/config.json` `ignore` list.
+> `@fastxyz/x402-e2e` (`packages/x402-e2e/`) is the only package excluded from automated versioning — it is `"private": true` and listed in `.changeset/config.json` `ignore`.
 
 ## Day-to-day: recording changes
 
@@ -29,24 +37,28 @@ pnpm pub:changeset
 
 Commit the generated `.changeset/*.md` file alongside your code changes.
 
+> Multiple changesets across PRs are fine and encouraged. When the next Version PR runs, all pending changeset files for the same package are merged into a single version bump (the **highest** severity wins: `major` > `minor` > `patch`), and each entry is preserved as a separate line in that package's `CHANGELOG.md`. Consumed changeset files are deleted automatically.
+
 ## Stable release flow
 
 ```
-feature/develop ──push──→ main (with changeset files)
-                            │
-                    version.yml triggers
-                            │
-                    Creates "Version PR"
-                    (bumps versions + CHANGELOG)
-                            │
-                    Review & merge Version PR
-                            │
-                    publish.yml triggers
-                            │
-                    No pending changesets detected
-                            │
-                    Build → Test → Publish @latest
+feature branch ──PR──→ develop ──PR──→ main (with changeset files)
+                                          │
+                                  version.yml triggers
+                                          │
+                                  Creates "Version PR"
+                                  (bumps versions + CHANGELOG)
+                                          │
+                                  Review & merge Version PR
+                                          │
+                                  publish.yml triggers
+                                          │
+                                  No pending changesets detected
+                                          │
+                                  Build → Test → Publish @latest
 ```
+
+> Day-to-day development happens on `develop`. Promote to `main` (via PR) when you want to cut a release; the changeset files travel with the merge and trigger the Version PR.
 
 ## Pre-release flow (testnet)
 
@@ -160,7 +172,7 @@ git push origin --delete pre-release/testnet
 
 `version.yml` includes a pre-release guard on main: if `.changeset/pre.json` exists, the workflow fails.
 
-`publish.yml` uses OIDC `id-token` for npm authentication (no secrets needed) and publishes with `--provenance --access public`.
+`publish.yml` uses OIDC `id-token` for npm authentication (no secrets needed) and publishes with `--provenance --access public`. Both workflows run on Node 24.
 
 ## Release invariants
 

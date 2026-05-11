@@ -64,32 +64,24 @@ export function resolveToken(
 }
 
 /**
- * Resolve the implicit default token for a Fast→Fast operation.
- * Prefers `fastTokens.fastUSD`, then any single `fastTokens` entry,
- * then the first chain's first token. Throws TokenNotFoundError if none.
+ * Pure name-selection: pick the implicit default token NAME for a Fast→Fast
+ * operation without decoding any token IDs. Never throws.
+ *
+ * Priority: `fastTokens.fastUSD` → single `fastTokens` entry → first chain's
+ * first token → `undefined` (no token registered for this network).
+ *
+ * Callers that need the decoded `ResolvedToken` should follow up with
+ * `resolveToken(name, network)` inside their existing error wrapper, so any
+ * decode failure flows through the normal CLI error path.
  */
-export function resolveDefaultToken(networkConfig: NetworkConfig): {
-  readonly name: string;
-  readonly token: ResolvedToken;
-} {
+export function pickDefaultTokenName(
+  networkConfig: NetworkConfig,
+): string | undefined {
   const fast = networkConfig.fastTokens;
   if (fast) {
-    if ("fastUSD" in fast) {
-      const t = fast.fastUSD!;
-      return {
-        name: "fastUSD",
-        token: { fastTokenId: fromHex(t.fastTokenId), decimals: t.decimals },
-      };
-    }
+    if ("fastUSD" in fast) return "fastUSD";
     const keys = Object.keys(fast);
-    if (keys.length === 1) {
-      const name = keys[0]!;
-      const t = fast[name]!;
-      return {
-        name,
-        token: { fastTokenId: fromHex(t.fastTokenId), decimals: t.decimals },
-      };
-    }
+    if (keys.length === 1) return keys[0];
     // Multiple entries, none called "fastUSD" — ambiguous, fall through.
   }
 
@@ -97,21 +89,27 @@ export function resolveDefaultToken(networkConfig: NetworkConfig): {
   if (allset) {
     const firstChain = Object.values(allset.chains)[0];
     if (firstChain) {
-      const firstName = Object.keys(firstChain.tokens)[0];
-      if (firstName) {
-        const token = firstChain.tokens[firstName]!;
-        return {
-          name: firstName,
-          token: {
-            fastTokenId: fromHex(token.fastTokenId),
-            decimals: token.decimals,
-          },
-        };
-      }
+      return Object.keys(firstChain.tokens)[0];
     }
   }
 
-  throw new TokenNotFoundError({ token: "<default>" });
+  return undefined;
+}
+
+/**
+ * Resolve the implicit default token (name + decoded ResolvedToken) for a
+ * Fast→Fast operation. Throws TokenNotFoundError if none is registered, or
+ * propagates `fromHex` failures on malformed `fastTokenId` values.
+ */
+export function resolveDefaultToken(networkConfig: NetworkConfig): {
+  readonly name: string;
+  readonly token: ResolvedToken;
+} {
+  const name = pickDefaultTokenName(networkConfig);
+  if (name === undefined) {
+    throw new TokenNotFoundError({ token: "<default>" });
+  }
+  return { name, token: resolveToken(name, networkConfig) };
 }
 
 /** Normalise a hex string for comparison: strip leading 0x and lowercase. */

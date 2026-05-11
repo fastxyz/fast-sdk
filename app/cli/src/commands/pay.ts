@@ -183,7 +183,7 @@ export const pay: Command<PayArgs> = {
             amount: p.amount,
             formatted: p.amount,
             tokenName: labelAssetForPayment(network, p.asset),
-            tokenId: "",
+            tokenId: p.asset ?? "",
             network: p.network,
             status: "confirmed",
             timestamp: new Date().toISOString(),

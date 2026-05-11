@@ -1,3 +1,4 @@
+import { fromFastAddress } from "@fastxyz/sdk";
 import { Effect } from "effect";
 import type { FundUsdcFiatArgs } from "../../../cli.js";
 import { InvalidAddressError, InvalidUsageError } from "../../../errors/index.js";
@@ -5,8 +6,16 @@ import { ClientConfig } from "../../../services/config/client.js";
 import { Output } from "../../../services/output.js";
 import { AccountStore } from "../../../services/storage/account.js";
 import type { Command } from "../../index.js";
+import { buildRampUrl } from "./fiat-url.js";
 
-const RAMP_BASE = "https://ramp.fast.xyz";
+const isValidFastAddress = (address: string): boolean => {
+  try {
+    fromFastAddress(address);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export const fundUsdcFiat: Command<FundUsdcFiatArgs> = {
   cmd: "fund-usdc-fiat",
@@ -26,10 +35,10 @@ export const fundUsdcFiat: Command<FundUsdcFiatArgs> = {
 
       let address: string;
       if (args.address) {
-        if (!args.address.startsWith("fast1")) {
+        if (!isValidFastAddress(args.address)) {
           return yield* Effect.fail(
             new InvalidAddressError({
-              message: `Invalid Fast address "${args.address}". Must start with fast1.`,
+              message: `Invalid Fast address "${args.address}". Must be a valid bech32m address with the "fast" prefix.`,
             }),
           );
         }
@@ -39,13 +48,13 @@ export const fundUsdcFiat: Command<FundUsdcFiatArgs> = {
         address = account.fastAddress;
       }
 
-      const url = `${RAMP_BASE}/?to=${address}`;
+      const url = buildRampUrl(address);
 
       yield* output.humanLine("Open this URL in your browser to fund your account:");
       yield* output.humanLine("");
       yield* output.humanLine(`  ${url}`);
       yield* output.humanLine("");
 
-      yield* output.ok({ url, address, tokenName: "fastUSDC" });
+      yield* output.ok({ url, address, tokenName: "USDC" });
     }),
 };

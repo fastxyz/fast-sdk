@@ -20,7 +20,7 @@ tool for managing accounts, moving assets, and querying network state.
   human-readable output, and sensible defaults.
 - **Single entry point.** No sub-skills, no separate binaries. One CLI covers
   Fast-to-Fast transfers, EVM-Fast transfers, on-ramp funding, and payments via protocols such as x402.
-- **≤7 top-level command.** A thin surface is preferred by agents.
+- **≤7 top-level commands.** A thin surface is preferred by agents.
 
 ## 2. Global Flags
 
@@ -1029,7 +1029,7 @@ operations. Results are ordered by timestamp descending.
 
 ### 6.16 `fast info bridge-tokens`
 
-*Note: We only suppose USDC for now.*
+*Note: We only support USDC for now.*
 
 **Synopsis**
 
@@ -1133,7 +1133,7 @@ Fund a Fast account via fiat on-ramp or crypto bridge.
 **Synopsis**
 
 ```text
-fast fund usdc fiat [--address <fast-address>] [--token <value>] [--provider <provider>]
+fast fund usdc fiat [--address <fast-address>]
 ```
 
 **Description**
@@ -1146,14 +1146,17 @@ or bank transfer (on-ramp).
 | Flag | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `--address` | string | no | default account's Fast address | Fund to a specific Fast address. |
-| `--token` | string | no | `USDC` | Token to fund. See [Token Resolution](#7-token-resolution-rules). |
-| `--provider` | string | no | `swapper` | On-ramp provider. |
+
+The on-ramp provider and token are fixed (Ramp → USDC). If alternate
+providers or tokens become available, this section will gain `--provider`
+and `--token` flags.
 
 **Output (human)**
 
 ```text
-Fund USDC to fast1qw5...x9z via Swapper:
-  https://ramp.fast.xyz/?to=fast1...
+Open this URL in your browser to fund your account:
+
+  https://ramp.fast.xyz/?to=fast1qw5...x9z
 ```
 
 **Output (`--json`)**
@@ -1162,8 +1165,7 @@ Fund USDC to fast1qw5...x9z via Swapper:
 {
   "ok": true,
   "data": {
-    "url": "https://ramp.fast.xyz/...",
-    "provider": "swapper",
+    "url": "https://ramp.fast.xyz/?to=fast1qw5...x9z",
     "address": "fast1qw5...x9z",
     "tokenName": "USDC"
   }
@@ -1251,7 +1253,7 @@ with code 2 (`INVALID_AMOUNT`): `"Amount has too many decimal places for <token-
 |---|---|---|---|---|
 | `--from-chain` | string | no | — | Source chain for bridge-in. Must be a chain from `fast info bridge-chains`. |
 | `--to-chain` | string | no | — | Destination chain for bridge-out. Must be a chain from `fast info bridge-chains`. |
-| `--token` | string | no | `USDC` | Token to send. See [Token Resolution](#7-token-resolution-rules). Default is `USDC`. For Fast→Fast transfers, any token on the Fast network is supported (not limited to bridge tokens). For bridge operations, only tokens listed in `fast info bridge-tokens` are supported. |
+| `--token` | string | no | route-specific (see below) | Token to send. See [Token Resolution](#7-token-resolution-rules). Defaults depend on the route: Fast→Fast on mainnet uses `fastUSD`; Fast→Fast on testnet uses `testUSDC`; bridge routes use the chain's first configured token (typically `USDC` / `testUSDC`). For Fast→Fast transfers, any token on the Fast network is supported (not limited to bridge tokens). For bridge operations, only tokens listed in `fast info bridge-tokens` are supported. |
 | `--eip-7702` | boolean | no | `false` | Use EIP-7702 gasless deposit for EVM→Fast bridge-in. Only applies when `--from-chain` is set and recipient is `fast1...`. Gas is paid in token; no ETH required. |
 
 **Routing Rules**
@@ -1286,7 +1288,9 @@ deposit) are batched into a single UserOperation; gas is paid in token.
 
 **Behavior (interactive mode)**
 
-Before executing, display a confirmation summary:
+Before executing, display a confirmation summary. Example below assumes the
+caller passed `--token USDC`; if `--token` is omitted on mainnet Fast→Fast,
+the token line would read `fastUSD` instead (the route-specific default).
 
 ```text
 Send 10.50 USDC

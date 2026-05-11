@@ -177,11 +177,10 @@ describe('x402-client', () => {
 
   describe('PaymentDetails.asset', () => {
     it('exposes the asset hex on the result so callers can label payments correctly', async () => {
-      // This is a structural assertion — it confirms the type carries `asset`
-      // and that fast.ts populates it from the server's payment requirement.
-      // We do NOT exercise the full Fast network flow (that's covered
-      // by integration tests). We do a minimal handler-level check by
-      // constructing a result via the public type and verifying TS accepts it.
+      // Structural / type-shape assertion only: confirms `PaymentDetails`
+      // carries an `asset` field that TS accepts as a string. This does NOT
+      // exercise fast.ts or evm.ts — the runtime population paths are covered
+      // by integration tests.
       const sample: import('../src/types.js').PaymentDetails = {
         network: 'fast-mainnet',
         amount: '1.0',

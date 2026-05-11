@@ -386,13 +386,13 @@ const fundUsdcCryptoParser = command(
       false,
     ),
   }),
-  { description: message`Bridge USDC from an EVM chain (lands as fastUSDC)` },
+  { description: message`Bridge USDC from an EVM chain into your Fast account` },
 );
 
 const fundUsdcGroup = command(
   "usdc",
   or(fundUsdcFiatParser, fundUsdcCryptoParser),
-  { description: message`Fund with USDC (lands as fastUSDC on Fast)` },
+  { description: message`Fund your Fast account with USDC (fiat or crypto)` },
 );
 
 const fundFastUsdParser = command(

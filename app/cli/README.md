@@ -32,10 +32,10 @@ fast account create
 # Check balances
 fast info balance
 
-# Send USDC
-fast send fast1abc...xyz 10
+# Send USDC explicitly (omitting --token would default to fastUSD on mainnet)
+fast send fast1abc...xyz 10 --token USDC
 
-# Bridge from Arbitrum Sepolia to Fast (USDC → fastUSDC)
+# Bridge USDC from Arbitrum Sepolia to Fast
 fast fund usdc crypto 50 --chain arbitrum-sepolia
 
 # Or get a unified Fast web-app URL to fund fastUSD (mainnet only)
@@ -250,8 +250,8 @@ fast info bridge-tokens
 ### `fast fund usdc fiat`
 
 Get a fiat on-ramp URL for funding a Fast address with USDC. The URL targets
-[ramp.fast.xyz](https://ramp.fast.xyz). The deposit lands on Fast as
-**fastUSDC** (the EVM-bridged variant of USDC).
+[ramp.fast.xyz](https://ramp.fast.xyz); the deposit lands on Fast as bridged
+USDC, distinct from the Fast-native `fastUSD`.
 
 ```bash
 fast fund usdc fiat --network mainnet
@@ -267,7 +267,7 @@ fast fund usdc fiat --network mainnet
 ### `fast fund usdc crypto <amount>`
 
 Bridge USDC from an EVM chain to the Fast network. The deposit lands as
-**fastUSDC** on Fast.
+bridged USDC on Fast (distinct from `fastUSD`).
 
 ```bash
 fast fund usdc crypto 10.5 --chain arbitrum-sepolia --token USDC
@@ -288,7 +288,7 @@ fast fund usdc crypto 10.5 --chain arbitrum-sepolia --token USDC
 ### `fast fund fastusd`
 
 Print an `app.fast.xyz/send` URL that opens the unified Fast web app to fund
-your account with **fastUSD** (a Fast-native token, separate from fastUSDC).
+your account with **fastUSD** (a Fast-native token, separate from bridged USDC).
 The web app handles fiat-onramp, crypto-bridge, and wallet-to-wallet funding
 under the hood; the CLI's job is just to produce the URL.
 
@@ -426,7 +426,7 @@ The CLI stores data in `~/.fast/`:
 # 1. Create an account
 fast account create --name my-account
 
-# 2. Get a fiat on-ramp URL (USDC → fastUSDC)
+# 2. Get a fiat on-ramp URL (delivers USDC to your Fast account)
 fast fund usdc fiat --network mainnet --address fast1...
 
 # 2b. Or open the unified Fast web app to fund fastUSD

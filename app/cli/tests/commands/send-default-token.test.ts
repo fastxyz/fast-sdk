@@ -60,7 +60,7 @@ const TESTNET: NetworkConfig = {
 
 describe("selectSendTokenName (send default-token logic)", () => {
   it("returns explicit token when provided (mainnet)", () => {
-    expect(selectSendTokenName("fastUSDC", MAINNET, undefined)).toBe("fastUSDC");
+    expect(selectSendTokenName("USDC", MAINNET, undefined)).toBe("USDC");
   });
 
   it("returns fastUSD on mainnet when token is omitted and no chain", () => {

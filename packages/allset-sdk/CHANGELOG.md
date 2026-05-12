@@ -1,5 +1,13 @@
 # @fastxyz/allset-sdk
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [f4ce27c]
+- Updated dependencies [c01ec1e]
+  - @fastxyz/sdk@2.1.0
+
 ## 1.0.2
 
 ### Patch Changes

@@ -1,7 +1,16 @@
 import { Encoding } from "effect";
 import { FastWalletError } from "./errors";
-import { parseResultMsg, parseSignRequestEnvelope } from "./schema";
-import type { DappMetadata, SignResult } from "./types";
+import {
+  parseConnectRequestEnvelope,
+  parseResultMsg,
+  parseSignRequestEnvelope,
+} from "./schema";
+import type {
+  ConnectResult,
+  DappMetadata,
+  ResultMsg,
+  SignResult,
+} from "./types";
 
 /** Minimal subset of a popup window used by the client. */
 export interface PopupWindowLike {
@@ -12,6 +21,15 @@ export interface PopupWindowLike {
 /** Minimal subset of window injected for testability. */
 export interface WindowLike {
   location: { origin: string };
+  /**
+   * Optional — when absent, connect-state methods (getAddress / isConnected /
+   * connect / disconnect) gracefully degrade as if no address is cached.
+   */
+  localStorage?: {
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+  };
   open(
     url: string,
     target: string,
@@ -36,13 +54,23 @@ export interface MessageEventLike {
 
 export interface FastWalletClientOptions {
   /**
-   * Full URL of the popup signing route (without query string); defaults to
-   * "https://app.fast.xyz/wallet/sign". The query `?tx=` is appended by the
-   * client. Both origin and path are configurable.
+   * Full URL of the popup signing route; defaults to
+   * "https://app.fast.xyz/sign". The query `?tx=` is appended by the client.
    */
-  popupUrl?: string;
-  /** Global timeout; defaults to 5 minutes. */
+  signUrl?: string;
+  /**
+   * Full URL of the popup connect route; defaults to
+   * "https://app.fast.xyz/connect". The query `?request=` is appended by the
+   * client.
+   */
+  connectUrl?: string;
+  /** Global timeout for sign/connect popup flows; defaults to 5 minutes. */
   timeoutMs?: number;
+  /**
+   * localStorage key under which the connected address is persisted.
+   * Defaults to "fastxyz:wallet:address".
+   */
+  storageKey?: string;
   /** Injected window reference; defaults to globalThis.window. */
   windowRef?: WindowLike;
 }
@@ -54,13 +82,20 @@ export interface SignArgs {
   metadata?: DappMetadata;
 }
 
-const DEFAULT_POPUP_URL = "https://app.fast.xyz/wallet/sign";
+export interface ConnectArgs {
+  /** Optional dapp self-reported identity. */
+  metadata?: DappMetadata;
+}
+
+const DEFAULT_SIGN_URL = "https://app.fast.xyz/sign";
+const DEFAULT_CONNECT_URL = "https://app.fast.xyz/connect";
+const DEFAULT_STORAGE_KEY = "fastxyz:wallet:address";
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
-const POPUP_FEATURES = "popup=yes,width=400,height=600";
+const POPUP_FEATURES = "popup=yes,width=430,height=720";
 const CLOSED_POLL_MS = 500;
 const MAX_URL_LENGTH = 16384;
 
-/** Cancellable handle for a single in-flight sign() call. */
+/** Cancellable handle for a single in-flight popup call (sign or connect). */
 interface InFlight {
   reject(err: FastWalletError): void;
   cleanup(): void;
@@ -68,20 +103,29 @@ interface InFlight {
 }
 
 /**
- * Dapp-side client that delegates signing to a popup window hosted by the fast app.
- * Does not depend on a browser extension. Only one in-flight sign() is supported at a time.
+ * Dapp-side client that delegates wallet operations to a popup window hosted by
+ * the fast app. Does not depend on a browser extension. Only one in-flight
+ * popup call (sign or connect) is supported at a time — starting a new one
+ * cancels the previous.
  */
 export class FastWalletClient {
-  private readonly popupUrl: string;
-  /** Origin of popupUrl — used to validate the postMessage result event. */
-  private readonly popupOrigin: string;
+  private readonly signUrl: string;
+  /** Origin of signUrl — used to validate the sign postMessage. */
+  private readonly signOrigin: string;
+  private readonly connectUrl: string;
+  /** Origin of connectUrl — used to validate the connect postMessage. */
+  private readonly connectOrigin: string;
+  private readonly storageKey: string;
   private readonly timeoutMs: number;
   private readonly windowRef: WindowLike;
   private inFlight: InFlight | null = null;
 
   constructor(options: FastWalletClientOptions = {}) {
-    this.popupUrl = options.popupUrl ?? DEFAULT_POPUP_URL;
-    this.popupOrigin = new URL(this.popupUrl).origin;
+    this.signUrl = options.signUrl ?? DEFAULT_SIGN_URL;
+    this.signOrigin = new URL(this.signUrl).origin;
+    this.connectUrl = options.connectUrl ?? DEFAULT_CONNECT_URL;
+    this.connectOrigin = new URL(this.connectUrl).origin;
+    this.storageKey = options.storageKey ?? DEFAULT_STORAGE_KEY;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const win = options.windowRef ?? (globalThis as { window?: WindowLike }).window;
     if (!win) {
@@ -93,6 +137,75 @@ export class FastWalletClient {
     this.windowRef = win;
   }
 
+  /** Returns the cached connected address, or null if none / storage unavailable. */
+  getAddress(): string | null {
+    try {
+      return this.windowRef.localStorage?.getItem(this.storageKey) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  isConnected(): boolean {
+    return this.getAddress() !== null;
+  }
+
+  /** Clears the cached connected address. Idempotent. Swallows storage errors. */
+  disconnect(): void {
+    try {
+      this.windowRef.localStorage?.removeItem(this.storageKey);
+    } catch {}
+  }
+
+  /**
+   * Resolves with the connected address. If an address is already cached in
+   * localStorage, resolves immediately without opening a popup; otherwise
+   * opens the connect popup, awaits user selection, and persists the result.
+   */
+  connect(args: ConnectArgs = {}): Promise<ConnectResult> {
+    const cached = this.getAddress();
+    if (cached !== null) {
+      return Promise.resolve({ address: cached });
+    }
+
+    const envelope = {
+      dappOrigin: this.windowRef.location.origin,
+      ...(args.metadata ? { metadata: args.metadata } : {}),
+    };
+
+    try {
+      parseConnectRequestEnvelope(envelope);
+    } catch (cause) {
+      return Promise.reject(
+        new FastWalletError(
+          "invalid_payload",
+          `connect request failed schema validation: ${String(cause)}`,
+        ),
+      );
+    }
+
+    const json = JSON.stringify(envelope);
+    const request = Encoding.encodeBase64Url(new TextEncoder().encode(json));
+    const url = `${this.connectUrl}?request=${request}`;
+
+    return this.openPopupAndAwait(url, this.connectOrigin).then((msg) => {
+      if (!msg.ok) {
+        throw new FastWalletError(msg.error.code, msg.error.message);
+      }
+      if (!("address" in msg.result)) {
+        throw new FastWalletError(
+          "invalid_payload",
+          "popup returned unexpected result shape for connect",
+        );
+      }
+      const address = msg.result.address;
+      try {
+        this.windowRef.localStorage?.setItem(this.storageKey, address);
+      } catch {}
+      return { address };
+    });
+  }
+
   /**
    * Opens a popup to let the user authorize and sign `args.bytes`.
    *
@@ -100,29 +213,12 @@ export class FastWalletClient {
    * called in the first turn), otherwise the browser popup blocker may suppress it.
    */
   sign(args: SignArgs): Promise<SignResult> {
-    // Single in-flight: cancel the previous one.
-    if (this.inFlight) {
-      const prev = this.inFlight;
-      this.inFlight = null;
-      // cleanup() must run before popup.close() — otherwise the closed-poll interval
-      // could observe closed===true and attempt to settle before the interval is cleared.
-      prev.cleanup();
-      prev.popup.close();
-      prev.reject(
-        new FastWalletError(
-          "user_cancelled",
-          "superseded by a new sign() call",
-        ),
-      );
-    }
-
     const envelope = {
       dappOrigin: this.windowRef.location.origin,
       bytes: args.bytes,
       ...(args.metadata ? { metadata: args.metadata } : {}),
     };
 
-    // Schema validation: throw synchronously on failure, before opening any popup.
     try {
       parseSignRequestEnvelope(envelope);
     } catch (cause) {
@@ -136,7 +232,51 @@ export class FastWalletClient {
 
     const json = JSON.stringify(envelope);
     const tx = Encoding.encodeBase64Url(new TextEncoder().encode(json));
-    const url = `${this.popupUrl}?tx=${tx}`;
+    const url = `${this.signUrl}?tx=${tx}`;
+
+    return this.openPopupAndAwait(url, this.signOrigin).then((msg) => {
+      if (!msg.ok) {
+        throw new FastWalletError(msg.error.code, msg.error.message);
+      }
+      if (!("signature" in msg.result)) {
+        throw new FastWalletError(
+          "invalid_payload",
+          "popup returned unexpected result shape for sign",
+        );
+      }
+      return { signature: msg.result.signature };
+    });
+  }
+
+  /**
+   * Opens `url` in a popup, awaits a single `fast-popup-result` postMessage
+   * from `expectedOrigin`, and returns the validated message. A new call
+   * cancels the previous in-flight popup (single in-flight slot shared by
+   * sign + connect, so the dapp can't accidentally orphan two popups).
+   *
+   * The body up to and including window.open runs synchronously so the caller
+   * preserves user-gesture context for the popup blocker.
+   */
+  private openPopupAndAwait(
+    url: string,
+    expectedOrigin: string,
+  ): Promise<ResultMsg> {
+    if (this.inFlight) {
+      const prev = this.inFlight;
+      this.inFlight = null;
+      // cleanup() must run before popup.close() — otherwise the closed-poll
+      // interval could observe closed===true and attempt to settle before the
+      // interval is cleared.
+      prev.cleanup();
+      prev.popup.close();
+      prev.reject(
+        new FastWalletError(
+          "user_cancelled",
+          "superseded by a new popup call",
+        ),
+      );
+    }
+
     if (url.length > MAX_URL_LENGTH) {
       return Promise.reject(
         new FastWalletError(
@@ -156,29 +296,23 @@ export class FastWalletClient {
       );
     }
 
-    return new Promise<SignResult>((resolve, reject) => {
+    return new Promise<ResultMsg>((resolve, reject) => {
       let settled = false;
       const listener = (ev: MessageEventLike) => {
         if (
           ev.source !== popup ||
-          ev.origin !== this.popupOrigin ||
+          ev.origin !== expectedOrigin ||
           (ev.data as { t?: unknown })?.t !== "fast-popup-result"
         ) {
           return;
         }
-        let msg: ReturnType<typeof parseResultMsg>;
+        let msg: ResultMsg;
         try {
           msg = parseResultMsg(ev.data);
         } catch {
           return; // Malformed shape — treat as noise and ignore.
         }
-        if (msg.ok) {
-          finish(() => resolve(msg.result));
-        } else {
-          finish(() =>
-            reject(new FastWalletError(msg.error.code, msg.error.message)),
-          );
-        }
+        finish(() => resolve(msg));
       };
 
       const closedPoll = setInterval(() => {
@@ -220,7 +354,7 @@ export class FastWalletClient {
         settle();
       };
 
-      // inFlight must be set before addEventListener so that any message arriving
+      // inFlight must be set before addEventListener so any message arriving
       // immediately after registration sees a consistent inFlight state.
       this.inFlight = {
         popup,

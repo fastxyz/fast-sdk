@@ -1,7 +1,7 @@
 import type { ErrorCode } from "./types";
 
 /**
- * Error thrown by FastWalletClient.sign() on failure.
+ * Error thrown by FastWalletClient.sign() / connect() on failure.
  * Distinguish the cause with `err instanceof FastWalletError` + `err.code`.
  */
 export class FastWalletError extends Error {

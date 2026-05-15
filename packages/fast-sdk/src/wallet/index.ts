@@ -18,6 +18,7 @@
  */
 export { FastWalletClient } from "./client";
 export type {
+  ConnectArgs,
   FastWalletClientOptions,
   MessageEventLike,
   PopupWindowLike,
@@ -26,8 +27,14 @@ export type {
 } from "./client";
 export { encodeTxForWalletSigning } from "./encode-tx";
 export { FastWalletError } from "./errors";
-export { parseResultMsg, parseSignRequestEnvelope } from "./schema";
+export {
+  parseConnectRequestEnvelope,
+  parseResultMsg,
+  parseSignRequestEnvelope,
+} from "./schema";
 export type {
+  ConnectRequestEnvelope,
+  ConnectResult,
   DappMetadata,
   ErrorCode,
   ResultMsg,

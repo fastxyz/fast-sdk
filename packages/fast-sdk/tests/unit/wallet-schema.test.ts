@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseConnectRequestEnvelope,
   parseResultMsg,
   parseSignRequestEnvelope,
 } from "../../src/wallet/schema";
+
+const VALID_CONNECT_ENVELOPE = {
+  dappOrigin: "https://my-dapp.com",
+  metadata: {
+    name: "My Dapp",
+    origin: "https://my-dapp.com",
+    icon: "https://my-dapp.com/icon.png",
+  },
+};
 
 const VALID_ENVELOPE = {
   dappOrigin: "https://my-dapp.com",
@@ -86,14 +96,94 @@ describe("parseSignRequestEnvelope", () => {
   });
 });
 
+describe("parseConnectRequestEnvelope", () => {
+  it("accepts a valid envelope", () => {
+    const parsed = parseConnectRequestEnvelope(VALID_CONNECT_ENVELOPE);
+    expect(parsed.dappOrigin).toBe("https://my-dapp.com");
+    expect(parsed.metadata?.name).toBe("My Dapp");
+  });
+
+  it("accepts an envelope without metadata", () => {
+    const parsed = parseConnectRequestEnvelope({
+      dappOrigin: "https://my-dapp.com",
+    });
+    expect(parsed.metadata).toBeUndefined();
+  });
+
+  it("rejects a non-http(s) dappOrigin", () => {
+    expect(() =>
+      parseConnectRequestEnvelope({
+        ...VALID_CONNECT_ENVELOPE,
+        dappOrigin: "ftp://my-dapp.com",
+        metadata: {
+          ...VALID_CONNECT_ENVELOPE.metadata,
+          origin: "ftp://my-dapp.com",
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a malformed dappOrigin", () => {
+    expect(() =>
+      parseConnectRequestEnvelope({
+        ...VALID_CONNECT_ENVELOPE,
+        dappOrigin: "not a url",
+        metadata: { ...VALID_CONNECT_ENVELOPE.metadata, origin: "not a url" },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects when metadata.origin !== dappOrigin", () => {
+    expect(() =>
+      parseConnectRequestEnvelope({
+        ...VALID_CONNECT_ENVELOPE,
+        metadata: {
+          ...VALID_CONNECT_ENVELOPE.metadata,
+          origin: "https://evil.com",
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects unknown extra fields", () => {
+    expect(() =>
+      parseConnectRequestEnvelope({
+        ...VALID_CONNECT_ENVELOPE,
+        bytes: [1, 2, 3],
+      }),
+    ).toThrow();
+  });
+});
+
 describe("parseResultMsg", () => {
-  it("accepts a success result", () => {
+  it("accepts a sign-shape success result", () => {
     const msg = parseResultMsg({
       t: "fast-popup-result",
       ok: true,
       result: { signature: "a".repeat(128) },
     });
     expect(msg.ok).toBe(true);
+  });
+
+  it("accepts a connect-shape success result", () => {
+    const msg = parseResultMsg({
+      t: "fast-popup-result",
+      ok: true,
+      result: {
+        address: "fast1qpgs56s3rvfwakjl5gs5lwlnq5pmrkdjj8h27qchx9",
+      },
+    });
+    expect(msg.ok).toBe(true);
+  });
+
+  it("rejects an address that doesn't match the bech32 pattern", () => {
+    expect(() =>
+      parseResultMsg({
+        t: "fast-popup-result",
+        ok: true,
+        result: { address: "0xnotfast" },
+      }),
+    ).toThrow();
   });
 
   it("accepts a failure result", () => {

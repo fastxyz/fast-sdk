@@ -52,8 +52,7 @@ export type ErrorCode =
   | "sender_not_owned"
   | "popup_blocked"
   | "invalid_payload"
-  | "url_too_large"
-  | "not_implemented";
+  | "url_too_large";
 
 /** popup → SDK message posted via window.opener.postMessage. */
 export type ResultMsg =

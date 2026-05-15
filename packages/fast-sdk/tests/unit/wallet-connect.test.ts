@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 import { FastWalletClient } from "../../src/wallet/client";
 import { FastWalletError } from "../../src/wallet/errors";
@@ -294,7 +294,7 @@ describe("FastWalletClient.connect (popup flow)", () => {
     expect(fake.storage!.setItem).not.toHaveBeenCalled();
   });
 
-  it("does not open a popup when called from a context with no localStorage but reaches popup flow regardless", async () => {
+  it("opens a popup even when localStorage is unavailable (address not persisted)", async () => {
     const fake = setup({ noStorage: true });
     const promise = fake.client.connect();
     expect(fake.windowRef.open).toHaveBeenCalledTimes(1);
@@ -306,5 +306,190 @@ describe("FastWalletClient.connect (popup flow)", () => {
       },
     });
     await expect(promise).resolves.toEqual({ address: VALID_ADDRESS });
+  });
+
+  it("resolves with the address but skips persistence when setItem throws", async () => {
+    const fake = setup({ throwOn: new Set(["setItem"]) });
+    const promise = fake.client.connect();
+    fake.emitMessage({
+      data: {
+        t: "fast-popup-result",
+        ok: true,
+        result: { address: VALID_ADDRESS },
+      },
+    });
+    await expect(promise).resolves.toEqual({ address: VALID_ADDRESS });
+  });
+
+  it("ignores messages from the wrong origin", async () => {
+    const fake = setup();
+    const promise = fake.client.connect();
+    fake.emitMessage({
+      origin: "https://evil.com",
+      data: {
+        t: "fast-popup-result",
+        ok: true,
+        result: { address: VALID_ADDRESS },
+      },
+    });
+
+    let settled = false;
+    promise.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(settled).toBe(false);
+
+    fake.emitMessage({
+      data: {
+        t: "fast-popup-result",
+        ok: true,
+        result: { address: VALID_ADDRESS },
+      },
+    });
+    await expect(promise).resolves.toEqual({ address: VALID_ADDRESS });
+  });
+
+  it("ignores messages from a source other than the popup window", async () => {
+    const fake = setup();
+    const promise = fake.client.connect();
+    fake.emitMessage({
+      source: { not: "the popup" },
+      data: {
+        t: "fast-popup-result",
+        ok: true,
+        result: { address: VALID_ADDRESS },
+      },
+    });
+
+    let settled = false;
+    promise.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(settled).toBe(false);
+
+    fake.emitMessage({
+      data: {
+        t: "fast-popup-result",
+        ok: true,
+        result: { address: VALID_ADDRESS },
+      },
+    });
+    await expect(promise).resolves.toEqual({ address: VALID_ADDRESS });
+  });
+});
+
+describe("FastWalletClient.connect (timer-driven popup paths)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("rejects with user_cancelled when the popup is closed", async () => {
+    const fake = setup();
+    const promise = fake.client.connect();
+    const result = expect(promise).rejects.toMatchObject({
+      name: "FastWalletError",
+      code: "user_cancelled",
+    });
+    fake.lastPopup.closed = true;
+    await vi.advanceTimersByTimeAsync(600);
+    await result;
+    expect(fake.storage!.setItem).not.toHaveBeenCalled();
+  });
+
+  it("rejects with timeout after timeoutMs and closes the popup", async () => {
+    const storage = makeFakeLocalStorage();
+    const listeners: Array<(ev: unknown) => void> = [];
+    const popups: FakePopup[] = [];
+    function makePopup(): FakePopup {
+      const popup: FakePopup = {
+        closed: false,
+        close: vi.fn<() => void>(() => {
+          popup.closed = true;
+        }),
+      };
+      popups.push(popup);
+      return popup;
+    }
+    const windowRef = {
+      location: { origin: DAPP_ORIGIN },
+      localStorage: storage,
+      open: vi.fn(() => makePopup()),
+      addEventListener: vi.fn((_t: string, l: (ev: unknown) => void) => {
+        listeners.push(l);
+      }),
+      removeEventListener: vi.fn(),
+    };
+    const client = new FastWalletClient({
+      signUrl: SIGN_URL,
+      connectUrl: CONNECT_URL,
+      timeoutMs: 1000,
+      windowRef,
+    });
+
+    const promise = client.connect();
+    const result = expect(promise).rejects.toMatchObject({
+      name: "FastWalletError",
+      code: "timeout",
+    });
+    await vi.advanceTimersByTimeAsync(1100);
+    await result;
+    expect(popups[0]?.close).toHaveBeenCalled();
+  });
+});
+
+describe("FastWalletClient cross-method in-flight cancellation", () => {
+  it("a new sign() cancels a pending connect()", async () => {
+    const fake = setup();
+    const connectPromise = fake.client.connect();
+
+    fake.client.sign({ bytes: [1, 2, 3] });
+
+    await expect(connectPromise).rejects.toMatchObject({
+      name: "FastWalletError",
+      code: "user_cancelled",
+    });
+
+    fake.emitMessage({
+      data: {
+        t: "fast-popup-result",
+        ok: true,
+        result: { signature: "a".repeat(128) },
+      },
+    });
+  });
+
+  it("a new connect() cancels a pending sign()", async () => {
+    const fake = setup();
+    const signPromise = fake.client.sign({ bytes: [1, 2, 3] });
+
+    fake.client.connect();
+
+    await expect(signPromise).rejects.toMatchObject({
+      name: "FastWalletError",
+      code: "user_cancelled",
+    });
+
+    fake.emitMessage({
+      data: {
+        t: "fast-popup-result",
+        ok: true,
+        result: { address: VALID_ADDRESS },
+      },
+    });
   });
 });

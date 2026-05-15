@@ -70,7 +70,6 @@ const ErrorCodeSchema = Schema.Literal(
   "popup_blocked",
   "invalid_payload",
   "url_too_large",
-  "not_implemented",
 );
 
 const ResultMsgSchema = Schema.Union(

@@ -6,7 +6,10 @@ import {
 import { Schema } from "effect";
 import { domainEncode } from "../interface/encode";
 
-/** BCS-serialize a VersionedTransaction and prepend the "VersionedTransaction::" domain prefix, producing the final bytes a popup wallet signs with raw Ed25519. */
+/**
+ * BCS-serialize a VersionedTransaction and prepend the "VersionedTransaction::"
+ * domain prefix, producing the final bytes a popup wallet signs with raw Ed25519.
+ */
 export async function encodeTxForWalletSigning(
   transaction: VersionedTransaction,
 ): Promise<Uint8Array> {

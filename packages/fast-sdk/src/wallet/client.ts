@@ -35,8 +35,12 @@ export interface MessageEventLike {
 }
 
 export interface FastWalletClientOptions {
-  /** Origin hosting the popup; defaults to "https://app.fast.xyz". */
-  popupOrigin?: string;
+  /**
+   * Full URL of the popup signing route (without query string); defaults to
+   * "https://app.fast.xyz/wallet/sign". The query `?tx=` is appended by the
+   * client. Both origin and path are configurable.
+   */
+  popupUrl?: string;
   /** Global timeout; defaults to 5 minutes. */
   timeoutMs?: number;
   /** Injected window reference; defaults to globalThis.window. */
@@ -50,7 +54,7 @@ export interface SignArgs {
   metadata?: DappMetadata;
 }
 
-const DEFAULT_POPUP_ORIGIN = "https://app.fast.xyz";
+const DEFAULT_POPUP_URL = "https://app.fast.xyz/wallet/sign";
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 const POPUP_FEATURES = "popup=yes,width=400,height=600";
 const CLOSED_POLL_MS = 500;
@@ -68,13 +72,16 @@ interface InFlight {
  * Does not depend on a browser extension. Only one in-flight sign() is supported at a time.
  */
 export class FastWalletClient {
+  private readonly popupUrl: string;
+  /** Origin of popupUrl — used to validate the postMessage result event. */
   private readonly popupOrigin: string;
   private readonly timeoutMs: number;
   private readonly windowRef: WindowLike;
   private inFlight: InFlight | null = null;
 
   constructor(options: FastWalletClientOptions = {}) {
-    this.popupOrigin = options.popupOrigin ?? DEFAULT_POPUP_ORIGIN;
+    this.popupUrl = options.popupUrl ?? DEFAULT_POPUP_URL;
+    this.popupOrigin = new URL(this.popupUrl).origin;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const win = options.windowRef ?? (globalThis as { window?: WindowLike }).window;
     if (!win) {
@@ -128,8 +135,8 @@ export class FastWalletClient {
     }
 
     const json = JSON.stringify(envelope);
-    const p = Encoding.encodeBase64Url(new TextEncoder().encode(json));
-    const url = `${this.popupOrigin}/wallet/sign?p=${p}`;
+    const tx = Encoding.encodeBase64Url(new TextEncoder().encode(json));
+    const url = `${this.popupUrl}?tx=${tx}`;
     if (url.length > MAX_URL_LENGTH) {
       return Promise.reject(
         new FastWalletError(

@@ -15,7 +15,8 @@ describe("FastWalletError", () => {
   });
 });
 
-const POPUP_ORIGIN = "https://app.fast.xyz";
+const POPUP_URL = "https://app.fast.xyz/wallet/sign";
+const POPUP_ORIGIN = new URL(POPUP_URL).origin;
 const DAPP_ORIGIN = "https://my-dapp.com";
 
 interface FakePopup {
@@ -110,16 +111,14 @@ describe("FastWalletClient.sign", () => {
   it("opens a popup with the encoded envelope in the URL and resolves on success", async () => {
     const fake = makeFakeWindow();
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
     });
 
     const promise = client.sign({ bytes: [1, 2, 3] });
 
     expect(fake.windowRef.open).toHaveBeenCalledTimes(1);
-    expect(fake.lastOpenUrl).toMatch(
-      new RegExp(`^${POPUP_ORIGIN}/wallet/sign\\?p=`),
-    );
+    expect(fake.lastOpenUrl?.startsWith(`${POPUP_URL}?tx=`)).toBe(true);
 
     fake.emitMessage({ data: okMsg });
     await expect(promise).resolves.toEqual({ signature: "a".repeat(128) });
@@ -129,7 +128,7 @@ describe("FastWalletClient.sign", () => {
   it("rejects with the popup's error code on a failure result", async () => {
     const fake = makeFakeWindow();
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
     });
 
@@ -151,7 +150,7 @@ describe("FastWalletClient.sign", () => {
   it("rejects with user_cancelled when the popup is closed", async () => {
     const fake = makeFakeWindow();
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
     });
 
@@ -166,7 +165,7 @@ describe("FastWalletClient.sign", () => {
   it("rejects with timeout and closes the popup after timeoutMs", async () => {
     const fake = makeFakeWindow();
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
       timeoutMs: 1000,
     });
@@ -183,7 +182,7 @@ describe("FastWalletClient.sign", () => {
     const fake = makeFakeWindow();
     fake.setOpenReturnsNull(true);
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
     });
 
@@ -195,7 +194,7 @@ describe("FastWalletClient.sign", () => {
   it("throws invalid_payload for an out-of-range byte and never opens a popup", async () => {
     const fake = makeFakeWindow();
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
     });
 
@@ -208,7 +207,7 @@ describe("FastWalletClient.sign", () => {
   it("throws url_too_large when bytes make the URL exceed the limit", async () => {
     const fake = makeFakeWindow();
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
     });
 
@@ -223,7 +222,7 @@ describe("FastWalletClient.sign", () => {
   it("ignores messages from the wrong origin", async () => {
     const fake = makeFakeWindow();
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
     });
 
@@ -251,7 +250,7 @@ describe("FastWalletClient.sign", () => {
   it("ignores messages from a source other than the popup window", async () => {
     const fake = makeFakeWindow();
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
     });
 
@@ -277,7 +276,7 @@ describe("FastWalletClient.sign", () => {
   it("cancels a previous in-flight sign() when a new one starts", async () => {
     const fake = makeFakeWindow();
     const client = new FastWalletClient({
-      popupOrigin: POPUP_ORIGIN,
+      popupUrl: POPUP_URL,
       windowRef: fake.windowRef,
     });
 

@@ -78,13 +78,13 @@ export interface FastWalletClientOptions {
 export interface SignArgs {
   /** Final to-be-signed bytes prepared by the dapp using fast-sdk. */
   bytes: number[];
-  /** Optional dapp self-reported identity. */
-  metadata?: DappMetadata;
+  /** Dapp self-reported identity shown in the popup signing UI. */
+  metadata: DappMetadata;
 }
 
 export interface ConnectArgs {
-  /** Optional dapp self-reported identity. */
-  metadata?: DappMetadata;
+  /** Dapp self-reported identity shown in the popup connect UI. */
+  metadata: DappMetadata;
 }
 
 const DEFAULT_SIGN_URL = "https://app.fast.xyz/sign";
@@ -162,7 +162,7 @@ export class FastWalletClient {
    * localStorage, resolves immediately without opening a popup; otherwise
    * opens the connect popup, awaits user selection, and persists the result.
    */
-  connect(args: ConnectArgs = {}): Promise<ConnectResult> {
+  connect(args: ConnectArgs): Promise<ConnectResult> {
     const cached = this.getAddress();
     if (cached !== null) {
       return Promise.resolve({ address: cached });
@@ -170,7 +170,7 @@ export class FastWalletClient {
 
     const envelope = {
       dappOrigin: this.windowRef.location.origin,
-      ...(args.metadata ? { metadata: args.metadata } : {}),
+      metadata: args.metadata,
     };
 
     try {
@@ -216,7 +216,7 @@ export class FastWalletClient {
     const envelope = {
       dappOrigin: this.windowRef.location.origin,
       bytes: args.bytes,
-      ...(args.metadata ? { metadata: args.metadata } : {}),
+      metadata: args.metadata,
     };
 
     try {

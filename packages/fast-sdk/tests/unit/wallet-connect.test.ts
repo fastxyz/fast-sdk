@@ -10,6 +10,10 @@ const DAPP_ORIGIN = "https://my-dapp.com";
 const DEFAULT_STORAGE_KEY = "fastxyz:wallet:address";
 const VALID_ADDRESS =
   "fast1qpgs56s3rvfwakjl5gs5lwlnq5pmrkdjj8h27qchx9";
+const TEST_METADATA = {
+  name: "Test Dapp",
+  origin: DAPP_ORIGIN,
+};
 
 interface FakePopup {
   closed: boolean;
@@ -205,7 +209,7 @@ describe("FastWalletClient.connect (cached branch)", () => {
     const fake = setup({
       initialStorage: { [DEFAULT_STORAGE_KEY]: VALID_ADDRESS },
     });
-    await expect(fake.client.connect()).resolves.toEqual({
+    await expect(fake.client.connect({ metadata: TEST_METADATA })).resolves.toEqual({
       address: VALID_ADDRESS,
     });
     expect(fake.windowRef.open).not.toHaveBeenCalled();
@@ -216,7 +220,7 @@ describe("FastWalletClient.connect (cached branch)", () => {
       storageKey: "myapp:wallet",
       initialStorage: { "myapp:wallet": VALID_ADDRESS },
     });
-    await expect(fake.client.connect()).resolves.toEqual({
+    await expect(fake.client.connect({ metadata: TEST_METADATA })).resolves.toEqual({
       address: VALID_ADDRESS,
     });
     expect(fake.windowRef.open).not.toHaveBeenCalled();
@@ -252,7 +256,7 @@ describe("FastWalletClient.connect (popup flow)", () => {
 
   it("persists the address under the custom storageKey", async () => {
     const fake = setup({ storageKey: "myapp:wallet" });
-    const promise = fake.client.connect();
+    const promise = fake.client.connect({ metadata: TEST_METADATA });
     fake.emitMessage({
       data: {
         t: "fast-popup-result",
@@ -270,7 +274,7 @@ describe("FastWalletClient.connect (popup flow)", () => {
 
   it("rejects with popup_blocked when window.open returns null", async () => {
     const fake = setup({ openReturnsNull: true });
-    await expect(fake.client.connect()).rejects.toMatchObject({
+    await expect(fake.client.connect({ metadata: TEST_METADATA })).rejects.toMatchObject({
       name: "FastWalletError",
       code: "popup_blocked",
     });
@@ -279,7 +283,7 @@ describe("FastWalletClient.connect (popup flow)", () => {
 
   it("rejects with the popup's error code on failure", async () => {
     const fake = setup();
-    const promise = fake.client.connect();
+    const promise = fake.client.connect({ metadata: TEST_METADATA });
     fake.emitMessage({
       data: {
         t: "fast-popup-result",
@@ -296,7 +300,7 @@ describe("FastWalletClient.connect (popup flow)", () => {
 
   it("opens a popup even when localStorage is unavailable (address not persisted)", async () => {
     const fake = setup({ noStorage: true });
-    const promise = fake.client.connect();
+    const promise = fake.client.connect({ metadata: TEST_METADATA });
     expect(fake.windowRef.open).toHaveBeenCalledTimes(1);
     fake.emitMessage({
       data: {
@@ -310,7 +314,7 @@ describe("FastWalletClient.connect (popup flow)", () => {
 
   it("resolves with the address but skips persistence when setItem throws", async () => {
     const fake = setup({ throwOn: new Set(["setItem"]) });
-    const promise = fake.client.connect();
+    const promise = fake.client.connect({ metadata: TEST_METADATA });
     fake.emitMessage({
       data: {
         t: "fast-popup-result",
@@ -323,7 +327,7 @@ describe("FastWalletClient.connect (popup flow)", () => {
 
   it("ignores messages from the wrong origin", async () => {
     const fake = setup();
-    const promise = fake.client.connect();
+    const promise = fake.client.connect({ metadata: TEST_METADATA });
     fake.emitMessage({
       origin: "https://evil.com",
       data: {
@@ -357,7 +361,7 @@ describe("FastWalletClient.connect (popup flow)", () => {
 
   it("ignores messages from a source other than the popup window", async () => {
     const fake = setup();
-    const promise = fake.client.connect();
+    const promise = fake.client.connect({ metadata: TEST_METADATA });
     fake.emitMessage({
       source: { not: "the popup" },
       data: {
@@ -400,7 +404,7 @@ describe("FastWalletClient.connect (timer-driven popup paths)", () => {
 
   it("rejects with user_cancelled when the popup is closed", async () => {
     const fake = setup();
-    const promise = fake.client.connect();
+    const promise = fake.client.connect({ metadata: TEST_METADATA });
     const result = expect(promise).rejects.toMatchObject({
       name: "FastWalletError",
       code: "user_cancelled",
@@ -441,7 +445,7 @@ describe("FastWalletClient.connect (timer-driven popup paths)", () => {
       windowRef,
     });
 
-    const promise = client.connect();
+    const promise = client.connect({ metadata: TEST_METADATA });
     const result = expect(promise).rejects.toMatchObject({
       name: "FastWalletError",
       code: "timeout",
@@ -455,9 +459,9 @@ describe("FastWalletClient.connect (timer-driven popup paths)", () => {
 describe("FastWalletClient cross-method in-flight cancellation", () => {
   it("a new sign() cancels a pending connect()", async () => {
     const fake = setup();
-    const connectPromise = fake.client.connect();
+    const connectPromise = fake.client.connect({ metadata: TEST_METADATA });
 
-    fake.client.sign({ bytes: [1, 2, 3] });
+    fake.client.sign({ bytes: [1, 2, 3], metadata: TEST_METADATA });
 
     await expect(connectPromise).rejects.toMatchObject({
       name: "FastWalletError",
@@ -475,9 +479,9 @@ describe("FastWalletClient cross-method in-flight cancellation", () => {
 
   it("a new connect() cancels a pending sign()", async () => {
     const fake = setup();
-    const signPromise = fake.client.sign({ bytes: [1, 2, 3] });
+    const signPromise = fake.client.sign({ bytes: [1, 2, 3], metadata: TEST_METADATA });
 
-    fake.client.connect();
+    fake.client.connect({ metadata: TEST_METADATA });
 
     await expect(signPromise).rejects.toMatchObject({
       name: "FastWalletError",

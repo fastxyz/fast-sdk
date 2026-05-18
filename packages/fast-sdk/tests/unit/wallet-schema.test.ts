@@ -31,12 +31,13 @@ describe("parseSignRequestEnvelope", () => {
     expect(parsed.bytes).toEqual([1, 2, 3, 255, 0]);
   });
 
-  it("accepts an envelope without metadata", () => {
-    const parsed = parseSignRequestEnvelope({
-      dappOrigin: "https://my-dapp.com",
-      bytes: [1, 2, 3],
-    });
-    expect(parsed.metadata).toBeUndefined();
+  it("rejects an envelope without metadata", () => {
+    expect(() =>
+      parseSignRequestEnvelope({
+        dappOrigin: "https://my-dapp.com",
+        bytes: [1, 2, 3],
+      }),
+    ).toThrow();
   });
 
   it("rejects a byte value outside 0-255", () => {
@@ -103,11 +104,12 @@ describe("parseConnectRequestEnvelope", () => {
     expect(parsed.metadata?.name).toBe("My Dapp");
   });
 
-  it("accepts an envelope without metadata", () => {
-    const parsed = parseConnectRequestEnvelope({
-      dappOrigin: "https://my-dapp.com",
-    });
-    expect(parsed.metadata).toBeUndefined();
+  it("rejects an envelope without metadata", () => {
+    expect(() =>
+      parseConnectRequestEnvelope({
+        dappOrigin: "https://my-dapp.com",
+      }),
+    ).toThrow();
   });
 
   it("rejects a non-http(s) dappOrigin", () => {

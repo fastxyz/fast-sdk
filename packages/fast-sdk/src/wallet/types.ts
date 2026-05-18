@@ -17,7 +17,7 @@ export interface SignRequestEnvelope {
   dappOrigin: string;
   /** Final to-be-signed bytes prepared by the dapp using fast-sdk; each element 0-255. */
   bytes: number[];
-  metadata?: DappMetadata;
+  metadata: DappMetadata;
 }
 
 /**
@@ -27,7 +27,7 @@ export interface SignRequestEnvelope {
 export interface ConnectRequestEnvelope {
   /** Filled by the SDK from window.location.origin; dapp code cannot forge it. */
   dappOrigin: string;
-  metadata?: DappMetadata;
+  metadata: DappMetadata;
 }
 
 /** Return value of a successful popup sign. */

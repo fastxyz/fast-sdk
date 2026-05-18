@@ -32,24 +32,20 @@ const DappMetadataSchema = Schema.Struct({
 const SignRequestEnvelopeSchema = Schema.Struct({
   dappOrigin: OriginSchema,
   bytes: Schema.mutable(Schema.Array(ByteSchema).pipe(Schema.maxItems(8192))),
-  metadata: Schema.optional(DappMetadataSchema),
+  metadata: DappMetadataSchema,
 }).pipe(
-  Schema.filter(
-    (env) =>
-      env.metadata === undefined || env.metadata.origin === env.dappOrigin,
-    { message: () => "metadata.origin must equal dappOrigin" },
-  ),
+  Schema.filter((env) => env.metadata.origin === env.dappOrigin, {
+    message: () => "metadata.origin must equal dappOrigin",
+  }),
 );
 
 const ConnectRequestEnvelopeSchema = Schema.Struct({
   dappOrigin: OriginSchema,
-  metadata: Schema.optional(DappMetadataSchema),
+  metadata: DappMetadataSchema,
 }).pipe(
-  Schema.filter(
-    (env) =>
-      env.metadata === undefined || env.metadata.origin === env.dappOrigin,
-    { message: () => "metadata.origin must equal dappOrigin" },
-  ),
+  Schema.filter((env) => env.metadata.origin === env.dappOrigin, {
+    message: () => "metadata.origin must equal dappOrigin",
+  }),
 );
 
 const SignatureSchema = Schema.String.pipe(

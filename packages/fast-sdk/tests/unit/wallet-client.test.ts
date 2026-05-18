@@ -18,6 +18,10 @@ describe("FastWalletError", () => {
 const SIGN_URL = "https://app.fast.xyz/wallet/sign";
 const POPUP_ORIGIN = new URL(SIGN_URL).origin;
 const DAPP_ORIGIN = "https://my-dapp.com";
+const TEST_METADATA = {
+  name: "Test Dapp",
+  origin: DAPP_ORIGIN,
+};
 
 interface FakePopup {
   closed: boolean;
@@ -115,7 +119,7 @@ describe("FastWalletClient.sign", () => {
       windowRef: fake.windowRef,
     });
 
-    const promise = client.sign({ bytes: [1, 2, 3] });
+    const promise = client.sign({ bytes: [1, 2, 3], metadata: TEST_METADATA });
 
     expect(fake.windowRef.open).toHaveBeenCalledTimes(1);
     expect(fake.lastOpenUrl?.startsWith(`${SIGN_URL}?tx=`)).toBe(true);
@@ -132,7 +136,7 @@ describe("FastWalletClient.sign", () => {
       windowRef: fake.windowRef,
     });
 
-    const promise = client.sign({ bytes: [1, 2, 3] });
+    const promise = client.sign({ bytes: [1, 2, 3], metadata: TEST_METADATA });
     fake.emitMessage({
       data: {
         t: "fast-popup-result",
@@ -154,7 +158,7 @@ describe("FastWalletClient.sign", () => {
       windowRef: fake.windowRef,
     });
 
-    const promise = client.sign({ bytes: [1, 2, 3] });
+    const promise = client.sign({ bytes: [1, 2, 3], metadata: TEST_METADATA });
     // Attach rejection handler before advancing timers to avoid unhandled rejection warning.
     const result = expect(promise).rejects.toMatchObject({ code: "user_cancelled" });
     fake.lastPopup.closed = true;
@@ -170,7 +174,7 @@ describe("FastWalletClient.sign", () => {
       timeoutMs: 1000,
     });
 
-    const promise = client.sign({ bytes: [1, 2, 3] });
+    const promise = client.sign({ bytes: [1, 2, 3], metadata: TEST_METADATA });
     // Attach rejection handler before advancing timers to avoid unhandled rejection warning.
     const result = expect(promise).rejects.toMatchObject({ code: "timeout" });
     await vi.advanceTimersByTimeAsync(1100);
@@ -186,7 +190,7 @@ describe("FastWalletClient.sign", () => {
       windowRef: fake.windowRef,
     });
 
-    await expect(client.sign({ bytes: [1, 2, 3] })).rejects.toMatchObject({
+    await expect(client.sign({ bytes: [1, 2, 3], metadata: TEST_METADATA })).rejects.toMatchObject({
       code: "popup_blocked",
     });
   });
@@ -198,7 +202,9 @@ describe("FastWalletClient.sign", () => {
       windowRef: fake.windowRef,
     });
 
-    await expect(client.sign({ bytes: [1, 999] })).rejects.toMatchObject({
+    await expect(
+      client.sign({ bytes: [1, 999], metadata: TEST_METADATA }),
+    ).rejects.toMatchObject({
       code: "invalid_payload",
     });
     expect(fake.windowRef.open).not.toHaveBeenCalled();
@@ -213,7 +219,9 @@ describe("FastWalletClient.sign", () => {
 
     // 8192 bytes is within the schema limit but base64url+JSON encoding pushes the URL past 16 KB.
     const bytes = new Array(8192).fill(255);
-    await expect(client.sign({ bytes })).rejects.toMatchObject({
+    await expect(
+      client.sign({ bytes, metadata: TEST_METADATA }),
+    ).rejects.toMatchObject({
       code: "url_too_large",
     });
     expect(fake.windowRef.open).not.toHaveBeenCalled();
@@ -226,7 +234,7 @@ describe("FastWalletClient.sign", () => {
       windowRef: fake.windowRef,
     });
 
-    const promise = client.sign({ bytes: [1, 2, 3] });
+    const promise = client.sign({ bytes: [1, 2, 3], metadata: TEST_METADATA });
     fake.emitMessage({ origin: "https://evil.com", data: okMsg });
 
     // Message from wrong origin is ignored — promise stays pending; settle via timeout.
@@ -254,7 +262,7 @@ describe("FastWalletClient.sign", () => {
       windowRef: fake.windowRef,
     });
 
-    const promise = client.sign({ bytes: [1, 2, 3] });
+    const promise = client.sign({ bytes: [1, 2, 3], metadata: TEST_METADATA });
     fake.emitMessage({ source: { not: "the popup" }, data: okMsg });
 
     let settled = false;
@@ -280,8 +288,8 @@ describe("FastWalletClient.sign", () => {
       windowRef: fake.windowRef,
     });
 
-    const first = client.sign({ bytes: [1] });
-    const second = client.sign({ bytes: [2] });
+    const first = client.sign({ bytes: [1], metadata: TEST_METADATA });
+    const second = client.sign({ bytes: [2], metadata: TEST_METADATA });
 
     await expect(first).rejects.toMatchObject({ code: "user_cancelled" });
     // After first rejects, its listener must have been removed — only second's listener remains.

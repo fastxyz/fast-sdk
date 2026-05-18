@@ -101,7 +101,7 @@ describe("parseConnectRequestEnvelope", () => {
   it("accepts a valid envelope", () => {
     const parsed = parseConnectRequestEnvelope(VALID_CONNECT_ENVELOPE);
     expect(parsed.dappOrigin).toBe("https://my-dapp.com");
-    expect(parsed.metadata?.name).toBe("My Dapp");
+    expect(parsed.metadata.name).toBe("My Dapp");
   });
 
   it("rejects an envelope without metadata", () => {

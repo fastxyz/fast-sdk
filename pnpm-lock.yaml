@@ -56,6 +56,9 @@ importers:
       '@effect/typeclass':
         specifier: ^0.40.0
         version: 0.40.0(effect@3.21.0)
+      '@mysten/bcs':
+        specifier: ^2.0.3
+        version: 2.0.3
       '@optique/core':
         specifier: ^0.10.7
         version: 0.10.7
@@ -74,6 +77,9 @@ importers:
       effect:
         specifier: ^3.21.0
         version: 3.21.0
+      json-with-bigint:
+        specifier: ^3.5.8
+        version: 3.5.8
       uuid:
         specifier: ^11.1.0
         version: 11.1.0

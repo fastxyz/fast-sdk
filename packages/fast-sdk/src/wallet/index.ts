@@ -13,7 +13,10 @@
  *
  * const client = new FastWalletClient();
  * const bytes = await encodeTxForWalletSigning(unsignedTx);
- * const { signature } = await client.sign({ bytes: Array.from(bytes) });
+ * const { signature } = await client.sign({
+ *   bytes: Array.from(bytes),
+ *   metadata: { name: "My Dapp", origin: window.location.origin },
+ * });
  * ```
  */
 export { FastWalletClient } from "./client";

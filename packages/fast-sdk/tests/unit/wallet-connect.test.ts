@@ -9,7 +9,7 @@ const POPUP_ORIGIN = new URL(CONNECT_URL).origin;
 const DAPP_ORIGIN = "https://my-dapp.com";
 const DEFAULT_STORAGE_KEY = "fastxyz:wallet:address";
 const VALID_ADDRESS =
-  "fast1qpgs56s3rvfwakjl5gs5lwlnq5pmrkdjj8h27qchx9";
+  "fast1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs93v4kv";
 const TEST_METADATA = {
   name: "Test Dapp",
   origin: DAPP_ORIGIN,

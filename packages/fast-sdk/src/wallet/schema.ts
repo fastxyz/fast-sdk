@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { fromFastAddress } from "../interface/convert";
 import type {
   ConnectRequestEnvelope,
   ResultMsg,
@@ -8,13 +9,14 @@ import type {
 /** Integer in 0-255 (one byte). */
 const ByteSchema = Schema.Int.pipe(Schema.between(0, 255));
 
-/** Valid http(s) origin string. */
+/** Valid http(s) origin string — no path, query, or fragment. */
 const OriginSchema = Schema.String.pipe(
   Schema.filter(
     (s) => {
       try {
         const u = new URL(s);
-        return u.protocol === "http:" || u.protocol === "https:";
+        if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+        return s === u.origin;
       } catch {
         return false;
       }
@@ -53,7 +55,18 @@ const SignatureSchema = Schema.String.pipe(
 );
 
 const AddressSchema = Schema.String.pipe(
-  Schema.pattern(/^fast1[a-z0-9]{20,80}$/),
+  Schema.filter(
+    (s) => {
+      try {
+        return fromFastAddress(s).byteLength === 32;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message: () => "must be a valid bech32m fast1 address (32-byte payload)",
+    },
+  ),
 );
 
 const ErrorCodeSchema = Schema.Literal(
@@ -91,9 +104,7 @@ const ResultMsgSchema = Schema.Union(
  * Strictly validates a SignRequestEnvelope — rejecting undeclared fields.
  * Called once on the SDK side before sending, and once on the popup side after receiving.
  */
-export function parseSignRequestEnvelope(
-  input: unknown,
-): SignRequestEnvelope {
+export function parseSignRequestEnvelope(input: unknown): SignRequestEnvelope {
   return Schema.decodeUnknownSync(SignRequestEnvelopeSchema, {
     onExcessProperty: "error",
   })(input);

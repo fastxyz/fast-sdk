@@ -186,7 +186,9 @@ export class FastWalletClient {
 
     const json = JSON.stringify(envelope);
     const request = Encoding.encodeBase64Url(new TextEncoder().encode(json));
-    const url = `${this.connectUrl}?request=${request}`;
+    const u = new URL(this.connectUrl);
+    u.searchParams.set("request", request);
+    const url = u.toString();
 
     return this.openPopupAndAwait(url, this.connectOrigin).then((msg) => {
       if (!msg.ok) {
@@ -232,7 +234,9 @@ export class FastWalletClient {
 
     const json = JSON.stringify(envelope);
     const tx = Encoding.encodeBase64Url(new TextEncoder().encode(json));
-    const url = `${this.signUrl}?tx=${tx}`;
+    const u = new URL(this.signUrl);
+    u.searchParams.set("tx", tx);
+    const url = u.toString();
 
     return this.openPopupAndAwait(url, this.signOrigin).then((msg) => {
       if (!msg.ok) {

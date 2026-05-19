@@ -81,6 +81,45 @@ describe("parseSignRequestEnvelope", () => {
     ).toThrow();
   });
 
+  it("rejects a dappOrigin with a trailing path", () => {
+    expect(() =>
+      parseSignRequestEnvelope({
+        ...VALID_ENVELOPE,
+        dappOrigin: "https://my-dapp.com/path",
+        metadata: {
+          ...VALID_ENVELOPE.metadata,
+          origin: "https://my-dapp.com/path",
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a dappOrigin with a query string", () => {
+    expect(() =>
+      parseSignRequestEnvelope({
+        ...VALID_ENVELOPE,
+        dappOrigin: "https://my-dapp.com?x=1",
+        metadata: {
+          ...VALID_ENVELOPE.metadata,
+          origin: "https://my-dapp.com?x=1",
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a dappOrigin with a fragment", () => {
+    expect(() =>
+      parseSignRequestEnvelope({
+        ...VALID_ENVELOPE,
+        dappOrigin: "https://my-dapp.com#frag",
+        metadata: {
+          ...VALID_ENVELOPE.metadata,
+          origin: "https://my-dapp.com#frag",
+        },
+      }),
+    ).toThrow();
+  });
+
   it("rejects when metadata.origin !== dappOrigin", () => {
     expect(() =>
       parseSignRequestEnvelope({
@@ -172,7 +211,8 @@ describe("parseResultMsg", () => {
       t: "fast-popup-result",
       ok: true,
       result: {
-        address: "fast1qpgs56s3rvfwakjl5gs5lwlnq5pmrkdjj8h27qchx9",
+        address:
+          "fast1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs93v4kv",
       },
     });
     expect(msg.ok).toBe(true);
@@ -184,6 +224,32 @@ describe("parseResultMsg", () => {
         t: "fast-popup-result",
         ok: true,
         result: { address: "0xnotfast" },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects an address with a bad bech32m checksum", () => {
+    expect(() =>
+      parseResultMsg({
+        t: "fast-popup-result",
+        ok: true,
+        result: {
+          address:
+            "fast1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs93v4kw",
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a bech32m-valid address whose payload is not 32 bytes", () => {
+    expect(() =>
+      parseResultMsg({
+        t: "fast-popup-result",
+        ok: true,
+        result: {
+          address:
+            "fast1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqylgjxxw",
+        },
       }),
     ).toThrow();
   });

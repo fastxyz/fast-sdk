@@ -6,6 +6,7 @@ import type { PayArgs } from "../cli.js";
 import { InternalError, InvalidPaymentLinkError, InvalidUsageError } from "../errors/index.js";
 import { validateHeader, validateHttpMethod, validateUrl } from "../services/validate.js";
 import { makeHistoryEntry } from "../schemas/history.js";
+import type { NetworkConfig } from "../schemas/networks.js";
 import { X402Service } from "../services/api/x402.js";
 import { ClientConfig } from "../services/config/client.js";
 import { Output } from "../services/output.js";
@@ -13,6 +14,7 @@ import { Prompt } from "../services/prompt.js";
 import { AccountStore } from "../services/storage/account.js";
 import { HistoryStore } from "../services/storage/history.js";
 import { NetworkConfigService } from "../services/storage/network.js";
+import { lookupTokenNameById, resolveToken } from "../services/token-resolver.js";
 import type { Command } from "./index.js";
 import { labelAssetForPayment } from "./pay-asset-label.js";
 
@@ -40,6 +42,37 @@ const resolveBody = (body: string | undefined) => {
       }),
   });
 };
+
+/**
+ * Resolve decimals for a payment's asset. Returns undefined when the asset id
+ * is not registered on the network (neither chain-scoped nor `defaultToken`)
+ * and no default is available — callers should then display the raw value.
+ */
+const resolveAssetDecimals = (
+  network: NetworkConfig,
+  asset: string | undefined,
+): number | undefined => {
+  if (asset !== undefined) {
+    const name = lookupTokenNameById(network, asset);
+    if (name !== undefined) {
+      try {
+        return resolveToken(name, network).decimals;
+      } catch {
+        // fall through to defaultToken fallback
+      }
+    }
+  }
+  return network.defaultToken?.decimals;
+};
+
+/**
+ * Format a raw integer string as a human decimal using the given decimals.
+ * Mirrors the trailing-zero trim used by `fund usdc crypto`.
+ */
+const humanizeAmount = (raw: string, decimals: number): string =>
+  (Number(BigInt(raw)) / 10 ** decimals)
+    .toFixed(decimals)
+    .replace(/\.?0+$/, "");
 
 export const pay: Command<PayArgs> = {
   cmd: "pay",
@@ -171,6 +204,27 @@ export const pay: Command<PayArgs> = {
         );
       }
 
+      // Humanize the paid amount once for both history and display. If we
+      // can't determine decimals (unknown asset and no default), fall back to
+      // the raw string and surface a debug warning rather than silently
+      // assuming 6-decimal USDC.
+      const tokenLabel = result.payment
+        ? labelAssetForPayment(network, result.payment.asset)
+        : "";
+      const paymentDecimals = result.payment
+        ? resolveAssetDecimals(network, result.payment.asset)
+        : undefined;
+      const formattedAmount = result.payment
+        ? paymentDecimals !== undefined
+          ? humanizeAmount(result.payment.amount, paymentDecimals)
+          : result.payment.amount
+        : "";
+      if (result.payment && paymentDecimals === undefined) {
+        yield* output.debug(
+          `Could not determine decimals for asset ${result.payment.asset ?? "(none)"}; displaying raw amount`,
+        );
+      }
+
       // Record in history if payment was made
       if (result.payment) {
         const p = result.payment;
@@ -181,8 +235,8 @@ export const pay: Command<PayArgs> = {
             from: accountInfo.fastAddress,
             to: p.recipient,
             amount: p.amount,
-            formatted: p.amount,
-            tokenName: labelAssetForPayment(network, p.asset),
+            formatted: formattedAmount,
+            tokenName: tokenLabel,
             tokenId: p.asset ?? "",
             network: p.network,
             status: "confirmed",
@@ -197,7 +251,7 @@ export const pay: Command<PayArgs> = {
       if (result.payment) {
         const p = result.payment;
         yield* output.humanLine(`Payment successful (${p.network})`);
-        yield* output.humanLine(`  Amount:    ${p.amount}`);
+        yield* output.humanLine(`  Amount:    ${formattedAmount} ${tokenLabel}`);
         yield* output.humanLine(`  Recipient: ${p.recipient}`);
         yield* output.humanLine(`  Tx hash:   ${p.txHash}`);
         yield* output.humanLine("");
@@ -206,6 +260,8 @@ export const pay: Command<PayArgs> = {
       yield* output.ok({
         txHash: result.payment?.txHash ?? null,
         amount: result.payment?.amount ?? null,
+        formatted: result.payment ? formattedAmount : null,
+        tokenName: result.payment ? tokenLabel : null,
         recipient: result.payment?.recipient ?? null,
         network: result.payment?.network ?? null,
         response: result.body,

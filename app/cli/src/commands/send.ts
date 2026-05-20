@@ -15,14 +15,18 @@ import {
 import { bech32m } from "bech32";
 import { Effect, Schema } from "effect";
 import type { SendArgs } from "../cli.js";
+import type { ClientError } from "../errors/index.js";
 import {
+  CommandUnsupportedForTokenError,
   InvalidAddressError,
   InvalidAmountError,
   InvalidNetworkConfigError,
   FundingRequiredError,
+  TokenNotFoundError,
   TransactionFailedError,
   UnsupportedChainError,
 } from "../errors/index.js";
+import { InvalidUsageError } from "../errors/usage.js";
 import { makeHistoryEntry } from "../schemas/history.js";
 import { AllSet } from "../services/api/allset.js";
 import { FastRpc } from "../services/api/fast.js";
@@ -32,8 +36,10 @@ import { Prompt } from "../services/prompt.js";
 import { AccountStore } from "../services/storage/account.js";
 import { HistoryStore } from "../services/storage/history.js";
 import { NetworkConfigService } from "../services/storage/network.js";
-import { resolveToken } from "../services/token-resolver.js";
-import { selectSendTokenName } from "./send-token-helper.js";
+import {
+  resolveToken,
+  tokenIsKnownOnNetwork,
+} from "../services/token-resolver.js";
 import type { Command } from "./index.js";
 
 export const send: Command<SendArgs> = {
@@ -119,20 +125,55 @@ export const send: Command<SendArgs> = {
       // Resolve network
       const network = yield* networkConfig.resolve(config.network);
 
-      // Resolve token name: use provided value or default to first token on the network
+      // Resolve token name: explicit --token wins; otherwise use the network's default.
       const tokenChain = fromChain ?? toChain;
-      const resolvedTokenName = selectSendTokenName(args.token, network, tokenChain);
+      const tokenWasDefaulted = args.token === undefined;
+      const resolvedTokenName = args.token ?? network.defaultToken?.symbol;
+      if (resolvedTokenName === undefined) {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: `No default token found on ${config.network}; please specify a token.`,
+          }),
+        );
+      }
 
-      // Resolve token using the appropriate chain context
+      // Resolve token using the appropriate chain context.
+      // When chain context is present and the token IS known on the network
+      // but not on this specific chain, rewrap as CommandUnsupportedForTokenError
+      // so the user sees "send --from-chain X is not supported for fastUSD on …"
+      // instead of the generic "Unknown token" message.
       const tokenInfo = yield* Effect.try({
         try: () => resolveToken(resolvedTokenName, network, tokenChain),
-        catch: (e) => e as InvalidNetworkConfigError | Error,
+        catch: (e) => e as TokenNotFoundError | UnsupportedChainError | Error,
       }).pipe(
-        Effect.mapError((e) =>
-          "message" in (e as object)
-            ? (e as TransactionFailedError)
-            : new TransactionFailedError({ message: String(e), cause: e }),
-        ),
+        Effect.mapError((e): ClientError => {
+          if (
+            e instanceof TokenNotFoundError &&
+            tokenChain !== undefined &&
+            (tokenWasDefaulted ||
+              tokenIsKnownOnNetwork(network, resolvedTokenName))
+          ) {
+            const commandLabel = fromChain
+              ? `send --from-chain ${fromChain}`
+              : `send --to-chain ${toChain}`;
+            const suggestion = tokenWasDefaulted
+              ? `Pass --token explicitly. See 'fast info bridge-tokens' for tokens available on ${tokenChain}.`
+              : `See 'fast info bridge-tokens' for tokens available on ${tokenChain}.`;
+            return new CommandUnsupportedForTokenError({
+              command: commandLabel,
+              token: resolvedTokenName,
+              network: config.network,
+              suggestion,
+            });
+          }
+          if (
+            e instanceof TokenNotFoundError ||
+            e instanceof UnsupportedChainError
+          ) {
+            return e;
+          }
+          return new TransactionFailedError({ message: String(e), cause: e });
+        }),
       );
 
       const { decimals } = tokenInfo;

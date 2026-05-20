@@ -1,0 +1,43 @@
+{
+  "name": "@fastxyz/key-handover",
+  "version": "0.1.0",
+  "description": "HPKE private-key handover protocol — agent-side logic and wallet-side seal reference implementation",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fastxyz/fast-sdk",
+    "directory": "packages/key-handover"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "dev": "tsup src/index.ts --format esm --watch --dts",
+    "clean": "rm -rf dist",
+    "test": "vitest run"
+  },
+  "author": "Fast.xyz",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@fastxyz/sdk": "workspace:*",
+    "@hpke/core": "^1.7.4",
+    "@noble/hashes": "^2.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "vitest": "^4.1.1"
+  }
+}

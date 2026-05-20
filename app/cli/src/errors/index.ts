@@ -35,6 +35,7 @@ import type {
   PaymentRejectedError,
 } from "./payment.js";
 import type {
+  CommandUnsupportedForTokenError,
   FundingRequiredError,
   InsufficientBalanceError,
   InsufficientGasError,
@@ -68,6 +69,7 @@ export type ClientError =
   | DatabaseError
   | InvalidAddressError
   | InvalidAmountError
+  | CommandUnsupportedForTokenError
   | TokenNotFoundError
   | UnsupportedChainError
   | NotImplementedError

@@ -20,6 +20,7 @@ Two open PRs need to land on `develop`, in this order: **PR #87 (fastUSD) first,
 - **Two unchecked smoke tests** (from the PR description):
   - mainnet: open the emitted `fund fastusd` URL once the unified Fast web app is live; confirm `to=` is recognized and `amount=` pre-fills.
   - testnet: `fast send fast1addr 5` (no `--token`) defaults to `testUSDC`; mainnet equivalent defaults to `fastUSD`.
+- **Fail loud on routes the default `fastUSD` can't serve.** Default is `fastUSD` on mainnet, but some routes (e.g. `fund usdc crypto`, which goes through allSet) can't settle in fastUSD. When `--token` is omitted on one of those routes, do not silently substitute a different default (e.g. fall through to `fastUSDC` or the chain's bridge token). Instead, print an error explaining that the default `fastUSD` is not supported on this command and instructing the user to pass `--token USDC` explicitly. The principle: default is fastUSD everywhere or it's an explicit choice — never a silent route-dependent substitution.
 
 ## PR #85 — `feat(cli): multisig support — N-of-M wallets + token operations`
 

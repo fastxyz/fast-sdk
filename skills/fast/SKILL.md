@@ -83,7 +83,7 @@ Every supported subcommand is listed below. Use **exactly** these command names 
 | Command | Description | Key flags |
 |---|---|---|
 | `fast fund usdc fiat` | Print a Ramp on-ramp URL for funding with USDC (mainnet only). | `--network mainnet`, `--address` |
-| `fast fund usdc crypto <amount>` | Bridge USDC from an EVM chain into the Fast account. | `--chain <chain>` (required), `--token`, `--eip-7702` (gasless) |
+| `fast fund usdc crypto <amount>` | Bridge USDC from an EVM chain into the Fast account. Defaults `--token` to `network.defaultToken.symbol` when omitted. On mainnet that's `fastUSD`, which is not on EVM chains by default — pass `--token USDC` for the bridge case. The command errors with `CommandUnsupportedForTokenError` otherwise. | `--chain <chain>` (required), `--token`, `--eip-7702` (gasless) |
 | `fast fund fastusd` | Print an `app.fast.xyz/send` URL that opens the unified Fast funding page (mainnet only). Funds **fastUSD** (Fast-native, distinct from bridged USDC). | `--to <fast1...>`, `--amount <decimal>` |
 
 ### `send` command
@@ -96,7 +96,7 @@ fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chai
 |---|---|---|
 | `<address>` | Recipient address | `fast1...` (Fast network) or `0x...` (EVM) |
 | `<amount>` | Amount to send | numeric string, e.g. `"20"` |
-| `--token <TOKEN>` | Token to send. Route-specific defaults if omitted: Fast→Fast mainnet uses `fastUSD`; Fast→Fast testnet uses `testUSDC`; bridge routes use the chain's first configured token (typically `USDC`/`testUSDC`). | `USDC`, `fastUSD`, `testUSDC` |
+| `--token <TOKEN>` | Defaults to `network.defaultToken.symbol` (`fastUSD` on mainnet, `testUSDC` on testnet) when omitted. Bridge routes (`--from-chain` / `--to-chain`) require the resolved token to be available on the target chain; otherwise the command errors with `CommandUnsupportedForTokenError`. | `USDC`, `fastUSD`, `testUSDC` |
 | `--from-chain <chain>` | Bridge from this EVM chain into Fast | e.g. `arbitrum-sepolia`, `base` |
 | `--to-chain <chain>` | Bridge from Fast to this EVM chain | e.g. `arbitrum-sepolia` |
 | `--eip-7702` | Gasless deposit (no ETH needed on EVM side) | flag, no value |

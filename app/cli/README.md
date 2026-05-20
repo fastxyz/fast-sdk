@@ -32,11 +32,15 @@ fast account create
 # Check balances
 fast info balance
 
-# Send USDC explicitly (omitting --token would default to fastUSD on mainnet)
+# Send the network's default token (fastUSD on mainnet) — Fast → Fast
+fast send fast1abc...xyz 10
+
+# Send a specific token explicitly
 fast send fast1abc...xyz 10 --token USDC
 
-# Bridge USDC from Arbitrum Sepolia to Fast
-fast fund usdc crypto 50 --chain arbitrum-sepolia
+# Bridge USDC from Arbitrum Sepolia to Fast (--token USDC is required on
+# mainnet because the network default — fastUSD — is not on EVM chains)
+fast fund usdc crypto 50 --chain arbitrum-sepolia --token USDC
 
 # Or get a unified Fast web-app URL to fund fastUSD (mainnet only)
 fast fund fastusd --amount 50
@@ -75,6 +79,32 @@ These options work with every command:
 | `--password <pwd>` | Provide the keystore password (defaults to `FAST_PASSWORD` env var, then interactive prompt) |
 | `--non-interactive` | Auto-confirm confirmations and fail when required input is missing |
 | `--debug` | Enable verbose debug logging to stderr |
+
+### Default token
+
+Commands that accept `--token` (currently `fast send` and `fast fund usdc
+crypto`) default to the active network's `defaultToken.symbol` when the flag
+is omitted: `fastUSD` on mainnet, `testUSDC` on testnet. Bridge routes
+additionally require the resolved token to exist on the target chain — on
+mainnet bridges you must pass `--token USDC` explicitly because `fastUSD` does
+not exist on EVM chains.
+
+To customize the default, register a network with `fast network add <name>
+--config <path>` where the JSON config includes a `defaultToken` field, for
+example:
+
+```json
+{
+  "defaultToken": {
+    "symbol": "USDC",
+    "tokenId": "0x...",
+    "decimals": 6
+  }
+}
+```
+
+If a custom network omits `defaultToken`, callers must pass `--token`
+explicitly; otherwise the command errors with `INVALID_USAGE`.
 
 ## Commands
 
@@ -169,7 +199,7 @@ fast send fast1recipient... 10.5 --token USDC
 
 - `--from-chain <chain>` — Source EVM chain for EVM → Fast transfers
 - `--to-chain <chain>` — Destination EVM chain for Fast → EVM transfers
-- `--token <token>` — Token symbol or token ID (defaults to the first configured bridge token, typically `USDC`)
+- `--token <token>` — Token symbol or token ID. Defaults to the network's `defaultToken.symbol` (`fastUSD` on mainnet, `testUSDC` on testnet). Bridge routes require the resolved token to be available on the target chain; otherwise the command errors with `CommandUnsupportedForTokenError`.
 - `--eip-7702` — Use the smart deposit flow for EVM → Fast transfers
 - `--account <name>` — Sender account (defaults to the configured default)
 
@@ -280,7 +310,7 @@ fast fund usdc crypto 10.5 --chain arbitrum-sepolia --token USDC
 **Options:**
 
 - `--chain <chain>` — Source EVM chain (required).
-- `--token <token>` — Token symbol or token ID (defaults to `USDC` / `testUSDC`).
+- `--token <token>` — Token symbol or token ID. Defaults to the network's `defaultToken.symbol`. On mainnet that's `fastUSD`, which is **not** on EVM chains — pass `--token USDC` explicitly for the bridge case, or the command errors with `CommandUnsupportedForTokenError`.
 - `--eip-7702` — Use the smart deposit flow (gas paid in USDC via paymaster).
 
 ---

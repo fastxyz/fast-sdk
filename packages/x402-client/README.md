@@ -116,6 +116,22 @@ Main entry point. Fetches the URL, and if a 402 is returned, handles payment aut
 | `bridgeConfig` | `BridgeConfig`                   | No       | Bridge config for auto-bridge                   |
 | `verbose`      | `boolean`                        | No       | Enable verbose logging                          |
 
+**Result (`X402PayResult.payment`):**
+
+For Fast-network payments, `payment.amount` is the **raw integer amount** in
+the asset's smallest unit (a string, mirroring `maxAmountRequired` from the
+server's payment requirement). The `PaymentRequirement` wire format does not
+carry token decimals, so the client cannot humanize the value on its own —
+consumers needing a display string must humanize using their own
+token-decimals registry (for example, by looking up `payment.asset` against a
+known token list).
+
+EVM-network payments currently still humanize `payment.amount` with the USDC
+6-decimals assumption baked in; this asymmetry will be resolved in a future
+release. New downstream code should treat `payment.amount` as a raw
+smallest-unit string regardless of network and humanize explicitly when
+needed.
+
 ### `bridgeFastusdcToUsdc(params)`
 
 Manually bridge Fast USDC to EVM USDC using a single params object.

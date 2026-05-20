@@ -3,6 +3,7 @@ import {
   lookupTokenNameById,
   resolveDefaultToken,
   resolveToken,
+  tokenIsKnownOnNetwork,
 } from "../../src/services/token-resolver.js";
 import { TokenNotFoundError, UnsupportedChainError } from "../../src/errors/index.js";
 import type { NetworkConfig } from "../../src/schemas/networks.js";
@@ -11,6 +12,14 @@ const MAINNET: NetworkConfig = {
   url: "https://api.fast.xyz/proxy-rest",
   explorerUrl: "https://explorer.fast.xyz",
   networkId: "fast:mainnet",
+  // `defaultToken` is the authoritative source post-Task 4. `fastTokens` is kept
+  // alongside it (with the same id) so PR #87's transitional `resolveToken`
+  // tests still exercise the bridge block until Task 7 removes it.
+  defaultToken: {
+    tokenId: "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",
+    symbol: "fastUSD",
+    decimals: 6,
+  },
   allSet: {
     crossSignUrl: "https://cross-sign.allset.fast.xyz",
     portalApiUrl: "https://allset.fast.xyz/api",
@@ -207,5 +216,140 @@ describe("lookupTokenNameById", () => {
   it("returns undefined when no entry matches", () => {
     const name = lookupTokenNameById(MAINNET, "0xdeadbeef");
     expect(name).toBeUndefined();
+  });
+});
+
+const mainnetCfg: NetworkConfig = {
+  url: "https://api.fast.xyz/proxy-rest",
+  explorerUrl: "https://explorer.fast.xyz",
+  networkId: "fast:mainnet" as const,
+  defaultToken: {
+    tokenId: "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",
+    symbol: "fastUSD",
+    decimals: 6,
+  },
+  allSet: {
+    crossSignUrl: "https://cross-sign.allset.fast.xyz",
+    portalApiUrl: "https://allset.fast.xyz/api",
+    chains: {
+      arbitrum: {
+        chainId: 42161,
+        bridgeContract: "0xBRIDGE",
+        fastBridgeAddress: "fast1bridge",
+        relayerUrl: "https://relayer",
+        evmRpcUrl: "https://rpc",
+        evmExplorerUrl: "https://arbiscan.io",
+        tokens: {
+          USDC: {
+            evmAddress: "0xUSDC_ARB",
+            fastTokenId:
+              "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
+            decimals: 6,
+          },
+        },
+      },
+    },
+  },
+};
+
+const customCfgWithoutDefaultToken: NetworkConfig = {
+  url: "https://x",
+  explorerUrl: "https://y",
+  networkId: "fast:mainnet" as const,
+  allSet: {
+    crossSignUrl: "https://x",
+    portalApiUrl: "https://y",
+    chains: {
+      base: {
+        chainId: 8453,
+        bridgeContract: "0xB",
+        fastBridgeAddress: "fast1b",
+        relayerUrl: "https://r",
+        evmRpcUrl: "https://rpc",
+        evmExplorerUrl: "https://e",
+        tokens: {
+          USDC: { evmAddress: "0xU", fastTokenId: "0xc655a123", decimals: 6 },
+        },
+      },
+    },
+  },
+};
+
+describe("resolveToken — defaultToken consultation", () => {
+  it("returns fastUSD via defaultToken short-circuit (no chain)", () => {
+    const r = resolveToken("fastUSD", mainnetCfg);
+    expect(r.decimals).toBe(6);
+    expect(r.evmAddress).toBeUndefined();
+    expect(r.fastTokenId.length).toBeGreaterThan(0);
+  });
+
+  it("falls through to chain scan for non-default tokens (no chain)", () => {
+    const r = resolveToken("USDC", mainnetCfg);
+    expect(r.decimals).toBe(6);
+    expect(r.evmAddress).toBeUndefined();
+  });
+
+  it("throws TokenNotFoundError when token is not in defaultToken and not in any chain", () => {
+    expect(() => resolveToken("USDD", mainnetCfg)).toThrow(/Unknown token/);
+  });
+
+  it("throws TokenNotFoundError when network has no defaultToken and token is unknown", () => {
+    expect(() => resolveToken("fastUSD", customCfgWithoutDefaultToken)).toThrow(
+      /Unknown token/,
+    );
+  });
+
+  it("chain context — fastUSD on arbitrum throws TokenNotFoundError (resolver stays narrow)", () => {
+    expect(() => resolveToken("fastUSD", mainnetCfg, "arbitrum")).toThrow(
+      /Unknown token/,
+    );
+  });
+
+  it("chain context — USDC on arbitrum returns ResolvedToken with evmAddress", () => {
+    const r = resolveToken("USDC", mainnetCfg, "arbitrum");
+    expect(r.evmAddress).toBe("0xUSDC_ARB");
+    expect(r.decimals).toBe(6);
+  });
+});
+
+describe("tokenIsKnownOnNetwork", () => {
+  it("true for the network's defaultToken symbol", () => {
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "fastUSD")).toBe(true);
+  });
+
+  it("true for a token in any chain", () => {
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "USDC")).toBe(true);
+  });
+
+  it("false for an unknown token", () => {
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "USDD")).toBe(false);
+  });
+
+  it("false when network has no defaultToken and token only appears as unknown", () => {
+    expect(tokenIsKnownOnNetwork(customCfgWithoutDefaultToken, "fastUSD")).toBe(
+      false,
+    );
+  });
+});
+
+describe("lookupTokenNameById — defaultToken fallback", () => {
+  it("returns the defaultToken symbol when id matches", () => {
+    const name = lookupTokenNameById(
+      mainnetCfg,
+      "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",
+    );
+    expect(name).toBe("fastUSD");
+  });
+
+  it("prefers a chain match over defaultToken when both exist", () => {
+    const name = lookupTokenNameById(
+      mainnetCfg,
+      "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
+    );
+    expect(name).toBe("USDC");
+  });
+
+  it("returns undefined when neither chain nor defaultToken matches", () => {
+    expect(lookupTokenNameById(mainnetCfg, "0xdeadbeef")).toBeUndefined();
   });
 });

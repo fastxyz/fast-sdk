@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
+import { bundledNetworks } from "../../src/config/networks.js";
 import { NetworkConfigSchema } from "../../src/schemas/networks.js";
 
 describe("NetworkConfigSchema", () => {
@@ -28,5 +29,21 @@ describe("NetworkConfigSchema", () => {
     };
     const parsed = Schema.decodeUnknownSync(NetworkConfigSchema)(config);
     expect(parsed.defaultToken).toBeUndefined();
+  });
+});
+
+describe("bundledNetworks", () => {
+  it("mainnet.defaultToken matches the SDK fastUSD", () => {
+    const mainnet = bundledNetworks.mainnet;
+    expect(mainnet.defaultToken?.symbol).toBe("fastUSD");
+    expect(mainnet.defaultToken?.decimals).toBe(6);
+    expect(mainnet.defaultToken?.tokenId).toMatch(/^0x125b60bb/);
+  });
+
+  it("testnet.defaultToken matches the SDK testUSDC", () => {
+    const testnet = bundledNetworks.testnet;
+    expect(testnet.defaultToken?.symbol).toBe("testUSDC");
+    expect(testnet.defaultToken?.decimals).toBe(6);
+    expect(testnet.defaultToken?.tokenId).toMatch(/^0xd73a0679/);
   });
 });

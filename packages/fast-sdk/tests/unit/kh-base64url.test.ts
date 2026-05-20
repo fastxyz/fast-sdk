@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   encodeBase64Url,
   decodeBase64Url,
-} from "../src/crypto/base64url.ts";
+} from "../../src/wallet/key-handover/crypto/base64url";
 
 describe("base64url", () => {
   it("round-trips arbitrary bytes unpadded", () => {

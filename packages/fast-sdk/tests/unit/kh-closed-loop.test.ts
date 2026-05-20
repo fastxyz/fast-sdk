@@ -1,7 +1,7 @@
-import { Signer, verify } from "@fastxyz/sdk";
+import { Signer, verify } from "../../src/interface/signer";
 import { describe, expect, it } from "vitest";
-import { KeyHandoverAgent } from "../src/agent.ts";
-import { sealHandover } from "../src/wallet.ts";
+import { KeyHandoverAgent } from "../../src/wallet/key-handover/agent";
+import { sealHandover } from "../../src/wallet/key-handover/wallet";
 
 let clock = new Date("2026-05-20T12:00:00Z");
 const now = () => clock;

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { encodeBase64Url } from "../src/crypto/base64url.ts";
+import { encodeBase64Url } from "../../src/wallet/key-handover/crypto/base64url";
 import {
   decodeHandoverCode,
   encodeHandoverCode,
   extractSingleQuotedCandidate,
-} from "../src/protocol/handover.ts";
+} from "../../src/wallet/key-handover/protocol/handover";
 
 const enc32 = new Uint8Array(32).fill(3);
 const ct = new Uint8Array([9, 9, 9]);
@@ -70,5 +70,10 @@ describe("protocol/handover", () => {
       ),
     );
     expect(() => decodeHandoverCode(bad)).toThrow();
+  });
+
+  it("accepts bare base64url code without quotes or message prefix", () => {
+    const code = makeCode();
+    expect(extractSingleQuotedCandidate(code)).toBe(code);
   });
 });

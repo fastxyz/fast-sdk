@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { encodeBase64Url } from "../src/crypto/base64url.ts";
+import { encodeBase64Url } from "../../src/wallet/key-handover/crypto/base64url";
 import {
   type AuthRequest,
   decodeRequest,
   encodeRequest,
-} from "../src/protocol/request.ts";
+} from "../../src/wallet/key-handover/protocol/request";
 
 const validPub = encodeBase64Url(new Uint8Array(32).fill(7));
 

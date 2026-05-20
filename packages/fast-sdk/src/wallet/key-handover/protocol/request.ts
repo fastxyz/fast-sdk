@@ -1,6 +1,6 @@
-import { decodeBase64Url, encodeBase64Url } from "../crypto/base64url.ts";
-import { ERROR } from "../errors.ts";
-import { detectDuplicateKeys } from "./strict-json.ts";
+import { decodeBase64Url, encodeBase64Url } from "../crypto/base64url";
+import { ERROR } from "../errors";
+import { detectDuplicateKeys } from "./strict-json";
 
 const EXP_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const FIVE_MINUTES_MS = 5 * 60 * 1000;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { KeyHandoverAgent } from "../src/agent.ts";
+import { KeyHandoverAgent } from "../../src/wallet/key-handover/agent";
 
 const now = () => new Date("2026-05-20T12:00:00Z");
 
@@ -8,7 +8,7 @@ describe("agent (structure)", () => {
     const agent = new KeyHandoverAgent({ now, walletBaseUrl: "https://x/authorize" });
     const req = await agent.generateAuthRequest({ requester: "demo" });
     expect(req.auth_url.startsWith("https://x/authorize?data=")).toBe(true);
-    expect(req.request_fingerprint).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
+    expect(req.request_fingerprint).toMatch(/^\d{6}$/);
     expect(req.request_expires_at).toBe("2026-05-20T12:05:00Z");
   });
 

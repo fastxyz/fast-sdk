@@ -1,4 +1,4 @@
-import { Signer } from "@fastxyz/sdk";
+import { Signer } from "../../../interface/signer";
 
 export interface HandleInfo {
   address: string;

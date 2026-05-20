@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
-import { generateKeyPair } from "../src/crypto/hpke.ts";
-import { PendingStore } from "../src/state/pending.ts";
+import { describe, expect, it } from "vitest";
+import { generateKeyPair } from "../../src/wallet/key-handover/crypto/hpke";
+import { PendingStore } from "../../src/wallet/key-handover/state/pending";
 
 async function fakeKey() {
   return (await generateKeyPair()).privateKey;

@@ -1,6 +1,6 @@
-import { decodeBase64Url, encodeBase64Url } from "../crypto/base64url.ts";
-import { ERROR } from "../errors.ts";
-import { detectDuplicateKeys } from "./strict-json.ts";
+import { decodeBase64Url, encodeBase64Url } from "../crypto/base64url";
+import { ERROR } from "../errors";
+import { detectDuplicateKeys } from "./strict-json";
 
 export function encodePlaintextSeed(seed: Uint8Array): Uint8Array {
   const json = JSON.stringify({ private_key: encodeBase64Url(seed) });

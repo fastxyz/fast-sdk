@@ -1,6 +1,6 @@
-import { decodeBase64Url, encodeBase64Url } from "../crypto/base64url.ts";
-import { ERROR } from "../errors.ts";
-import { detectDuplicateKeys } from "./strict-json.ts";
+import { decodeBase64Url, encodeBase64Url } from "../crypto/base64url";
+import { ERROR } from "../errors";
+import { detectDuplicateKeys } from "./strict-json";
 
 const MAX_CIPHERTEXT_BYTES = 4096;
 
@@ -10,7 +10,11 @@ export interface HandoverPayload {
 }
 
 export function extractSingleQuotedCandidate(message: string): string {
-  const matches = message.match(/"([^"]*)"/g);
+  const trimmed = message.trim();
+  if (/^[A-Za-z0-9_-]+$/.test(trimmed)) {
+    return trimmed;
+  }
+  const matches = trimmed.match(/"([^"]*)"/g);
   if (!matches || matches.length !== 1) {
     throw new Error(
       `${ERROR.MALFORMED_HANDOVER_MESSAGE}: expected exactly one quoted candidate`,

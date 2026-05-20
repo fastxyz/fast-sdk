@@ -1,17 +1,17 @@
-import { Signer } from "@fastxyz/sdk";
+import { Signer } from "../../interface/signer";
 import {
   type HpkeKeyPair,
   exportRecipientPublicKey,
   generateKeyPair,
   hpkeOpen,
-} from "./crypto/hpke.ts";
-import { fingerprint } from "./crypto/fingerprint.ts";
-import { ERROR } from "./errors.ts";
-import { decodeHandoverCode, extractSingleQuotedCandidate } from "./protocol/handover.ts";
-import { decodePlaintextSeed } from "./protocol/plaintext.ts";
-import { encodeRequest } from "./protocol/request.ts";
-import { type HandleInfo, HandleVault } from "./state/handles.ts";
-import { PendingStore } from "./state/pending.ts";
+} from "./crypto/hpke";
+import { fingerprint } from "./crypto/fingerprint";
+import { ERROR } from "./errors";
+import { decodeHandoverCode, extractSingleQuotedCandidate } from "./protocol/handover";
+import { decodePlaintextSeed } from "./protocol/plaintext";
+import { encodeRequest } from "./protocol/request";
+import { type HandleInfo, HandleVault } from "./state/handles";
+import { PendingStore } from "./state/pending";
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const DEFAULT_WALLET_BASE_URL = "https://app.fast.xyz/authorize";

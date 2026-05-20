@@ -1,4 +1,4 @@
-import { ERROR } from "../errors.ts";
+import { ERROR } from "../errors";
 
 export interface PendingSeed {
   hpkePrivateKey: CryptoKey;

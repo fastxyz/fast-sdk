@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   exportRecipientPublicKey,
   generateKeyPair,
-} from "../src/crypto/hpke.ts";
-import { fingerprint } from "../src/crypto/fingerprint.ts";
-import { decodeRequest, encodeRequest } from "../src/protocol/request.ts";
-import { parseAuthRequest } from "../src/wallet.ts";
+} from "../../src/wallet/key-handover/crypto/hpke";
+import { fingerprint } from "../../src/wallet/key-handover/crypto/fingerprint";
+import { decodeRequest, encodeRequest } from "../../src/wallet/key-handover/protocol/request";
+import { parseAuthRequest } from "../../src/wallet/key-handover/wallet";
 
 const now = () => new Date("2026-05-20T12:00:00Z");
 

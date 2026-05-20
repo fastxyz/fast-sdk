@@ -44,3 +44,10 @@ export type {
   SignRequestEnvelope,
   SignResult,
 } from "./types";
+export { KeyHandoverAgent } from "./key-handover/agent";
+export type { DecryptResult, KeyHandoverAgentOptions } from "./key-handover/agent";
+export { parseAuthRequest, sealHandover } from "./key-handover/wallet";
+export type { ParsedAuthRequest } from "./key-handover/wallet";
+export { ERROR as KEY_HANDOVER_ERROR } from "./key-handover/errors";
+export type { ErrorCode as KeyHandoverErrorCode } from "./key-handover/errors";
+export type { HandleInfo } from "./key-handover/state/handles";

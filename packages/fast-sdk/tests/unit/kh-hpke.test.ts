@@ -5,7 +5,7 @@ import {
   generateKeyPair,
   hpkeOpen,
   hpkeSeal,
-} from "../src/crypto/hpke.ts";
+} from "../../src/wallet/key-handover/crypto/hpke";
 
 describe("hpke", () => {
   it("seals to a recipient public key and opens with the private key", async () => {

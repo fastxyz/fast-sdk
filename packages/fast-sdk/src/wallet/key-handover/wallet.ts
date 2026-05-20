@@ -1,8 +1,8 @@
-import { fingerprint } from "./crypto/fingerprint.ts";
-import { hpkeSeal } from "./crypto/hpke.ts";
-import { encodeHandoverCode } from "./protocol/handover.ts";
-import { encodePlaintextSeed } from "./protocol/plaintext.ts";
-import { decodeRequest } from "./protocol/request.ts";
+import { fingerprint } from "./crypto/fingerprint";
+import { hpkeSeal } from "./crypto/hpke";
+import { encodeHandoverCode } from "./protocol/handover";
+import { encodePlaintextSeed } from "./protocol/plaintext";
+import { decodeRequest } from "./protocol/request";
 
 function extractData(authUrlOrData: string): string {
   const trimmed = authUrlOrData.trim();

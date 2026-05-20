@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { encodeBase64Url } from "../src/crypto/base64url.ts";
+import { encodeBase64Url } from "../../src/wallet/key-handover/crypto/base64url";
 import {
   decodePlaintextSeed,
   encodePlaintextSeed,
-} from "../src/protocol/plaintext.ts";
+} from "../../src/wallet/key-handover/protocol/plaintext";
 
 const seed = new Uint8Array(32).fill(5);
 

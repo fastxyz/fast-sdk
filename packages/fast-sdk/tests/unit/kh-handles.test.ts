@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HandleVault } from "../src/state/handles.ts";
+import { HandleVault } from "../../src/wallet/key-handover/state/handles";
 
 const seed = new Uint8Array(32).fill(8);
 

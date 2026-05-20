@@ -154,7 +154,7 @@ const SUBCOMMANDS: Record<string, readonly string[]> = {
   account: ["create", "import", "list", "set-default", "export", "delete"],
   network: ["list", "add", "set-default", "remove"],
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
-  fund: ["fiat", "crypto"],
+  fund: ["usdc", "fastusd"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -220,19 +220,35 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     },
   },
   // ── Subcommands with required args/options ─────────────────────────────────
-  "fund crypto": {
-    usage: "fast fund crypto <amount> --chain <chain> [--token <token>]",
+  "fund usdc": {
+    usage: "fast fund usdc <fiat|crypto>",
+    options: [],
+    check: (positionals) => {
+      const third = positionals[2];
+      if (!third) return "Missing subcommand. Available: fiat, crypto";
+      if (third !== "fiat" && third !== "crypto")
+        return `Unknown subcommand '${third}' for 'fund usdc'. Available: fiat, crypto`;
+      return null;
+    },
+  },
+  "fund usdc fiat": {
+    usage: "fast fund usdc fiat [--address <address>]",
+    options: ["--address"],
+    check: () => null,
+  },
+  "fund usdc crypto": {
+    usage: "fast fund usdc crypto <amount> --chain <chain> [--token <token>]",
     options: ["--chain", "--token", "--eip-7702"],
     check: (positionals, allArgv) => {
-      if (positionals.length < 3) return "Missing required argument: <amount>";
+      if (positionals.length < 4) return "Missing required argument: <amount>";
       if (!allArgv.some((a) => a === "--chain" || a.startsWith("--chain=")))
         return "Missing required option: --chain <chain>";
       return null;
     },
   },
-  "fund fiat": {
-    usage: "fast fund fiat [--address <address>]",
-    options: ["--address"],
+  "fund fastusd": {
+    usage: "fast fund fastusd [--to <fast1...>] [--amount <decimal>]",
+    options: ["--to", "--amount"],
     check: () => null,
   },
   "network add": {
@@ -349,8 +365,13 @@ if (!result.success) {
         ? `Unknown subcommand '${secondToken}' for '${firstToken}'. Did you mean '${s}'?`
         : `Unknown subcommand '${secondToken}' for '${firstToken}'. Available: ${subs.join(", ")}.`;
     } else {
-      // Valid subcommand but parse still failed — check for missing required args/options
-      const key = `${firstToken} ${secondToken}`;
+      // Try the deepest matching key (3-deep first, then 2-deep) so e.g.
+      // `fund usdc fiat` matches "fund usdc fiat" not "fund usdc".
+      const thirdToken = positionals[2];
+      const deepKey = thirdToken ? `${firstToken} ${secondToken} ${thirdToken}` : null;
+      const shallowKey = `${firstToken} ${secondToken}`;
+      const key =
+        deepKey && deepKey in SUBCOMMAND_REQUIREMENTS ? deepKey : shallowKey;
       const req = SUBCOMMAND_REQUIREMENTS[key];
       if (req) {
         const hint = req.check(positionals, argv);

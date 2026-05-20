@@ -120,8 +120,8 @@ fast info balance
 # Send tokens on Fast
 fast send fast1recipient... 1000 --token USDC
 
-# Fund via fiat on-ramp
-fast fund fiat --network mainnet
+# Fund via fiat on-ramp (delivers USDC to your Fast account)
+fast fund usdc fiat --network mainnet
 
 # Pay for x402-protected resource
 fast pay https://api.example.com/protected
@@ -175,5 +175,3 @@ MIT
 ## Legal
 
 Use of the SDK constitutes acceptance of both [Terms of Service](https://pi2labs.org/terms-of-service) and [Acceptable Use Policy](https://pi2labs.org/acceptable-use-policy)
-
-

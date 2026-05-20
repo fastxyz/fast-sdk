@@ -7,6 +7,9 @@ import { accountExport } from "./account/export.js";
 import { accountImport } from "./account/import.js";
 import { accountList } from "./account/list.js";
 import { accountSetDefault } from "./account/set-default.js";
+import { fundFastUsd } from "./fund/fastusd.js";
+import { fundUsdcCrypto } from "./fund/usdc/crypto.js";
+import { fundUsdcFiat } from "./fund/usdc/fiat.js";
 import { infoBalance } from "./info/balance.js";
 import { infoBridgeChains } from "./info/bridge-chains.js";
 import { infoBridgeTokens } from "./info/bridge-tokens.js";
@@ -17,8 +20,6 @@ import { networkAdd } from "./network/add.js";
 import { networkList } from "./network/list.js";
 import { networkRemove } from "./network/remove.js";
 import { networkSetDefault } from "./network/set-default.js";
-import { fundCrypto } from "./fund/crypto.js";
-import { fundFiat } from "./fund/fiat.js";
 import { pay } from "./pay.js";
 import { send } from "./send.js";
 
@@ -29,8 +30,9 @@ export const commands = [
   accountImport,
   accountList,
   accountSetDefault,
-  fundCrypto,
-  fundFiat,
+  fundFastUsd,
+  fundUsdcCrypto,
+  fundUsdcFiat,
   infoBalance,
   infoBridgeChains,
   infoBridgeTokens,

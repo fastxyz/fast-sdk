@@ -112,6 +112,13 @@ export interface PaymentDetails {
   amount: string;
   recipient: string;
   txHash: string;
+  /**
+   * The canonical identifier for the asset actually paid, mirrored from the
+   * server's payment requirement. Shape depends on the network: a Fast token
+   * id hex (e.g. `0xc655a1...`) for Fast networks, an ERC-20 contract address
+   * (e.g. `0xA0b8...`) for EVM networks.
+   */
+  asset?: string;
   bridged?: boolean;
   bridgeTxHash?: string;
 }

@@ -1,0 +1,211 @@
+import { describe, expect, it } from "vitest";
+import {
+  lookupTokenNameById,
+  resolveDefaultToken,
+  resolveToken,
+} from "../../src/services/token-resolver.js";
+import { TokenNotFoundError, UnsupportedChainError } from "../../src/errors/index.js";
+import type { NetworkConfig } from "../../src/schemas/networks.js";
+
+const MAINNET: NetworkConfig = {
+  url: "https://api.fast.xyz/proxy-rest",
+  explorerUrl: "https://explorer.fast.xyz",
+  networkId: "fast:mainnet",
+  allSet: {
+    crossSignUrl: "https://cross-sign.allset.fast.xyz",
+    portalApiUrl: "https://allset.fast.xyz/api",
+    chains: {
+      ethereum: {
+        chainId: 1,
+        bridgeContract: "0xbridge",
+        fastBridgeAddress: "fast1bridge",
+        relayerUrl: "https://relay/eth",
+        evmRpcUrl: "https://rpc/eth",
+        evmExplorerUrl: "https://etherscan.io",
+        tokens: {
+          USDC: {
+            evmAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            fastTokenId:
+              "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
+            decimals: 6,
+          },
+        },
+      },
+    },
+  },
+  fastTokens: {
+    fastUSD: {
+      fastTokenId:
+        "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",
+      decimals: 6,
+    },
+  },
+};
+
+const TESTNET: NetworkConfig = {
+  url: "https://testnet.api.fast.xyz/proxy-rest",
+  explorerUrl: "https://testnet.explorer.fast.xyz",
+  networkId: "fast:testnet",
+  allSet: {
+    crossSignUrl: "https://testnet.cross-sign.allset.fast.xyz",
+    portalApiUrl: "https://testnet.allset.fast.xyz/api",
+    chains: {
+      "arbitrum-sepolia": {
+        chainId: 421614,
+        bridgeContract: "0xbridge",
+        fastBridgeAddress: "fast1bridge",
+        relayerUrl: "https://relay/arb",
+        evmRpcUrl: "https://rpc/arb",
+        evmExplorerUrl: "https://sepolia.arbiscan.io",
+        tokens: {
+          testUSDC: {
+            evmAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+            fastTokenId:
+              "0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46",
+            decimals: 6,
+          },
+        },
+      },
+    },
+  },
+};
+
+describe("resolveToken", () => {
+  it("resolves a chain-scoped token (bridge route)", () => {
+    const r = resolveToken("USDC", MAINNET, "ethereum");
+    expect(r.decimals).toBe(6);
+    expect(r.evmAddress).toBe("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+  });
+
+  it("throws UnsupportedChainError for an unknown chain", () => {
+    expect(() => resolveToken("USDC", MAINNET, "polygon")).toThrow(
+      UnsupportedChainError,
+    );
+  });
+
+  it("throws TokenNotFoundError when chain exists but token does not", () => {
+    expect(() => resolveToken("WBTC", MAINNET, "ethereum")).toThrow(
+      TokenNotFoundError,
+    );
+  });
+
+  it("prefers fastTokens over chain scan when no chain context (mainnet)", () => {
+    const r = resolveToken("fastUSD", MAINNET);
+    expect(r.decimals).toBe(6);
+    expect(r.evmAddress).toBeUndefined();
+  });
+
+  it("falls back to chain scan when no fastTokens entry matches (mainnet)", () => {
+    const r = resolveToken("USDC", MAINNET);
+    expect(r.decimals).toBe(6);
+  });
+
+  it("falls back to chain scan when fastTokens is absent (testnet)", () => {
+    const r = resolveToken("testUSDC", TESTNET);
+    expect(r.decimals).toBe(6);
+  });
+
+  it("ignores fastTokens when chain context is given (mainnet)", () => {
+    expect(() => resolveToken("fastUSD", MAINNET, "ethereum")).toThrow(
+      TokenNotFoundError,
+    );
+  });
+
+  it("throws TokenNotFoundError when chain arg is given but allSet is absent", () => {
+    const cfg: NetworkConfig = { url: "x", explorerUrl: "x", networkId: "x" };
+    expect(() => resolveToken("USDC", cfg, "ethereum")).toThrow(TokenNotFoundError);
+  });
+});
+
+describe("resolveDefaultToken", () => {
+  it("returns fastUSD on mainnet", () => {
+    const r = resolveDefaultToken(MAINNET);
+    expect(r.name).toBe("fastUSD");
+    expect(r.token.decimals).toBe(6);
+  });
+
+  it("returns testUSDC on testnet (no fastTokens, falls back to first chain's first token)", () => {
+    const r = resolveDefaultToken(TESTNET);
+    expect(r.name).toBe("testUSDC");
+    expect(r.token.decimals).toBe(6);
+  });
+
+  it("throws TokenNotFoundError when nothing is registered", () => {
+    const empty: NetworkConfig = {
+      url: "x",
+      explorerUrl: "x",
+      networkId: "x",
+    };
+    expect(() => resolveDefaultToken(empty)).toThrow(TokenNotFoundError);
+  });
+
+  it("falls through to chain scan when fastTokens has multiple non-fastUSD entries", () => {
+    const cfg: NetworkConfig = {
+      url: "x",
+      explorerUrl: "x",
+      networkId: "x",
+      fastTokens: {
+        tokenA: { fastTokenId: "0xaa", decimals: 6 },
+        tokenB: { fastTokenId: "0xbb", decimals: 18 },
+      },
+      allSet: {
+        crossSignUrl: "x",
+        portalApiUrl: "x",
+        chains: {
+          someChain: {
+            chainId: 1,
+            bridgeContract: "x",
+            fastBridgeAddress: "x",
+            relayerUrl: "x",
+            evmRpcUrl: "x",
+            evmExplorerUrl: "x",
+            tokens: {
+              fallbackToken: { evmAddress: "0x1", fastTokenId: "0xcc", decimals: 8 },
+            },
+          },
+        },
+      },
+    };
+    const r = resolveDefaultToken(cfg);
+    expect(r.name).toBe("fallbackToken");
+  });
+});
+
+describe("lookupTokenNameById", () => {
+  it("returns the fastTokens key when an entry matches (mainnet)", () => {
+    const name = lookupTokenNameById(
+      MAINNET,
+      "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",
+    );
+    expect(name).toBe("fastUSD");
+  });
+
+  it("returns a chain-scoped token name when its fastTokenId matches", () => {
+    const name = lookupTokenNameById(
+      MAINNET,
+      "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
+    );
+    expect(name).toBe("USDC");
+  });
+
+  it("matches case-insensitively on hex value", () => {
+    const name = lookupTokenNameById(
+      MAINNET,
+      "0xC655A12330DA6AF361D281B197996D2BC135AAED3B66278E729C2222291E9130",
+    );
+    expect(name).toBe("USDC");
+  });
+
+  it("strips a leading 0x consistently on input", () => {
+    const name = lookupTokenNameById(
+      MAINNET,
+      "c655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
+    );
+    expect(name).toBe("USDC");
+  });
+
+  it("returns undefined when no entry matches", () => {
+    const name = lookupTokenNameById(MAINNET, "0xdeadbeef");
+    expect(name).toBeUndefined();
+  });
+});

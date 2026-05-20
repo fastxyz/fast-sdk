@@ -138,7 +138,7 @@ export async function handleFastPayment(
 
   const amountHuman = toHuman(fastReq.maxAmountRequired, 6);
   log(`[Fast] Building transaction via TransactionBuilder...`);
-  log(`  Amount: ${fastReq.maxAmountRequired} raw → ${amountHuman} USDC`);
+  log(`  Amount: ${fastReq.maxAmountRequired} raw → ${amountHuman} (asset ${fastReq.asset})`);
   const txStartTime = Date.now();
 
   const networkId = resolveNetworkId(fastReq.network);
@@ -216,6 +216,7 @@ export async function handleFastPayment(
       amount: amountHuman,
       recipient: fastReq.payTo,
       txHash,
+      asset: fastReq.asset,
     },
     note: paidRes.ok
       ? `Fast payment of ${amountHuman} successful. Content delivered.`

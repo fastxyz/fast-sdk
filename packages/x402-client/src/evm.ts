@@ -304,6 +304,7 @@ export async function handleEvmPayment(
       amount: amountHuman,
       recipient: evmReq.payTo,
       txHash: settleTxHash,
+      asset: evmReq.asset ?? evmChainConfig.usdcAddress,
       bridged,
       bridgeTxHash,
     },

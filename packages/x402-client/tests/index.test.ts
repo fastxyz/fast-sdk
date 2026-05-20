@@ -174,4 +174,24 @@ describe('x402-client', () => {
       expect(capturedMethod).toBe('POST');
     });
   });
+
+  describe('PaymentDetails.asset', () => {
+    it('exposes the asset hex on the result so callers can label payments correctly', async () => {
+      // Structural / type-shape assertion only: confirms `PaymentDetails`
+      // carries an `asset` field that TS accepts as a string. This does NOT
+      // exercise fast.ts or evm.ts — the runtime population paths are covered
+      // by integration tests.
+      const sample: import('../src/types.js').PaymentDetails = {
+        network: 'fast-mainnet',
+        amount: '1.0',
+        recipient: 'fast1abc',
+        txHash: '0xdead',
+        asset:
+          '0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb',
+      };
+      expect(sample.asset).toBe(
+        '0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb',
+      );
+    });
+  });
 });

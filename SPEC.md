@@ -11,7 +11,7 @@ Date: 2026-03-31
 (`@fastxyz/sdk`) and the AllSet portal SDK (`@fastxyz/allset-sdk`) into a single
 tool for managing accounts, moving assets, and querying network state.
 
-### Design goals:
+### Design goals
 
 - **Agent-friendly.** Every command supports `--json` for structured output and
   `--help` for self-documenting usage. An AI agent's workflow is:
@@ -20,7 +20,7 @@ tool for managing accounts, moving assets, and querying network state.
   human-readable output, and sensible defaults.
 - **Single entry point.** No sub-skills, no separate binaries. One CLI covers
   Fast-to-Fast transfers, EVM-Fast transfers, on-ramp funding, and payments via protocols such as x402.
-- **≤7 top-level command.** A thin surface is preferred by agents. 
+- **≤7 top-level commands.** A thin surface is preferred by agents.
 
 ## 2. Global Flags
 
@@ -908,7 +908,7 @@ fast info tx <hash> [--source <source>]
 **Description**
 
 Look up a single transaction by its hash. The `--source` flag specifies where
-to query; if missing, then it uses the default Fast network. 
+to query; if missing, then it uses the default Fast network.
 Returns the same transaction object shape as items in
 `fast info history`.
 
@@ -1029,7 +1029,7 @@ operations. Results are ordered by timestamp descending.
 
 ### 6.16 `fast info bridge-tokens`
 
-_Note: We only suppose USDC for now._
+*Note: We only support USDC for now.*
 
 **Synopsis**
 
@@ -1128,12 +1128,12 @@ Supported bridge chains on mainnet:
 
 Fund a Fast account via fiat on-ramp or crypto bridge.
 
-#### 6.18.1 `fast fund fiat`
+#### 6.18.1 `fast fund usdc fiat`
 
 **Synopsis**
 
 ```text
-fast fund [--address <fast-address>] [--token <value>] [--provider <provider>]
+fast fund usdc fiat [--address <fast-address>]
 ```
 
 **Description**
@@ -1146,14 +1146,17 @@ or bank transfer (on-ramp).
 | Flag | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `--address` | string | no | default account's Fast address | Fund to a specific Fast address. |
-| `--token` | string | no | `USDC` | Token to fund. See [Token Resolution](#7-token-resolution-rules). |
-| `--provider` | string | no | `swapper` | On-ramp provider. |
+
+The on-ramp provider and token are fixed (Ramp → USDC). If alternate
+providers or tokens become available, this section will gain `--provider`
+and `--token` flags.
 
 **Output (human)**
 
 ```text
-Fund USDC to fast1qw5...x9z via Swapper:
-  https://ramp.fast.xyz/?to=fast1...
+Open this URL in your browser to fund your account:
+
+  https://ramp.fast.xyz/?to=fast1qw5...x9z
 ```
 
 **Output (`--json`)**
@@ -1162,8 +1165,7 @@ Fund USDC to fast1qw5...x9z via Swapper:
 {
   "ok": true,
   "data": {
-    "url": "https://ramp.fast.xyz/...",
-    "provider": "swapper",
+    "url": "https://ramp.fast.xyz/?to=fast1qw5...x9z",
     "address": "fast1qw5...x9z",
     "tokenName": "USDC"
   }
@@ -1178,19 +1180,20 @@ Fund USDC to fast1qw5...x9z via Swapper:
 | Invalid address format | 2 | `INVALID_ADDRESS` |
 | Unsupported provider | 2 | `UNSUPPORTED_PROVIDER` |
 
-#### 6.18.2 `fast fund crypto`
+#### 6.18.2 `fast fund usdc crypto`
 
 **Synopsis**
 
 ```text
-fast fund crypto <amount> --chain <chain> [--token <value>] [--eip-7702]
+fast fund usdc crypto <amount> --chain <chain> [--token <value>] [--eip-7702]
 ```
 
 **Description**
 
-Fund a Fast account by bridging tokens from an EVM chain. 
-The CLI checks the EVM balance of the account's derived EVM address 
+Fund a Fast account by bridging tokens from an EVM chain.
+The CLI checks the EVM balance of the account's derived EVM address
 (same underlying key) on the specified chain.
+
 - If the EVM balance is sufficient: bridge the requested amount to Fast automatically.
 - If the EVM balance is insufficient: print the EVM address and the shortfall
 amount, with a prompt indicating users to fund the provided EVM address,
@@ -1203,8 +1206,8 @@ address on the specified chain, then re-runs the same command.
 | ------ | ------ | -------- | --------------------------------------------- |
 | amount | string | yes      | Human-readable amount to fund (e.g., 100.00). |
 
-
 **Flags**
+
 | Flag         | Type    | Required | Default         | Description                                                                              |
 | ------------ | ------- | -------- | --------------- | ---------------------------------------------------------------------------------------- |
 | `--chain`    | string  | yes      | —               | EVM chain to bridge from. Values from `fast info bridge-chains`.                         |
@@ -1212,6 +1215,7 @@ address on the specified chain, then re-runs the same command.
 | `--eip-7702` | boolean | no       | false           | Use EIP-7702 gasless deposit (Account Abstraction). Gas is paid in token; no ETH needed. |
 
 **Behavior**
+
 1. Check the token balance on `--chain` for the (derived) EVM address.
 2. If balance >= amount: bridge tokens to Fast (standard EVM txs, or `smartDeposit()` with `--eip-7702`).
 3. If balance < amount: print the shortfall and the EVM address. Exit with
@@ -1249,7 +1253,7 @@ with code 2 (`INVALID_AMOUNT`): `"Amount has too many decimal places for <token-
 |---|---|---|---|---|
 | `--from-chain` | string | no | — | Source chain for bridge-in. Must be a chain from `fast info bridge-chains`. |
 | `--to-chain` | string | no | — | Destination chain for bridge-out. Must be a chain from `fast info bridge-chains`. |
-| `--token` | string | no | `USDC` | Token to send. See [Token Resolution](#7-token-resolution-rules). Default is `USDC`. For Fast→Fast transfers, any token on the Fast network is supported (not limited to bridge tokens). For bridge operations, only tokens listed in `fast info bridge-tokens` are supported. |
+| `--token` | string | no | route-specific (see below) | Token to send. See [Token Resolution](#7-token-resolution-rules). Defaults depend on the route: Fast→Fast on mainnet uses `fastUSD`; Fast→Fast on testnet uses `testUSDC`; bridge routes use the chain's first configured token (typically `USDC` / `testUSDC`). For Fast→Fast transfers, any token on the Fast network is supported (not limited to bridge tokens). For bridge operations, only tokens listed in `fast info bridge-tokens` are supported. |
 | `--eip-7702` | boolean | no | `false` | Use EIP-7702 gasless deposit for EVM→Fast bridge-in. Only applies when `--from-chain` is set and recipient is `fast1...`. Gas is paid in token; no ETH required. |
 
 **Routing Rules**
@@ -1273,7 +1277,6 @@ prompt; the CLI manages the underlying transactions.
 With `--eip-7702`, all three operations (approve paymaster, approve bridge,
 deposit) are batched into a single UserOperation; gas is paid in token.
 
-
 **Address validation rules:**
 
 - If no chain flags and address is `0x...`: exit code 2 —
@@ -1285,7 +1288,9 @@ deposit) are batched into a single UserOperation; gas is paid in token.
 
 **Behavior (interactive mode)**
 
-Before executing, display a confirmation summary:
+Before executing, display a confirmation summary. Example below assumes the
+caller passed `--token USDC`; if `--token` is omitted on mainnet Fast→Fast,
+the token line would read `fastUSD` instead (the route-specific default).
 
 ```text
 Send 10.50 USDC
@@ -1332,7 +1337,6 @@ operations, the command returns after the initiating transaction is confirmed
 on the source chain — it does **not** wait for the destination side to settle.
 Use `fast info tx <hash> --source <chain>` to check bridge completion status.
 
-
 **Errors**
 
 | Condition | Exit | Code |
@@ -1373,7 +1377,7 @@ needed).
 
 The CLI currently supports the x402 payment protocol. Payment type (Fast x402
 or chain x402) is selected automatically based on the server's accepted options
-and the account's available balances. Fast x402 is preferred when available. 
+and the account's available balances. Fast x402 is preferred when available.
 
 **Arguments**
 
@@ -1389,7 +1393,6 @@ and the account's available balances. Fast x402 is preferred when available.
 | `--method`  | string  | no       | `GET`     | HTTP method for the request.                                                                                                                                     |
 | `--header`  | string  | no       | —       | Custom header in key: value format. Repeatable for multiple headers.                                                                                             |
 | `--body`    | string  | no       | —       | Request body. Prefix with `@` to read from a file (e.g., `@request.json`).                                                                                           |
-
 
 The paying account is selected via the global `--account <name>` flag or the
 default account. Not required for `--dry-run`.
@@ -1434,6 +1437,7 @@ Pay from my-account? [Y/N]
 ```
 
 With auto-bridge:
+
 ```text
 Payment required:
   Merchant: api.example.com
@@ -1470,7 +1474,6 @@ The `response` field contains the HTTP status code and body returned by the
 merchant after successful payment. The `body` is the parsed JSON response, or
 a string if the response is not JSON. This is the content the agent is paying
 to access.
-
 
 **Output (`--json`, `--dry-run`)**
 
@@ -1597,4 +1600,4 @@ configuration. These are the canonical values accepted by `--from-chain`,
 requirements on chains not listed above (e.g., `base-sepolia`, `ethereum`).
 The CLI can fulfill chain x402 payments on any EVM chain where the account's
 derived EVM address has sufficient token balance. The tables above list only
-chains supported for bridging via `fast send` and `fast fund crypto`.
+chains supported for bridging via `fast send` and `fast fund usdc crypto`.

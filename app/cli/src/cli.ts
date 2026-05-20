@@ -351,23 +351,23 @@ const sendParser = command(
 // Fund commands
 // ---------------------------------------------------------------------------
 
-const fundFiatParser = command(
+const fundUsdcFiatParser = command(
   "fiat",
   object({
-    cmd: constant("fund-fiat" as const),
+    cmd: constant("fund-usdc-fiat" as const),
     address: optional(
       option("--address", string({ metavar: "ADDRESS" }), {
         description: message`Fast address to fund (default: default account)`,
       }),
     ),
   }),
-  { description: message`Get a fiat on-ramp funding URL` },
+  { description: message`Get a fiat on-ramp funding URL (USDC via Ramp)` },
 );
 
-const fundCryptoParser = command(
+const fundUsdcCryptoParser = command(
   "crypto",
   object({
-    cmd: constant("fund-crypto" as const),
+    cmd: constant("fund-usdc-crypto" as const),
     amount: argument(string({ metavar: "AMOUNT" }), {
       description: message`Human-readable amount to fund (e.g., 100.00)`,
     }),
@@ -386,12 +386,38 @@ const fundCryptoParser = command(
       false,
     ),
   }),
-  { description: message`Fund Fast account by bridging from an EVM chain` },
+  { description: message`Bridge USDC from an EVM chain into your Fast account` },
+);
+
+const fundUsdcGroup = command(
+  "usdc",
+  or(fundUsdcFiatParser, fundUsdcCryptoParser),
+  { description: message`Fund your Fast account with USDC (fiat or crypto)` },
+);
+
+const fundFastUsdParser = command(
+  "fastusd",
+  object({
+    cmd: constant("fund-fastusd" as const),
+    to: optional(
+      option("--to", string({ metavar: "ADDRESS" }), {
+        description: message`Fast address to fund (default: default account)`,
+      }),
+    ),
+    amount: optional(
+      option("--amount", string({ metavar: "AMOUNT" }), {
+        description: message`Optional amount (decimal, e.g. 10.5)`,
+      }),
+    ),
+  }),
+  {
+    description: message`Print a Fast web-app URL to fund your account with fastUSD (mainnet only)`,
+  },
 );
 
 const fundGroup = command(
   "fund",
-  or(fundFiatParser, fundCryptoParser),
+  or(fundUsdcGroup, fundFastUsdParser),
   { description: message`Fund your account` },
 );
 
@@ -468,8 +494,9 @@ export type InfoBridgeChainsArgs = InferValue<typeof infoBridgeChainsParser>;
 
 export type SendArgs = InferValue<typeof sendParser>;
 
-export type FundFiatArgs = InferValue<typeof fundFiatParser>;
-export type FundCryptoArgs = InferValue<typeof fundCryptoParser>;
+export type FundUsdcFiatArgs = InferValue<typeof fundUsdcFiatParser>;
+export type FundUsdcCryptoArgs = InferValue<typeof fundUsdcCryptoParser>;
+export type FundFastUsdArgs = InferValue<typeof fundFastUsdParser>;
 export type PayArgs = InferValue<typeof payParser>;
 
 /** The full parsed result: global options merged with the chosen command. */

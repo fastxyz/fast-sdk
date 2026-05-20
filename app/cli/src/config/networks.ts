@@ -98,5 +98,11 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
         },
       },
     },
+    fastTokens: {
+      fastUSD: {
+        fastTokenId: "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",
+        decimals: 6,
+      },
+    },
   },
 };

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   lookupTokenNameById,
-  resolveDefaultToken,
   resolveToken,
   tokenIsKnownOnNetwork,
 } from "../../src/services/token-resolver.js";
@@ -16,9 +15,6 @@ const MAINNET: NetworkConfig = {
   url: "https://api.fast.xyz/proxy-rest",
   explorerUrl: "https://explorer.fast.xyz",
   networkId: "fast:mainnet",
-  // `defaultToken` is the authoritative source post-Task 4. `fastTokens` is kept
-  // alongside it (with the same id) so PR #87's transitional `resolveToken`
-  // tests still exercise the bridge block until Task 7 removes it.
   defaultToken: {
     tokenId: "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",
     symbol: "fastUSD",
@@ -44,13 +40,6 @@ const MAINNET: NetworkConfig = {
           },
         },
       },
-    },
-  },
-  fastTokens: {
-    fastUSD: {
-      fastTokenId:
-        "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",
-      decimals: 6,
     },
   },
 };
@@ -102,23 +91,23 @@ describe("resolveToken", () => {
     );
   });
 
-  it("prefers fastTokens over chain scan when no chain context (mainnet)", () => {
+  it("resolves the default token without chain context (mainnet)", () => {
     const r = resolveToken("fastUSD", MAINNET);
     expect(r.decimals).toBe(6);
     expect(r.evmAddress).toBeUndefined();
   });
 
-  it("falls back to chain scan when no fastTokens entry matches (mainnet)", () => {
+  it("falls back to chain scan when token is not the defaultToken (mainnet)", () => {
     const r = resolveToken("USDC", MAINNET);
     expect(r.decimals).toBe(6);
   });
 
-  it("falls back to chain scan when fastTokens is absent (testnet)", () => {
+  it("falls back to chain scan when defaultToken is absent (testnet)", () => {
     const r = resolveToken("testUSDC", TESTNET);
     expect(r.decimals).toBe(6);
   });
 
-  it("ignores fastTokens when chain context is given (mainnet)", () => {
+  it("ignores the defaultToken when chain context is given (mainnet)", () => {
     expect(() => resolveToken("fastUSD", MAINNET, "ethereum")).toThrow(
       TokenNotFoundError,
     );
@@ -130,62 +119,8 @@ describe("resolveToken", () => {
   });
 });
 
-describe("resolveDefaultToken", () => {
-  it("returns fastUSD on mainnet", () => {
-    const r = resolveDefaultToken(MAINNET);
-    expect(r.name).toBe("fastUSD");
-    expect(r.token.decimals).toBe(6);
-  });
-
-  it("returns testUSDC on testnet (no fastTokens, falls back to first chain's first token)", () => {
-    const r = resolveDefaultToken(TESTNET);
-    expect(r.name).toBe("testUSDC");
-    expect(r.token.decimals).toBe(6);
-  });
-
-  it("throws TokenNotFoundError when nothing is registered", () => {
-    const empty: NetworkConfig = {
-      url: "x",
-      explorerUrl: "x",
-      networkId: "x",
-    };
-    expect(() => resolveDefaultToken(empty)).toThrow(TokenNotFoundError);
-  });
-
-  it("falls through to chain scan when fastTokens has multiple non-fastUSD entries", () => {
-    const cfg: NetworkConfig = {
-      url: "x",
-      explorerUrl: "x",
-      networkId: "x",
-      fastTokens: {
-        tokenA: { fastTokenId: "0xaa", decimals: 6 },
-        tokenB: { fastTokenId: "0xbb", decimals: 18 },
-      },
-      allSet: {
-        crossSignUrl: "x",
-        portalApiUrl: "x",
-        chains: {
-          someChain: {
-            chainId: 1,
-            bridgeContract: "x",
-            fastBridgeAddress: "x",
-            relayerUrl: "x",
-            evmRpcUrl: "x",
-            evmExplorerUrl: "x",
-            tokens: {
-              fallbackToken: { evmAddress: "0x1", fastTokenId: "0xcc", decimals: 8 },
-            },
-          },
-        },
-      },
-    };
-    const r = resolveDefaultToken(cfg);
-    expect(r.name).toBe("fallbackToken");
-  });
-});
-
 describe("lookupTokenNameById", () => {
-  it("returns the fastTokens key when an entry matches (mainnet)", () => {
+  it("returns the defaultToken symbol when its id matches (mainnet)", () => {
     const name = lookupTokenNameById(
       MAINNET,
       "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",

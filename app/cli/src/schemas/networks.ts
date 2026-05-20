@@ -33,22 +33,12 @@ export const FastTokenSchema = Schema.Struct({
 });
 export type FastTokenConfig = typeof FastTokenSchema.Type;
 
-// PR #87's `fastTokens` map value shape — kept inline (and incompatible with
-// `FastTokenSchema`) until Task 7 removes `fastTokens` entirely.
-const FastTokensMapValueSchema = Schema.Struct({
-  fastTokenId: Schema.String,
-  decimals: Schema.Number,
-});
-
 export const NetworkConfigSchema = Schema.Struct({
   url: Schema.String,
   explorerUrl: Schema.String,
   networkId: NetworkId,
   defaultToken: Schema.optional(FastTokenSchema),
   allSet: Schema.optional(AllSetConfigSchema),
-  fastTokens: Schema.optional(
-    Schema.Record({ key: Schema.String, value: FastTokensMapValueSchema }),
-  ),
 });
 export type NetworkConfig = typeof NetworkConfigSchema.Type;
 

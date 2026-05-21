@@ -25,40 +25,40 @@ Two open PRs need to land on `develop`, in this order: **PR #87 (fastUSD) first,
 ## PR #85 — `feat(cli): multisig support — N-of-M wallets + token operations`
 
 - Branch: [`feat/multisig-cli`](https://github.com/fastxyz/fast-sdk/tree/feat/multisig-cli) · PR: [#85](https://github.com/fastxyz/fast-sdk/pull/85)
-- Base: branched from `0783491` (the old `develop` base before fastUSD existed). **28 commits behind `feat/cli-fund-fastusd`** and 5 commits behind those new `develop` commits. Must be rebased onto fastusd (or, after #87 lands, onto `develop`).
-- Scope: 38 commits across `@fastxyz/sdk` (new `MultiSigSigner`, `deriveMultiSigAddress`, `assertAuthorizedSigner`, tagged errors) and `@fastxyz/cli` (`accounts` table migrated to tagged union; `signer-resolver` service; `multisig {init,import,export,pending,vote}`; polymorphic `send`; `token {create,mint,burn,manage}`; six new tagged errors).
+- Status as of 2026-05-21: **rebased onto latest `origin/develop` and force-pushed**. New PR head is `2b1268d` (`fix(cli): declare viem type dependency`); `origin/develop` at rebase time was `28ceed9`.
+- Scope: 39 commits after rebase: the original multisig/token-ops work plus one follow-up dependency fix for the CLI's direct `viem` type import. The feature still spans `@fastxyz/sdk` (new `MultiSigSigner`, `deriveMultiSigAddress`, `assertAuthorizedSigner`, tagged errors) and `@fastxyz/cli` (`accounts` table migrated to tagged union; `signer-resolver` service; `multisig {init,import,export,pending,vote}`; polymorphic `send`; `token {create,mint,burn,manage}`; six new tagged errors).
+- Verification completed after rebase:
+  - `pnpm -C app/cli exec tsc --noEmit`
+  - `pnpm -C app/cli exec vitest run` -- 77 tests passed.
+  - `pnpm -C packages/fast-sdk exec vitest run tests/unit/multisig-signer.test.ts` -- 14 tests passed.
+  - `pnpm build` -- 9/9 tasks successful.
+  - GitHub CI on #85 is green for the two reported `test` check runs.
 - Spec: [`docs/superpowers/specs/2026-05-04-multisig-in-fast-cli-design.md`](../specs/2026-05-04-multisig-in-fast-cli-design.md)
 - Plans: [`docs/superpowers/plans/2026-05-04-multisig-cli-phase-1.md`](../plans/2026-05-04-multisig-cli-phase-1.md) (backbone), [`docs/superpowers/plans/2026-05-05-multisig-cli-phase-2-token-ops.md`](../plans/2026-05-05-multisig-cli-phase-2-token-ops.md) (token ops).
 
 ### Remaining — multisig
 
-- Rebase onto fastusd (see conflict table below), re-run the full test/build matrix.
-- **23 unaddressed Copilot inline comments** from the round-1 review pass — none looked at by Codex or Claude yet, so a fresh round-1 request to those is also pending.
-- Three testnet smoke tests from the PR description (2-of-3 init → send → vote → success; `token create` admin assignment; `token manage` `updateId` accept/reject).
-- "Out of scope (deferred)" list in the PR body — review which are likely review-blockers (e.g. SDK `MultiSigConfigInvalidError` colliding with the CLI's same `_tag`) vs. real follow-ups.
+- **Review old Copilot comments.** The existing Copilot round-1 review was generated against old head `d7e03a1` and reported 23 inline comments. Triage each comment against new head `2b1268d`: close anything made obsolete by the rebase/#87/#98 integration, and fix anything still valid.
+- **Request fresh reviews on the rebased PR.** Ask Codex/Claude/Copilot to review #85 again against `2b1268d`; the old review context predates the fastUSD rebase.
+- **Run the three remaining testnet smoke tests from the PR description:**
+  - 2-of-3 multisig init -> `send` -> cosigner `vote` -> quorum success.
+  - `token create` from single-signer -> admin assignment is correct.
+  - `token manage` rejects a wrong `updateId` and accepts the current `updateId`.
+- **Audit the deferred/out-of-scope list in the PR body.** Decide which items are merge blockers vs. follow-ups. Pay special attention to the SDK `MultiSigConfigInvalidError` and CLI `MultiSigConfigInvalidError` sharing the same `_tag`; runtime behavior is currently fine because the CLI maps SDK errors, but reviewers may still ask for disambiguation.
+- **Resolve branch protection/review blockers.** CI is currently green, so remaining merge blockers should be review approval or repository policy state rather than test failures.
 
-### Conflict zone — multisig rebase onto fastusd
+### Rebase/conflict resolution notes — multisig onto develop
 
-Both branches diverged from the same base (`0783491`). The high-level picture: only **one file is genuinely hard** — `send.ts`, where both branches rewrite the same handler and the merged result has to thread the fastUSD default-token logic through the multisig dispatch. A second file — `fund/crypto.ts` — is a **rename collision** the rebase will probably mishandle, and the single-signer guard the multisig branch added needs to be manually re-applied at the new path. Everything else is either same-content additions (`package.json`, `vitest.config.ts`) or large-but-region-disjoint edits (`cli.ts`, `main.ts`, `commands/index.ts`) that should merge with mechanical hunk-by-hunk attention. Multisig-only territory — the `accounts` tagged-union migration, the drizzle migration `0001_bumpy_komodo.sql`, and the new `MultiSigSigner` SDK code — does not intersect fastUSD at all.
+Rebase is complete. The actual conflicts matched the expected conflict surface and were resolved on `feat/multisig-cli` before force-pushing #85.
 
-The table is the detail beneath that summary; line counts are from `git diff --stat` against the shared base.
-
-| File | fastUSD touches | multisig touches | Conflict shape |
-| --- | --- | --- | --- |
-| `app/cli/src/commands/send.ts` | 13 LOC — new `selectSendTokenName(explicit, networkConfig, chain)` helper called from the Fast→Fast path; mainnet defaults to `fastUSD`. | 230 LOC — polymorphic dispatch on `AccountInfo.kind` (`single` vs `multisig`); `--as <member>` plumbing; multisig signing flow. | **Hard.** Both rewrite the same handler. Merged result must thread the fastUSD default-token selection through *both* the single-signer and multisig paths so mainnet Fast→Fast multisig sends also default to fastUSD. Decide explicitly whether `--as` interacts with default-token resolution. |
-| `app/cli/src/commands/pay.ts` | 11 LOC — uses `labelAssetForPayment(network, p.asset)` for dry-run output and history `tokenName`. | 11 LOC — restricts `pay` to single-signer accounts (multisig refusal). | Likely conflict in import block + early-guard region. Mergeable; apply the multisig guard *before* the asset-label call. |
-| `app/cli/src/commands/fund/crypto.ts` → `fund/usdc/crypto.ts` | **File moved + renamed** by fastusd (also bumped discriminant string). | 10 LOC — added single-signer guard. | **Rename collision.** `git rebase` will likely drop the multisig change. Re-apply the single-signer guard at the new path `fund/usdc/crypto.ts` after the rename is resolved. |
-| `app/cli/src/cli.ts` | 45 LOC — `fundGroup → or(fundUsdcGroup, fundFastUsdParser)`; `fundUsdcGroup → or(fiat, crypto)`. | 287 LOC — multisig + token parser trees; `send` gains `--as`. | Big diffs but **largely disjoint regions** (fund tree vs. multisig/token subtrees). Watch the top-of-file imports and the root `or(...)` combinator. |
-| `app/cli/src/main.ts` | 39 LOC — `SUBCOMMANDS["fund"]` becomes `["usdc", "fastusd"]`; rekeyed `SUBCOMMAND_REQUIREMENTS`; parse-error post-processing extended to try a 3-deep key before 2-deep fallback. | 171 LOC — multisig + token command validation, help text, hint extensions. | Disjoint regions; mergeable. Watch any shared dictionaries (SUBCOMMANDS / help registries) for ordering. |
-| `app/cli/src/commands/index.ts` | 10 LOC — fund handlers re-registered under new discriminants. | 17 LOC — multisig + token handlers registered. | Mergeable; both append to the same registry. |
-| `app/cli/package.json` | +1 line — `"test": "vitest run"` + vitest devDeps. | +1 line — identical addition. | **Trivial.** PR #87 description explicitly flags this as a known same-content collision. |
-| `app/cli/vitest.config.ts` | 7 LOC — new file. | 7 LOC — identical new file. | Trivial — same content on both sides. |
-| `app/cli/src/schemas/networks.ts` | 12 LOC — optional `fastTokens` map. | (untouched) | No conflict. |
-| `app/cli/src/services/token-resolver.ts` | 124 LOC — `resolveDefaultToken`, `lookupTokenNameById`, fastTokens-aware `resolveToken`. | (untouched) | No conflict. |
-
-**Non-overlap to note:** the multisig `accounts` tagged-union migration (`app/cli/src/db/schema.ts`, `services/storage/account.ts`, drizzle migration `0001_bumpy_komodo.sql`) is entirely on the multisig side. fastUSD doesn't touch `accounts`, the DB schema, or any drizzle migration. Likewise, multisig's `MultiSigSigner` SDK work in `packages/fast-sdk/src/interface/multisig-signer.ts` is net-new — no fastUSD overlap there.
-
-After the rebase, the regression net is: CLI `pnpm exec vitest run` (~31 fastusd cases + ~23 multisig cases), SDK `pnpm exec vitest run` (~14 multisig cases), `pnpm exec tsc --noEmit` on `app/cli`, `packages/x402-client`, `packages/fast-sdk`, then `pnpm build`.
+| File/area | Resolution |
+| --- | --- |
+| `packages/fast-sdk/src/index.ts` | Kept the `FastNetwork` / `FastToken` exports from `develop` and added the multisig SDK public API exports. |
+| `app/cli/src/commands/fund/usdc/crypto.ts` | Re-applied the multisig single-signer guard at the post-#87 path and kept #98's default-token fail-loud behavior. The hint now points to `fast fund usdc crypto`. |
+| `app/cli/src/commands/send.ts` | Kept `develop`'s default-token resolution/fail-loud path, then dispatches Fast -> Fast sends through the multisig-aware single-vs-multisig flow. `--as` only affects signer/member resolution, not token resolution. |
+| `app/cli/src/commands/pay.ts` | Kept the single-signer guard and the real paid-asset labeling/history behavior from the fastUSD/x402 work. |
+| `app/cli/src/cli.ts`, `app/cli/src/main.ts`, `app/cli/src/commands/index.ts` | Kept the new `fund usdc` / `fund fastusd` tree and registered all multisig/token parsers, handlers, and validation hints. |
+| `app/cli/package.json`, `pnpm-lock.yaml` | Added `viem` as a CLI dev dependency because `app/cli/src/services/api/allset.ts` directly imports `viem` types; this avoids clean-install `tsc` failures under pnpm. |
 
 ## Pointers
 

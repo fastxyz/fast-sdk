@@ -72,3 +72,19 @@ export class FundingRequiredError extends Data.TaggedError(
   readonly exitCode = 4 as const;
   readonly errorCode = "FUNDING_REQUIRED" as const;
 }
+
+export class CommandUnsupportedForTokenError extends Data.TaggedError(
+  "CommandUnsupportedForTokenError",
+)<{
+  readonly command: string;
+  readonly token: string;
+  readonly network: string;
+  readonly suggestion?: string;
+}> {
+  readonly exitCode = 2 as const;
+  readonly errorCode = "COMMAND_UNSUPPORTED_FOR_TOKEN" as const;
+  get message() {
+    const base = `${this.command} is not supported for ${this.token} on ${this.network}.`;
+    return this.suggestion ? `${base} ${this.suggestion}` : base;
+  }
+}

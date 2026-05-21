@@ -109,6 +109,13 @@ export interface X402PayParams {
  */
 export interface PaymentDetails {
   network: string;
+  /**
+   * Amount paid, as a string. For Fast networks this is the raw smallest-unit
+   * value mirrored from `maxAmountRequired` (the wire format does not carry
+   * decimals); consumers should humanize using their own token-decimals
+   * registry. For EVM networks the value is currently humanized using a 6-decimal
+   * assumption — that asymmetry is tracked as a separate cleanup.
+   */
   amount: string;
   recipient: string;
   txHash: string;

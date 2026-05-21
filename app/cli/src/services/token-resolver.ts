@@ -12,26 +12,22 @@ export interface ResolvedToken {
  * Map a token name to its on-Fast id, decimals, and (when bridging) EVM address.
  *
  * - With chain context (bridge route): only chain-scoped `allSet.chains[chain].tokens` is consulted.
- * - Without chain context (Fast→Fast): `network.fastTokens` is consulted first, then chain-scoped tokens.
+ * - Without chain context (Fast→Fast): `network.defaultToken` is consulted first,
+ *   then chain-scoped tokens.
  */
 export function resolveToken(
   tokenName: string,
   networkConfig: NetworkConfig,
   chain?: string,
 ): ResolvedToken {
+  // Chain context (bridge route): only consult chain-scoped tokens.
   if (chain) {
     const allset = networkConfig.allSet;
-    if (!allset) {
-      throw new TokenNotFoundError({ token: tokenName });
-    }
+    if (!allset) throw new TokenNotFoundError({ token: tokenName });
     const chainConfig = allset.chains[chain];
-    if (!chainConfig) {
-      throw new UnsupportedChainError({ chain });
-    }
+    if (!chainConfig) throw new UnsupportedChainError({ chain });
     const token = chainConfig.tokens[tokenName];
-    if (!token) {
-      throw new TokenNotFoundError({ token: tokenName });
-    }
+    if (!token) throw new TokenNotFoundError({ token: tokenName });
     return {
       fastTokenId: fromHex(token.fastTokenId),
       decimals: token.decimals,
@@ -39,77 +35,28 @@ export function resolveToken(
     };
   }
 
-  const fast = networkConfig.fastTokens?.[tokenName];
-  if (fast) {
+  // No chain context (Fast → Fast):
+  // 1) Match against network.defaultToken (handles fastUSD on mainnet).
+  const def = networkConfig.defaultToken;
+  if (def && def.symbol === tokenName) {
     return {
-      fastTokenId: fromHex(fast.fastTokenId),
-      decimals: fast.decimals,
+      fastTokenId: fromHex(def.tokenId),
+      decimals: def.decimals,
     };
   }
 
+  // 2) Fall back to scanning chain-scoped tokens (handles testUSDC, USDC, etc.).
   const allset = networkConfig.allSet;
   if (allset) {
     for (const chainConfig of Object.values(allset.chains)) {
       const token = chainConfig.tokens[tokenName];
       if (token) {
-        return {
-          fastTokenId: fromHex(token.fastTokenId),
-          decimals: token.decimals,
-        };
+        return { fastTokenId: fromHex(token.fastTokenId), decimals: token.decimals };
       }
     }
   }
 
   throw new TokenNotFoundError({ token: tokenName });
-}
-
-/**
- * Pure name-selection: pick the implicit default token NAME for a Fast→Fast
- * operation without decoding any token IDs. Never throws.
- *
- * Priority: `fastTokens.fastUSD` → single `fastTokens` entry → first chain's
- * first token → `undefined` (no token registered for this network).
- *
- * Callers that need the decoded `ResolvedToken` should follow up with
- * `resolveToken(name, network)` inside their existing error wrapper, so any
- * decode failure flows through the normal CLI error path.
- */
-export function pickDefaultTokenName(
-  networkConfig: NetworkConfig,
-): string | undefined {
-  const fast = networkConfig.fastTokens;
-  if (fast) {
-    if ("fastUSD" in fast) return "fastUSD";
-    const keys = Object.keys(fast);
-    if (keys.length === 1) return keys[0];
-    // Multiple entries, none called "fastUSD" — ambiguous, fall through.
-  }
-
-  const allset = networkConfig.allSet;
-  if (allset) {
-    const firstChain = Object.values(allset.chains)[0];
-    if (firstChain) {
-      return Object.keys(firstChain.tokens)[0];
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * Resolve the implicit default token (name + decoded ResolvedToken) for a
- * Fast→Fast operation. Throws TokenNotFoundError if none is registered, or
- * propagates `fromHex` failures on malformed `fastTokenId` values.
- */
-export function resolveDefaultToken(networkConfig: NetworkConfig): {
-  readonly name: string;
-  readonly token: ResolvedToken;
-} {
-  const name = pickDefaultTokenName(networkConfig);
-  if (name === undefined) {
-    throw new TokenNotFoundError({ token: "<default>" });
-  }
-  return { name, token: resolveToken(name, networkConfig) };
 }
 
 /** Normalise a hex string for comparison: strip leading 0x and lowercase. */
@@ -118,21 +65,18 @@ const norm = (h: string): string =>
 
 /**
  * Inverse of resolveToken: given a fastTokenId hex (server's payment requirement),
- * return the registered display name. Searches `fastTokens` then `allSet.chains[*].tokens`.
- * Returns undefined when no entry matches.
+ * return the registered display name. Searches `allSet.chains[*].tokens` first, then
+ * falls back to `network.defaultToken`. Returns undefined when no entry matches.
+ *
+ * Chain-scoped tokens take priority over `defaultToken` so a token that appears in
+ * both maps (e.g. a bridge route entry) is labelled by its chain name rather than
+ * the network's symbolic default.
  */
 export function lookupTokenNameById(
   networkConfig: NetworkConfig,
   fastTokenId: string,
 ): string | undefined {
   const target = norm(fastTokenId);
-
-  const fast = networkConfig.fastTokens;
-  if (fast) {
-    for (const [name, entry] of Object.entries(fast)) {
-      if (norm(entry.fastTokenId) === target) return name;
-    }
-  }
 
   const allset = networkConfig.allSet;
   if (allset) {
@@ -143,5 +87,29 @@ export function lookupTokenNameById(
     }
   }
 
+  const def = networkConfig.defaultToken;
+  if (def && norm(def.tokenId) === target) return def.symbol;
+
   return undefined;
+}
+
+/**
+ * True when `tokenName` exists somewhere on the network — either as the
+ * network's default token or in some chain's tokens map. Used by handlers
+ * to decide whether a chain-context TokenNotFoundError should be rewrapped
+ * as CommandUnsupportedForTokenError (token-on-wrong-chain) or kept as
+ * TokenNotFoundError (typo / unknown token).
+ */
+export function tokenIsKnownOnNetwork(
+  networkConfig: NetworkConfig,
+  tokenName: string,
+): boolean {
+  if (networkConfig.defaultToken?.symbol === tokenName) return true;
+  const allset = networkConfig.allSet;
+  if (allset) {
+    for (const chain of Object.values(allset.chains)) {
+      if (chain.tokens[tokenName]) return true;
+    }
+  }
+  return false;
 }

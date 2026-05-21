@@ -6,6 +6,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
     url: sdkTestnet.url,
     explorerUrl: sdkTestnet.explorerUrl,
     networkId: sdkTestnet.networkId,
+    defaultToken: sdkTestnet.defaultToken,
     allSet: {
       crossSignUrl: "https://testnet.cross-sign.allset.fast.xyz",
       portalApiUrl: "https://testnet.allset.fast.xyz/api",
@@ -47,6 +48,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
     url: sdkMainnet.url,
     explorerUrl: sdkMainnet.explorerUrl,
     networkId: sdkMainnet.networkId,
+    defaultToken: sdkMainnet.defaultToken,
     allSet: {
       crossSignUrl: "https://cross-sign.allset.fast.xyz",
       portalApiUrl: "https://allset.fast.xyz/api",
@@ -96,12 +98,6 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
             },
           },
         },
-      },
-    },
-    fastTokens: {
-      fastUSD: {
-        fastTokenId: "0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb",
-        decimals: 6,
       },
     },
   },

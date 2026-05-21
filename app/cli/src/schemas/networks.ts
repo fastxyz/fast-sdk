@@ -27,7 +27,8 @@ export const AllSetConfigSchema = Schema.Struct({
 export type AllSetConfig = typeof AllSetConfigSchema.Type;
 
 export const FastTokenSchema = Schema.Struct({
-  fastTokenId: Schema.String,
+  tokenId: Schema.String,
+  symbol: Schema.String,
   decimals: Schema.Number,
 });
 export type FastTokenConfig = typeof FastTokenSchema.Type;
@@ -36,10 +37,8 @@ export const NetworkConfigSchema = Schema.Struct({
   url: Schema.String,
   explorerUrl: Schema.String,
   networkId: NetworkId,
+  defaultToken: Schema.optional(FastTokenSchema),
   allSet: Schema.optional(AllSetConfigSchema),
-  fastTokens: Schema.optional(
-    Schema.Record({ key: Schema.String, value: FastTokenSchema }),
-  ),
 });
 export type NetworkConfig = typeof NetworkConfigSchema.Type;
 

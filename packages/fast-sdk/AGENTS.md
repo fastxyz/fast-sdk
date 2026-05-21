@@ -1,6 +1,6 @@
 # @fastxyz/sdk — agent guide
 
-Guidance for autonomous agents using `@fastxyz/sdk`. Each flow is documented
+Guidance for agents using [`@fastxyz/sdk`](https://www.npmjs.com/package/@fastxyz/sdk). Each flow is documented
 under its own heading below.
 
 ## Key handover

@@ -1,4 +1,3 @@
-import { Signer } from "../../interface/signer";
 import {
   type HpkeKeyPair,
   exportRecipientPublicKey,
@@ -10,37 +9,30 @@ import { ERROR } from "./errors";
 import { decodeHandoverCode, extractSingleQuotedCandidate } from "./protocol/handover";
 import { decodePlaintextSeed } from "./protocol/plaintext";
 import { encodeRequest } from "./protocol/request";
-import { type HandleInfo, HandleVault } from "./state/handles";
 import { PendingStore } from "./state/pending";
+import { bytesToHex } from "@noble/hashes/utils.js";
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const DEFAULT_WALLET_BASE_URL = "https://app.fast.xyz/authorize";
-const DEFAULT_HANDLE_TTL_MS = 30 * 60 * 1000;
 
 export interface KeyHandoverAgentOptions {
   walletBaseUrl?: string;
   now?: () => Date;
-  handleTtlMs?: number;
 }
 
 export type DecryptResult =
-  | { status: "success"; authorization_handle: string }
+  | { status: "success"; private_key: string }
   | { status: "error"; error: { code: string; message: string } };
 
 export class KeyHandoverAgent {
   private readonly walletBaseUrl: string;
   private readonly now: () => Date;
   private readonly pending = new PendingStore(() => this.now());
-  private readonly vault: HandleVault;
   private currentKeyPair: HpkeKeyPair | null = null;
 
   constructor(opts: KeyHandoverAgentOptions = {}) {
     this.walletBaseUrl = opts.walletBaseUrl ?? DEFAULT_WALLET_BASE_URL;
     this.now = opts.now ?? (() => new Date());
-    this.vault = new HandleVault(
-      opts.handleTtlMs ?? DEFAULT_HANDLE_TTL_MS,
-      () => this.now(),
-    );
   }
 
   async generateAuthRequest(input: { requester?: string } = {}): Promise<{
@@ -112,49 +104,11 @@ export class KeyHandoverAgent {
       );
     }
 
-    let handle: string;
-    try {
-      const stored = await this.vault.store(seed);
-      handle = stored.handle;
-    } catch (err) {
-      seed.fill(0);
-      this.pending.clear();
-      this.currentKeyPair = null;
-      return error(ERROR.STORAGE_FAILED, err);
-    }
-
+    const privateKey = bytesToHex(seed);
     seed.fill(0);
     this.pending.clear();
     this.currentKeyPair = null;
-    return { status: "success", authorization_handle: handle };
-  }
-
-  async signWithHandle(input: {
-    authorization_handle: string;
-    message: Uint8Array;
-  }): Promise<{ signature: Uint8Array; address: string; publicKey: Uint8Array }> {
-    const seed = this.vault.getSeed(input.authorization_handle);
-    if (!seed) {
-      throw new Error(
-        `${ERROR.UNKNOWN_OR_DISPOSED_HANDLE}: unknown or disposed handle`,
-      );
-    }
-    const signer = new Signer(seed);
-    const signature = await signer.signMessage(input.message);
-    const publicKey = await signer.getPublicKey();
-    const address = await signer.getFastAddress();
-    return { signature, address, publicKey };
-  }
-
-  disposeAuthorizationHandle(input: {
-    authorization_handle: string;
-  }): { status: "disposed" } {
-    this.vault.dispose(input.authorization_handle);
-    return { status: "disposed" };
-  }
-
-  getHandleInfo(handle: string): HandleInfo | null {
-    return this.vault.getInfo(handle);
+    return { status: "success", private_key: privateKey };
   }
 }
 

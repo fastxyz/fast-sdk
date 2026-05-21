@@ -2,6 +2,7 @@ import { Signer, verify } from "../../src/interface/signer";
 import { describe, expect, it } from "vitest";
 import { KeyHandoverAgent } from "../../src/wallet/key-handover/agent";
 import { sealHandover } from "../../src/wallet/key-handover/wallet";
+import { hexToBytes } from "@noble/hashes/utils.js";
 
 let clock = new Date("2026-05-20T12:00:00Z");
 const now = () => clock;
@@ -24,39 +25,26 @@ async function runHandover(agent: KeyHandoverAgent, useSeed = seed) {
 }
 
 describe("closed loop", () => {
-  it("generate → seal → decrypt → sign, signature verifies via @fastxyz/sdk", async () => {
+  it("generate → seal → decrypt returns private_key matching the sealed seed", async () => {
     const agent = freshAgent();
     const { sealed } = await runHandover(agent);
     const result = await agent.decryptAuthPayload({ message: sealed.chat_message });
     expect(result.status).toBe("success");
     if (result.status !== "success") return;
 
-    const message = new TextEncoder().encode("authorize this");
-    const signed = await agent.signWithHandle({
-      authorization_handle: result.authorization_handle,
-      message,
-    });
-    const ok = await verify(signed.signature, message, signed.publicKey);
-    expect(ok).toBe(true);
-    expect(signed.address.startsWith("fast1")).toBe(true);
-    // Guard against seed-buffer aliasing: signing must use the real seed,
-    // not a wiped/zeroed copy. Self-consistent verify() alone would not catch this.
-    const expectedPublicKey = await new Signer(seed.slice()).getPublicKey();
-    expect(signed.publicKey).toEqual(expectedPublicKey);
-  });
+    expect(result.private_key).toMatch(/^[0-9a-f]{64}$/);
 
-  it("dispose then sign throws", async () => {
-    const agent = freshAgent();
-    const { sealed } = await runHandover(agent);
-    const result = await agent.decryptAuthPayload({ message: sealed.chat_message });
-    if (result.status !== "success") throw new Error("expected success");
-    agent.disposeAuthorizationHandle({ authorization_handle: result.authorization_handle });
-    await expect(
-      agent.signWithHandle({
-        authorization_handle: result.authorization_handle,
-        message: new Uint8Array([1]),
-      }),
-    ).rejects.toThrow(/UNKNOWN_OR_DISPOSED_HANDLE/);
+    const message = new TextEncoder().encode("authorize this");
+    const signer = new Signer(hexToBytes(result.private_key));
+    const signature = await signer.signMessage(message);
+    const publicKey = await signer.getPublicKey();
+    const ok = await verify(signature, message, publicKey);
+    expect(ok).toBe(true);
+    expect((await signer.getFastAddress()).startsWith("fast1")).toBe(true);
+
+    // Closed-loop: private_key must equal the seed that was sealed.
+    const expectedPublicKey = await new Signer(seed.slice()).getPublicKey();
+    expect(publicKey).toEqual(expectedPublicKey);
   });
 
   it("expired pending request is rejected", async () => {

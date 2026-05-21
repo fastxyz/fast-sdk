@@ -1,14 +1,15 @@
-# @fastxyz/sdk — agent guide
+---
+name: key-handover
+description: Hand off control of a Fast agent account to a local agent using the encrypted key-handover flow in @fastxyz/sdk. Use when the user wants to authorize an agent to sign for a Fast (FastSet) account — generate an authorization link plus a verification code, then decrypt the wallet's encrypted handover code to obtain the account private key.
+---
 
-Guidance for agents using [`@fastxyz/sdk`](https://www.npmjs.com/package/@fastxyz/sdk). Each flow is documented
-under its own heading below.
-
-## Key handover
+# Key handover
 
 How an agent obtains signing authority for a Fast agent account through the
-encrypted key-handover flow in `@fastxyz/sdk/wallet`.
+encrypted key-handover flow in [`@fastxyz/sdk`](https://www.npmjs.com/package/@fastxyz/sdk),
+imported from `@fastxyz/sdk/wallet`.
 
-### Constraints (read first)
+## Constraints (read first)
 
 1. **One process for the whole flow.** `generateAuthRequest` and
    `decryptAuthPayload` must run on the *same* `KeyHandoverAgent` instance in a
@@ -27,7 +28,7 @@ encrypted key-handover flow in `@fastxyz/sdk/wallet`.
    the account's ed25519 seed in plaintext. Never log it, echo it to the user,
    write it to disk, or place it in tool output.
 
-### Flow
+## Flow
 
 ```ts
 import { KeyHandoverAgent, KEY_HANDOVER_ERROR } from "@fastxyz/sdk/wallet";
@@ -47,16 +48,20 @@ const req = await agent.generateAuthRequest({ requester: "my-agent" });
 const res = await agent.decryptAuthPayload({ message: pastedFromUser });
 if (res.status === "success") {
   // res.private_key: the account's ed25519 seed (32-byte hex). You now hold the key.
+  // 4. Tell the user the key was received. That ends the flow — do not reveal the key.
 } else {
   // res.error.code / res.error.message — e.g. expired, too many failures, malformed.
 }
 ```
 
+After a successful decrypt, simply confirm to the user that the key was
+received; that is the end of the flow.
+
 What to tell the user at step 2: open `auth_url` in their Fast wallet, type the
 6-digit `request_fingerprint` to confirm the request matches, approve, then copy
 the encrypted code back to you. The link expires at `request_expires_at`.
 
-### API
+## API
 
 - `new KeyHandoverAgent(opts?)` — `opts.walletBaseUrl` overrides the authorize
   page URL (defaults to the production wallet); `opts.now`, `opts.handleTtlMs`
@@ -68,7 +73,7 @@ the encrypted code back to you. The link expires at `request_expires_at`.
   `message` may be the bare base64url code or a chat message that quotes it.
 - `KEY_HANDOVER_ERROR` — error-code constants for matching `error.code`.
 
-### Notes
+## Notes
 
 - The 6-digit fingerprint lets the user confirm the request shown in the wallet
   is the one you generated; it is computed identically on both sides.

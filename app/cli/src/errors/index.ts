@@ -8,9 +8,16 @@ export * from "./usage.js";
 import type {
   AccountExistsError,
   AccountNotFoundError,
+  AddressDerivationMismatchError,
+  AlreadyVotedError,
+  AmbiguousMemberError,
   DefaultAccountError,
+  MultiSigConfigInvalidError,
   NoDefaultAccountError,
+  NotAMemberError,
   PasswordRequiredError,
+  WalletKindMismatchError,
+  WalletNetworkMismatchError,
   WrongPasswordError,
 } from "./account.js";
 import type {
@@ -90,4 +97,11 @@ export type ClientError =
   | PaymentFailedError
   | InvalidPaymentLinkError
   | InsufficientPaymentBalanceError
-  | FileIOError;
+  | FileIOError
+  | MultiSigConfigInvalidError
+  | NotAMemberError
+  | AmbiguousMemberError
+  | AddressDerivationMismatchError
+  | AlreadyVotedError
+  | WalletKindMismatchError
+  | WalletNetworkMismatchError;

@@ -343,6 +343,11 @@ const sendParser = command(
       }),
       false,
     ),
+    as: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`Local single-signer member to sign as (multisig wallets only)`,
+      }),
+    ),
   }),
   { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
 );
@@ -462,10 +467,279 @@ const payParser = command(
 );
 
 // ---------------------------------------------------------------------------
+// Multisig commands
+// ---------------------------------------------------------------------------
+
+const multisigInitParser = command(
+  "init",
+  object({
+    cmd: constant("multisig-init" as const),
+    signers: option("--signers", string({ metavar: "ADDR_OR_NAME,..." }), {
+      description: message`Comma-separated bech32 addresses or local account names`,
+    }),
+    quorum: option("--quorum", integer({ metavar: "N" }), {
+      description: message`Number of signatures required to authorize a transaction`,
+    }),
+    configNonce: option("--config-nonce", string({ metavar: "U64" }), {
+      description: message`Nonce included in the multisig config (decimal u64)`,
+    }),
+    name: option("--name", string({ metavar: "ALIAS" }), {
+      description: message`Local alias for the multisig wallet`,
+    }),
+    setDefault: withDefault(
+      option("--set-default", {
+        description: message`Mark this wallet as the default account`,
+      }),
+      false,
+    ),
+  }),
+  { description: message`Create a multisig wallet config` },
+);
+
+const multisigExportParser = command(
+  "export",
+  object({
+    cmd: constant("multisig-export" as const),
+    name: argument(string({ metavar: "NAME" }), {
+      description: message`Local alias of the multisig wallet to export`,
+    }),
+    out: optional(
+      option("--out", string({ metavar: "PATH" }), {
+        description: message`Write the wallet config JSON to this path (default: stdout)`,
+      }),
+    ),
+  }),
+  { description: message`Export a multisig wallet config as JSON` },
+);
+
+const multisigImportParser = command(
+  "import",
+  merge(
+    object({
+      cmd: constant("multisig-import" as const),
+      name: optional(
+        option("--name", string({ metavar: "ALIAS" }), {
+          description: message`Local alias for the multisig wallet (required when not using --from)`,
+        }),
+      ),
+      setDefault: withDefault(
+        option("--set-default", {
+          description: message`Mark this wallet as the default account`,
+        }),
+        false,
+      ),
+    }),
+    or(
+      object({
+        from: option("--from", string({ metavar: "FILE" }), {
+          description: message`Path to a multisig wallet config JSON to import`,
+        }),
+      }),
+      object({
+        signers: option("--signers", string({ metavar: "ADDR,..." }), {
+          description: message`Comma-separated bech32 fast addresses (sorted/dedup'd)`,
+        }),
+        quorum: option("--quorum", integer({ metavar: "N" }), {
+          description: message`Number of signatures required to authorize a transaction`,
+        }),
+        configNonce: option("--config-nonce", string({ metavar: "U64" }), {
+          description: message`Nonce included in the multisig config (decimal u64)`,
+        }),
+        expectAddress: optional(
+          option("--expect-address", string({ metavar: "ADDR" }), {
+            description: message`If set, verify the derived address matches this value`,
+          }),
+        ),
+      }),
+    ),
+  ),
+  { description: message`Import an existing multisig wallet` },
+);
+
+const multisigPendingParser = command(
+  "pending",
+  object({
+    cmd: constant("multisig-pending" as const),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`Local single-signer account to check "have I signed"`,
+      }),
+    ),
+  }),
+  { description: message`List pending multisig transactions for the active wallet` },
+);
+
+const multisigVoteParser = command(
+  "vote",
+  object({
+    cmd: constant("multisig-vote" as const),
+    tx: optional(
+      option("--tx", string({ metavar: "HASH" }), {
+        description: message`Transaction hash to sign (required when multiple are pending)`,
+      }),
+    ),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`Local single-signer account to sign as`,
+      }),
+    ),
+    yes: withDefault(
+      option("--yes", {
+        description: message`Skip the interactive confirmation`,
+      }),
+      false,
+    ),
+  }),
+  { description: message`Sign a pending multisig transaction` },
+);
+
+const multisigGroup = command(
+  "multisig",
+  or(
+    multisigInitParser,
+    multisigExportParser,
+    multisigImportParser,
+    multisigPendingParser,
+    multisigVoteParser,
+  ),
+  { description: message`Multisig wallet operations` },
+);
+
+// ---------------------------------------------------------------------------
+// Token commands
+// ---------------------------------------------------------------------------
+
+const tokenCreateParser = command(
+  "create",
+  object({
+    cmd: constant("token-create" as const),
+    name: option("--name", string({ metavar: "STRING" }), {
+      description: message`Human-readable token name`,
+    }),
+    decimals: option("--decimals", integer({ metavar: "0-18" }), {
+      description: message`Number of fractional digits (0-18)`,
+    }),
+    initialSupply: option("--initial-supply", string({ metavar: "AMOUNT" }), {
+      description: message`Initial total supply (decimal; will be scaled by decimals)`,
+    }),
+    minters: optional(
+      option("--minters", string({ metavar: "ADDR,..." }), {
+        description: message`Comma-separated bech32 addresses authorized to mint`,
+      }),
+    ),
+    memo: optional(
+      option("--memo", string({ metavar: "STRING" }), {
+        description: message`UserData memo (max 32 bytes UTF-8)`,
+      }),
+    ),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+  }),
+  { description: message`Create a new token` },
+);
+
+const tokenMintParser = command(
+  "mint",
+  object({
+    cmd: constant("token-mint" as const),
+    token: option("--token", string({ metavar: "ID_OR_NAME" }), {
+      description: message`Token id (hex, 64 chars, optional 0x) or registered token name`,
+    }),
+    to: option("--to", string({ metavar: "ADDR" }), {
+      description: message`Bech32 fast1... recipient address`,
+    }),
+    amount: option("--amount", string({ metavar: "AMOUNT" }), {
+      description: message`Decimal amount; scaled by the token's decimals`,
+    }),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+  }),
+  { description: message`Mint tokens to a recipient (caller must be a minter)` },
+);
+
+const tokenBurnParser = command(
+  "burn",
+  object({
+    cmd: constant("token-burn" as const),
+    token: option("--token", string({ metavar: "ID_OR_NAME" }), {
+      description: message`Token id (hex, 64 chars, optional 0x) or registered token name`,
+    }),
+    amount: option("--amount", string({ metavar: "AMOUNT" }), {
+      description: message`Decimal amount; scaled by the token's decimals`,
+    }),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+  }),
+  { description: message`Burn tokens from the active account's balance` },
+);
+
+const tokenManageParser = command(
+  "manage",
+  object({
+    cmd: constant("token-manage" as const),
+    token: option("--token", string({ metavar: "ID_OR_NAME" }), {
+      description: message`Token id (hex, 64 chars, optional 0x) or registered token name`,
+    }),
+    admin: optional(
+      option("--admin", string({ metavar: "ADDR" }), {
+        description: message`Transfer admin to this bech32 fast1... address`,
+      }),
+    ),
+    addMinters: optional(
+      option("--add-minters", string({ metavar: "ADDR,..." }), {
+        description: message`Comma-separated minter addresses to add`,
+      }),
+    ),
+    removeMinters: optional(
+      option("--remove-minters", string({ metavar: "ADDR,..." }), {
+        description: message`Comma-separated minter addresses to remove`,
+      }),
+    ),
+    memo: optional(
+      option("--memo", string({ metavar: "STRING" }), {
+        description: message`UserData memo (max 32 bytes UTF-8)`,
+      }),
+    ),
+    asMember: optional(
+      option("--as", string({ metavar: "NAME" }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+  }),
+  {
+    description: message`Update a token's admin or minters (caller must be current admin)`,
+  },
+);
+
+const tokenGroup = command(
+  "token",
+  or(tokenCreateParser, tokenMintParser, tokenBurnParser, tokenManageParser),
+  { description: message`Token operations` },
+);
+
+// ---------------------------------------------------------------------------
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
-const commands = or(accountGroup, networkGroup, infoGroup, sendParser, fundGroup, payParser);
+const commands = or(
+  accountGroup,
+  networkGroup,
+  infoGroup,
+  sendParser,
+  fundGroup,
+  payParser,
+  multisigGroup,
+  tokenGroup,
+);
 
 export const parser = merge(globalOptions, commands);
 
@@ -498,6 +772,17 @@ export type FundUsdcFiatArgs = InferValue<typeof fundUsdcFiatParser>;
 export type FundUsdcCryptoArgs = InferValue<typeof fundUsdcCryptoParser>;
 export type FundFastUsdArgs = InferValue<typeof fundFastUsdParser>;
 export type PayArgs = InferValue<typeof payParser>;
+
+export type MultisigInitArgs = InferValue<typeof multisigInitParser>;
+export type MultisigExportArgs = InferValue<typeof multisigExportParser>;
+export type MultisigImportArgs = InferValue<typeof multisigImportParser>;
+export type MultisigPendingArgs = InferValue<typeof multisigPendingParser>;
+export type MultisigVoteArgs = InferValue<typeof multisigVoteParser>;
+
+export type TokenCreateArgs = InferValue<typeof tokenCreateParser>;
+export type TokenMintArgs = InferValue<typeof tokenMintParser>;
+export type TokenBurnArgs = InferValue<typeof tokenBurnParser>;
+export type TokenManageArgs = InferValue<typeof tokenManageParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

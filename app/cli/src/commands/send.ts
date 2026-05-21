@@ -1,21 +1,14 @@
-import { bcsSchema, VersionedTransactionFromBcs } from "@fastxyz/schema";
 import {
   encodeDepositCalldata,
   fastAddressToBytes32,
   InsufficientBalanceError as SDKInsufficientBalanceError,
   smartDeposit,
-} from "@fastxyz/allset-sdk";
-import {
-  FastProvider,
-  hashHex,
-  Signer,
-  TransactionBuilder,
-  toHex,
-} from "@fastxyz/sdk";
-import { bech32m } from "bech32";
-import { Effect, Schema } from "effect";
-import type { SendArgs } from "../cli.js";
-import type { ClientError } from "../errors/index.js";
+} from '@fastxyz/allset-sdk';
+import { FastProvider, Signer, toHex } from '@fastxyz/sdk';
+import { bech32m } from 'bech32';
+import { Effect } from 'effect';
+import type { SendArgs } from '../cli.js';
+import type { ClientError } from '../errors/index.js';
 import {
   CommandUnsupportedForTokenError,
   InvalidAddressError,
@@ -25,31 +18,29 @@ import {
   TokenNotFoundError,
   TransactionFailedError,
   UnsupportedChainError,
-} from "../errors/index.js";
-import { InvalidUsageError } from "../errors/usage.js";
-import { makeHistoryEntry } from "../schemas/history.js";
-import { AllSet } from "../services/api/allset.js";
-import { FastRpc } from "../services/api/fast.js";
-import { ClientConfig } from "../services/config/client.js";
-import { Output } from "../services/output.js";
-import { Prompt } from "../services/prompt.js";
-import { AccountStore } from "../services/storage/account.js";
-import { HistoryStore } from "../services/storage/history.js";
-import { NetworkConfigService } from "../services/storage/network.js";
-import {
-  resolveToken,
-  tokenIsKnownOnNetwork,
-} from "../services/token-resolver.js";
-import type { Command } from "./index.js";
+  WalletKindMismatchError,
+} from '../errors/index.js';
+import { InvalidUsageError } from '../errors/usage.js';
+import { makeHistoryEntry } from '../schemas/history.js';
+import { AllSet } from '../services/api/allset.js';
+import { ClientConfig } from '../services/config/client.js';
+import { Output } from '../services/output.js';
+import { Prompt } from '../services/prompt.js';
+import { resolveSigner } from '../services/signer-resolver.js';
+import { AccountStore } from '../services/storage/account.js';
+import { HistoryStore } from '../services/storage/history.js';
+import { NetworkConfigService } from '../services/storage/network.js';
+import { resolveToken, tokenIsKnownOnNetwork } from '../services/token-resolver.js';
+import { submitOperation } from '../services/tx-pipeline.js';
+import type { Command } from './index.js';
 
 export const send: Command<SendArgs> = {
-  cmd: "send",
+  cmd: 'send',
   handler: (args: SendArgs) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore;
       const bridge = yield* AllSet;
       const prompt = yield* Prompt;
-      const rpc = yield* FastRpc;
       const output = yield* Output;
       const config = yield* ClientConfig;
       const historyStore = yield* HistoryStore;
@@ -59,12 +50,11 @@ export const send: Command<SendArgs> = {
       const toChain = args.toChain;
 
       // Determine route
-      const isFastAddress = args.address.startsWith("fast1");
-      const isEvmAddress =
-        args.address.startsWith("0x") && args.address.length === 42;
+      const isFastAddress = args.address.startsWith('fast1');
+      const isEvmAddress = args.address.startsWith('0x') && args.address.length === 42;
 
       if (!isFastAddress && !isEvmAddress) {
-        const msg = args.address.startsWith("0x")
+        const msg = args.address.startsWith('0x')
           ? `Invalid EVM address "${args.address}": expected 42 characters (0x + 40 hex digits), got ${args.address.length}.`
           : `Invalid recipient address "${args.address}". Must start with fast1 (Fast network) or 0x (EVM).`;
         return yield* Effect.fail(new InvalidAddressError({ message: msg }));
@@ -96,13 +86,13 @@ export const send: Command<SendArgs> = {
       }
 
       // Determine route label
-      let route: "fast" | "evm-to-fast" | "fast-to-evm";
+      let route: 'fast' | 'evm-to-fast' | 'fast-to-evm';
       if (fromChain) {
-        route = "evm-to-fast";
+        route = 'evm-to-fast';
       } else if (toChain) {
-        route = "fast-to-evm";
+        route = 'fast-to-evm';
       } else {
-        route = "fast";
+        route = 'fast';
       }
 
       // Parse amount
@@ -150,12 +140,9 @@ export const send: Command<SendArgs> = {
           if (
             e instanceof TokenNotFoundError &&
             tokenChain !== undefined &&
-            (tokenWasDefaulted ||
-              tokenIsKnownOnNetwork(network, resolvedTokenName))
+            (tokenWasDefaulted || tokenIsKnownOnNetwork(network, resolvedTokenName))
           ) {
-            const commandLabel = fromChain
-              ? `send --from-chain ${fromChain}`
-              : `send --to-chain ${toChain}`;
+            const commandLabel = fromChain ? `send --from-chain ${fromChain}` : `send --to-chain ${toChain}`;
             const suggestion = tokenWasDefaulted
               ? `Pass --token explicitly. See 'fast info bridge-tokens' for tokens available on ${tokenChain}.`
               : `See 'fast info bridge-tokens' for tokens available on ${tokenChain}.`;
@@ -166,10 +153,7 @@ export const send: Command<SendArgs> = {
               suggestion,
             });
           }
-          if (
-            e instanceof TokenNotFoundError ||
-            e instanceof UnsupportedChainError
-          ) {
+          if (e instanceof TokenNotFoundError || e instanceof UnsupportedChainError) {
             return e;
           }
           return new TransactionFailedError({ message: String(e), cause: e });
@@ -179,7 +163,7 @@ export const send: Command<SendArgs> = {
       const { decimals } = tokenInfo;
 
       // Validate decimal places
-      const decimalParts = args.amount.split(".");
+      const decimalParts = args.amount.split('.');
       if (decimalParts.length > 1 && decimalParts[1]!.length > decimals) {
         return yield* Effect.fail(
           new InvalidAmountError({
@@ -190,31 +174,37 @@ export const send: Command<SendArgs> = {
 
       const amountRaw = BigInt(Math.round(amountFloat * 10 ** decimals));
 
-      // Resolve account and password
+      // Resolve account.
+      // EVM-bridging routes require a single-signer account (we need the seed
+      // to sign EVM transactions). Fast → Fast tolerates multisig and uses
+      // resolveSigner to dispatch on account kind.
       const accountInfo = yield* accounts.resolveAccount(config.account);
-      const pwd = accountInfo.encrypted
-        ? yield* prompt.password()
-        : null;
-      const { seed } = yield* accounts.export(accountInfo.name, pwd);
+      if ((route === 'evm-to-fast' || route === 'fast-to-evm') && accountInfo.kind !== 'single') {
+        return yield* Effect.fail(
+          new WalletKindMismatchError({
+            name: accountInfo.name,
+            expected: 'single',
+            hint: 'EVM bridging requires a single-signer account.',
+          }),
+        );
+      }
+
+      // The route-specific guard above narrows EVM routes to single-signer.
+      // Pre-derive the "from" address used in the confirmation prompt + history.
+      const fromAddress = route === 'evm-to-fast' && accountInfo.kind === 'single' ? accountInfo.evmAddress : accountInfo.fastAddress;
 
       // Interactive confirmation
       if (!config.nonInteractive && !config.json) {
         const routeLabel =
-          route === "evm-to-fast"
-            ? `EVM (${fromChain}) → Fast`
-            : route === "fast-to-evm"
-              ? `Fast → EVM (${toChain})`
-              : "Fast → Fast";
+          route === 'evm-to-fast' ? `EVM (${fromChain}) → Fast` : route === 'fast-to-evm' ? `Fast → EVM (${toChain})` : 'Fast → Fast';
 
         yield* output.humanLine(`Send ${args.amount} ${resolvedTokenName}`);
-        yield* output.humanLine(
-          `  From:  ${accountInfo.name} (${route === "evm-to-fast" ? accountInfo.evmAddress : accountInfo.fastAddress})`,
-        );
+        yield* output.humanLine(`  From:  ${accountInfo.name} (${fromAddress})`);
         yield* output.humanLine(`  To:    ${args.address}`);
         yield* output.humanLine(`  Route: ${routeLabel}`);
         yield* output.humanLine(`  Token: ${resolvedTokenName}`);
-        yield* output.humanLine("");
-        const confirmed = yield* prompt.confirm("Confirm?");
+        yield* output.humanLine('');
+        const confirmed = yield* prompt.confirm('Confirm?');
         if (!confirmed) return;
       }
 
@@ -222,19 +212,28 @@ export const send: Command<SendArgs> = {
       let estimatedTime: string | null = null;
       let evmExplorerUrl: string | null = null;
 
-      if (route === "evm-to-fast") {
+      if (route === 'evm-to-fast') {
         // ── EVM → Fast (bridge-in) ──────────────────────────────────────────
+        // Single-signer guard above ensures kind === "single" here.
+        if (accountInfo.kind !== 'single') {
+          return yield* Effect.fail(
+            new WalletKindMismatchError({
+              name: accountInfo.name,
+              expected: 'single',
+              hint: 'EVM bridging requires a single-signer account.',
+            }),
+          );
+        }
+        const password = accountInfo.encrypted ? yield* prompt.password() : null;
+        const { seed } = yield* accounts.export(accountInfo.name, password);
+
         const allset = network.allSet;
         if (!allset) {
-          return yield* Effect.fail(
-            new InvalidNetworkConfigError({ name: config.network }),
-          );
+          return yield* Effect.fail(new InvalidNetworkConfigError({ name: config.network }));
         }
         const chainCfg = allset.chains[fromChain!];
         if (!chainCfg) {
-          return yield* Effect.fail(
-            new UnsupportedChainError({ chain: fromChain! }),
-          );
+          return yield* Effect.fail(new UnsupportedChainError({ chain: fromChain! }));
         }
 
         if (args.eip7702) {
@@ -272,11 +271,7 @@ export const send: Command<SendArgs> = {
         } else {
           const evmAccount = bridge.createWallet(toHex(seed));
           // Cast needed: viem version mismatch between allset-sdk and cli
-          const evmClients = bridge.createExecutor(
-            evmAccount as Parameters<typeof bridge.createExecutor>[0],
-            chainCfg.evmRpcUrl,
-            chainCfg.chainId,
-          );
+          const evmClients = bridge.createExecutor(evmAccount as Parameters<typeof bridge.createExecutor>[0], chainCfg.evmRpcUrl, chainCfg.chainId);
 
           const bridgeResult = yield* bridge.deposit({
             chainId: chainCfg.chainId,
@@ -290,21 +285,29 @@ export const send: Command<SendArgs> = {
 
           txHash = bridgeResult.txHash;
           evmExplorerUrl = chainCfg.evmExplorerUrl;
-          estimatedTime = bridgeResult.estimatedTime ?? "1-5 minutes";
+          estimatedTime = bridgeResult.estimatedTime ?? '1-5 minutes';
         }
-      } else if (route === "fast-to-evm") {
+      } else if (route === 'fast-to-evm') {
         // ── Fast → EVM (bridge-out) ─────────────────────────────────────────
+        if (accountInfo.kind !== 'single') {
+          return yield* Effect.fail(
+            new WalletKindMismatchError({
+              name: accountInfo.name,
+              expected: 'single',
+              hint: 'EVM bridging requires a single-signer account.',
+            }),
+          );
+        }
+        const password = accountInfo.encrypted ? yield* prompt.password() : null;
+        const { seed } = yield* accounts.export(accountInfo.name, password);
+
         const allset = network.allSet;
         if (!allset) {
-          return yield* Effect.fail(
-            new InvalidNetworkConfigError({ name: config.network }),
-          );
+          return yield* Effect.fail(new InvalidNetworkConfigError({ name: config.network }));
         }
         const chainCfg = allset.chains[toChain!];
         if (!chainCfg) {
-          return yield* Effect.fail(
-            new UnsupportedChainError({ chain: toChain! }),
-          );
+          return yield* Effect.fail(new UnsupportedChainError({ chain: toChain! }));
         }
 
         const signer = new Signer(seed);
@@ -324,136 +327,95 @@ export const send: Command<SendArgs> = {
         });
 
         txHash = bridgeResult.txHash;
-        estimatedTime = bridgeResult.estimatedTime ?? "1-5 minutes";
+        estimatedTime = bridgeResult.estimatedTime ?? '1-5 minutes';
       } else {
         // ── Fast → Fast ─────────────────────────────────────────────────────
-        const signer = new Signer(seed);
-
-        const publicKey = yield* Effect.tryPromise({
-          try: () => signer.getPublicKey(),
-          catch: (cause) =>
-            new TransactionFailedError({
-              message: "Failed to get public key",
-              cause,
-            }),
+        // Polymorphic: works for single-signer + multisig accounts.
+        const resolved = yield* resolveSigner({
+          account: accountInfo,
+          asMember: args.as,
+          network: config.network,
+          passwordFor: (member) => (member.encrypted ? prompt.password() : Effect.succeed(null)),
         });
 
-        const accountInfoRpc = yield* rpc.getAccountInfo({
-          address: publicKey,
-          tokenBalancesFilter: null,
-          stateKeyFilter: null,
-          certificateByNonce: null,
-        } as never);
-        const nonce = (accountInfoRpc as any)?.nextNonce ?? 0n;
+        const recipientBytes = new Uint8Array(bech32m.fromWords(bech32m.decode(args.address).words));
+        const tokenTransfer = {
+          tokenId: tokenInfo.fastTokenId,
+          recipient: recipientBytes,
+          amount: amountRaw,
+          userData: null,
+        };
 
-        const recipientBytes = new Uint8Array(
-          bech32m.fromWords(bech32m.decode(args.address).words),
-        );
-
-        const builder = new TransactionBuilder({
-          networkId: network.networkId as any,
-          signer,
-          nonce,
+        const result = yield* submitOperation({
+          resolved,
+          networkId: network.networkId as never,
+          operation: { type: 'TokenTransfer' as const, value: tokenTransfer },
         });
 
-        const envelope = yield* Effect.tryPromise({
-          try: () =>
-            builder
-              .addTokenTransfer({
-                tokenId: tokenInfo.fastTokenId,
-                recipient: recipientBytes,
-                amount: amountRaw,
-                userData: null,
-              })
-              .sign(),
-          catch: (cause) =>
-            new TransactionFailedError({
-              message: "Failed to build transaction",
-              cause,
-            }),
-        });
+        // Multisig partial: the proxy returns IncompleteMultiSig until quorum.
+        // Skip hash computation + history record; we have no on-chain cert yet.
+        if (result.status === 'incomplete-multisig') {
+          const quorum = resolved.kind === 'multisig' ? resolved.account.multisigConfig.quorum : 1;
+          yield* output.humanLine(`Submitted as multisig partial: 1/${quorum} signatures collected.`);
+          yield* output.humanLine(`Cosigners can run \`fast multisig pending\` to view, \`fast multisig vote\` to sign.`);
+          yield* output.ok({
+            status: 'incomplete-multisig',
+            wallet: accountInfo.name,
+            fastAddress: accountInfo.fastAddress,
+            signedAs: resolved.kind === 'multisig' ? resolved.memberAccount.name : accountInfo.name,
+            signedCount: 1,
+            quorum,
+          });
+          return;
+        }
 
-        yield* rpc.submitTransaction(envelope);
-
-        // Compute the transaction hash from the signed envelope
-        const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(
-          envelope.transaction,
-        ).pipe(
-          Effect.mapError(
-            (cause) =>
-              new TransactionFailedError({
-                message: "Failed to encode transaction for hashing",
-                cause,
-              }),
-          ),
-        );
-        txHash = yield* Effect.tryPromise({
-          try: () => hashHex(bcsSchema.VersionedTransaction, bcsInput),
-          catch: (cause) =>
-            new TransactionFailedError({
-              message: "Failed to compute transaction hash",
-              cause,
-            }),
-        });
+        txHash = result.txHash;
       }
 
       // evm-to-fast: EVM deposit tx → EVM chain explorer (/tx/)
       // fast-to-evm: Fast burn tx → Fast explorer (/txs/)
       // fast→fast:   Fast tx → Fast explorer (/txs/)
-      const explorerUrl =
-        route === "evm-to-fast" && evmExplorerUrl
-          ? `${evmExplorerUrl}/tx/${txHash}`
-          : `${network.explorerUrl}/txs/${txHash}`;
+      const explorerUrl = route === 'evm-to-fast' && evmExplorerUrl ? `${evmExplorerUrl}/tx/${txHash}` : `${network.explorerUrl}/txs/${txHash}`;
 
       // Record in local history
       yield* historyStore.record(
         makeHistoryEntry({
           hash: txHash,
-          type: "transfer",
-          from:
-            route === "evm-to-fast"
-              ? accountInfo.evmAddress
-              : accountInfo.fastAddress,
+          type: 'transfer',
+          from: fromAddress,
           to: args.address,
           amount: amountRaw.toString(),
           formatted: args.amount,
           tokenName: resolvedTokenName,
           tokenId: toHex(tokenInfo.fastTokenId),
           network: config.network,
-          status: route === "fast" ? "confirmed" : "pending",
+          status: route === 'fast' ? 'confirmed' : 'pending',
           timestamp: new Date().toISOString(),
           explorerUrl,
           route,
           chainId:
-            route === "evm-to-fast"
+            route === 'evm-to-fast'
               ? network.allSet!.chains[fromChain!]!.chainId
-              : route === "fast-to-evm"
+              : route === 'fast-to-evm'
                 ? network.allSet!.chains[toChain!]!.chainId
                 : null,
         }),
       );
 
       if (estimatedTime) {
-        yield* output.humanLine(
-          `Sent ${args.amount} ${resolvedTokenName} to ${args.address}`,
-        );
+        yield* output.humanLine(`Sent ${args.amount} ${resolvedTokenName} to ${args.address}`);
         yield* output.humanLine(`  Transaction: ${txHash}`);
         yield* output.humanLine(`  Explorer:    ${explorerUrl}`);
         yield* output.humanLine(`  Estimated:   ${estimatedTime}`);
       } else {
-        yield* output.humanLine(
-          `Sent ${args.amount} ${resolvedTokenName} to ${args.address}`,
-        );
+        yield* output.humanLine(`Sent ${args.amount} ${resolvedTokenName} to ${args.address}`);
         yield* output.humanLine(`  Transaction: ${txHash}`);
         yield* output.humanLine(`  Explorer:    ${explorerUrl}`);
       }
 
       yield* output.ok({
         txHash,
-        from:
-          route === "evm-to-fast"
-            ? accountInfo.evmAddress
-            : accountInfo.fastAddress,
+        from: fromAddress,
         to: args.address,
         amount: amountRaw.toString(),
         formatted: args.amount,

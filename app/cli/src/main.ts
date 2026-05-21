@@ -148,13 +148,15 @@ if (argv.length === 0 || argv.includes("--help")) {
 
 // ── Full parse ──────────────────────────────────────────────────────────────
 
-const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay"] as const;
+const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay", "multisig", "token"] as const;
 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
   account: ["create", "import", "list", "set-default", "export", "delete"],
   network: ["list", "add", "set-default", "remove"],
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["usdc", "fastusd"],
+  multisig: ["init", "export", "import", "pending", "vote"],
+  token: ["create", "mint", "burn", "manage"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -325,6 +327,173 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     usage: "fast info history [--from <address>] [--to <address>] [--token <token>] [--limit <n>] [--offset <n>]",
     options: ["--from", "--to", "--token", "--limit", "--offset"],
     check: () => null,
+  },
+  "multisig init": {
+    usage:
+      "fast multisig init --signers <addr|name,...> --quorum <n> --config-nonce <n> --name <alias> [--network <name>] [--set-default]",
+    options: [
+      "--signers",
+      "--quorum",
+      "--config-nonce",
+      "--name",
+      "--network",
+      "--set-default",
+    ],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--signers" || a.startsWith("--signers=")))
+        return "Missing required option: --signers <addr|name,...>";
+      if (!allArgv.some((a) => a === "--quorum" || a.startsWith("--quorum=")))
+        return "Missing required option: --quorum <n>";
+      if (
+        !allArgv.some(
+          (a) => a === "--config-nonce" || a.startsWith("--config-nonce="),
+        )
+      )
+        return "Missing required option: --config-nonce <n>";
+      if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
+        return "Missing required option: --name <alias>";
+      return null;
+    },
+  },
+  "multisig export": {
+    usage: "fast multisig export <name> [--out <path>]",
+    options: ["--out"],
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "multisig pending": {
+    usage: "fast multisig pending [--as <name>] [--account <name>]",
+    options: ["--as"],
+    check: () => null,
+  },
+  "multisig vote": {
+    usage: "fast multisig vote [--tx <hash>] [--as <name>] [--yes]",
+    options: ["--tx", "--as", "--yes"],
+    check: () => null,
+  },
+  "token create": {
+    usage:
+      "fast token create --name <s> --decimals <n> --initial-supply <amt> [--minters <addr,...>] [--memo <s>] [--as <name>]",
+    options: [
+      "--name",
+      "--decimals",
+      "--initial-supply",
+      "--minters",
+      "--memo",
+      "--as",
+    ],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
+        return "Missing required option: --name <s>";
+      if (
+        !allArgv.some((a) => a === "--decimals" || a.startsWith("--decimals="))
+      )
+        return "Missing required option: --decimals <n>";
+      if (
+        !allArgv.some(
+          (a) => a === "--initial-supply" || a.startsWith("--initial-supply="),
+        )
+      )
+        return "Missing required option: --initial-supply <amt>";
+      return null;
+    },
+  },
+  "token mint": {
+    usage:
+      "fast token mint --token <id|name> --to <addr> --amount <n> [--as <name>]",
+    options: ["--token", "--to", "--amount", "--as"],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
+        return "Missing required option: --token <id|name>";
+      if (!allArgv.some((a) => a === "--to" || a.startsWith("--to=")))
+        return "Missing required option: --to <addr>";
+      if (!allArgv.some((a) => a === "--amount" || a.startsWith("--amount=")))
+        return "Missing required option: --amount <n>";
+      return null;
+    },
+  },
+  "token burn": {
+    usage:
+      "fast token burn --token <id|name> --amount <n> [--as <name>]",
+    options: ["--token", "--amount", "--as"],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
+        return "Missing required option: --token <id|name>";
+      if (!allArgv.some((a) => a === "--amount" || a.startsWith("--amount=")))
+        return "Missing required option: --amount <n>";
+      return null;
+    },
+  },
+  "token manage": {
+    usage:
+      "fast token manage --token <id|name> [--admin <addr>] [--add-minters <addr,...>] [--remove-minters <addr,...>] [--memo <s>] [--as <name>]",
+    options: [
+      "--token",
+      "--admin",
+      "--add-minters",
+      "--remove-minters",
+      "--memo",
+      "--as",
+    ],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
+        return "Missing required option: --token <id|name>";
+      const hasAdmin = allArgv.some(
+        (a) => a === "--admin" || a.startsWith("--admin="),
+      );
+      const hasAdd = allArgv.some(
+        (a) => a === "--add-minters" || a.startsWith("--add-minters="),
+      );
+      const hasRemove = allArgv.some(
+        (a) => a === "--remove-minters" || a.startsWith("--remove-minters="),
+      );
+      if (!hasAdmin && !hasAdd && !hasRemove)
+        return "At least one of --admin, --add-minters, --remove-minters must be provided";
+      return null;
+    },
+  },
+  "multisig import": {
+    usage:
+      "fast multisig import (--from <file> | --signers <addr,...> --quorum <n> --config-nonce <n>) [--name <alias>] [--network <name>] [--set-default] [--expect-address <addr>]",
+    options: [
+      "--from",
+      "--signers",
+      "--quorum",
+      "--config-nonce",
+      "--expect-address",
+      "--name",
+      "--network",
+      "--set-default",
+    ],
+    check: (_positionals, allArgv) => {
+      const hasFrom = allArgv.some(
+        (a) => a === "--from" || a.startsWith("--from="),
+      );
+      const hasSigners = allArgv.some(
+        (a) => a === "--signers" || a.startsWith("--signers="),
+      );
+      if (hasFrom && hasSigners) {
+        return "--from and --signers are mutually exclusive";
+      }
+      if (!hasFrom && !hasSigners) {
+        return "Missing required option: --from <file> or --signers <addr,...>";
+      }
+      if (hasSigners) {
+        if (!allArgv.some((a) => a === "--quorum" || a.startsWith("--quorum=")))
+          return "Missing required option: --quorum <n>";
+        if (
+          !allArgv.some(
+            (a) => a === "--config-nonce" || a.startsWith("--config-nonce="),
+          )
+        )
+          return "Missing required option: --config-nonce <n>";
+        if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
+          return "Missing required option: --name <alias>";
+      }
+      return null;
+    },
   },
 };
 

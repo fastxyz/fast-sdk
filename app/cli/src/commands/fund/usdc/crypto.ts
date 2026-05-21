@@ -16,6 +16,7 @@ import {
   TokenNotFoundError,
   TransactionFailedError,
   UnsupportedChainError,
+  WalletKindMismatchError,
 } from "../../../errors/index.js";
 import { InvalidUsageError } from "../../../errors/usage.js";
 import { makeHistoryEntry } from "../../../schemas/history.js";
@@ -64,6 +65,15 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
       // Resolve network and account
       const network = yield* networkConfig.resolve(config.network);
       const accountInfo = yield* accounts.resolveAccount(config.account);
+      if (accountInfo.kind !== "single") {
+        return yield* Effect.fail(
+          new WalletKindMismatchError({
+            name: accountInfo.name,
+            expected: "single",
+            hint: "Use a single-signer account for `fast fund usdc crypto`.",
+          }),
+        );
+      }
 
       if (!network.allSet) {
         return yield* Effect.fail(

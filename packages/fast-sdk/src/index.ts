@@ -41,6 +41,16 @@ export {
   VerifyError,
 } from "./interface/errors";
 export type { FastNetwork, FastToken } from "./networks/index.js";
+export {
+  assertAuthorizedSigner,
+  deriveMultiSigAddress,
+  deriveMultiSigAddressBytes,
+  type MultiSigConfig,
+  MultiSigConfigInvalidError,
+  MultiSigSigner,
+  type MultiSigSignerInit,
+  NotAuthorizedSignerError,
+} from "./interface/multisig-signer";
 export type { ProviderOptions } from "./interface/provider";
 export { FastProvider } from "./interface/provider";
 export { Signer, verify, verifyTypedData } from "./interface/signer";

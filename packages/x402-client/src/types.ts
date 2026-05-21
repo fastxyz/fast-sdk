@@ -109,9 +109,23 @@ export interface X402PayParams {
  */
 export interface PaymentDetails {
   network: string;
+  /**
+   * Amount paid, as a string. For Fast networks this is the raw smallest-unit
+   * value mirrored from `maxAmountRequired` (the wire format does not carry
+   * decimals); consumers should humanize using their own token-decimals
+   * registry. For EVM networks the value is currently humanized using a 6-decimal
+   * assumption — that asymmetry is tracked as a separate cleanup.
+   */
   amount: string;
   recipient: string;
   txHash: string;
+  /**
+   * The canonical identifier for the asset actually paid, mirrored from the
+   * server's payment requirement. Shape depends on the network: a Fast token
+   * id hex (e.g. `0xc655a1...`) for Fast networks, an ERC-20 contract address
+   * (e.g. `0xA0b8...`) for EVM networks.
+   */
+  asset?: string;
   bridged?: boolean;
   bridgeTxHash?: string;
 }

@@ -25,10 +25,6 @@ function getFastProvider(url: string): FastProvider {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function toHuman(rawAmount: string, decimals: number): string {
-  return (Number(rawAmount) / Math.pow(10, decimals)).toString();
-}
-
 function serializeFastRpcJsonValue(value: unknown, quoteBigInt = false): string | undefined {
   if (value === null) return 'null';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -136,9 +132,7 @@ export async function handleFastPayment(
 
   const recipientBytes = fastReq.payTo.startsWith('fast1') ? fromFastAddress(fastReq.payTo) : fromHex(fastReq.payTo);
 
-  const amountHuman = toHuman(fastReq.maxAmountRequired, 6);
   log(`[Fast] Building transaction via TransactionBuilder...`);
-  log(`  Amount: ${fastReq.maxAmountRequired} raw → ${amountHuman} USDC`);
   const txStartTime = Date.now();
 
   const networkId = resolveNetworkId(fastReq.network);
@@ -213,12 +207,13 @@ export async function handleFastPayment(
     body: resBody,
     payment: {
       network: fastReq.network,
-      amount: amountHuman,
+      amount: fastReq.maxAmountRequired,
       recipient: fastReq.payTo,
       txHash,
+      asset: fastReq.asset,
     },
     note: paidRes.ok
-      ? `Fast payment of ${amountHuman} successful. Content delivered.`
+      ? `Fast payment of ${fastReq.maxAmountRequired} (raw, asset ${fastReq.asset}) successful. Content delivered.`
       : `Payment submitted (tx: ${txHash}) but server returned ${paidRes.status}.`,
     logs: verbose ? logs : undefined,
   };

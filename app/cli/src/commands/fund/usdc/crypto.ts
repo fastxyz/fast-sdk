@@ -6,28 +6,35 @@ import {
 } from "@fastxyz/allset-sdk";
 import { toHex } from "@fastxyz/sdk";
 import { Effect } from "effect";
-import type { FundCryptoArgs } from "../../cli.js";
+import type { FundUsdcCryptoArgs } from "../../../cli.js";
+import type { ClientError } from "../../../errors/index.js";
 import {
+  CommandUnsupportedForTokenError,
   FundingRequiredError,
   InvalidAmountError,
   InvalidNetworkConfigError,
+  TokenNotFoundError,
   TransactionFailedError,
   UnsupportedChainError,
-} from "../../errors/index.js";
-import { makeHistoryEntry } from "../../schemas/history.js";
-import { AllSet } from "../../services/api/allset.js";
-import { ClientConfig } from "../../services/config/client.js";
-import { Output } from "../../services/output.js";
-import { Prompt } from "../../services/prompt.js";
-import { AccountStore } from "../../services/storage/account.js";
-import { HistoryStore } from "../../services/storage/history.js";
-import { NetworkConfigService } from "../../services/storage/network.js";
-import { resolveToken } from "../../services/token-resolver.js";
-import type { Command } from "../index.js";
+} from "../../../errors/index.js";
+import { InvalidUsageError } from "../../../errors/usage.js";
+import { makeHistoryEntry } from "../../../schemas/history.js";
+import { AllSet } from "../../../services/api/allset.js";
+import { ClientConfig } from "../../../services/config/client.js";
+import { Output } from "../../../services/output.js";
+import { Prompt } from "../../../services/prompt.js";
+import { AccountStore } from "../../../services/storage/account.js";
+import { HistoryStore } from "../../../services/storage/history.js";
+import { NetworkConfigService } from "../../../services/storage/network.js";
+import {
+  resolveToken,
+  tokenIsKnownOnNetwork,
+} from "../../../services/token-resolver.js";
+import type { Command } from "../../index.js";
 
-export const fundCrypto: Command<FundCryptoArgs> = {
-  cmd: "fund-crypto",
-  handler: (args: FundCryptoArgs) =>
+export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
+  cmd: "fund-usdc-crypto",
+  handler: (args: FundUsdcCryptoArgs) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore;
       const bridge = yield* AllSet;
@@ -69,16 +76,46 @@ export const fundCrypto: Command<FundCryptoArgs> = {
         return yield* Effect.fail(new UnsupportedChainError({ chain: args.chain }));
       }
 
-      // Resolve token
-      const tokenName =
-        args.token ?? Object.keys(chainCfg.tokens)[0] ?? "USDC";
+      // Resolve token name: explicit --token wins; otherwise use the network's default.
+      const tokenWasDefaulted = args.token === undefined;
+      const tokenName = args.token ?? network.defaultToken?.symbol;
+      if (tokenName === undefined) {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: `No default token found on ${config.network}; please specify a token.`,
+          }),
+        );
+      }
+
       const tokenInfo = yield* Effect.try({
         try: () => resolveToken(tokenName, network, args.chain),
-        catch: (e) =>
-          e instanceof Error
-            ? (e as unknown as TransactionFailedError)
-            : new TransactionFailedError({ message: String(e), cause: e }),
-      });
+        catch: (e) => e as TokenNotFoundError | UnsupportedChainError | Error,
+      }).pipe(
+        Effect.mapError((e): ClientError => {
+          if (
+            e instanceof TokenNotFoundError &&
+            (tokenWasDefaulted ||
+              tokenIsKnownOnNetwork(network, tokenName))
+          ) {
+            const suggestion = tokenWasDefaulted
+              ? `Try --token USDC. Pass --token explicitly. See 'fast info bridge-tokens' for tokens available on ${args.chain}.`
+              : `Try --token USDC. See 'fast info bridge-tokens' for tokens available on ${args.chain}.`;
+            return new CommandUnsupportedForTokenError({
+              command: "fund usdc crypto",
+              token: tokenName,
+              network: config.network,
+              suggestion,
+            });
+          }
+          if (
+            e instanceof TokenNotFoundError ||
+            e instanceof UnsupportedChainError
+          ) {
+            return e;
+          }
+          return new TransactionFailedError({ message: String(e), cause: e });
+        }),
+      );
       const { decimals } = tokenInfo;
 
       // Validate decimal places

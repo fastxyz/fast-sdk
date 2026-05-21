@@ -6,6 +6,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
     url: sdkTestnet.url,
     explorerUrl: sdkTestnet.explorerUrl,
     networkId: sdkTestnet.networkId,
+    defaultToken: sdkTestnet.defaultToken,
     allSet: {
       crossSignUrl: "https://testnet.cross-sign.allset.fast.xyz",
       portalApiUrl: "https://testnet.allset.fast.xyz/api",
@@ -47,6 +48,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
     url: sdkMainnet.url,
     explorerUrl: sdkMainnet.explorerUrl,
     networkId: sdkMainnet.networkId,
+    defaultToken: sdkMainnet.defaultToken,
     allSet: {
       crossSignUrl: "https://cross-sign.allset.fast.xyz",
       portalApiUrl: "https://allset.fast.xyz/api",

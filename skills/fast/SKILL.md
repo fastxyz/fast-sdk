@@ -82,8 +82,9 @@ Every supported subcommand is listed below. Use **exactly** these command names 
 
 | Command | Description | Key flags |
 |---|---|---|
-| `fast fund crypto <amount>` | Bridge USDC from an EVM chain into the Fast account | `--chain <chain>` (required), `--eip-7702` (gasless) |
-| `fast fund fiat` | Open a fiat on-ramp (mainnet only) | `--network mainnet` |
+| `fast fund usdc fiat` | Print a Ramp on-ramp URL for funding with USDC (mainnet only). | `--network mainnet`, `--address` |
+| `fast fund usdc crypto <amount>` | Bridge USDC from an EVM chain into the Fast account. Defaults `--token` to `network.defaultToken.symbol` when omitted. On mainnet that's `fastUSD`, which is not on EVM chains by default — pass `--token USDC` for the bridge case. The command errors with `CommandUnsupportedForTokenError` otherwise. | `--chain <chain>` (required), `--token`, `--eip-7702` (gasless) |
+| `fast fund fastusd` | Print an `app.fast.xyz/send` URL that opens the unified Fast funding page (mainnet only). Funds **fastUSD** (Fast-native, distinct from bridged USDC). | `--to <fast1...>`, `--amount <decimal>` |
 
 ### `send` command
 
@@ -95,7 +96,7 @@ fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chai
 |---|---|---|
 | `<address>` | Recipient address | `fast1...` (Fast network) or `0x...` (EVM) |
 | `<amount>` | Amount to send | numeric string, e.g. `"20"` |
-| `--token <TOKEN>` | Token to send (**always specify explicitly**) | `USDC` (default; `testUSDC` is an alias on testnet) |
+| `--token <TOKEN>` | Defaults to `network.defaultToken.symbol` (`fastUSD` on mainnet, `testUSDC` on testnet) when omitted. Bridge routes (`--from-chain` / `--to-chain`) require the resolved token to be available on the target chain; otherwise the command errors with `CommandUnsupportedForTokenError`. | `USDC`, `fastUSD`, `testUSDC` |
 | `--from-chain <chain>` | Bridge from this EVM chain into Fast | e.g. `arbitrum-sepolia`, `base` |
 | `--to-chain <chain>` | Bridge from Fast to this EVM chain | e.g. `arbitrum-sepolia` |
 | `--eip-7702` | Gasless deposit (no ETH needed on EVM side) | flag, no value |
@@ -169,7 +170,7 @@ the same Ed25519 key:
 - **EVM address** (`0x...`) — the same key expressed as an Ethereum address,
   used for bridge deposits
 
-When running `fast fund crypto` or `fast send --from-chain <chain>`, the CLI
+When running `fast fund usdc crypto` or `fast send --from-chain <chain>`, the CLI
 uses the EVM address derived from the current account's key. Use
 `fast account list` to see both addresses.
 
@@ -261,16 +262,20 @@ fast account delete old-wallet     # delete account named 'old-wallet' (NOT 'acc
 fast account set-default my-wallet # set 'my-wallet' as default
 ```
 
-### 3. Send USDC (Fast → Fast)
+### 3. Send tokens on Fast (Fast → Fast)
 
 ```sh
+# Default token: fastUSD on mainnet, testUSDC on testnet.
 fast send fast1ab2...y3w 10.5
+
+# To send USDC explicitly, pass --token:
+fast send fast1ab2...y3w 10.5 --token USDC
 ```
 
-### 4. Fund from EVM → Fast (`fast fund crypto`)
+### 4. Fund from EVM → Fast (`fast fund usdc crypto`)
 
 ```sh
-fast fund crypto 50 --chain arbitrum-sepolia
+fast fund usdc crypto 50 --chain arbitrum-sepolia
 ```
 
 **What happens:**
@@ -285,7 +290,7 @@ fast fund crypto 50 --chain arbitrum-sepolia
 #### Gasless variant with EIP-7702 (no ETH needed)
 
 ```sh
-fast fund crypto 50 --chain base --eip-7702
+fast fund usdc crypto 50 --chain base --eip-7702
 ```
 
 Gas is paid in USDC instead of ETH. Approve + deposit are batched into a single
@@ -300,11 +305,23 @@ fast send 0xYourEvmAddress 25 --token USDC --to-chain arbitrum-sepolia
 ### 6. Fund via fiat (mainnet only)
 
 ```sh
-fast fund fiat --network mainnet
-# → prints an on-ramp URL
+fast fund usdc fiat --network mainnet
+# → prints a Ramp on-ramp URL for funding with USDC
 ```
 
-### 7. Pay an x402-protected URL
+### 7. Fund fastUSD via the unified Fast web app
+
+```sh
+fast fund fastusd --network mainnet
+# → prints app.fast.xyz/send?to=<your-fast-address>
+fast fund fastusd --network mainnet --amount 25
+# → adds &amount=25
+```
+
+This URL is mainnet-only and funds **fastUSD** (a Fast-native token, separate
+from bridged USDC).
+
+### 8. Pay an x402-protected URL
 
 ```sh
 fast pay https://api.example.com/resource
@@ -327,11 +344,11 @@ derived from the **same private key**. You do not need a separate EVM wallet.
 When depositing via a bridge UI or another wallet, use the EVM address from
 `fast account list`.
 
-### `fast fund crypto` vs. `fast send --from-chain`
+### `fast fund usdc crypto` vs. `fast send --from-chain`
 
 | Command | Use when |
 |---|---|
-| `fast fund crypto <amount> --chain <chain>` | Top up your own Fast account from your own EVM balance |
+| `fast fund usdc crypto <amount> --chain <chain>` | Top up your own Fast account from your own EVM balance |
 | `fast send <fast-address> <amount> --from-chain <chain>` | Bridge from EVM to an arbitrary Fast recipient |
 
 ### Token names: `USDC` vs. `testUSDC`

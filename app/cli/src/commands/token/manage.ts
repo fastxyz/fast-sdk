@@ -134,6 +134,7 @@ export const tokenManage: Command<TokenManageArgs> = {
       const resolved = yield* resolveSigner({
         account: accountInfo,
         asMember: args.asMember,
+        network: config.network,
         passwordFor: (member) => (member.encrypted ? prompt.password() : Effect.succeed(null)),
       });
 

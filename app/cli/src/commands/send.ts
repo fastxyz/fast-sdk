@@ -1,13 +1,12 @@
-import { bcsSchema, type TransactionEnvelope, VersionedTransactionFromBcs } from '@fastxyz/schema';
 import {
   encodeDepositCalldata,
   fastAddressToBytes32,
   InsufficientBalanceError as SDKInsufficientBalanceError,
   smartDeposit,
 } from '@fastxyz/allset-sdk';
-import { FastProvider, hashHex, Signer, TransactionBuilder, toHex } from '@fastxyz/sdk';
+import { FastProvider, Signer, toHex } from '@fastxyz/sdk';
 import { bech32m } from 'bech32';
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 import type { SendArgs } from '../cli.js';
 import type { ClientError } from '../errors/index.js';
 import {
@@ -24,7 +23,6 @@ import {
 import { InvalidUsageError } from '../errors/usage.js';
 import { makeHistoryEntry } from '../schemas/history.js';
 import { AllSet } from '../services/api/allset.js';
-import { FastRpc } from '../services/api/fast.js';
 import { ClientConfig } from '../services/config/client.js';
 import { Output } from '../services/output.js';
 import { Prompt } from '../services/prompt.js';
@@ -33,6 +31,7 @@ import { AccountStore } from '../services/storage/account.js';
 import { HistoryStore } from '../services/storage/history.js';
 import { NetworkConfigService } from '../services/storage/network.js';
 import { resolveToken, tokenIsKnownOnNetwork } from '../services/token-resolver.js';
+import { submitOperation } from '../services/tx-pipeline.js';
 import type { Command } from './index.js';
 
 export const send: Command<SendArgs> = {
@@ -42,7 +41,6 @@ export const send: Command<SendArgs> = {
       const accounts = yield* AccountStore;
       const bridge = yield* AllSet;
       const prompt = yield* Prompt;
-      const rpc = yield* FastRpc;
       const output = yield* Output;
       const config = yield* ClientConfig;
       const historyStore = yield* HistoryStore;
@@ -336,6 +334,7 @@ export const send: Command<SendArgs> = {
         const resolved = yield* resolveSigner({
           account: accountInfo,
           asMember: args.as,
+          network: config.network,
           passwordFor: (member) => (member.encrypted ? prompt.password() : Effect.succeed(null)),
         });
 
@@ -347,77 +346,15 @@ export const send: Command<SendArgs> = {
           userData: null,
         };
 
-        let envelope: TransactionEnvelope;
-        if (resolved.kind === 'single') {
-          const senderPubkey = yield* Effect.tryPromise({
-            try: () => resolved.signer.getPublicKey(),
-            catch: (cause) =>
-              new TransactionFailedError({
-                message: 'Failed to get public key',
-                cause,
-              }),
-          });
-          const accountInfoRpc = yield* rpc.getAccountInfo({
-            address: senderPubkey,
-            tokenBalancesFilter: null,
-            stateKeyFilter: null,
-            certificateByNonce: null,
-          } as never);
-          const nonce = (accountInfoRpc as any)?.nextNonce ?? 0n;
-
-          envelope = yield* Effect.tryPromise({
-            try: () =>
-              new TransactionBuilder({
-                networkId: network.networkId as any,
-                signer: resolved.signer,
-                nonce,
-              })
-                .addTokenTransfer(tokenTransfer)
-                .sign(),
-            catch: (cause) =>
-              new TransactionFailedError({
-                message: 'Failed to build transaction',
-                cause,
-              }),
-          });
-        } else {
-          const senderBytes = yield* Effect.tryPromise({
-            try: () => resolved.signer.getDerivedAddressBytes(),
-            catch: (cause) =>
-              new TransactionFailedError({
-                message: 'Failed to derive multisig address',
-                cause,
-              }),
-          });
-          const accountInfoRpc = yield* rpc.getAccountInfo({
-            address: senderBytes,
-            tokenBalancesFilter: null,
-            stateKeyFilter: null,
-            certificateByNonce: null,
-          } as never);
-          const nonce = (accountInfoRpc as any)?.nextNonce ?? 0n;
-
-          envelope = yield* Effect.tryPromise({
-            try: () =>
-              resolved.signer.signTransaction({
-                networkId: network.networkId as any,
-                nonce,
-                operations: [{ type: 'TokenTransfer' as const, value: tokenTransfer }],
-              }),
-            catch: (cause) =>
-              new TransactionFailedError({
-                message: 'Failed to sign multisig transaction',
-                cause,
-              }),
-          });
-        }
-
-        const submitResult = yield* rpc.submitTransaction(envelope);
+        const result = yield* submitOperation({
+          resolved,
+          networkId: network.networkId as never,
+          operation: { type: 'TokenTransfer' as const, value: tokenTransfer },
+        });
 
         // Multisig partial: the proxy returns IncompleteMultiSig until quorum.
         // Skip hash computation + history record; we have no on-chain cert yet.
-        const submitObj = (submitResult as { type?: string } | null) ?? null;
-        if (submitObj?.type === 'IncompleteMultiSig') {
+        if (result.status === 'incomplete-multisig') {
           const quorum = resolved.kind === 'multisig' ? resolved.account.multisigConfig.quorum : 1;
           yield* output.humanLine(`Submitted as multisig partial: 1/${quorum} signatures collected.`);
           yield* output.humanLine(`Cosigners can run \`fast multisig pending\` to view, \`fast multisig vote\` to sign.`);
@@ -432,24 +369,7 @@ export const send: Command<SendArgs> = {
           return;
         }
 
-        // Compute the transaction hash from the signed envelope
-        const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(envelope.transaction).pipe(
-          Effect.mapError(
-            (cause) =>
-              new TransactionFailedError({
-                message: 'Failed to encode transaction for hashing',
-                cause,
-              }),
-          ),
-        );
-        txHash = yield* Effect.tryPromise({
-          try: () => hashHex(bcsSchema.VersionedTransaction, bcsInput),
-          catch: (cause) =>
-            new TransactionFailedError({
-              message: 'Failed to compute transaction hash',
-              cause,
-            }),
-        });
+        txHash = result.txHash;
       }
 
       // evm-to-fast: EVM deposit tx → EVM chain explorer (/tx/)

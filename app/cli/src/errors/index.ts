@@ -17,6 +17,7 @@ import type {
   NotAMemberError,
   PasswordRequiredError,
   WalletKindMismatchError,
+  WalletNetworkMismatchError,
   WrongPasswordError,
 } from "./account.js";
 import type {
@@ -102,4 +103,5 @@ export type ClientError =
   | AmbiguousMemberError
   | AddressDerivationMismatchError
   | AlreadyVotedError
-  | WalletKindMismatchError;
+  | WalletKindMismatchError
+  | WalletNetworkMismatchError;

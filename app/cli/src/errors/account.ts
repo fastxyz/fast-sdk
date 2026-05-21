@@ -127,3 +127,17 @@ export class WalletKindMismatchError extends Data.TaggedError(
     return `"${this.name}" is not a ${verb} account.${this.hint ? ` ${this.hint}` : ""}`;
   }
 }
+
+export class WalletNetworkMismatchError extends Data.TaggedError(
+  "WalletNetworkMismatchError",
+)<{
+  readonly name: string;
+  readonly walletNetwork: string;
+  readonly activeNetwork: string;
+}> {
+  readonly exitCode = 2 as const;
+  readonly errorCode = "WALLET_NETWORK_MISMATCH" as const;
+  get message() {
+    return `Multisig wallet "${this.name}" belongs to network "${this.walletNetwork}", but the active network is "${this.activeNetwork}". Switch networks or import/create a wallet config for "${this.activeNetwork}".`;
+  }
+}

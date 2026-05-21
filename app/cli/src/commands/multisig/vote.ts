@@ -8,7 +8,7 @@ import { FastRpc } from '../../services/api/fast.js';
 import { ClientConfig } from '../../services/config/client.js';
 import { Output } from '../../services/output.js';
 import { Prompt } from '../../services/prompt.js';
-import { resolveSigner } from '../../services/signer-resolver.js';
+import { ensureMultisigNetwork, resolveSigner } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
 import { HistoryStore } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
@@ -215,6 +215,7 @@ export const multisigVote: Command<MultisigVoteArgs> = {
           }),
         );
       }
+      yield* ensureMultisigNetwork(account, config.network);
 
       // 2. Fetch pending list.
       const addressBytes = fromFastAddress(account.fastAddress);
@@ -276,6 +277,7 @@ export const multisigVote: Command<MultisigVoteArgs> = {
       const resolved = yield* resolveSigner({
         account,
         asMember: args.asMember,
+        network: config.network,
         passwordFor: (member) => (member.encrypted ? prompt.password() : Effect.succeed(null)),
       });
       if (resolved.kind !== 'multisig') {

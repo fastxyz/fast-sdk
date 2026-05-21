@@ -8,7 +8,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { Effect, Layer } from 'effect';
 import { describe, expect, it } from 'vitest';
-import { AmbiguousMemberError, DatabaseError, NotAMemberError } from '../../src/errors/index.js';
+import { AmbiguousMemberError, DatabaseError, NotAMemberError, WalletNetworkMismatchError } from '../../src/errors/index.js';
 import { resolveSigner } from '../../src/services/signer-resolver.js';
 import { type AccountInfo, AccountStore } from '../../src/services/storage/account.js';
 import { DatabaseService } from '../../src/services/storage/database.js';
@@ -95,6 +95,44 @@ describe('resolveSigner', () => {
     if (result.kind !== 'multisig') throw new Error('unreachable');
     expect(result.memberAccount.name).toBe('alice');
     expect(result.account.name).toBe('treasury');
+  });
+
+  it('fails WalletNetworkMismatchError before resolving a multisig signer on the wrong network', async () => {
+    const layer = makeLayer();
+    const aliceAddr = await fastAddressOf(SEED(0xaa));
+    const bobAddr = await fastAddressOf(SEED(0xbb));
+
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const accounts = yield* AccountStore;
+        yield* accounts.create('alice', SEED(0xaa), null);
+        const ms = yield* accounts.createMultiSig(
+          {
+            version: 1,
+            name: 'treasury',
+            signers: [aliceAddr, bobAddr],
+            quorum: 2,
+            configNonce: '0',
+            fastAddress: 'fast1xyz',
+            network: 'testnet',
+          },
+          true,
+        );
+        return yield* resolveSigner({
+          account: ms as AccountInfo,
+          network: 'mainnet',
+          password: null,
+        });
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure') throw new Error('unreachable');
+    const err = exit.cause._tag === 'Fail' ? exit.cause.error : null;
+    expect(err).toBeInstanceOf(WalletNetworkMismatchError);
+    if (!(err instanceof WalletNetworkMismatchError)) throw new Error('unreachable');
+    expect(err.walletNetwork).toBe('testnet');
+    expect(err.activeNetwork).toBe('mainnet');
   });
 
   it('fails AmbiguousMemberError when multiple local members and no --as', async () => {

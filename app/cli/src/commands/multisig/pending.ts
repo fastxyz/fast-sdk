@@ -6,6 +6,7 @@ import { FastSdkError, WalletKindMismatchError } from '../../errors/index.js';
 import { FastRpc } from '../../services/api/fast.js';
 import { ClientConfig } from '../../services/config/client.js';
 import { Output } from '../../services/output.js';
+import { ensureMultisigNetwork } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
 import type { Command } from '../index.js';
 
@@ -60,6 +61,7 @@ export const multisigPending: Command<MultisigPendingArgs> = {
           }),
         );
       }
+      yield* ensureMultisigNetwork(account, config.network);
 
       // 2. Fetch pending transactions.
       const addressBytes = fromFastAddress(account.fastAddress);

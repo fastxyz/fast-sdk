@@ -6,6 +6,7 @@ import type { InfoBalanceArgs } from '../../cli.js';
 import { FastRpc } from '../../services/api/fast.js';
 import { ClientConfig } from '../../services/config/client.js';
 import { Output } from '../../services/output.js';
+import { ensureMultisigNetwork } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
 
@@ -41,6 +42,9 @@ export const infoBalance: Command<InfoBalanceArgs> = {
       const networkConfig = yield* netService.resolve(config.network);
 
       const account = yield* accounts.resolveAccount(config.account);
+      if (account.kind === 'multisig') {
+        yield* ensureMultisigNetwork(account, config.network);
+      }
       const fastAddress = account.fastAddress;
       const evmAddress = account.kind === 'single' ? account.evmAddress : null;
       const senderBytes = fromFastAddress(fastAddress);

@@ -1,14 +1,17 @@
 import { bcsSchema, type TransactionEnvelope, VersionedTransactionFromBcs } from '@fastxyz/schema';
-import { fromFastAddress, hashHex, toFastAddress, toHex } from '@fastxyz/sdk';
+import { fromFastAddress, getTokenId, hashHex, toFastAddress, toHex } from '@fastxyz/sdk';
 import { Effect, Schema } from 'effect';
 import type { MultisigVoteArgs } from '../../cli.js';
 import { AlreadyVotedError, FastSdkError, TransactionFailedError, WalletKindMismatchError } from '../../errors/index.js';
+import { makeHistoryEntry, type HistoryEntry } from '../../schemas/history.js';
 import { FastRpc } from '../../services/api/fast.js';
 import { ClientConfig } from '../../services/config/client.js';
 import { Output } from '../../services/output.js';
 import { Prompt } from '../../services/prompt.js';
 import { resolveSigner } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
+import { HistoryStore } from '../../services/storage/history.js';
+import { NetworkConfigService } from '../../services/storage/network.js';
 import type { Command } from '../index.js';
 
 /** Truncate a bech32 fast address for compact display. */
@@ -47,6 +50,148 @@ const normalizeHash = (h: string): string => {
   return lower.startsWith('0x') ? lower.slice(2) : lower;
 };
 
+const submitResultType = (result: unknown): string | null => (result as { type?: string } | null)?.type ?? null;
+
+export const voteReachedQuorum = (submitResult: unknown): Effect.Effect<boolean, TransactionFailedError> => {
+  const type = submitResultType(submitResult);
+  if (type === 'Success') return Effect.succeed(true);
+  if (type === 'IncompleteMultiSig') return Effect.succeed(false);
+  if (type === 'IncompleteVerifierSigs') {
+    return Effect.fail(
+      new TransactionFailedError({
+        message: 'Transaction is pending verifier signatures and cannot be treated as finalized.',
+      }),
+    );
+  }
+  return Effect.fail(
+    new TransactionFailedError({
+      message: `Unexpected submit result for multisig vote: ${type ?? 'missing type'}`,
+    }),
+  );
+};
+
+const transactionOperations = (envelope: TransactionEnvelope) => {
+  const value = envelope.transaction.value as {
+    readonly claims?: readonly unknown[];
+    readonly claim?: unknown;
+  };
+  if (Array.isArray(value.claims)) return value.claims;
+  return value.claim === undefined ? [] : [value.claim];
+};
+
+export const makeVoteHistoryEntry = (params: {
+  readonly envelope: TransactionEnvelope;
+  readonly txHash: string;
+  readonly walletFastAddress: string;
+  readonly network: string;
+  readonly explorerUrl: string | null;
+}): HistoryEntry | null => {
+  const operations = transactionOperations(params.envelope);
+  const op = operations[0] as
+    | {
+        readonly type: string;
+        readonly value?: Record<string, unknown>;
+      }
+    | undefined;
+  if (!op) return null;
+
+  const txValue = params.envelope.transaction.value as {
+    readonly sender: Uint8Array;
+    readonly nonce: bigint;
+  };
+  const value = op.value ?? {};
+  const tokenId = value.tokenId instanceof Uint8Array ? toHex(value.tokenId) : null;
+  const amount = typeof value.amount === 'bigint' ? value.amount.toString() : '0';
+
+  switch (op.type) {
+    case 'TokenTransfer': {
+      const recipient = value.recipient instanceof Uint8Array ? toFastAddress(value.recipient) : '';
+      return makeHistoryEntry({
+        hash: params.txHash,
+        type: 'transfer',
+        from: params.walletFastAddress,
+        to: recipient,
+        amount,
+        formatted: amount,
+        tokenName: tokenId ?? '',
+        tokenId: tokenId ?? '',
+        network: params.network,
+        status: 'confirmed',
+        timestamp: new Date().toISOString(),
+        explorerUrl: params.explorerUrl,
+      });
+    }
+    case 'TokenCreation': {
+      const createdTokenId = toHex(getTokenId(txValue.sender, txValue.nonce, 0n));
+      const initialAmount = typeof value.initialAmount === 'bigint' ? value.initialAmount.toString() : '0';
+      const tokenName = typeof value.tokenName === 'string' ? value.tokenName : createdTokenId;
+      return makeHistoryEntry({
+        hash: params.txHash,
+        type: 'token-create',
+        from: params.walletFastAddress,
+        to: '',
+        amount: initialAmount,
+        formatted: initialAmount,
+        tokenName,
+        tokenId: createdTokenId,
+        network: params.network,
+        status: 'confirmed',
+        timestamp: new Date().toISOString(),
+        explorerUrl: params.explorerUrl,
+      });
+    }
+    case 'Mint': {
+      const recipient = value.recipient instanceof Uint8Array ? toFastAddress(value.recipient) : '';
+      return makeHistoryEntry({
+        hash: params.txHash,
+        type: 'token-mint',
+        from: params.walletFastAddress,
+        to: recipient,
+        amount,
+        formatted: amount,
+        tokenName: tokenId ?? '',
+        tokenId: tokenId ?? '',
+        network: params.network,
+        status: 'confirmed',
+        timestamp: new Date().toISOString(),
+        explorerUrl: params.explorerUrl,
+      });
+    }
+    case 'Burn':
+      return makeHistoryEntry({
+        hash: params.txHash,
+        type: 'token-burn',
+        from: params.walletFastAddress,
+        to: '',
+        amount,
+        formatted: amount,
+        tokenName: tokenId ?? '',
+        tokenId: tokenId ?? '',
+        network: params.network,
+        status: 'confirmed',
+        timestamp: new Date().toISOString(),
+        explorerUrl: params.explorerUrl,
+      });
+    case 'TokenManagement':
+      return makeHistoryEntry({
+        hash: params.txHash,
+        type: 'token-manage',
+        from: params.walletFastAddress,
+        to: '',
+        amount: '0',
+        formatted: '0',
+        tokenName: tokenId ?? '',
+        tokenId: tokenId ?? '',
+        network: params.network,
+        status: 'confirmed',
+        timestamp: new Date().toISOString(),
+        explorerUrl: params.explorerUrl,
+      });
+    default:
+      return null;
+  }
+};
+
 export const multisigVote: Command<MultisigVoteArgs> = {
   cmd: 'multisig-vote',
   handler: (args) =>
@@ -56,6 +201,8 @@ export const multisigVote: Command<MultisigVoteArgs> = {
       const config = yield* ClientConfig;
       const output = yield* Output;
       const prompt = yield* Prompt;
+      const historyStore = yield* HistoryStore;
+      const networks = yield* NetworkConfigService;
 
       // 1. Resolve active account; refuse if not multisig.
       const account = yield* accountsSvc.resolveAccount(config.account);
@@ -195,13 +342,20 @@ export const multisigVote: Command<MultisigVoteArgs> = {
       // 10. Submit.
       const submitResult = yield* rpc.submitTransaction(myEnvelope);
 
-      // The proxy returns either an IncompleteMultiSig response (still gathering
-      // partials) or a Success response (quorum reached, on-chain submission OK).
-      // We surface either outcome without trying to over-interpret the wire type.
-      const resultObj = (submitResult as { type?: string } | null) ?? null;
-      const reachedQuorum = resultObj?.type !== undefined && resultObj.type !== 'IncompleteMultiSig';
+      const reachedQuorum = yield* voteReachedQuorum(submitResult);
 
       if (reachedQuorum) {
+        const network = yield* networks.resolve(config.network);
+        const historyEntry = makeVoteHistoryEntry({
+          envelope: target.envelope,
+          txHash: target.hash,
+          walletFastAddress: account.fastAddress,
+          network: config.network,
+          explorerUrl: `${network.explorerUrl}/txs/${target.hash}`,
+        });
+        if (historyEntry) {
+          yield* historyStore.record(historyEntry);
+        }
         yield* output.humanLine(`Quorum reached. Transaction ${target.hash} submitted on-chain.`);
       } else {
         yield* output.humanLine(`Partial signature recorded for ${target.hash} (${signedCount + 1}/${quorum}). Awaiting more signers.`);

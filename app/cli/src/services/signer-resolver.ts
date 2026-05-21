@@ -1,38 +1,40 @@
-import { fromFastAddress, MultiSigSigner, Signer } from "@fastxyz/sdk";
-import { Effect } from "effect";
-import { AmbiguousMemberError, NotAMemberError } from "../errors/index.js";
-import { AccountStore, type AccountInfo } from "./storage/account.js";
+import { fromFastAddress, MultiSigSigner, Signer } from '@fastxyz/sdk';
+import { Effect } from 'effect';
+import { AmbiguousMemberError, NotAMemberError, PasswordRequiredError, UserCancelledError } from '../errors/index.js';
+import { AccountStore, type AccountInfo } from './storage/account.js';
 
 export type ResolvedSigner =
   | {
-      readonly kind: "single";
+      readonly kind: 'single';
       readonly signer: Signer;
-      readonly account: Extract<AccountInfo, { kind: "single" }>;
+      readonly account: Extract<AccountInfo, { kind: 'single' }>;
     }
   | {
-      readonly kind: "multisig";
+      readonly kind: 'multisig';
       readonly signer: MultiSigSigner;
-      readonly account: Extract<AccountInfo, { kind: "multisig" }>;
-      readonly memberAccount: Extract<AccountInfo, { kind: "single" }>;
+      readonly account: Extract<AccountInfo, { kind: 'multisig' }>;
+      readonly memberAccount: Extract<AccountInfo, { kind: 'single' }>;
     };
 
 export interface ResolveSignerOptions {
   readonly account: AccountInfo;
   readonly asMember?: string;
-  readonly password: string | null;
+  readonly password?: string | null;
+  readonly passwordFor?: (account: SingleAccount) => Effect.Effect<string | null, PasswordRequiredError | UserCancelledError>;
 }
 
-type SingleAccount = Extract<AccountInfo, { kind: "single" }>;
+type SingleAccount = Extract<AccountInfo, { kind: 'single' }>;
 
 export const resolveSigner = (opts: ResolveSignerOptions) =>
   Effect.gen(function* () {
     const accounts = yield* AccountStore;
 
-    if (opts.account.kind === "single") {
-      const { seed } = yield* accounts.export(opts.account.name, opts.password);
+    if (opts.account.kind === 'single') {
+      const password = opts.password !== undefined ? opts.password : opts.passwordFor ? yield* opts.passwordFor(opts.account) : null;
+      const { seed } = yield* accounts.export(opts.account.name, password);
       const signer = new Signer(seed);
       return {
-        kind: "single" as const,
+        kind: 'single' as const,
         signer,
         account: opts.account,
       };
@@ -42,27 +44,17 @@ export const resolveSigner = (opts: ResolveSignerOptions) =>
     const config = opts.account.multisigConfig;
     const signerAddrs = new Set(config.signers);
     const localAccounts = yield* accounts.list();
-    const candidates = localAccounts.filter(
-      (a): a is SingleAccount =>
-        a.kind === "single" && signerAddrs.has(a.fastAddress),
-    );
+    const candidates = localAccounts.filter((a): a is SingleAccount => a.kind === 'single' && signerAddrs.has(a.fastAddress));
 
     if (candidates.length === 0) {
-      return yield* Effect.fail(
-        new NotAMemberError({ walletName: opts.account.name }),
-      );
+      return yield* Effect.fail(new NotAMemberError({ walletName: opts.account.name }));
     }
 
     let chosen: SingleAccount;
     if (opts.asMember) {
       const found = candidates.find((c) => c.name === opts.asMember);
       if (!found) {
-        return yield* Effect.fail(
-          new AmbiguousMemberError({
-            walletName: opts.account.name,
-            candidates: candidates.map((c) => c.name),
-          }),
-        );
+        return yield* Effect.fail(new NotAMemberError({ walletName: opts.account.name }));
       }
       chosen = found;
     } else if (candidates.length > 1) {
@@ -76,7 +68,8 @@ export const resolveSigner = (opts: ResolveSignerOptions) =>
       chosen = candidates[0]!;
     }
 
-    const { seed } = yield* accounts.export(chosen.name, opts.password);
+    const password = opts.password !== undefined ? opts.password : opts.passwordFor ? yield* opts.passwordFor(chosen) : null;
+    const { seed } = yield* accounts.export(chosen.name, password);
     const signer = new MultiSigSigner({
       config: {
         authorized_signers: config.signers.map((s) => fromFastAddress(s)),
@@ -87,7 +80,7 @@ export const resolveSigner = (opts: ResolveSignerOptions) =>
     });
 
     return {
-      kind: "multisig" as const,
+      kind: 'multisig' as const,
       signer,
       account: opts.account,
       memberAccount: chosen,

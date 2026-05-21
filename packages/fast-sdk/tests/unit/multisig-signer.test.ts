@@ -1,15 +1,12 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import {
-  bcsSchema,
-  type VersionedTransaction,
-  VersionedTransactionFromBcs,
-} from "@fastxyz/schema";
-import { getPublicKeyAsync } from "@noble/ed25519";
-import { Schema } from "effect";
-import { describe, expect, it } from "vitest";
-import { run } from "../../src/core/run";
-import { fromHex, Signer, TransactionBuilder, toHex } from "../../src/index";
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { bcsSchema, type VersionedTransaction, VersionedTransactionFromBcs } from '@fastxyz/schema';
+import { getPublicKeyAsync } from '@noble/ed25519';
+import { Schema } from 'effect';
+import { describe, expect, it } from 'vitest';
+import { run } from '../../src/core/run';
+import { fromHex, Signer, TransactionBuilder, toHex } from '../../src/index';
 import {
   assertAuthorizedSigner,
   deriveMultiSigAddress,
@@ -17,17 +14,17 @@ import {
   MultiSigConfigInvalidError,
   MultiSigSigner,
   NotAuthorizedSignerError,
-} from "../../src/interface/multisig-signer";
+} from '../../src/interface/multisig-signer';
 
-const fixtures = JSON.parse(
-  readFileSync(join(__dirname, "fixtures/multisig-addresses.json"), "utf8"),
-) as Array<{
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+
+const fixtures = JSON.parse(readFileSync(join(__dirname, 'fixtures/multisig-addresses.json'), 'utf8')) as Array<{
   comment: string;
   config: { authorized_signers: string[]; quorum: string; nonce: string };
   expectedAddressHex: string;
 }>;
 
-describe("deriveMultiSigAddress", () => {
+describe('deriveMultiSigAddress', () => {
   for (const f of fixtures) {
     it(`matches Rust derivation: ${f.comment}`, async () => {
       const config = {
@@ -40,22 +37,22 @@ describe("deriveMultiSigAddress", () => {
     });
   }
 
-  it("produces a bech32m fast1... address", async () => {
+  it('produces a bech32m fast1... address', async () => {
     const config = {
       authorized_signers: [new Uint8Array(32), new Uint8Array(32).fill(1)],
       quorum: 2n,
       nonce: 0n,
     };
     const addr = await deriveMultiSigAddress(config);
-    expect(addr.startsWith("fast1")).toBe(true);
+    expect(addr.startsWith('fast1')).toBe(true);
   });
 });
 
-describe("assertAuthorizedSigner", () => {
+describe('assertAuthorizedSigner', () => {
   const SECRET_A = new Uint8Array(32).fill(0xaa);
   const SECRET_B = new Uint8Array(32).fill(0xbb);
 
-  it("returns void when secret derives a pubkey in authorized_signers", async () => {
+  it('returns void when secret derives a pubkey in authorized_signers', async () => {
     const pkA = await getPublicKeyAsync(SECRET_A);
     const pkB = await getPublicKeyAsync(SECRET_B);
     const config = {
@@ -63,12 +60,10 @@ describe("assertAuthorizedSigner", () => {
       quorum: 2n,
       nonce: 0n,
     };
-    await expect(
-      assertAuthorizedSigner(config, SECRET_A),
-    ).resolves.toBeUndefined();
+    await expect(assertAuthorizedSigner(config, SECRET_A)).resolves.toBeUndefined();
   });
 
-  it("throws NotAuthorizedSignerError when secret is not a member", async () => {
+  it('throws NotAuthorizedSignerError when secret is not a member', async () => {
     const pkA = await getPublicKeyAsync(SECRET_A);
     const otherSecret = new Uint8Array(32).fill(0xcc);
     const config = {
@@ -76,68 +71,52 @@ describe("assertAuthorizedSigner", () => {
       quorum: 2n,
       nonce: 0n,
     };
-    await expect(assertAuthorizedSigner(config, otherSecret)).rejects.toThrow(
-      NotAuthorizedSignerError,
-    );
+    await expect(assertAuthorizedSigner(config, otherSecret)).rejects.toThrow(NotAuthorizedSignerError);
   });
 
-  it("throws MultiSigConfigInvalidError on quorum < 1", async () => {
+  it('throws MultiSigConfigInvalidError on quorum < 1', async () => {
     const config = {
-      authorized_signers: [
-        await getPublicKeyAsync(SECRET_A),
-        await getPublicKeyAsync(SECRET_B),
-      ],
+      authorized_signers: [await getPublicKeyAsync(SECRET_A), await getPublicKeyAsync(SECRET_B)],
       quorum: 0n,
       nonce: 0n,
     };
-    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(
-      MultiSigConfigInvalidError,
-    );
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(MultiSigConfigInvalidError);
   });
 
-  it("throws MultiSigConfigInvalidError on quorum > signer count", async () => {
+  it('throws MultiSigConfigInvalidError on quorum > signer count', async () => {
     const config = {
-      authorized_signers: [
-        await getPublicKeyAsync(SECRET_A),
-        await getPublicKeyAsync(SECRET_B),
-      ],
+      authorized_signers: [await getPublicKeyAsync(SECRET_A), await getPublicKeyAsync(SECRET_B)],
       quorum: 3n,
       nonce: 0n,
     };
-    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(
-      MultiSigConfigInvalidError,
-    );
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(MultiSigConfigInvalidError);
   });
 
-  it("throws MultiSigConfigInvalidError on signer count < 2", async () => {
+  it('throws MultiSigConfigInvalidError on signer count < 2', async () => {
     const config = {
       authorized_signers: [await getPublicKeyAsync(SECRET_A)],
       quorum: 1n,
       nonce: 0n,
     };
-    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(
-      MultiSigConfigInvalidError,
-    );
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(MultiSigConfigInvalidError);
   });
 
-  it("throws MultiSigConfigInvalidError on duplicate signers", async () => {
+  it('throws MultiSigConfigInvalidError on duplicate signers', async () => {
     const pkA = await getPublicKeyAsync(SECRET_A);
     const config = {
       authorized_signers: [pkA, pkA],
       quorum: 2n,
       nonce: 0n,
     };
-    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(
-      MultiSigConfigInvalidError,
-    );
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(MultiSigConfigInvalidError);
   });
 });
 
-describe("MultiSigSigner construction", () => {
+describe('MultiSigSigner construction', () => {
   const SECRET_A = new Uint8Array(32).fill(0xaa);
   const SECRET_B = new Uint8Array(32).fill(0xbb);
 
-  it("constructs with a member secret and exposes pubkey", async () => {
+  it('constructs with a member secret and exposes pubkey', async () => {
     const pkA = await getPublicKeyAsync(SECRET_A);
     const pkB = await getPublicKeyAsync(SECRET_B);
     const config = { authorized_signers: [pkA, pkB], quorum: 2n, nonce: 0n };
@@ -145,7 +124,7 @@ describe("MultiSigSigner construction", () => {
     expect(await signer.getSignerPublicKey()).toEqual(pkA);
   });
 
-  it("getFastAddress returns derived multisig bech32m", async () => {
+  it('getFastAddress returns derived multisig bech32m', async () => {
     const pkA = await getPublicKeyAsync(SECRET_A);
     const pkB = await getPublicKeyAsync(SECRET_B);
     const config = { authorized_signers: [pkA, pkB], quorum: 2n, nonce: 0n };
@@ -155,21 +134,19 @@ describe("MultiSigSigner construction", () => {
     expect(fromSigner).toBe(direct);
   });
 
-  it("rejects construction when secret is not in authorized_signers", async () => {
+  it('rejects construction when secret is not in authorized_signers', async () => {
     const pkA = await getPublicKeyAsync(SECRET_A);
     const pkB = await getPublicKeyAsync(SECRET_B);
     const config = { authorized_signers: [pkA, pkB], quorum: 2n, nonce: 0n };
     const stranger = new Uint8Array(32).fill(0xcc);
     // Construction is sync; validation happens lazily on first method call
     const signer = new MultiSigSigner({ config, secretKey: stranger });
-    await expect(signer.getSignerPublicKey()).rejects.toThrow(
-      NotAuthorizedSignerError,
-    );
+    await expect(signer.getSignerPublicKey()).rejects.toThrow(NotAuthorizedSignerError);
   });
 });
 
-describe("MultiSigSigner.signEnvelopeFor", () => {
-  it("produces a MultiSig envelope with one partial signature", async () => {
+describe('MultiSigSigner.signEnvelopeFor', () => {
+  it('produces a MultiSig envelope with one partial signature', async () => {
     const SECRET_A = new Uint8Array(32).fill(0xaa);
     const SECRET_B = new Uint8Array(32).fill(0xbb);
     const pkA = await getPublicKeyAsync(SECRET_A);
@@ -186,7 +163,7 @@ describe("MultiSigSigner.signEnvelopeFor", () => {
     // Using TransactionBuilder against a throw-away Signer is the
     // simplest way to construct a valid VersionedTransaction shape.
     const builder = new TransactionBuilder({
-      networkId: "fast:testnet" as const,
+      networkId: 'fast:testnet' as const,
       signer: new Signer(SECRET_A), // construction only; we replace sender below
       nonce: 0n,
     });
@@ -209,14 +186,11 @@ describe("MultiSigSigner.signEnvelopeFor", () => {
 
     const envelope = await signer.signEnvelopeFor(versioned);
     expect(envelope.transaction).toBe(versioned);
-    expect(envelope.signature.type).toBe("MultiSig");
-    if (envelope.signature.type !== "MultiSig") throw new Error("unreachable");
+    expect(envelope.signature.type).toBe('MultiSig');
+    if (envelope.signature.type !== 'MultiSig') throw new Error('unreachable');
     // Envelope config is camelCase + branded (the SignatureOrMultiSig.Type shape).
     // Compare structurally — toEqual treats branded Uint8Arrays as equal to plain ones.
-    expect(envelope.signature.value.config.authorizedSigners).toEqual([
-      pkA,
-      pkB,
-    ]);
+    expect(envelope.signature.value.config.authorizedSigners).toEqual([pkA, pkB]);
     expect(envelope.signature.value.config.quorum).toBe(config.quorum);
     expect(envelope.signature.value.config.nonce).toBe(config.nonce);
     expect(envelope.signature.value.signatures).toHaveLength(1);
@@ -233,8 +207,8 @@ describe("MultiSigSigner.signEnvelopeFor", () => {
   });
 });
 
-describe("MultiSigSigner.signTransaction", () => {
-  it("builds a versioned tx with sender=derived and signs as partial", async () => {
+describe('MultiSigSigner.signTransaction', () => {
+  it('builds a versioned tx with sender=derived and signs as partial', async () => {
     const SECRET_A = new Uint8Array(32).fill(0xaa);
     const SECRET_B = new Uint8Array(32).fill(0xbb);
     const pkA = await getPublicKeyAsync(SECRET_A);
@@ -248,11 +222,11 @@ describe("MultiSigSigner.signTransaction", () => {
     const sender = await signer.getDerivedAddressBytes();
 
     const envelope = await signer.signTransaction({
-      networkId: "fast:testnet" as const,
+      networkId: 'fast:testnet' as const,
       nonce: 0n,
       operations: [
         {
-          type: "TokenTransfer",
+          type: 'TokenTransfer',
           value: {
             tokenId: new Uint8Array(32),
             recipient: new Uint8Array(32),
@@ -264,6 +238,6 @@ describe("MultiSigSigner.signTransaction", () => {
     });
 
     expect(envelope.transaction.value.sender).toEqual(sender);
-    expect(envelope.signature.type).toBe("MultiSig");
+    expect(envelope.signature.type).toBe('MultiSig');
   });
 });

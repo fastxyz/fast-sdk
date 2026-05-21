@@ -1,26 +1,15 @@
-import {
-  deriveMultiSigAddress,
-  fromFastAddress,
-  type MultiSigConfig,
-} from "@fastxyz/sdk";
-import { Effect, Schema } from "effect";
-import type { MultisigInitArgs } from "../../cli.js";
-import {
-  InvalidAddressError,
-  InvalidUsageError,
-  MultiSigConfigInvalidError,
-} from "../../errors/index.js";
-import {
-  MultiSigWalletConfigSchema,
-  type MultiSigWalletConfig,
-} from "../../schemas/multisig-wallet.js";
-import { ClientConfig } from "../../services/config/client.js";
-import { Output } from "../../services/output.js";
-import { AccountStore } from "../../services/storage/account.js";
-import { validateName } from "../../services/validate.js";
-import type { Command } from "../index.js";
+import { deriveMultiSigAddress, fromFastAddress, type MultiSigConfig } from '@fastxyz/sdk';
+import { Effect, Schema } from 'effect';
+import type { MultisigInitArgs } from '../../cli.js';
+import { InvalidAddressError, InvalidUsageError, MultiSigConfigInvalidError, WalletKindMismatchError } from '../../errors/index.js';
+import { MultiSigWalletConfigSchema, type MultiSigWalletConfig } from '../../schemas/multisig-wallet.js';
+import { ClientConfig } from '../../services/config/client.js';
+import { Output } from '../../services/output.js';
+import { AccountStore } from '../../services/storage/account.js';
+import { validateName } from '../../services/validate.js';
+import type { Command } from '../index.js';
 
-const FAST_ADDRESS_PREFIX = "fast1";
+const FAST_ADDRESS_PREFIX = 'fast1';
 
 /**
  * Resolve a single `--signers` entry to a bech32 fast address.
@@ -33,7 +22,7 @@ const resolveSignerEntry = (entry: string) =>
     if (trimmed.length === 0) {
       return yield* Effect.fail(
         new InvalidUsageError({
-          message: "Empty signer entry in --signers list",
+          message: 'Empty signer entry in --signers list',
         }),
       );
     }
@@ -53,11 +42,20 @@ const resolveSignerEntry = (entry: string) =>
     // Treat as local account name.
     const accounts = yield* AccountStore;
     const account = yield* accounts.get(trimmed);
+    if (account.kind !== 'single') {
+      return yield* Effect.fail(
+        new WalletKindMismatchError({
+          name: account.name,
+          expected: 'single',
+          hint: '--signers local account names must refer to single-signer accounts.',
+        }),
+      );
+    }
     return account.fastAddress;
   });
 
 export const multisigInit: Command<MultisigInitArgs> = {
-  cmd: "multisig-init",
+  cmd: 'multisig-init',
   handler: (args: MultisigInitArgs) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore;
@@ -65,21 +63,21 @@ export const multisigInit: Command<MultisigInitArgs> = {
       const output = yield* Output;
 
       // Validate alias.
-      const nameErr = validateName(args.name, "Wallet name");
+      const nameErr = validateName(args.name, 'Wallet name');
       if (nameErr) {
         return yield* Effect.fail(new InvalidUsageError({ message: nameErr }));
       }
 
       // Parse + resolve signer entries.
       const rawEntries = args.signers
-        .split(",")
+        .split(',')
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
 
       if (rawEntries.length < 2) {
         return yield* Effect.fail(
           new InvalidUsageError({
-            message: "--signers must list at least 2 entries",
+            message: '--signers must list at least 2 entries',
           }),
         );
       }
@@ -94,7 +92,7 @@ export const multisigInit: Command<MultisigInitArgs> = {
       if (dedupedSorted.length !== resolved.length) {
         return yield* Effect.fail(
           new MultiSigConfigInvalidError({
-            reason: "duplicate signers in --signers list",
+            reason: 'duplicate signers in --signers list',
           }),
         );
       }
@@ -145,9 +143,7 @@ export const multisigInit: Command<MultisigInitArgs> = {
         fastAddress,
         network,
       };
-      const walletConfig: MultiSigWalletConfig = yield* Schema.decodeUnknown(
-        MultiSigWalletConfigSchema,
-      )(candidate).pipe(
+      const walletConfig: MultiSigWalletConfig = yield* Schema.decodeUnknown(MultiSigWalletConfigSchema)(candidate).pipe(
         Effect.mapError(
           (e) =>
             new MultiSigConfigInvalidError({
@@ -165,19 +161,19 @@ export const multisigInit: Command<MultisigInitArgs> = {
       yield* output.humanLine(`  Network:      ${entry.multisigConfig.network}`);
       yield* output.humanLine(`  Quorum:       ${entry.multisigConfig.quorum} of ${entry.multisigConfig.signers.length}`);
       yield* output.humanLine(`  Config nonce: ${entry.multisigConfig.configNonce}`);
-      yield* output.humanLine("  Signers:");
+      yield* output.humanLine('  Signers:');
       for (const s of entry.multisigConfig.signers) {
         yield* output.humanLine(`    - ${s}`);
       }
       if (entry.isDefault) {
-        yield* output.humanLine("  (set as default account)");
+        yield* output.humanLine('  (set as default account)');
       }
 
       // JSON output.
       yield* output.ok({
         name: entry.name,
         fastAddress: entry.fastAddress,
-        kind: "multisig" as const,
+        kind: 'multisig' as const,
         isDefault: entry.isDefault,
         multisigConfig: entry.multisigConfig,
       });

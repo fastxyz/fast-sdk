@@ -75,7 +75,7 @@ fast-cli
    `IncompleteMultiSig`.
 6. `reportResult` branches: cert hash + history persistence on
    success; "1/N signatures, cosigners run `fast multisig
-   pending`" on incomplete.
+pending`" on incomplete.
 
 For `fast multisig vote`, the same shape applies; the only
 difference from `send` is that the operation is loaded from the
@@ -148,11 +148,11 @@ truncated bech32 with local-account name lookup when applicable.
 New file: `packages/fast-sdk/src/interface/multisig-signer.ts`.
 
 ```ts
-import type { MultiSigConfig, SignatureOrMultiSig } from "@fastxyz/schema";
+import type { MultiSigConfig, SignatureOrMultiSig } from '@fastxyz/schema';
 
 export interface MultiSigSignerInit {
   config: MultiSigConfig;
-  secretKey: Uint8Array;       // Ed25519, must be one of the signers
+  secretKey: Uint8Array; // Ed25519, must be one of the signers
 }
 
 export class MultiSigSigner {
@@ -163,13 +163,12 @@ export class MultiSigSigner {
 }
 
 export function deriveMultiSigAddress(config: MultiSigConfig): Promise<string>;
-export function assertAuthorizedSigner(
-  config: MultiSigConfig,
-  secretKey: Uint8Array,
-): void;
+export function assertAuthorizedSigner(config: MultiSigConfig, secretKey: Uint8Array): void;
 ```
 
-**Constructor invariants** (validated, throw on violation):
+**Signer invariants** are validated lazily on first operation that needs
+the signer key/config relationship. Construction clones and stores the
+config/secret; methods throw on violation:
 
 - `secretKey` derives a pubkey present in
   `config.authorized_signers`.
@@ -189,7 +188,7 @@ aggregates with other partials.
 **Index export** in `packages/fast-sdk/src/index.ts`:
 
 ```ts
-export { MultiSigSigner, deriveMultiSigAddress } from "./interface/multisig-signer";
+export { MultiSigSigner, deriveMultiSigAddress } from './interface/multisig-signer';
 ```
 
 ## CLI: signer resolution
@@ -252,13 +251,14 @@ is shared.
   `history` table.
 - `IncompleteMultiSig`: prints "submitted as multisig partial,
   K/quorum signatures, cosigners run `fast multisig
-  pending`/`vote`". Does **not** write to `history` (no cert yet).
+pending`/`vote`". Does **not** write to `history` (no cert yet).
 
 ### `--memo` flag
 
-On `send`, `token mint`, `token burn`. Single helper
-`encodeUserData(string?): UserData | null` validates ≤32 bytes
-UTF-8 and zero-pads.
+On `token create` and `token manage`. Single helper
+`encodeUserData(string?): UserData | null` validates <=32 bytes UTF-8
+and zero-pads. `send`, `token mint`, and `token burn` do not expose
+`--memo`.
 
 ## Commands
 
@@ -286,7 +286,7 @@ multisig accounts.
 
 ```text
 ~ fast send <recipient> <amount>
-    [--token <id|name>] [--memo <string>]
+    [--token <id|name>]
     [--account <name>] [--as <name>]
     [--password <pwd>] [--non-interactive] [--yes] [--json]
 ```
@@ -303,7 +303,7 @@ Active account becomes admin.
 ```text
 + fast token mint
     --token <id|name> --to <addr> --amount <amount>
-    [--memo <string>] [--account ...] [--as ...]
+    [--account ...] [--as ...]
 ```
 
 Active account must be in the token's authorized minters.
@@ -311,7 +311,7 @@ Active account must be in the token's authorized minters.
 ```text
 + fast token burn
     --token <id|name> --amount <amount>
-    [--memo <string>] [--account ...] [--as ...]
+    [--account ...] [--as ...]
 ```
 
 Burns from active account's holdings.
@@ -322,6 +322,7 @@ Burns from active account's holdings.
     [--admin <addr>]
     [--add-minters <addr,...>]
     [--remove-minters <addr,...>]
+    [--memo <string>]
     [--account ...] [--as ...]
 ```
 
@@ -364,7 +365,7 @@ Emits the canonical wallet-config JSON to stdout (or `--out` file).
 
 Lists pending txs at the wallet's current nonce. Each row shows
 operation summary, signer grid (✓/✗ with local name resolution),
-and whether *you* still need to vote.
+and whether _you_ still need to vote.
 
 ```text
 + fast multisig vote
@@ -408,7 +409,7 @@ All extend the existing tagged-error pattern in
 - `AlreadyVoted` — caller's pubkey already in pending tx's
   signatures
 - `WalletKindMismatch` — operation requires single (e.g. `account
-  export`) but row is multisig, or vice versa
+export`) but row is multisig, or vice versa
 - `IncompleteMultiSigSubmission` — not an error per se, but a
   result variant the CLI surfaces distinctly from `Success`
 
@@ -451,7 +452,7 @@ by the Rust tool, stored as JSON, asserted in TS unit tests.
 - `app/cli/src/services/signer-resolver.ts`
 - `app/cli/src/schemas/multisig-wallet.ts`
 - `app/cli/src/commands/multisig/{init,import,export,pending,vote,index}.ts`
-- `app/cli/src/commands/token/{create,mint,burn,manage,index}.ts` *(Phase 2)*
+- `app/cli/src/commands/token/{create,mint,burn,manage,index}.ts` _(Phase 2)_
 - `app/cli/drizzle/<timestamp>_multisig_accounts.sql`
 
 **Modified files:**

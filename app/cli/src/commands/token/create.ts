@@ -1,22 +1,18 @@
-import { fromFastAddress, getTokenId, toHex } from "@fastxyz/sdk";
-import { Effect } from "effect";
-import type { TokenCreateArgs } from "../../cli.js";
-import {
-  InvalidAddressError,
-  InvalidAmountError,
-  TransactionFailedError,
-} from "../../errors/index.js";
-import { makeHistoryEntry } from "../../schemas/history.js";
-import { FastRpc } from "../../services/api/fast.js";
-import { ClientConfig } from "../../services/config/client.js";
-import { Output } from "../../services/output.js";
-import { Prompt } from "../../services/prompt.js";
-import { resolveSigner } from "../../services/signer-resolver.js";
-import { AccountStore } from "../../services/storage/account.js";
-import { HistoryStore } from "../../services/storage/history.js";
-import { NetworkConfigService } from "../../services/storage/network.js";
-import { submitOperation } from "../../services/tx-pipeline.js";
-import type { Command } from "../index.js";
+import { fromFastAddress, getTokenId, toHex } from '@fastxyz/sdk';
+import { Effect } from 'effect';
+import type { TokenCreateArgs } from '../../cli.js';
+import { InvalidAddressError, InvalidAmountError, TransactionFailedError } from '../../errors/index.js';
+import { makeHistoryEntry } from '../../schemas/history.js';
+import { FastRpc } from '../../services/api/fast.js';
+import { ClientConfig } from '../../services/config/client.js';
+import { Output } from '../../services/output.js';
+import { Prompt } from '../../services/prompt.js';
+import { resolveSigner } from '../../services/signer-resolver.js';
+import { AccountStore } from '../../services/storage/account.js';
+import { HistoryStore } from '../../services/storage/history.js';
+import { NetworkConfigService } from '../../services/storage/network.js';
+import { submitOperation } from '../../services/tx-pipeline.js';
+import type { Command } from '../index.js';
 
 const encodeMemo = (s: string | undefined): Uint8Array | null => {
   if (!s) return null;
@@ -38,18 +34,18 @@ const parseAmount = (s: string, decimals: number): bigint => {
       message: `--initial-supply not a non-negative decimal: "${s}"`,
     });
   }
-  const [whole, frac = ""] = trimmed.split(".");
+  const [whole, frac = ''] = trimmed.split('.');
   if (frac.length > decimals) {
     throw new InvalidAmountError({
       message: `--initial-supply has more fractional digits (${frac.length}) than decimals (${decimals})`,
     });
   }
-  const scaled = `${whole}${frac.padEnd(decimals, "0")}`;
+  const scaled = `${whole}${frac.padEnd(decimals, '0')}`;
   return BigInt(scaled);
 };
 
 export const tokenCreate: Command<TokenCreateArgs> = {
-  cmd: "token-create",
+  cmd: 'token-create',
   handler: (args) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore;
@@ -73,13 +69,13 @@ export const tokenCreate: Command<TokenCreateArgs> = {
         catch: (e) => e as InvalidAmountError,
       });
 
-      const minterEntries = (args.minters ?? "")
-        .split(",")
+      const minterEntries = (args.minters ?? '')
+        .split(',')
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
       const minterBytes: Uint8Array[] = [];
       for (const m of minterEntries) {
-        if (!m.startsWith("fast1")) {
+        if (!m.startsWith('fast1')) {
           return yield* Effect.fail(
             new InvalidAddressError({
               message: `--minters entry "${m}" is not a bech32 fast1... address`,
@@ -103,19 +99,10 @@ export const tokenCreate: Command<TokenCreateArgs> = {
       });
 
       const accountInfo = yield* accounts.resolveAccount(config.account);
-      // Password resolution mirrors send.ts: only prompt when a password is
-      // actually needed (encrypted single-signer, or any multisig — since
-      // resolveSigner needs to decrypt the local member key).
-      const password: string | null =
-        accountInfo.kind === "single"
-          ? accountInfo.encrypted
-            ? yield* prompt.password()
-            : null
-          : yield* prompt.password();
       const resolved = yield* resolveSigner({
         account: accountInfo,
         asMember: args.asMember,
-        password,
+        passwordFor: (member) => (member.encrypted ? prompt.password() : Effect.succeed(null)),
       });
 
       const network = yield* networks.resolve(config.network);
@@ -124,11 +111,9 @@ export const tokenCreate: Command<TokenCreateArgs> = {
         yield* output.humanLine(`Create token "${args.name}"`);
         yield* output.humanLine(`  Decimals:       ${args.decimals}`);
         yield* output.humanLine(`  Initial supply: ${args.initialSupply}`);
-        yield* output.humanLine(
-          `  Minters:        ${minterEntries.length > 0 ? minterEntries.join(", ") : "(admin only)"}`,
-        );
+        yield* output.humanLine(`  Minters:        ${minterEntries.length > 0 ? minterEntries.join(', ') : '(admin only)'}`);
         yield* output.humanLine(`  Admin:          ${accountInfo.fastAddress}`);
-        const ok = yield* prompt.confirm("Confirm?");
+        const ok = yield* prompt.confirm('Confirm?');
         if (!ok) return;
       }
 
@@ -136,7 +121,7 @@ export const tokenCreate: Command<TokenCreateArgs> = {
         resolved,
         networkId: network.networkId as never,
         operation: {
-          type: "TokenCreation",
+          type: 'TokenCreation',
           value: {
             tokenName: args.name,
             decimals: args.decimals,
@@ -147,19 +132,12 @@ export const tokenCreate: Command<TokenCreateArgs> = {
         },
       });
 
-      if (result.status === "incomplete-multisig") {
-        const quorum =
-          resolved.kind === "multisig"
-            ? resolved.account.multisigConfig.quorum
-            : 1;
-        yield* output.humanLine(
-          `Submitted as multisig partial: 1/${quorum} signatures collected.`,
-        );
-        yield* output.humanLine(
-          `Cosigners can run \`fast multisig pending\` to view, \`fast multisig vote\` to sign.`,
-        );
+      if (result.status === 'incomplete-multisig') {
+        const quorum = resolved.kind === 'multisig' ? resolved.account.multisigConfig.quorum : 1;
+        yield* output.humanLine(`Submitted as multisig partial: 1/${quorum} signatures collected.`);
+        yield* output.humanLine(`Cosigners can run \`fast multisig pending\` to view, \`fast multisig vote\` to sign.`);
         yield* output.ok({
-          status: "incomplete-multisig",
+          status: 'incomplete-multisig',
           tokenName: args.name,
           wallet: accountInfo.name,
         });
@@ -168,13 +146,10 @@ export const tokenCreate: Command<TokenCreateArgs> = {
 
       // Record in local history (only on success — incomplete-multisig has no cert)
       const senderBytes = yield* Effect.tryPromise({
-        try: () =>
-          resolved.kind === "single"
-            ? resolved.signer.getPublicKey()
-            : resolved.signer.getDerivedAddressBytes(),
+        try: () => (resolved.kind === 'single' ? resolved.signer.getPublicKey() : resolved.signer.getDerivedAddressBytes()),
         catch: (cause) =>
           new TransactionFailedError({
-            message: "Failed to derive sender bytes for token id",
+            message: 'Failed to derive sender bytes for token id',
             cause,
           }),
       });
@@ -183,15 +158,15 @@ export const tokenCreate: Command<TokenCreateArgs> = {
       yield* historyStore.record(
         makeHistoryEntry({
           hash: result.txHash,
-          type: "token-create",
+          type: 'token-create',
           from: accountInfo.fastAddress,
-          to: "",
+          to: '',
           amount: initialSupply.toString(),
           formatted: args.initialSupply,
           tokenName: args.name,
           tokenId: toHex(tokenId),
           network: config.network,
-          status: "confirmed",
+          status: 'confirmed',
           timestamp: new Date().toISOString(),
           explorerUrl,
         }),
@@ -200,7 +175,7 @@ export const tokenCreate: Command<TokenCreateArgs> = {
       yield* output.humanLine(`Created token "${args.name}".`);
       yield* output.humanLine(`  Transaction: ${result.txHash}`);
       yield* output.ok({
-        status: "success",
+        status: 'success',
         tokenName: args.name,
         decimals: args.decimals,
         initialSupply: args.initialSupply,

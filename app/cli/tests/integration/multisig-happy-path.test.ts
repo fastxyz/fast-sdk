@@ -22,44 +22,32 @@
  * aggregation semantics that vote.ts and send.ts rely on.
  */
 
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import {
-  bcsSchema,
-  type TransactionEnvelope,
-  VersionedTransactionFromBcs,
-} from "@fastxyz/schema";
-import {
-  deriveMultiSigAddress,
-  fromFastAddress,
-  hashHex,
-  Signer,
-} from "@fastxyz/sdk";
-import Db from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { Effect, Layer, Ref, Schema } from "effect";
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { bcsSchema, type TransactionEnvelope, VersionedTransactionFromBcs } from '@fastxyz/schema';
+import { deriveMultiSigAddress, fromFastAddress, hashHex, Signer } from '@fastxyz/sdk';
+import Db from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { Effect, Layer, Ref, Schema } from 'effect';
+import { describe, expect, it } from 'vitest';
 import {
   AddressDerivationMismatchError,
   AlreadyVotedError,
   DatabaseError,
   NotAMemberError,
   WalletKindMismatchError,
-} from "../../src/errors/index.js";
-import {
-  parseMultiSigWalletConfig,
-  stringifyMultiSigWalletConfig,
-} from "../../src/schemas/multisig-wallet.js";
-import { resolveSigner } from "../../src/services/signer-resolver.js";
-import {
-  type AccountInfo,
-  AccountStore,
-} from "../../src/services/storage/account.js";
-import { DatabaseService } from "../../src/services/storage/database.js";
+} from '../../src/errors/index.js';
+import { parseMultiSigWalletConfig, stringifyMultiSigWalletConfig } from '../../src/schemas/multisig-wallet.js';
+import { resolveSigner } from '../../src/services/signer-resolver.js';
+import { type AccountInfo, AccountStore } from '../../src/services/storage/account.js';
+import { DatabaseService } from '../../src/services/storage/database.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 const SEED = (b: number) => new Uint8Array(32).fill(b);
 
@@ -67,12 +55,8 @@ const fastAddressOf = async (seed: Uint8Array): Promise<string> => {
   return new Signer(seed).getFastAddress();
 };
 
-const computeTxHash = async (
-  envelope: TransactionEnvelope,
-): Promise<string> => {
-  const bcsInput = await Effect.runPromise(
-    Schema.encode(VersionedTransactionFromBcs)(envelope.transaction),
-  );
+const computeTxHash = async (envelope: TransactionEnvelope): Promise<string> => {
+  const bcsInput = await Effect.runPromise(Schema.encode(VersionedTransactionFromBcs)(envelope.transaction));
   return hashHex(bcsSchema.VersionedTransaction, bcsInput);
 };
 
@@ -91,14 +75,11 @@ interface StubRpcState {
 
 const initialState: StubRpcState = { pending: new Map() };
 
-const submitTransaction = (
-  ref: Ref.Ref<StubRpcState>,
-  envelope: TransactionEnvelope,
-) =>
+const submitTransaction = (ref: Ref.Ref<StubRpcState>, envelope: TransactionEnvelope) =>
   Effect.gen(function* () {
-    if (envelope.signature.type !== "MultiSig") {
+    if (envelope.signature.type !== 'MultiSig') {
       // Non-multisig tx: surface a Success without further bookkeeping.
-      return { type: "Success", certificate: { stub: true } };
+      return { type: 'Success', certificate: { stub: true } };
     }
 
     const incoming = envelope.signature.value;
@@ -108,26 +89,21 @@ const submitTransaction = (
     yield* Ref.update(ref, (state) => {
       const existing = state.pending.get(txHash);
       const existingPartials = existing
-        ? (
-            existing.signature as Extract<
-              TransactionEnvelope["signature"],
-              { type: "MultiSig" }
-            >
-          ).value.signatures
+        ? (existing.signature as Extract<TransactionEnvelope['signature'], { type: 'MultiSig' }>).value.signatures
         : [];
       // Dedupe by signer pubkey.
       const seen = new Set(
         existingPartials.map((p) =>
           Array.from(p[0])
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join(""),
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join(''),
         ),
       );
       const merged = [...existingPartials];
       for (const partial of incoming.signatures) {
         const key = Array.from(partial[0])
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
         if (!seen.has(key)) {
           merged.push(partial);
           seen.add(key);
@@ -136,7 +112,7 @@ const submitTransaction = (
       const updated: TransactionEnvelope = {
         transaction: envelope.transaction,
         signature: {
-          type: "MultiSig",
+          type: 'MultiSig',
           value: {
             config: incoming.config,
             signatures: merged,
@@ -150,12 +126,7 @@ const submitTransaction = (
 
     const state = yield* Ref.get(ref);
     const stored = state.pending.get(txHash)!;
-    const storedPartials = (
-      stored.signature as Extract<
-        TransactionEnvelope["signature"],
-        { type: "MultiSig" }
-      >
-    ).value.signatures;
+    const storedPartials = (stored.signature as Extract<TransactionEnvelope['signature'], { type: 'MultiSig' }>).value.signatures;
 
     if (storedPartials.length >= quorum) {
       // Quorum reached — drop from pending and report Success.
@@ -164,9 +135,9 @@ const submitTransaction = (
         next.delete(txHash);
         return { pending: next };
       });
-      return { type: "Success", certificate: { stub: true, txHash } };
+      return { type: 'Success', certificate: { stub: true, txHash } };
     }
-    return { type: "IncompleteMultiSig" };
+    return { type: 'IncompleteMultiSig' };
   });
 
 // We exercise submitTransaction / getPendingMultisigTransactions directly
@@ -177,11 +148,11 @@ const submitTransaction = (
 // ── Layer construction ──────────────────────────────────────────────────────
 
 const makeBaseLayer = () => {
-  const dir = mkdtempSync(join(tmpdir(), "fast-cli-multisig-int-"));
-  const dbPath = join(dir, "fast.db");
+  const dir = mkdtempSync(join(tmpdir(), 'fast-cli-multisig-int-'));
+  const dbPath = join(dir, 'fast.db');
   const sqlite = new Db(dbPath);
   const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: join(__dirname, "../../drizzle") });
+  migrate(db, { migrationsFolder: join(__dirname, '../../drizzle') });
 
   const dbServiceLayer = Layer.succeed(DatabaseService, {
     query: <A>(fn: (db: never) => A, message: string) =>
@@ -196,8 +167,8 @@ const makeBaseLayer = () => {
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
-describe("multisig 2-of-3 integration", () => {
-  it("happy path: alice initiates → IncompleteMultiSig; bob votes → Success", async () => {
+describe('multisig 2-of-3 integration', () => {
+  it('happy path: alice initiates → IncompleteMultiSig; bob votes → Success', async () => {
     const layer = makeBaseLayer();
     const aliceAddr = await fastAddressOf(SEED(0xaa));
     const bobAddr = await fastAddressOf(SEED(0xbb));
@@ -216,20 +187,20 @@ describe("multisig 2-of-3 integration", () => {
         const accounts = yield* AccountStore;
 
         // Three single-signer accounts.
-        yield* accounts.create("alice", SEED(0xaa), null);
-        yield* accounts.create("bob", SEED(0xbb), null);
-        yield* accounts.create("carol", SEED(0xcc), null);
+        yield* accounts.create('alice', SEED(0xaa), null);
+        yield* accounts.create('bob', SEED(0xbb), null);
+        yield* accounts.create('carol', SEED(0xcc), null);
 
         // Multisig wallet with quorum = 2.
         const ms = yield* accounts.createMultiSig(
           {
             version: 1,
-            name: "treasury",
+            name: 'treasury',
             signers: sortedSigners,
             quorum: 2,
-            configNonce: "0",
+            configNonce: '0',
             fastAddress: multisigFastAddr,
-            network: "testnet",
+            network: 'testnet',
           },
           true,
         );
@@ -237,11 +208,10 @@ describe("multisig 2-of-3 integration", () => {
         // ── Alice initiates ─────────────────────────────────────────────────
         const aliceResolved = yield* resolveSigner({
           account: ms as AccountInfo,
-          asMember: "alice",
+          asMember: 'alice',
           password: null,
         });
-        if (aliceResolved.kind !== "multisig")
-          throw new Error("expected multisig signer for alice");
+        if (aliceResolved.kind !== 'multisig') throw new Error('expected multisig signer for alice');
 
         const recipient = new Uint8Array(32).fill(0x42);
         const tokenTransfer = {
@@ -253,11 +223,9 @@ describe("multisig 2-of-3 integration", () => {
 
         const aliceEnvelope = yield* Effect.promise(() =>
           aliceResolved.signer.signTransaction({
-            networkId: "fast:testnet" as const,
+            networkId: 'fast:testnet' as const,
             nonce: 0n,
-            operations: [
-              { type: "TokenTransfer" as const, value: tokenTransfer },
-            ],
+            operations: [{ type: 'TokenTransfer' as const, value: tokenTransfer }],
           }),
         );
 
@@ -271,23 +239,18 @@ describe("multisig 2-of-3 integration", () => {
         // Bob fetches pending list.
         const multisigBytes = fromFastAddress(multisigFastAddr);
         const state1 = yield* Ref.get(rpcRef);
-        const pendingForWallet = Array.from(state1.pending.values()).filter(
-          (e) => bytesEqual(e.transaction.value.sender, multisigBytes),
-        );
+        const pendingForWallet = Array.from(state1.pending.values()).filter((e) => bytesEqual(e.transaction.value.sender, multisigBytes));
 
         // ── Bob votes ───────────────────────────────────────────────────────
         const bobResolved = yield* resolveSigner({
           account: ms as AccountInfo,
-          asMember: "bob",
+          asMember: 'bob',
           password: null,
         });
-        if (bobResolved.kind !== "multisig")
-          throw new Error("expected multisig signer for bob");
+        if (bobResolved.kind !== 'multisig') throw new Error('expected multisig signer for bob');
 
         const targetEnvelope = pendingForWallet[0]!;
-        const bobEnvelope = yield* Effect.promise(() =>
-          bobResolved.signer.signEnvelopeFor(targetEnvelope.transaction),
-        );
+        const bobEnvelope = yield* Effect.promise(() => bobResolved.signer.signEnvelopeFor(targetEnvelope.transaction));
 
         const bobSubmit = yield* submitTransaction(rpcRef, bobEnvelope);
 
@@ -301,12 +264,12 @@ describe("multisig 2-of-3 integration", () => {
       }).pipe(Effect.provide(layer)),
     );
 
-    expect(result.aliceResultType).toBe("IncompleteMultiSig");
-    expect((result.bobSubmit as { type: string }).type).toBe("Success");
+    expect(result.aliceResultType).toBe('IncompleteMultiSig');
+    expect((result.bobSubmit as { type: string }).type).toBe('Success');
     expect(result.pendingAfter).toBe(0);
   });
 
-  it("double-sign refused: alice cannot vote on her own initiation", async () => {
+  it('double-sign refused: alice cannot vote on her own initiation', async () => {
     const layer = makeBaseLayer();
     const aliceAddr = await fastAddressOf(SEED(0xaa));
     const bobAddr = await fastAddressOf(SEED(0xbb));
@@ -323,38 +286,37 @@ describe("multisig 2-of-3 integration", () => {
     const exit = await Effect.runPromiseExit(
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
-        yield* accounts.create("alice", SEED(0xaa), null);
-        yield* accounts.create("bob", SEED(0xbb), null);
-        yield* accounts.create("carol", SEED(0xcc), null);
+        yield* accounts.create('alice', SEED(0xaa), null);
+        yield* accounts.create('bob', SEED(0xbb), null);
+        yield* accounts.create('carol', SEED(0xcc), null);
 
         const ms = yield* accounts.createMultiSig(
           {
             version: 1,
-            name: "treasury",
+            name: 'treasury',
             signers: sortedSigners,
             quorum: 2,
-            configNonce: "0",
+            configNonce: '0',
             fastAddress: multisigFastAddr,
-            network: "testnet",
+            network: 'testnet',
           },
           true,
         );
 
         const aliceResolved = yield* resolveSigner({
           account: ms as AccountInfo,
-          asMember: "alice",
+          asMember: 'alice',
           password: null,
         });
-        if (aliceResolved.kind !== "multisig")
-          throw new Error("expected multisig signer for alice");
+        if (aliceResolved.kind !== 'multisig') throw new Error('expected multisig signer for alice');
 
         const aliceEnvelope = yield* Effect.promise(() =>
           aliceResolved.signer.signTransaction({
-            networkId: "fast:testnet" as const,
+            networkId: 'fast:testnet' as const,
             nonce: 0n,
             operations: [
               {
-                type: "TokenTransfer" as const,
+                type: 'TokenTransfer' as const,
                 value: {
                   tokenId: new Uint8Array(32),
                   recipient: new Uint8Array(32).fill(0x42),
@@ -370,24 +332,19 @@ describe("multisig 2-of-3 integration", () => {
         yield* submitTransaction(rpcRef, aliceEnvelope);
 
         // Alice tries to vote on the same envelope.
-        const myPubkey = yield* Effect.promise(() =>
-          aliceResolved.signer.getSignerPublicKey(),
-        );
+        const myPubkey = yield* Effect.promise(() => aliceResolved.signer.getSignerPublicKey());
 
         const state = yield* Ref.get(rpcRef);
         const pending = Array.from(state.pending.values())[0]!;
-        if (pending.signature.type !== "MultiSig")
-          throw new Error("unreachable");
+        if (pending.signature.type !== 'MultiSig') throw new Error('unreachable');
         const existingPartials = pending.signature.value.signatures;
-        const alreadySigned = existingPartials.some(([signer]) =>
-          bytesEqual(signer, myPubkey),
-        );
+        const alreadySigned = existingPartials.some(([signer]) => bytesEqual(signer, myPubkey));
         const txHash = yield* Effect.promise(() => computeTxHash(pending));
         if (alreadySigned) {
           return yield* Effect.fail(
             new AlreadyVotedError({
               walletName: ms.name,
-              txHash: `0x${txHash}`,
+              txHash,
             }),
           );
         }
@@ -396,15 +353,15 @@ describe("multisig 2-of-3 integration", () => {
       }).pipe(Effect.provide(layer)),
     );
 
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag !== "Failure") throw new Error("unreachable");
-    const err = exit.cause._tag === "Fail" ? exit.cause.error : null;
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure') throw new Error('unreachable');
+    const err = exit.cause._tag === 'Fail' ? exit.cause.error : null;
     expect(err).toBeInstanceOf(AlreadyVotedError);
-    if (!(err instanceof AlreadyVotedError)) throw new Error("unreachable");
-    expect(err.walletName).toBe("treasury");
+    if (!(err instanceof AlreadyVotedError)) throw new Error('unreachable');
+    expect(err.walletName).toBe('treasury');
   });
 
-  it("NotAMemberError: alice is local but not a signer of the multisig", async () => {
+  it('NotAMemberError: alice is local but not a signer of the multisig', async () => {
     const layer = makeBaseLayer();
     const bobAddr = await fastAddressOf(SEED(0xbb));
     const carolAddr = await fastAddressOf(SEED(0xcc));
@@ -421,17 +378,17 @@ describe("multisig 2-of-3 integration", () => {
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
         // alice is local but not a signer.
-        yield* accounts.create("alice", SEED(0xaa), null);
+        yield* accounts.create('alice', SEED(0xaa), null);
 
         const ms = yield* accounts.createMultiSig(
           {
             version: 1,
-            name: "treasury",
+            name: 'treasury',
             signers: sortedSigners,
             quorum: 2,
-            configNonce: "0",
+            configNonce: '0',
             fastAddress: multisigFastAddr,
-            network: "testnet",
+            network: 'testnet',
           },
           true,
         );
@@ -443,15 +400,15 @@ describe("multisig 2-of-3 integration", () => {
       }).pipe(Effect.provide(layer)),
     );
 
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag !== "Failure") throw new Error("unreachable");
-    const err = exit.cause._tag === "Fail" ? exit.cause.error : null;
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure') throw new Error('unreachable');
+    const err = exit.cause._tag === 'Fail' ? exit.cause.error : null;
     expect(err).toBeInstanceOf(NotAMemberError);
-    if (!(err instanceof NotAMemberError)) throw new Error("unreachable");
-    expect(err.walletName).toBe("treasury");
+    if (!(err instanceof NotAMemberError)) throw new Error('unreachable');
+    expect(err.walletName).toBe('treasury');
   });
 
-  it("multisig import --from with mismatched fastAddress → AddressDerivationMismatchError", async () => {
+  it('multisig import --from with mismatched fastAddress → AddressDerivationMismatchError', async () => {
     const aliceAddr = await fastAddressOf(SEED(0xaa));
     const bobAddr = await fastAddressOf(SEED(0xbb));
     const carolAddr = await fastAddressOf(SEED(0xcc));
@@ -471,16 +428,16 @@ describe("multisig 2-of-3 integration", () => {
     const tamperedFastAddr = aliceAddr;
     expect(tamperedFastAddr).not.toBe(realFastAddr);
 
-    const dir = mkdtempSync(join(tmpdir(), "fast-cli-multisig-import-"));
-    const filePath = join(dir, "treasury.json");
+    const dir = mkdtempSync(join(tmpdir(), 'fast-cli-multisig-import-'));
+    const filePath = join(dir, 'treasury.json');
     const walletConfig = {
       version: 1 as const,
-      name: "treasury",
+      name: 'treasury',
       signers: sortedSigners,
       quorum: 2,
-      configNonce: "0",
+      configNonce: '0',
       fastAddress: tamperedFastAddr,
-      network: "testnet",
+      network: 'testnet',
     };
     writeFileSync(filePath, `${stringifyMultiSigWalletConfig(walletConfig)}\n`);
 
@@ -489,7 +446,7 @@ describe("multisig 2-of-3 integration", () => {
     const exit = await Effect.runPromiseExit(
       Effect.gen(function* () {
         const content = yield* Effect.try({
-          try: () => readFileSync(filePath, "utf-8"),
+          try: () => readFileSync(filePath, 'utf-8'),
           catch: (e) => new Error(String(e)),
         });
         const parsed = yield* parseMultiSigWalletConfig(content);
@@ -516,17 +473,16 @@ describe("multisig 2-of-3 integration", () => {
       }),
     );
 
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag !== "Failure") throw new Error("unreachable");
-    const err = exit.cause._tag === "Fail" ? exit.cause.error : null;
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure') throw new Error('unreachable');
+    const err = exit.cause._tag === 'Fail' ? exit.cause.error : null;
     expect(err).toBeInstanceOf(AddressDerivationMismatchError);
-    if (!(err instanceof AddressDerivationMismatchError))
-      throw new Error("unreachable");
+    if (!(err instanceof AddressDerivationMismatchError)) throw new Error('unreachable');
     expect(err.expected).toBe(tamperedFastAddr);
     expect(err.derived).toBe(realFastAddr);
   });
 
-  it("account export against multisig row → WalletKindMismatchError", async () => {
+  it('account export against multisig row → WalletKindMismatchError', async () => {
     const layer = makeBaseLayer();
     const aliceAddr = await fastAddressOf(SEED(0xaa));
     const bobAddr = await fastAddressOf(SEED(0xbb));
@@ -546,27 +502,26 @@ describe("multisig 2-of-3 integration", () => {
         yield* accounts.createMultiSig(
           {
             version: 1,
-            name: "treasury",
+            name: 'treasury',
             signers: sortedSigners,
             quorum: 2,
-            configNonce: "0",
+            configNonce: '0',
             fastAddress: multisigFastAddr,
-            network: "testnet",
+            network: 'testnet',
           },
           true,
         );
 
-        return yield* accounts.export("treasury", null);
+        return yield* accounts.export('treasury', null);
       }).pipe(Effect.provide(layer)),
     );
 
-    expect(exit._tag).toBe("Failure");
-    if (exit._tag !== "Failure") throw new Error("unreachable");
-    const err = exit.cause._tag === "Fail" ? exit.cause.error : null;
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure') throw new Error('unreachable');
+    const err = exit.cause._tag === 'Fail' ? exit.cause.error : null;
     expect(err).toBeInstanceOf(WalletKindMismatchError);
-    if (!(err instanceof WalletKindMismatchError))
-      throw new Error("unreachable");
-    expect(err.expected).toBe("single");
-    expect(err.name).toBe("treasury");
+    if (!(err instanceof WalletKindMismatchError)) throw new Error('unreachable');
+    expect(err.expected).toBe('single');
+    expect(err.name).toBe('treasury');
   });
 });

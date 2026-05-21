@@ -1,6 +1,6 @@
 ---
-"@fastxyz/sdk": minor
-"@fastxyz/cli": minor
+'@fastxyz/sdk': minor
+'@fastxyz/cli': minor
 ---
 
 Add multisig support across the SDK and CLI.
@@ -14,4 +14,7 @@ errors: `MultiSigConfigInvalidError`, `NotAuthorizedSignerError`.
 **CLI:** New `fast multisig` command group (`init`, `import`, `export`,
 `pending`, `vote`). The `accounts` table is migrated to a tagged union
 (`single` | `multisig`). `fast send` is polymorphic on account kind for
-the Fast→Fast route. `fast account list` shows a `KIND` column.
+the Fast→Fast route. New `fast token create`, `fast token mint`,
+`fast token burn`, and `fast token manage` commands share the same
+single-signer/multisig submission pipeline. `fast account list` shows a
+`KIND` column.

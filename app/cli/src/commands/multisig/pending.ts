@@ -1,21 +1,16 @@
-import {
-  bcsSchema,
-  type TransactionEnvelope,
-  VersionedTransactionFromBcs,
-} from "@fastxyz/schema";
-import { fromFastAddress, hashHex, toFastAddress, toHex } from "@fastxyz/sdk";
-import { Effect, Schema } from "effect";
-import type { MultisigPendingArgs } from "../../cli.js";
-import { FastSdkError, WalletKindMismatchError } from "../../errors/index.js";
-import { FastRpc } from "../../services/api/fast.js";
-import { ClientConfig } from "../../services/config/client.js";
-import { Output } from "../../services/output.js";
-import { AccountStore } from "../../services/storage/account.js";
-import type { Command } from "../index.js";
+import { bcsSchema, type TransactionEnvelope, VersionedTransactionFromBcs } from '@fastxyz/schema';
+import { fromFastAddress, hashHex, toFastAddress, toHex } from '@fastxyz/sdk';
+import { Effect, Schema } from 'effect';
+import type { MultisigPendingArgs } from '../../cli.js';
+import { FastSdkError, WalletKindMismatchError } from '../../errors/index.js';
+import { FastRpc } from '../../services/api/fast.js';
+import { ClientConfig } from '../../services/config/client.js';
+import { Output } from '../../services/output.js';
+import { AccountStore } from '../../services/storage/account.js';
+import type { Command } from '../index.js';
 
 /** Truncate a bech32 fast address for compact display. */
-const truncAddr = (addr: string): string =>
-  addr.length > 18 ? `${addr.slice(0, 10)}…${addr.slice(-4)}` : addr;
+const truncAddr = (addr: string): string => (addr.length > 18 ? `${addr.slice(0, 10)}…${addr.slice(-4)}` : addr);
 
 /** Hex-compare two byte arrays. */
 const bytesEqual = (a: Uint8Array, b: Uint8Array): boolean => {
@@ -26,13 +21,11 @@ const bytesEqual = (a: Uint8Array, b: Uint8Array): boolean => {
 
 const computeTxHash = (envelope: TransactionEnvelope) =>
   Effect.gen(function* () {
-    const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(
-      envelope.transaction,
-    ).pipe(
+    const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(envelope.transaction).pipe(
       Effect.mapError(
         (cause) =>
           new FastSdkError({
-            message: "Failed to encode transaction for hashing",
+            message: 'Failed to encode transaction for hashing',
             cause,
           }),
       ),
@@ -41,14 +34,14 @@ const computeTxHash = (envelope: TransactionEnvelope) =>
       try: () => hashHex(bcsSchema.VersionedTransaction, bcsInput),
       catch: (cause) =>
         new FastSdkError({
-          message: "Failed to compute transaction hash",
+          message: 'Failed to compute transaction hash',
           cause,
         }),
     });
   });
 
 export const multisigPending: Command<MultisigPendingArgs> = {
-  cmd: "multisig-pending",
+  cmd: 'multisig-pending',
   handler: (args) =>
     Effect.gen(function* () {
       const accountsSvc = yield* AccountStore;
@@ -58,11 +51,11 @@ export const multisigPending: Command<MultisigPendingArgs> = {
 
       // 1. Resolve active account; refuse if not multisig.
       const account = yield* accountsSvc.resolveAccount(config.account);
-      if (account.kind !== "multisig") {
+      if (account.kind !== 'multisig') {
         return yield* Effect.fail(
           new WalletKindMismatchError({
             name: account.name,
-            expected: "multisig",
+            expected: 'multisig',
             hint: 'Select a multisig wallet via --account or "fast account set-default".',
           }),
         );
@@ -78,8 +71,7 @@ export const multisigPending: Command<MultisigPendingArgs> = {
       // proxy already calls Schema.decodeUnknown so this is a no-op cast in
       // practice — but going through the schema again gives us the typed
       // shape with no runtime risk.
-      const envelopes: ReadonlyArray<TransactionEnvelope> =
-        raw as ReadonlyArray<TransactionEnvelope>;
+      const envelopes: ReadonlyArray<TransactionEnvelope> = raw as ReadonlyArray<TransactionEnvelope>;
 
       // 3. Build a map of local fast addresses → account names.
       const allAccounts = yield* accountsSvc.list();
@@ -94,12 +86,12 @@ export const multisigPending: Command<MultisigPendingArgs> = {
       let asMemberName: string | null = null;
       if (args.asMember !== undefined) {
         const asAccount = yield* accountsSvc.get(args.asMember);
-        if (asAccount.kind !== "single") {
+        if (asAccount.kind !== 'single') {
           return yield* Effect.fail(
             new WalletKindMismatchError({
               name: asAccount.name,
-              expected: "single",
-              hint: "--as expects a single-signer account.",
+              expected: 'single',
+              hint: '--as expects a single-signer account.',
             }),
           );
         }
@@ -109,17 +101,13 @@ export const multisigPending: Command<MultisigPendingArgs> = {
 
       // 5. Empty list → friendly message + JSON ok.
       if (envelopes.length === 0) {
-        yield* output.humanLine(
-          `No pending multisig transactions for "${account.name}".`,
-        );
+        yield* output.humanLine(`No pending multisig transactions for "${account.name}".`);
         yield* output.ok({ pending: [] });
         return;
       }
 
-      yield* output.humanLine(
-        `Pending multisig transactions for "${account.name}" (${envelopes.length}):`,
-      );
-      yield* output.humanLine("");
+      yield* output.humanLine(`Pending multisig transactions for "${account.name}" (${envelopes.length}):`);
+      yield* output.humanLine('');
 
       type SignerRow = {
         readonly address: string;
@@ -151,17 +139,15 @@ export const multisigPending: Command<MultisigPendingArgs> = {
         const version = tx.type;
 
         // Extract MultiSig data. Pending transactions should always be MultiSig.
-        if (envelope.signature.type !== "MultiSig") {
+        if (envelope.signature.type !== 'MultiSig') {
           // Defensive fallback: a pending tx with a single Signature is unexpected,
           // but we render a stub row so the user is at least aware of it.
-          yield* output.humanLine(`#${i + 1}  hash: 0x${txHash}`);
+          yield* output.humanLine(`#${i + 1}  hash: ${txHash}`);
           yield* output.humanLine(`     nonce: ${nonce}  version: ${version}`);
-          yield* output.humanLine(
-            "     (envelope is not a MultiSig — rendering skipped)",
-          );
-          yield* output.humanLine("");
+          yield* output.humanLine('     (envelope is not a MultiSig — rendering skipped)');
+          yield* output.humanLine('');
           pendingOutput.push({
-            hash: `0x${txHash}`,
+            hash: txHash,
             nonce,
             version,
             quorum: 0,
@@ -188,8 +174,7 @@ export const multisigPending: Command<MultisigPendingArgs> = {
           const signerAddr = toFastAddress(signerBytes);
           const localName = nameByAddress.get(signerAddr) ?? null;
           const signed = signedSet.has(toHex(signerBytes));
-          const isYou =
-            asMemberAddress !== null && bytesEqual(signerBytes, asMemberAddress);
+          const isYou = asMemberAddress !== null && bytesEqual(signerBytes, asMemberAddress);
           if (isYou) youSigned = signed;
           return { address: signerAddr, name: localName, signed, isYou };
         });
@@ -197,32 +182,26 @@ export const multisigPending: Command<MultisigPendingArgs> = {
         const signedCount = signerRows.filter((r) => r.signed).length;
 
         // Human render.
-        yield* output.humanLine(`#${i + 1}  hash: 0x${txHash}`);
-        yield* output.humanLine(
-          `     nonce: ${nonce}  version: ${version}  signed: ${signedCount}/${quorum} of ${signerRows.length}`,
-        );
-        yield* output.humanLine("     signers:");
+        yield* output.humanLine(`#${i + 1}  hash: ${txHash}`);
+        yield* output.humanLine(`     nonce: ${nonce}  version: ${version}  signed: ${signedCount}/${quorum} of ${signerRows.length}`);
+        yield* output.humanLine('     signers:');
         for (const row of signerRows) {
-          const mark = row.signed ? "✓" : "✗";
+          const mark = row.signed ? '✓' : '✗';
           const label = row.name ?? truncAddr(row.address);
-          const youTag = row.isYou ? "  (you)" : "";
+          const youTag = row.isYou ? '  (you)' : '';
           yield* output.humanLine(`       ${mark} ${label}${youTag}`);
         }
         if (asMemberName !== null) {
           if (youSigned === null) {
-            yield* output.humanLine(
-              `     your vote: "${asMemberName}" is not an authorized signer of this multisig`,
-            );
+            yield* output.humanLine(`     your vote: "${asMemberName}" is not an authorized signer of this multisig`);
           } else {
-            yield* output.humanLine(
-              `     your vote: ${youSigned ? "signed" : "not signed"} (as "${asMemberName}")`,
-            );
+            yield* output.humanLine(`     your vote: ${youSigned ? 'signed' : 'not signed'} (as "${asMemberName}")`);
           }
         }
-        yield* output.humanLine("");
+        yield* output.humanLine('');
 
         pendingOutput.push({
-          hash: `0x${txHash}`,
+          hash: txHash,
           nonce,
           version,
           quorum,
@@ -239,4 +218,3 @@ export const multisigPending: Command<MultisigPendingArgs> = {
       });
     }),
 };
-

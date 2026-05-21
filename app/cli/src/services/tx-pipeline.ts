@@ -1,25 +1,19 @@
-import {
-  bcsSchema,
-  type NetworkId,
-  type OperationInputParams,
-  type TransactionEnvelope,
-  VersionedTransactionFromBcs,
-} from "@fastxyz/schema";
-import { hashHex, TransactionBuilder } from "@fastxyz/sdk";
-import { Effect, Schema } from "effect";
-import { TransactionFailedError } from "../errors/index.js";
-import { FastRpc } from "./api/fast.js";
-import type { ResolvedSigner } from "./signer-resolver.js";
+import { bcsSchema, type NetworkId, type OperationInputParams, type TransactionEnvelope, VersionedTransactionFromBcs } from '@fastxyz/schema';
+import { hashHex, TransactionBuilder } from '@fastxyz/sdk';
+import { Effect, Schema } from 'effect';
+import { TransactionFailedError } from '../errors/index.js';
+import { FastRpc } from './api/fast.js';
+import type { ResolvedSigner } from './signer-resolver.js';
 
 export interface TxPipelineSuccess {
-  readonly status: "success";
+  readonly status: 'success';
   readonly envelope: TransactionEnvelope;
   readonly txHash: string;
   readonly nonce: bigint;
 }
 
 export interface TxPipelineIncomplete {
-  readonly status: "incomplete-multisig";
+  readonly status: 'incomplete-multisig';
   readonly envelope: TransactionEnvelope;
   readonly txHash: null;
   readonly nonce: bigint;
@@ -33,59 +27,49 @@ export interface SubmitOperationParams {
   readonly operation: OperationInputParams;
 }
 
-const opAsBuilderCall = (
-  builder: TransactionBuilder,
-  op: OperationInputParams,
-): TransactionBuilder => {
+const opAsBuilderCall = (builder: TransactionBuilder, op: OperationInputParams): TransactionBuilder => {
   switch (op.type) {
-    case "TokenTransfer":
+    case 'TokenTransfer':
       return builder.addTokenTransfer(op.value);
-    case "TokenCreation":
+    case 'TokenCreation':
       return builder.addTokenCreation(op.value);
-    case "TokenManagement":
+    case 'TokenManagement':
       return builder.addTokenManagement(op.value);
-    case "Mint":
+    case 'Mint':
       return builder.addMint(op.value);
-    case "Burn":
+    case 'Burn':
       return builder.addBurn(op.value);
-    case "StateInitialization":
+    case 'StateInitialization':
       return builder.addStateInitialization(op.value);
-    case "StateUpdate":
+    case 'StateUpdate':
       return builder.addStateUpdate(op.value);
-    case "StateReset":
+    case 'StateReset':
       return builder.addStateReset(op.value);
-    case "ExternalClaim":
+    case 'ExternalClaim':
       return builder.addExternalClaim(op.value);
-    case "LeaveCommittee":
+    case 'LeaveCommittee':
       return builder.addLeaveCommittee();
-    case "Escrow":
+    case 'Escrow':
       return builder.addEscrow(op.value);
     default:
       // JoinCommittee / ChangeCommittee are valid OperationInputParams variants
       // but TransactionBuilder doesn't expose builder methods for them yet.
       // The multisig path bypasses this switch and hands operations to
       // signTransaction directly, so it isn't affected.
-      throw new Error(
-        `single-signer dispatch doesn't support op type: ${(op as { type: string }).type}`,
-      );
+      throw new Error(`single-signer dispatch doesn't support op type: ${(op as { type: string }).type}`);
   }
 };
 
-export const submitOperation = (
-  params: SubmitOperationParams,
-): Effect.Effect<TxPipelineResult, TransactionFailedError, FastRpc> =>
+export const submitOperation = (params: SubmitOperationParams): Effect.Effect<TxPipelineResult, TransactionFailedError, FastRpc> =>
   Effect.gen(function* () {
     const rpc = yield* FastRpc;
 
     // 1. Resolve sender bytes
     const senderBytes = yield* Effect.tryPromise({
-      try: () =>
-        params.resolved.kind === "single"
-          ? params.resolved.signer.getPublicKey()
-          : params.resolved.signer.getDerivedAddressBytes(),
+      try: () => (params.resolved.kind === 'single' ? params.resolved.signer.getPublicKey() : params.resolved.signer.getDerivedAddressBytes()),
       catch: (cause) =>
         new TransactionFailedError({
-          message: "Failed to resolve sender bytes",
+          message: 'Failed to resolve sender bytes',
           cause,
         }),
     });
@@ -102,17 +86,16 @@ export const submitOperation = (
         Effect.mapError(
           (cause) =>
             new TransactionFailedError({
-              message: "Failed to fetch account info",
+              message: 'Failed to fetch account info',
               cause,
             }),
         ),
       );
-    const nonce =
-      (accountInfoRpc as { nextNonce?: bigint } | null)?.nextNonce ?? 0n;
+    const nonce = (accountInfoRpc as { nextNonce?: bigint } | null)?.nextNonce ?? 0n;
 
     // 3. Build + sign envelope
     let envelope: TransactionEnvelope;
-    if (params.resolved.kind === "single") {
+    if (params.resolved.kind === 'single') {
       const singleSigner = params.resolved.signer;
       const builder = new TransactionBuilder({
         networkId: params.networkId,
@@ -123,7 +106,7 @@ export const submitOperation = (
         try: () => opAsBuilderCall(builder, params.operation).sign(),
         catch: (cause) =>
           new TransactionFailedError({
-            message: "Failed to sign transaction",
+            message: 'Failed to sign transaction',
             cause,
           }),
       });
@@ -138,7 +121,7 @@ export const submitOperation = (
           }),
         catch: (cause) =>
           new TransactionFailedError({
-            message: "Failed to sign multisig transaction",
+            message: 'Failed to sign multisig transaction',
             cause,
           }),
       });
@@ -149,7 +132,7 @@ export const submitOperation = (
       Effect.mapError(
         (cause) =>
           new TransactionFailedError({
-            message: "Failed to submit transaction",
+            message: 'Failed to submit transaction',
             cause,
           }),
       ),
@@ -157,23 +140,28 @@ export const submitOperation = (
 
     // 5. Branch on result type
     const submitObj = (submitResult as { type?: string } | null) ?? null;
-    if (submitObj?.type === "IncompleteMultiSig") {
+    if (submitObj?.type === 'IncompleteMultiSig') {
       return {
-        status: "incomplete-multisig",
+        status: 'incomplete-multisig',
         envelope,
         txHash: null,
         nonce,
       } satisfies TxPipelineIncomplete;
     }
+    if (submitObj?.type === 'IncompleteVerifierSigs') {
+      return yield* Effect.fail(
+        new TransactionFailedError({
+          message: 'Transaction is pending verifier signatures and cannot be treated as finalized.',
+        }),
+      );
+    }
 
     // 6. Success: compute hash
-    const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(
-      envelope.transaction,
-    ).pipe(
+    const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(envelope.transaction).pipe(
       Effect.mapError(
         (cause) =>
           new TransactionFailedError({
-            message: "Failed to encode transaction for hashing",
+            message: 'Failed to encode transaction for hashing',
             cause,
           }),
       ),
@@ -182,13 +170,13 @@ export const submitOperation = (
       try: () => hashHex(bcsSchema.VersionedTransaction, bcsInput),
       catch: (cause) =>
         new TransactionFailedError({
-          message: "Failed to compute transaction hash",
+          message: 'Failed to compute transaction hash',
           cause,
         }),
     });
 
     return {
-      status: "success",
+      status: 'success',
       envelope,
       txHash,
       nonce,

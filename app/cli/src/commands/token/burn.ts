@@ -1,22 +1,19 @@
-import { fromHex, toHex } from "@fastxyz/sdk";
-import { Effect } from "effect";
-import type { TokenBurnArgs } from "../../cli.js";
-import {
-  InvalidAmountError,
-  TokenNotFoundError,
-} from "../../errors/index.js";
-import { makeHistoryEntry } from "../../schemas/history.js";
-import { FastRpc } from "../../services/api/fast.js";
-import { ClientConfig } from "../../services/config/client.js";
-import { Output } from "../../services/output.js";
-import { Prompt } from "../../services/prompt.js";
-import { resolveSigner } from "../../services/signer-resolver.js";
-import { AccountStore } from "../../services/storage/account.js";
-import { HistoryStore } from "../../services/storage/history.js";
-import { NetworkConfigService } from "../../services/storage/network.js";
-import { resolveToken } from "../../services/token-resolver.js";
-import { submitOperation } from "../../services/tx-pipeline.js";
-import type { Command } from "../index.js";
+import { fromHex, toHex } from '@fastxyz/sdk';
+import { Effect } from 'effect';
+import type { TokenBurnArgs } from '../../cli.js';
+import { InvalidAmountError, TokenNotFoundError } from '../../errors/index.js';
+import { makeHistoryEntry } from '../../schemas/history.js';
+import { FastRpc } from '../../services/api/fast.js';
+import { ClientConfig } from '../../services/config/client.js';
+import { Output } from '../../services/output.js';
+import { Prompt } from '../../services/prompt.js';
+import { resolveSigner } from '../../services/signer-resolver.js';
+import { AccountStore } from '../../services/storage/account.js';
+import { HistoryStore } from '../../services/storage/history.js';
+import { NetworkConfigService } from '../../services/storage/network.js';
+import { resolveToken } from '../../services/token-resolver.js';
+import { submitOperation } from '../../services/tx-pipeline.js';
+import type { Command } from '../index.js';
 
 const HEX_TOKEN_ID = /^(0x)?[0-9a-fA-F]{64}$/;
 
@@ -27,18 +24,18 @@ const parseAmount = (s: string, decimals: number): bigint => {
       message: `--amount not a non-negative decimal: "${s}"`,
     });
   }
-  const [whole, frac = ""] = trimmed.split(".");
+  const [whole, frac = ''] = trimmed.split('.');
   if (frac.length > decimals) {
     throw new InvalidAmountError({
       message: `--amount has more fractional digits (${frac.length}) than the token allows (${decimals})`,
     });
   }
-  const scaled = `${whole}${frac.padEnd(decimals, "0")}`;
+  const scaled = `${whole}${frac.padEnd(decimals, '0')}`;
   return BigInt(scaled);
 };
 
 export const tokenBurn: Command<TokenBurnArgs> = {
-  cmd: "token-burn",
+  cmd: 'token-burn',
   handler: (args) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore;
@@ -58,15 +55,11 @@ export const tokenBurn: Command<TokenBurnArgs> = {
         const info = (yield* rpc.getTokenInfo({
           tokenIds: [tokenId],
         } as never)) as unknown as {
-          requestedTokenMetadata: ReadonlyArray<
-            readonly [Uint8Array, { decimals: number } | null]
-          >;
+          requestedTokenMetadata: ReadonlyArray<readonly [Uint8Array, { decimals: number } | null]>;
         };
         const found = info.requestedTokenMetadata?.[0];
         if (!found || !found[1]) {
-          return yield* Effect.fail(
-            new TokenNotFoundError({ token: args.token }),
-          );
+          return yield* Effect.fail(new TokenNotFoundError({ token: args.token }));
         }
         decimals = found[1].decimals;
       } else {
@@ -84,22 +77,16 @@ export const tokenBurn: Command<TokenBurnArgs> = {
       });
 
       const accountInfo = yield* accounts.resolveAccount(config.account);
-      const password =
-        accountInfo.kind === "single" && !accountInfo.encrypted
-          ? null
-          : yield* prompt.password();
       const resolved = yield* resolveSigner({
         account: accountInfo,
         asMember: args.asMember,
-        password,
+        passwordFor: (member) => (member.encrypted ? prompt.password() : Effect.succeed(null)),
       });
 
       if (!config.nonInteractive && !config.json) {
-        yield* output.humanLine(
-          `Burn ${args.amount} of token ${toHex(tokenId)}`,
-        );
+        yield* output.humanLine(`Burn ${args.amount} of token ${toHex(tokenId)}`);
         yield* output.humanLine(`  From: ${accountInfo.fastAddress}`);
-        const ok = yield* prompt.confirm("Confirm?");
+        const ok = yield* prompt.confirm('Confirm?');
         if (!ok) return;
       }
 
@@ -107,7 +94,7 @@ export const tokenBurn: Command<TokenBurnArgs> = {
         resolved,
         networkId: network.networkId as never,
         operation: {
-          type: "Burn",
+          type: 'Burn',
           value: {
             tokenId,
             amount,
@@ -115,16 +102,11 @@ export const tokenBurn: Command<TokenBurnArgs> = {
         },
       });
 
-      if (result.status === "incomplete-multisig") {
-        const quorum =
-          resolved.kind === "multisig"
-            ? resolved.account.multisigConfig.quorum
-            : 1;
-        yield* output.humanLine(
-          `Submitted as multisig partial: 1/${quorum} signatures collected.`,
-        );
+      if (result.status === 'incomplete-multisig') {
+        const quorum = resolved.kind === 'multisig' ? resolved.account.multisigConfig.quorum : 1;
+        yield* output.humanLine(`Submitted as multisig partial: 1/${quorum} signatures collected.`);
         yield* output.ok({
-          status: "incomplete-multisig",
+          status: 'incomplete-multisig',
           tokenId: toHex(tokenId),
           amount: args.amount,
           wallet: accountInfo.name,
@@ -137,15 +119,15 @@ export const tokenBurn: Command<TokenBurnArgs> = {
       yield* historyStore.record(
         makeHistoryEntry({
           hash: result.txHash,
-          type: "token-burn",
+          type: 'token-burn',
           from: accountInfo.fastAddress,
-          to: "",
+          to: '',
           amount: amount.toString(),
           formatted: args.amount,
           tokenName: args.token,
           tokenId: toHex(tokenId),
           network: config.network,
-          status: "confirmed",
+          status: 'confirmed',
           timestamp: new Date().toISOString(),
           explorerUrl,
         }),
@@ -154,7 +136,7 @@ export const tokenBurn: Command<TokenBurnArgs> = {
       yield* output.humanLine(`Burned ${args.amount}.`);
       yield* output.humanLine(`  Transaction: ${result.txHash}`);
       yield* output.ok({
-        status: "success",
+        status: 'success',
         tokenId: toHex(tokenId),
         amount: args.amount,
         txHash: result.txHash,

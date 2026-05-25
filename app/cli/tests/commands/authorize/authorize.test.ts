@@ -415,11 +415,10 @@ describe("happy path — SDK round-trip", () => {
 
     const { sealHandover } = await import("@fastxyz/sdk/wallet");
     const fakeKey = new Uint8Array(32).fill(0x33);
-    const { handover_code: bareCode, chat_message: chatMessage } =
-      await sealHandover({
-        authUrlOrData: authResult.auth_url,
-        seed: fakeKey,
-      });
+    const { chat_message: chatMessage } = await sealHandover({
+      authUrlOrData: authResult.auth_url,
+      seed: fakeKey,
+    });
 
     const result = await agent.decryptAuthPayload({ message: chatMessage });
     expect(result.status).toBe("success");

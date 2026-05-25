@@ -6,6 +6,8 @@ import type { AuthorizeCompleteArgs } from "../../cli.js";
 import {
   CorruptPendingStateError,
   FileIOError,
+  InternalError,
+  InvalidUsageError,
   KeyHandoverProtocolError,
   MissingHandoverMessageError,
   NoPendingRequestError,
@@ -42,6 +44,15 @@ export const authorizeComplete: Command<AuthorizeCompleteArgs> = {
       const config = yield* ClientConfig;
       const prompt = yield* Prompt;
       const filePath = pendingFilePath();
+
+      // Validate flag combination
+      if (args.message !== undefined && args.message !== null && args.stdin) {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: "--message and --stdin are mutually exclusive",
+          }),
+        );
+      }
 
       // Step 1: read pending state file
       const raw = yield* Effect.tryPromise({
@@ -110,7 +121,7 @@ export const authorizeComplete: Command<AuthorizeCompleteArgs> = {
       const result = yield* Effect.tryPromise({
         try: () => agent.decryptAuthPayload({ message: handoverMessage }),
         catch: (cause) =>
-          new FileIOError({
+          new InternalError({
             message: "Unexpected error from decryptAuthPayload",
             cause,
           }),
@@ -129,7 +140,7 @@ export const authorizeComplete: Command<AuthorizeCompleteArgs> = {
           address = yield* Effect.tryPromise({
             try: () => signer.getFastAddress(),
             catch: (cause) =>
-              new FileIOError({
+              new InternalError({
                 message:
                   "Failed to derive Fast address — state file preserved for retry",
                 cause,
@@ -138,7 +149,7 @@ export const authorizeComplete: Command<AuthorizeCompleteArgs> = {
           const pubKeyBytes = yield* Effect.tryPromise({
             try: () => signer.getPublicKey(),
             catch: (cause) =>
-              new FileIOError({
+              new InternalError({
                 message:
                   "Failed to derive public key — state file preserved for retry",
                 cause,
@@ -210,7 +221,7 @@ export const authorizeComplete: Command<AuthorizeCompleteArgs> = {
         const updated = yield* Effect.tryPromise({
           try: () => agent.exportPending(),
           catch: (cause) =>
-            new FileIOError({
+            new InternalError({
               message: "Failed to re-export pending state",
               cause,
             }),

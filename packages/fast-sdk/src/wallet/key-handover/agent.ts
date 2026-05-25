@@ -107,6 +107,15 @@ export class KeyHandoverAgent {
     if (state.v !== 1) {
       throw new Error("unsupported serialized pending version");
     }
+    if (
+      !Number.isInteger(state.failure_count) ||
+      state.failure_count < 0 ||
+      state.failure_count >= 3
+    ) {
+      throw new Error(
+        `invalid failure_count: ${state.failure_count} (must be integer in [0,2])`,
+      );
+    }
     const privateKey = await crypto.subtle.importKey(
       "jwk",
       state.hpke_private_key_jwk,

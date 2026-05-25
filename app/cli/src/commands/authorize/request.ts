@@ -5,6 +5,7 @@ import { Effect } from "effect";
 import type { AuthorizeRequestArgs } from "../../cli.js";
 import {
   FileIOError,
+  InternalError,
   InvalidUsageError,
   PendingAlreadyExistsError,
 } from "../../errors/index.js";
@@ -87,9 +88,11 @@ export const authorizeRequest: Command<AuthorizeRequestArgs> = {
             );
           }
           // Expired — delete old and continue
-          process.stderr.write(
-            `Note: previous pending request (fingerprint ${parsed.fingerprint}) expired at ${parsed.expires_at}, replaced.\n`,
-          );
+          if (!config.json) {
+            process.stderr.write(
+              `Note: previous pending request (fingerprint ${parsed.fingerprint}) expired at ${parsed.expires_at}, replaced.\n`,
+            );
+          }
           yield* Effect.tryPromise({
             try: () => fs.unlink(filePath).catch(() => undefined),
             catch: (cause) =>
@@ -120,7 +123,7 @@ export const authorizeRequest: Command<AuthorizeRequestArgs> = {
             requester: args.requester ?? undefined,
           }),
         catch: (cause) =>
-          new FileIOError({
+          new InternalError({
             message: "Failed to generate auth request",
             cause,
           }),
@@ -129,12 +132,15 @@ export const authorizeRequest: Command<AuthorizeRequestArgs> = {
       const state = yield* Effect.tryPromise({
         try: () => agent.exportPending(),
         catch: (cause) =>
-          new FileIOError({ message: "Failed to export pending state", cause }),
+          new InternalError({
+            message: "Failed to export pending state",
+            cause,
+          }),
       });
 
       if (state === null) {
         return yield* Effect.fail(
-          new FileIOError({
+          new InternalError({
             message:
               "exportPending() returned null immediately after generateAuthRequest()",
           }),

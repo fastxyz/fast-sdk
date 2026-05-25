@@ -5,10 +5,16 @@
  * so that dispatch in main.ts can be a type-safe `switch`.
  */
 import { merge, object, or } from "@optique/core/constructs";
-import { message, optionName } from "@optique/core/message";
+import { message } from "@optique/core/message";
 import { multiple, optional, withDefault } from "@optique/core/modifiers";
 import type { InferValue } from "@optique/core/parser";
-import { argument, command, constant, option, passThrough } from "@optique/core/primitives";
+import {
+  argument,
+  command,
+  constant,
+  option,
+  passThrough,
+} from "@optique/core/primitives";
 import { integer, string } from "@optique/core/valueparser";
 
 // ---------------------------------------------------------------------------
@@ -29,11 +35,15 @@ export const globalPreParser = object({
 
 export const globalOptions = object({
   json: withDefault(
-    option("--json", { description: message`Emit machine-parseable JSON to stdout` }),
+    option("--json", {
+      description: message`Emit machine-parseable JSON to stdout`,
+    }),
     false,
   ),
   debug: withDefault(
-    option("--debug", { description: message`Enable verbose logging to stderr` }),
+    option("--debug", {
+      description: message`Enable verbose logging to stderr`,
+    }),
     false,
   ),
   nonInteractive: withDefault(
@@ -304,7 +314,14 @@ const infoBridgeChainsParser = command(
 
 const infoGroup = command(
   "info",
-  or(infoStatusParser, infoBalanceParser, infoTxParser, infoHistoryParser, infoBridgeTokensParser, infoBridgeChainsParser),
+  or(
+    infoStatusParser,
+    infoBalanceParser,
+    infoTxParser,
+    infoHistoryParser,
+    infoBridgeTokensParser,
+    infoBridgeChainsParser,
+  ),
   { description: message`Query network and account information` },
 );
 
@@ -344,7 +361,9 @@ const sendParser = command(
       false,
     ),
   }),
-  { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
+  {
+    description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)`,
+  },
 );
 
 // ---------------------------------------------------------------------------
@@ -386,7 +405,9 @@ const fundUsdcCryptoParser = command(
       false,
     ),
   }),
-  { description: message`Bridge USDC from an EVM chain into your Fast account` },
+  {
+    description: message`Bridge USDC from an EVM chain into your Fast account`,
+  },
 );
 
 const fundUsdcGroup = command(
@@ -415,11 +436,9 @@ const fundFastUsdParser = command(
   },
 );
 
-const fundGroup = command(
-  "fund",
-  or(fundUsdcGroup, fundFastUsdParser),
-  { description: message`Fund your account` },
-);
+const fundGroup = command("fund", or(fundUsdcGroup, fundFastUsdParser), {
+  description: message`Fund your account`,
+});
 
 // ---------------------------------------------------------------------------
 // Pay command
@@ -462,10 +481,75 @@ const payParser = command(
 );
 
 // ---------------------------------------------------------------------------
+// Authorize commands
+// ---------------------------------------------------------------------------
+
+const authorizeRequestParser = command(
+  "request",
+  object({
+    cmd: constant("authorize-request" as const),
+    requester: optional(
+      option("--requester", string({ metavar: "NAME" }), {
+        description: message`Free-text label shown to the wallet user`,
+      }),
+    ),
+    url: optional(
+      option("--url", string({ metavar: "URL" }), {
+        description: message`Override the wallet base URL (default: https://app.fast.xyz/authorize)`,
+      }),
+    ),
+  }),
+  {
+    description: message`Generate an authorization request URL for an account handover`,
+  },
+);
+
+const authorizeCompleteParser = command(
+  "complete",
+  object({
+    cmd: constant("authorize-complete" as const),
+    message: optional(
+      option("--message", string({ metavar: "TEXT" }), {
+        description: message`Handover code or chat message containing it`,
+      }),
+    ),
+    stdin: withDefault(
+      option("--stdin", {
+        description: message`Read handover code from stdin instead of an argument`,
+      }),
+      false,
+    ),
+    printAccount: withDefault(
+      option("--print-account", {
+        description: message`Also print the derived Fast address and public key`,
+      }),
+      false,
+    ),
+  }),
+  {
+    description: message`Decrypt a pasted handover code and print the private key`,
+  },
+);
+
+const authorizeGroup = command(
+  "authorize",
+  or(authorizeRequestParser, authorizeCompleteParser),
+  { description: message`Agent-side key handover protocol` },
+);
+
+// ---------------------------------------------------------------------------
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
-const commands = or(accountGroup, networkGroup, infoGroup, sendParser, fundGroup, payParser);
+const commands = or(
+  accountGroup,
+  networkGroup,
+  infoGroup,
+  sendParser,
+  fundGroup,
+  payParser,
+  authorizeGroup,
+);
 
 export const parser = merge(globalOptions, commands);
 
@@ -498,6 +582,8 @@ export type FundUsdcFiatArgs = InferValue<typeof fundUsdcFiatParser>;
 export type FundUsdcCryptoArgs = InferValue<typeof fundUsdcCryptoParser>;
 export type FundFastUsdArgs = InferValue<typeof fundFastUsdParser>;
 export type PayArgs = InferValue<typeof payParser>;
+export type AuthorizeRequestArgs = InferValue<typeof authorizeRequestParser>;
+export type AuthorizeCompleteArgs = InferValue<typeof authorizeCompleteParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

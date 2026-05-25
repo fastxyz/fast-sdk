@@ -1,6 +1,6 @@
-import { ConfirmPrompt, isCancel, PasswordPrompt } from "@clack/core";
+import { ConfirmPrompt, isCancel, PasswordPrompt, TextPrompt } from "@clack/core";
 import { Context, Effect, Layer, Option } from "effect";
-import { PasswordRequiredError, UserCancelledError } from "../errors/index.js";
+import { MissingHandoverMessageError, PasswordRequiredError, UserCancelledError } from "../errors/index.js";
 import { ClientConfig, type ClientConfigShape } from "./config/client.js";
 
 type ConfirmEffect = Effect.Effect<boolean, UserCancelledError>;
@@ -12,6 +12,7 @@ type OptionalPasswordEffect = Effect.Effect<
   Option.Option<string>,
   UserCancelledError
 >;
+type InputEffect = Effect.Effect<string, MissingHandoverMessageError | UserCancelledError>;
 
 export interface PromptShape {
   readonly password: {
@@ -19,6 +20,7 @@ export interface PromptShape {
     (opts: { required: false }): OptionalPasswordEffect;
   };
   readonly confirm: (message: string) => ConfirmEffect;
+  readonly input: (opts: { label: string }) => InputEffect;
 }
 
 export class Prompt extends Context.Tag("Prompt")<Prompt, PromptShape>() {}
@@ -77,6 +79,28 @@ const optionalPasswordPrompt = (
   );
 };
 
+const inputPrompt = (config: ClientConfigShape, label: string): InputEffect => {
+  if (config.nonInteractive) {
+    return Effect.fail(new MissingHandoverMessageError());
+  }
+
+  const prompter = new TextPrompt({
+    output: process.stderr,
+    render() {
+      if (this.state === "cancel") return `${label}`;
+      return `${label} ${this.value ?? ""}`;
+    },
+  });
+
+  return Effect.promise(() => prompter.prompt()).pipe(
+    Effect.flatMap((value) =>
+      isCancel(value) || value === undefined
+        ? Effect.fail(new UserCancelledError())
+        : Effect.succeed(value as string),
+    ),
+  );
+};
+
 const createConfirmPrompter = (message: string) => {
   return new ConfirmPrompt({
     active: "y",
@@ -118,6 +142,7 @@ export const PromptLive = Layer.effect(
         return passwordPrompt(config, "Password:");
       }) as PromptShape["password"],
       confirm: (message) => confirmPrompt(config, message),
+      input: (opts) => inputPrompt(config, opts.label),
     };
   }),
 );

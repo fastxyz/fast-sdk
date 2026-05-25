@@ -7,6 +7,8 @@ import { accountExport } from "./account/export.js";
 import { accountImport } from "./account/import.js";
 import { accountList } from "./account/list.js";
 import { accountSetDefault } from "./account/set-default.js";
+import { authorizeComplete } from "./authorize/complete.js";
+import { authorizeRequest } from "./authorize/request.js";
 import { fundFastUsd } from "./fund/fastusd.js";
 import { fundUsdcCrypto } from "./fund/usdc/crypto.js";
 import { fundUsdcFiat } from "./fund/usdc/fiat.js";
@@ -24,6 +26,8 @@ import { pay } from "./pay.js";
 import { send } from "./send.js";
 
 export const commands = [
+  authorizeComplete,
+  authorizeRequest,
   accountCreate,
   accountDelete,
   accountExport,

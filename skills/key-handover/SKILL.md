@@ -28,7 +28,7 @@ fast authorize request --requester "my-agent" --json
 # → { "auth_url": "...", "request_fingerprint": "123456", "request_expires_at": "..." }
 ```
 
-If the user specified a particular wallet URL (e.g., a dev or staging
+If the user specified a particular authorize URL (e.g., a dev or staging
 environment), pass it via `--url <URL>`.
 
 Show `auth_url` and the 6-digit `request_fingerprint` to the user. Tell them

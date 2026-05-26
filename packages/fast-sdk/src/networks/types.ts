@@ -4,7 +4,7 @@ import type { NetworkId } from "@fastxyz/schema";
 export interface FastToken {
   /** Token identifier (hex), e.g. `"0xc655a1..."`. */
   tokenId: string;
-  /** Token symbol, e.g. `"USDC"`. */
+  /** Token symbol, e.g. `"fastUSD"`. */
   symbol: string;
   /** Number of decimal places. */
   decimals: number;
@@ -18,6 +18,6 @@ export interface FastNetwork {
   explorerUrl?: string;
   /** Network identifier, e.g. `"fast:mainnet"`. */
   networkId?: NetworkId;
-  /** Default token for this network (e.g. USDC on mainnet, testUSDC on testnet). */
+  /** Default token for this network (e.g. fastUSD on mainnet, testUSDC on testnet). */
   defaultToken?: FastToken;
 }

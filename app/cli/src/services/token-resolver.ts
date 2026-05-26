@@ -36,7 +36,7 @@ export function resolveToken(
   }
 
   // No chain context (Fast → Fast):
-  // 1) Match against network.defaultToken (handles USDC on mainnet, testUSDC on testnet).
+  // 1) Match against network.defaultToken (handles fastUSD on mainnet, testUSDC on testnet).
   const def = networkConfig.defaultToken;
   if (def && def.symbol === tokenName) {
     return {

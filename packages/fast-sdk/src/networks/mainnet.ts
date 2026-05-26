@@ -7,7 +7,7 @@ export const mainnet = {
   defaultToken: {
     tokenId:
       "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
-    symbol: "USDC",
+    symbol: "fastUSD",
     decimals: 6,
   },
 } satisfies FastNetwork;

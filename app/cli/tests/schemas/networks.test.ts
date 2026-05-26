@@ -37,7 +37,7 @@ describe("bundledNetworks", () => {
     const mainnet = bundledNetworks.mainnet;
     expect(mainnet.defaultToken?.symbol).toBe("fastUSD");
     expect(mainnet.defaultToken?.decimals).toBe(6);
-    expect(mainnet.defaultToken?.tokenId).toMatch(/^0x125b60bb/);
+    expect(mainnet.defaultToken?.tokenId).toMatch(/^0xc655a123/);
   });
 
   it("testnet.defaultToken matches the SDK testUSDC", () => {

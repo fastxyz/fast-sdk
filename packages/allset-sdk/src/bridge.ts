@@ -141,6 +141,11 @@ async function ensureGasReserveIfGasToken(
   }
 }
 
+/** Symbol of the chain's gas token, for user-facing notes (ETH, POL, USDC on Arc). */
+function gasSymbol(clients: EvmClients): string {
+  return clients.publicClient.chain?.nativeCurrency?.symbol ?? "ETH";
+}
+
 async function approveErc20(
   clients: EvmClients,
   token: string,
@@ -161,7 +166,7 @@ async function approveErc20(
       "TX_FAILED",
       `ERC-20 approve transaction reverted: ${hash}`,
       {
-        note: "Check that you have sufficient ETH for gas fees.",
+        note: `Check that you have sufficient ${gasSymbol(clients)} for gas fees.`,
       },
     );
   }
@@ -314,7 +319,7 @@ export async function executeDeposit(
         "TX_FAILED",
         `Deposit transaction reverted: ${receipt.txHash}`,
         {
-          note: "Check that you have sufficient ETH balance.",
+          note: `Check that you have sufficient ${gasSymbol(evmClients)} balance.`,
         },
       );
     }

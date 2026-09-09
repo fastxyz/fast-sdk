@@ -109,9 +109,16 @@ export async function estimateGasReserveAt(
 
 /**
  * Convert a native-wei amount (18 decimals) into the smallest units of a token with
- * `tokenDecimals`, rounding up.
+ * `tokenDecimals`. Tokens with fewer than 18 decimals are scaled down rounding up
+ * (never under-reserve); tokens with more than 18 decimals are scaled up exactly.
  */
 export function weiToTokenUnits(wei: bigint, tokenDecimals: number): bigint {
+  if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0) {
+    throw new RangeError(`Invalid token decimals: ${tokenDecimals}`);
+  }
+  if (tokenDecimals >= 18) {
+    return wei * 10n ** BigInt(tokenDecimals - 18);
+  }
   const scale = 10n ** BigInt(18 - tokenDecimals);
   return (wei + scale - 1n) / scale;
 }

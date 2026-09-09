@@ -319,6 +319,12 @@ test('weiToTokenUnits converts 18-decimal wei to 6-decimal units, rounding up', 
   // 20 gwei * 300k gas * 2 = 0.012 USDC on Arc
   assert.equal(weiToTokenUnits(20n * 10n ** 9n * 300_000n * 2n, 6), 12_000n);
   assert.equal(weiToTokenUnits(5n * 10n ** 18n, 18), 5n * 10n ** 18n);
+  // more than 18 decimals scales up exactly instead of throwing
+  assert.equal(weiToTokenUnits(1n, 24), 10n ** 6n);
+  assert.equal(weiToTokenUnits(20n * 10n ** 9n * 300_000n * 2n, 24), 12n * 10n ** 21n);
+  assert.equal(weiToTokenUnits(7n, 0), 1n);
+  assert.throws(() => weiToTokenUnits(1n, -1), RangeError);
+  assert.throws(() => weiToTokenUnits(1n, 6.5), RangeError);
 });
 
 test('createEvmExecutor returns walletClient and publicClient', () => {

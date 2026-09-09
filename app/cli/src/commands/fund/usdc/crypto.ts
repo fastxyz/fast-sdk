@@ -3,6 +3,7 @@ import {
   fastAddressToBytes32,
   InsufficientBalanceError as SDKInsufficientBalanceError,
   smartDeposit,
+  weiToTokenUnits,
 } from "@fastxyz/allset-sdk";
 import { toHex } from "@fastxyz/sdk";
 import { Effect } from "effect";
@@ -144,9 +145,8 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
       let gasReserveRaw = 0n;
       if (depositTokenIsGasToken) {
         const reserveWei = yield* bridge.gasReserve(chainCfg.evmRpcUrl);
-        // native units are 18 decimals; round up to the token's smallest unit
-        const scale = 10n ** BigInt(18 - decimals);
-        gasReserveRaw = (reserveWei + scale - 1n) / scale;
+        // native units are 18 decimals; convert to the token's smallest unit
+        gasReserveRaw = weiToTokenUnits(reserveWei, decimals);
       }
       const requiredRaw = amountRaw + gasReserveRaw;
 

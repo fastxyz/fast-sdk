@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, parseAbi, type Account, type Chain, type PublicClient, type WalletClient } from 'viem';
+import { createPublicClient, createWalletClient, defineChain, http, parseAbi, type Account, type Chain, type PublicClient, type WalletClient } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, arbitrumSepolia, base, mainnet as ethereum, sepolia } from 'viem/chains';
 
@@ -47,6 +47,19 @@ export const ERC20_ABI = parseAbi([
   'function balanceOf(address owner) view returns (uint256)',
 ]);
 
+/**
+ * Arc mainnet (Circle's USDC-native L1). Not shipped by viem, so defined here.
+ * USDC is the gas token; its ERC-20 interface lives at 0x3600...0000 (6 decimals).
+ * No default RPC: callers pass the URL to createEvmExecutor().
+ */
+export const arc: Chain = defineChain({
+  id: 5042,
+  name: 'Arc',
+  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+  rpcUrls: { default: { http: [] } },
+  blockExplorers: { default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' } },
+});
+
 /** Bundled supported chain mappings */
 export const CHAIN_MAP: Record<number, Chain> = {
   1: ethereum,
@@ -54,6 +67,7 @@ export const CHAIN_MAP: Record<number, Chain> = {
   421614: arbitrumSepolia,
   42161: arbitrum,
   8453: base,
+  5042: arc,
 };
 
 /**

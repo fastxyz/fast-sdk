@@ -170,7 +170,7 @@ Creates viem `walletClient` and `publicClient` for the given chain.
 const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, 421614);
 ```
 
-Supported chain IDs: `1` (Ethereum), `11155111` (Sepolia), `421614` (Arbitrum Sepolia), `42161` (Arbitrum), `8453` (Base).
+Supported chain IDs: `1` (Ethereum), `11155111` (Sepolia), `421614` (Arbitrum Sepolia), `42161` (Arbitrum), `8453` (Base), `5042` (Arc).
 
 ---
 

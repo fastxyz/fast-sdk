@@ -6,7 +6,8 @@ import { fastAddressToBytes } from "./address.js";
 import { encodeIntentClaim, extractClaimId } from "./claims.js";
 import { buildDepositTransaction } from "./deposit.js";
 import { FastError } from "./errors.js";
-import { ERC20_ABI, type EvmClients } from "./evm.js";
+import { ERC20_ABI, type EvmClients, estimateGasReserve, gasTokenErc20, weiToTokenUnits } from "./evm.js";
+import { InsufficientBalanceError } from "./eip7702.js";
 import { buildTransferIntent, type Intent, IntentAction } from "./intents.js";
 import { relayExecute } from "./relay.js";
 import type {
@@ -111,6 +112,33 @@ async function checkAllowance(
     functionName: "allowance",
     args: [owner as `0x${string}`, spender as `0x${string}`],
   });
+}
+
+/**
+ * On chains whose gas token is the deposited ERC-20 (Arc: USDC), the approve and
+ * deposit fees come out of the same balance as the deposit itself. Require
+ * balance >= amount + fee budget for approve+deposit, otherwise the approve
+ * succeeds and the deposit fails with an opaque revert.
+ */
+async function ensureGasReserveIfGasToken(
+  clients: EvmClients,
+  token: string,
+  amount: bigint,
+): Promise<void> {
+  const gasErc20 = gasTokenErc20(clients.publicClient.chain);
+  if (!gasErc20 || gasErc20.toLowerCase() !== token.toLowerCase()) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const owner = (clients.walletClient as any).account?.address as `0x${string}`;
+  const tokenAddr = token as `0x${string}`;
+  const [balance, decimals, reserveWei] = await Promise.all([
+    clients.publicClient.readContract({ address: tokenAddr, abi: ERC20_ABI, functionName: "balanceOf", args: [owner] }),
+    clients.publicClient.readContract({ address: tokenAddr, abi: ERC20_ABI, functionName: "decimals" }),
+    estimateGasReserve(clients.publicClient),
+  ]);
+  const required = amount + weiToTokenUnits(reserveWei, Number(decimals));
+  if (balance < required) {
+    throw new InsufficientBalanceError(balance, required, tokenAddr);
+  }
 }
 
 async function approveErc20(
@@ -292,6 +320,7 @@ export async function executeDeposit(
     }
     txHash = receipt.txHash;
   } else {
+    await ensureGasReserveIfGasToken(evmClients, tokenAddress, BigInt(amount));
     await approveErc20(evmClients, tokenAddress, bridgeContract, amount);
     const receipt = await sendTx(evmClients, {
       to: depositPlan.to,

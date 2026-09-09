@@ -8,8 +8,20 @@ export const AllSetChainTokenSchema = Schema.Struct({
 });
 export type AllSetChainTokenConfig = typeof AllSetChainTokenSchema.Type;
 
+/**
+ * Gas token of an EVM chain. `erc20Address` is set when the gas token is also an
+ * ERC-20 that users deposit (Arc: USDC at 0x3600...0000), in which case deposits
+ * must leave a fee reserve in that same balance.
+ */
+export const AllSetChainGasTokenSchema = Schema.Struct({
+  symbol: Schema.String,
+  erc20Address: Schema.optional(Schema.String),
+});
+export type AllSetChainGasTokenConfig = typeof AllSetChainGasTokenSchema.Type;
+
 export const AllSetChainSchema = Schema.Struct({
   chainId: Schema.Number,
+  gasToken: Schema.optional(AllSetChainGasTokenSchema),
   bridgeContract: Schema.String,
   fastBridgeAddress: Schema.String,
   relayerUrl: Schema.String,

@@ -100,6 +100,8 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
         },
         arc: {
           chainId: 5042,
+          // Arc burns USDC for gas; deposits of USDC must leave a fee reserve.
+          gasToken: { symbol: "USDC", erc20Address: "0x3600000000000000000000000000000000000000" },
           bridgeContract: "0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538",
           fastBridgeAddress: "fast17lqf2st89vqwm9yrgv2nhzx0mznqe0uukglkcl55lmecsgq9247qej58nf",
           relayerUrl: "https://allset.fast.xyz/arc/relayer",

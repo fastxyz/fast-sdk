@@ -30,6 +30,10 @@ import {
   // eip7702
   smartDeposit,
   InsufficientBalanceError,
+  CHAIN_MAP,
+  arc,
+  gasTokenErc20,
+  weiToTokenUnits,
 } from '../src/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
@@ -287,6 +291,33 @@ test('createEvmExecutor supports ethereum mainnet (chainId 1)', () => {
   const clients = createEvmExecutor(account, 'https://mainnet.example.com', 1);
   assert.ok(clients.walletClient);
   assert.ok(clients.publicClient);
+});
+
+test('createEvmExecutor maps chainId 5042 to Arc on both clients', () => {
+  const account = createEvmWallet(`0x${'33'.repeat(32)}`);
+  const clients = createEvmExecutor(account, 'https://allset.fast.xyz/chain/rpc/arc', 5042);
+  assert.equal(clients.walletClient.chain?.id, 5042);
+  assert.equal(clients.publicClient.chain?.id, 5042);
+  assert.equal(clients.publicClient.chain?.name, 'Arc');
+  assert.equal(clients.publicClient.chain?.nativeCurrency.symbol, 'USDC');
+  assert.equal(CHAIN_MAP[5042], arc);
+});
+
+test('gasTokenErc20 is set for Arc only', () => {
+  assert.equal(gasTokenErc20(arc), '0x3600000000000000000000000000000000000000');
+  assert.equal(gasTokenErc20(CHAIN_MAP[1]), undefined);
+  assert.equal(gasTokenErc20(CHAIN_MAP[8453]), undefined);
+  assert.equal(gasTokenErc20(undefined), undefined);
+});
+
+test('weiToTokenUnits converts 18-decimal wei to 6-decimal units, rounding up', () => {
+  assert.equal(weiToTokenUnits(0n, 6), 0n);
+  assert.equal(weiToTokenUnits(1n, 6), 1n);
+  assert.equal(weiToTokenUnits(10n ** 12n, 6), 1n);
+  assert.equal(weiToTokenUnits(10n ** 12n + 1n, 6), 2n);
+  // 20 gwei * 300k gas * 2 = 0.012 USDC on Arc
+  assert.equal(weiToTokenUnits(20n * 10n ** 9n * 300_000n * 2n, 6), 12_000n);
+  assert.equal(weiToTokenUnits(5n * 10n ** 18n, 18), 5n * 10n ** 18n);
 });
 
 test('createEvmExecutor returns walletClient and publicClient', () => {

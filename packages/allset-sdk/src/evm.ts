@@ -45,6 +45,7 @@ export const ERC20_ABI = parseAbi([
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
   'function balanceOf(address owner) view returns (uint256)',
+  'function decimals() view returns (uint8)',
 ]);
 
 /**
@@ -58,7 +59,62 @@ export const arc: Chain = defineChain({
   nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
   rpcUrls: { default: { http: [] } },
   blockExplorers: { default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' } },
+  custom: {
+    /** ERC-20 interface of the gas token: the same USDC balance the chain burns for fees. */
+    gasTokenErc20: '0x3600000000000000000000000000000000000000',
+  },
 });
+
+/**
+ * ERC-20 address of the chain's gas token, when the gas token is also an ERC-20
+ * that users deposit (Arc: USDC). Undefined for chains whose gas token (ETH, POL)
+ * is not a bridged ERC-20.
+ */
+export function gasTokenErc20(chain: Chain | undefined): `0x${string}` | undefined {
+  const v = (chain?.custom as { gasTokenErc20?: string } | undefined)?.gasTokenErc20;
+  return v ? (v as `0x${string}`) : undefined;
+}
+
+/** Gas units budgeted for an ERC-20 approve followed by a bridge deposit. */
+export const DEPOSIT_GAS_UNITS = 300_000n;
+
+/**
+ * Estimate, in native wei, the fee budget for `gasUnits` at the current fee level,
+ * scaled by `multiplier` as a safety margin against fee movement.
+ */
+export async function estimateGasReserve(
+  publicClient: PublicClient,
+  gasUnits: bigint = DEPOSIT_GAS_UNITS,
+  multiplier: bigint = 2n,
+): Promise<bigint> {
+  let feePerGas: bigint;
+  try {
+    const fees = await publicClient.estimateFeesPerGas();
+    feePerGas = fees.maxFeePerGas ?? (fees as { gasPrice?: bigint }).gasPrice ?? 0n;
+  } catch {
+    feePerGas = await publicClient.getGasPrice();
+  }
+  return feePerGas * gasUnits * multiplier;
+}
+
+/** `estimateGasReserve` for callers that only have an RPC URL. */
+export async function estimateGasReserveAt(
+  rpcUrl: string,
+  gasUnits: bigint = DEPOSIT_GAS_UNITS,
+  multiplier: bigint = 2n,
+): Promise<bigint> {
+  const client = createPublicClient({ transport: http(rpcUrl) });
+  return estimateGasReserve(client, gasUnits, multiplier);
+}
+
+/**
+ * Convert a native-wei amount (18 decimals) into the smallest units of a token with
+ * `tokenDecimals`, rounding up.
+ */
+export function weiToTokenUnits(wei: bigint, tokenDecimals: number): bigint {
+  const scale = 10n ** BigInt(18 - tokenDecimals);
+  return (wei + scale - 1n) / scale;
+}
 
 /** Bundled supported chain mappings */
 export const CHAIN_MAP: Record<number, Chain> = {

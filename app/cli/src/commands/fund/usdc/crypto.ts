@@ -132,6 +132,24 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
       const fmt = (n: bigint) =>
         (Number(n) / 10 ** decimals).toFixed(decimals).replace(/\.?0+$/, "");
 
+      const gasSymbol = chainCfg.gasToken?.symbol ?? "ETH";
+      // On chains whose gas token is the deposited ERC-20 (Arc: USDC), the
+      // approve + deposit fees come out of the same balance as the deposit, so
+      // the balance must cover amount + a fee reserve. Skipped for EIP-7702,
+      // where the paymaster charges gas separately.
+      const depositTokenIsGasToken =
+        !args.eip7702 &&
+        chainCfg.gasToken?.erc20Address !== undefined &&
+        chainCfg.gasToken.erc20Address.toLowerCase() === tokenInfo.evmAddress!.toLowerCase();
+      let gasReserveRaw = 0n;
+      if (depositTokenIsGasToken) {
+        const reserveWei = yield* bridge.gasReserve(chainCfg.evmRpcUrl);
+        // native units are 18 decimals; round up to the token's smallest unit
+        const scale = 10n ** BigInt(18 - decimals);
+        gasReserveRaw = (reserveWei + scale - 1n) / scale;
+      }
+      const requiredRaw = amountRaw + gasReserveRaw;
+
       // Check ERC-20 balance on the specified chain
       const balance = yield* bridge.erc20Balance(
         chainCfg.evmRpcUrl,
@@ -139,8 +157,8 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
         accountInfo.evmAddress,
       );
 
-      if (balance < amountRaw) {
-        const shortfall = amountRaw - balance;
+      if (balance < requiredRaw) {
+        const shortfall = requiredRaw - balance;
 
         yield* output.humanLine(
           `Insufficient ${tokenName} balance on ${args.chain}.`,
@@ -150,14 +168,19 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
         yield* output.humanLine(`  Chain:        ${args.chain}`);
         yield* output.humanLine(`  Current:      ${fmt(balance)} ${tokenName}`);
         yield* output.humanLine(`  Required:     ${args.amount} ${tokenName}`);
+        if (depositTokenIsGasToken) {
+          yield* output.humanLine(
+            `  Gas reserve:  ${fmt(gasReserveRaw)} ${tokenName} (${args.chain} pays gas in ${gasSymbol})`,
+          );
+        }
         yield* output.humanLine(`  Shortfall:    ${fmt(shortfall)} ${tokenName}`);
         yield* output.humanLine("");
         yield* output.humanLine(
           `Send at least ${fmt(shortfall)} ${tokenName} to the EVM address above on ${args.chain}.`,
         );
-        if (!args.eip7702) {
+        if (!args.eip7702 && !depositTokenIsGasToken) {
           yield* output.humanLine(
-            `Note: You will also need ETH for gas fees on ${args.chain}.`,
+            `Note: You will also need ${gasSymbol} for gas fees on ${args.chain}.`,
           );
         }
 
@@ -168,26 +191,27 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
         );
       }
 
-      // Check native ETH balance for gas (skipped for EIP-7702 — gas paid in USDC via paymaster)
-      if (!args.eip7702) {
+      // Check native balance for gas (skipped for EIP-7702 — gas paid via paymaster —
+      // and when the deposit token is the gas token, already covered by the reserve above)
+      if (!args.eip7702 && !depositTokenIsGasToken) {
         const ethBalance = yield* bridge.nativeBalance(
           chainCfg.evmRpcUrl,
           accountInfo.evmAddress,
         );
         if (ethBalance === 0n) {
-          yield* output.humanLine(`Insufficient ETH for gas on ${args.chain}.`);
+          yield* output.humanLine(`Insufficient ${gasSymbol} for gas on ${args.chain}.`);
           yield* output.humanLine("");
           yield* output.humanLine(`  EVM address:  ${accountInfo.evmAddress}`);
           yield* output.humanLine(`  Chain:        ${args.chain}`);
-          yield* output.humanLine(`  ETH balance:  0`);
+          yield* output.humanLine(`  ${gasSymbol} balance:  0`);
           yield* output.humanLine("");
           yield* output.humanLine(
-            `Send ETH to the EVM address above on ${args.chain} to cover gas fees.`,
+            `Send ${gasSymbol} to the EVM address above on ${args.chain} to cover gas fees.`,
           );
 
           return yield* Effect.fail(
             new FundingRequiredError({
-              message: `No ETH for gas on ${args.chain}. Send ETH to ${accountInfo.evmAddress}.`,
+              message: `No ${gasSymbol} for gas on ${args.chain}. Send ${gasSymbol} to ${accountInfo.evmAddress}.`,
             }),
           );
         }

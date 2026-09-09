@@ -30,6 +30,11 @@ import {
   // eip7702
   smartDeposit,
   InsufficientBalanceError,
+  CHAIN_MAP,
+  arc,
+  gasTokenErc20,
+  weiToTokenUnits,
+
 } from '../src/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
@@ -289,6 +294,39 @@ test('createEvmExecutor supports ethereum mainnet (chainId 1)', () => {
   assert.ok(clients.publicClient);
 });
 
+test('createEvmExecutor maps chainId 5042 to Arc on both clients', () => {
+  const account = createEvmWallet(`0x${'33'.repeat(32)}`);
+  const clients = createEvmExecutor(account, 'https://allset.fast.xyz/chain/rpc/arc', 5042);
+  assert.equal(clients.walletClient.chain?.id, 5042);
+  assert.equal(clients.publicClient.chain?.id, 5042);
+  assert.equal(clients.publicClient.chain?.name, 'Arc');
+  assert.equal(clients.publicClient.chain?.nativeCurrency.symbol, 'USDC');
+  assert.equal(CHAIN_MAP[5042], arc);
+});
+
+test('gasTokenErc20 is set for Arc only', () => {
+  assert.equal(gasTokenErc20(arc), '0x3600000000000000000000000000000000000000');
+  assert.equal(gasTokenErc20(CHAIN_MAP[1]), undefined);
+  assert.equal(gasTokenErc20(CHAIN_MAP[8453]), undefined);
+  assert.equal(gasTokenErc20(undefined), undefined);
+});
+
+test('weiToTokenUnits converts 18-decimal wei to 6-decimal units, rounding up', () => {
+  assert.equal(weiToTokenUnits(0n, 6), 0n);
+  assert.equal(weiToTokenUnits(1n, 6), 1n);
+  assert.equal(weiToTokenUnits(10n ** 12n, 6), 1n);
+  assert.equal(weiToTokenUnits(10n ** 12n + 1n, 6), 2n);
+  // 20 gwei * 300k gas * 2 = 0.012 USDC on Arc
+  assert.equal(weiToTokenUnits(20n * 10n ** 9n * 300_000n * 2n, 6), 12_000n);
+  assert.equal(weiToTokenUnits(5n * 10n ** 18n, 18), 5n * 10n ** 18n);
+  // more than 18 decimals scales up exactly instead of throwing
+  assert.equal(weiToTokenUnits(1n, 24), 10n ** 6n);
+  assert.equal(weiToTokenUnits(20n * 10n ** 9n * 300_000n * 2n, 24), 12n * 10n ** 21n);
+  assert.equal(weiToTokenUnits(7n, 0), 1n);
+  assert.throws(() => weiToTokenUnits(1n, -1), RangeError);
+  assert.throws(() => weiToTokenUnits(1n, 6.5), RangeError);
+});
+
 test('createEvmExecutor returns walletClient and publicClient', () => {
   const account = createEvmWallet(`0x${'22'.repeat(32)}`);
   const clients = createEvmExecutor(account, 'http://localhost:8545', 421614);
@@ -397,6 +435,92 @@ test('executeDeposit sends approve + deposit transaction for ERC-20', async () =
   assert.equal(sentTx?.value, '0');
   assert.equal(result.txHash, TX_HASH);
   assert.equal(result.orderId, TX_HASH);
+});
+
+// Witness for the Arc gas-reserve guard: on Arc the deposited USDC is also the
+// gas token, so executeDeposit must refuse balance == amount before any write.
+function arcMockClients(balance: bigint) {
+  const writes: string[] = [];
+  let approved = false;
+  const clients = {
+    walletClient: {
+      account: { address: EVM_ADDRESS },
+      sendTransaction: async () => {
+        writes.push('deposit');
+        return TX_HASH;
+      },
+      writeContract: async () => {
+        writes.push('approve');
+        approved = true;
+        return TX_HASH;
+      },
+    },
+    publicClient: {
+      chain: arc,
+      estimateFeesPerGas: async () => ({ maxFeePerGas: 20_000_000_000n, maxPriorityFeePerGas: 0n }),
+      waitForTransactionReceipt: async () => ({ status: 'success' }),
+      readContract: async ({ functionName }: { functionName: string }) => {
+        if (functionName === 'balanceOf') return balance;
+        if (functionName === 'decimals') return 6;
+        if (functionName === 'allowance') return approved ? 1_000_000n : 0n;
+        throw new Error(`unexpected readContract ${functionName}`);
+      },
+    },
+  };
+  return { clients, writes };
+}
+
+const ARC_USDC = '0x3600000000000000000000000000000000000000';
+// 20 gwei * 300k gas * 2 = 0.012 USDC = 12_000 units
+const ARC_RESERVE_UNITS = 12_000n;
+
+test('executeDeposit on Arc refuses balance == amount (gas comes from the same USDC) with zero writes', async () => {
+  const { clients, writes } = arcMockClients(1_000_000n);
+  await assert.rejects(
+    executeDeposit({
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+      tokenAddress: ARC_USDC,
+      amount: '1000000',
+      receiverAddress: FAST_ADDRESS,
+      evmClients: clients as any,
+    }),
+    (err: unknown) => {
+      assert.ok(err instanceof InsufficientBalanceError, `expected InsufficientBalanceError, got ${String(err)}`);
+      assert.equal(err.balance, 1_000_000n);
+      assert.equal(err.required, 1_000_000n + ARC_RESERVE_UNITS);
+      assert.equal(err.tokenAddress, ARC_USDC);
+      return true;
+    },
+  );
+  assert.deepEqual(writes, []);
+});
+
+test('executeDeposit on Arc proceeds (approve then deposit) once balance covers amount + reserve', async () => {
+  const { clients, writes } = arcMockClients(1_000_000n + ARC_RESERVE_UNITS);
+  const result = await executeDeposit({
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+    tokenAddress: ARC_USDC,
+    amount: '1000000',
+    receiverAddress: FAST_ADDRESS,
+    evmClients: clients as any,
+  });
+  assert.deepEqual(writes, ['approve', 'deposit']);
+  assert.equal(result.txHash, TX_HASH);
+});
+
+test('executeDeposit reserve guard does not apply to a non-gas token on Arc', async () => {
+  const { clients, writes } = arcMockClients(1_000_000n);
+  await executeDeposit({
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+    tokenAddress: TOKEN_ADDRESS, // not the gas token
+    amount: '1000000',
+    receiverAddress: FAST_ADDRESS,
+    evmClients: clients as any,
+  });
+  assert.deepEqual(writes, ['approve', 'deposit']);
 });
 
 test('executeDeposit always approves before depositing', async () => {

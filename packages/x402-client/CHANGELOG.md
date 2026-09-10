@@ -1,5 +1,12 @@
 # @fastxyz/x402-client
 
+## 1.0.8
+
+### Patch Changes
+
+- Updated dependencies [58f0f9f]
+  - @fastxyz/allset-sdk@1.1.0
+
 ## 1.0.7
 
 ### Patch Changes

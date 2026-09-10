@@ -33,6 +33,25 @@ describe("NetworkConfigSchema", () => {
 });
 
 describe("bundledNetworks", () => {
+  it("mainnet.arc pays gas in USDC and declares the USDC ERC-20 as the gas token", () => {
+    const arc = bundledNetworks.mainnet!.allSet!.chains.arc!;
+    expect(arc.chainId).toBe(5042);
+    expect(arc.gasToken).toEqual({
+      symbol: "USDC",
+      erc20Address: "0x3600000000000000000000000000000000000000",
+    });
+    expect(arc.tokens.USDC!.evmAddress.toLowerCase()).toBe(arc.gasToken!.erc20Address!.toLowerCase());
+    expect(arc.evmRpcUrl).toBe("https://allset.fast.xyz/chain/rpc/arc");
+  });
+
+  it("no bundled evmRpcUrl embeds a provider key", () => {
+    for (const net of Object.values(bundledNetworks)) {
+      for (const chain of Object.values(net.allSet?.chains ?? {})) {
+        expect(chain.evmRpcUrl).toMatch(/^https:\/\/(testnet\.)?allset\.fast\.xyz\/chain\/rpc\/[a-z-]+$/);
+      }
+    }
+  });
+
   it("mainnet.defaultToken matches the SDK fastUSD", () => {
     const mainnet = bundledNetworks.mainnet;
     expect(mainnet.defaultToken?.symbol).toBe("fastUSD");

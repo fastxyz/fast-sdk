@@ -1,0 +1,22 @@
+{
+  "schema": "allset/intent/v1",
+  "kind": "batch",
+  "chain": "eip155:5042",
+  "bridge": "0x8677edaa374b7a47ff0093947aabe4acbb2d4538",
+  "transfer_tx": "0x2222222222222222222222222222222222222222222222222222222222222222",
+  "deadline": "1789071600",
+  "intents": [
+    {
+      "action": "execute",
+      "target": "0x3600000000000000000000000000000000000000",
+      "calldata": "0xa9059cbb000000000000000000000000a5f5e16d993478809abbd82cb0cd80e88c99256000000000000000000000000000000000000000000000000000000000000f4240",
+      "value": "0"
+    },
+    {
+      "action": "deposit_back",
+      "token": "0x3600000000000000000000000000000000000000",
+      "fast_receiver": "fast17lqf2st89vqwm9yrgv2nhzx0mznqe0uukglkcl55lmecsgq9247qej58nf",
+      "value": "0"
+    }
+  ]
+}

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import { canonicalJson } from '../src/canonical-json.ts';
 import { encodeIntentClaim } from '../src/claims.ts';
@@ -12,6 +14,7 @@ import {
   transferUserDataTag,
   type IntentClaimV1,
 } from '../src/intent-v1.ts';
+import { REJECTS, VECTORS } from '../scripts/write-intent-v1-vectors.ts';
 
 const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
 
@@ -245,4 +248,24 @@ test('transfer user_data tag is 32 ASCII bytes, NUL padded, and round-trips', ()
   assert.equal(readTransferUserDataTag(new Uint8Array(32)), null);
   assert.throws(() => transferUserDataTag(-1), /chain id/);
   assert.throws(() => transferUserDataTag(10 ** 13), /chain id/);
+});
+
+const VECTOR_DIRECTORY = fileURLToPath(new URL('./vectors/intent_v1/', import.meta.url));
+
+test('accept fixtures match canonical JSON and independent ABI files', () => {
+  for (const [name, claim] of Object.entries(VECTORS)) {
+    const jsonFile = new Uint8Array(readFileSync(`${VECTOR_DIRECTORY}${name}.json`));
+    const abiFile = readFileSync(`${VECTOR_DIRECTORY}${name}.abi.hex`, 'utf8').trim();
+
+    assert.deepEqual(encodeIntentClaimV1(claim), jsonFile, `${name}.json drifted`);
+    assert.equal(intentClaimV1ToAbi(claim), abiFile, `${name}.abi.hex drifted`);
+    assert.deepEqual(decodeIntentClaimV1(jsonFile), decodeIntentClaimV1(encodeIntentClaimV1(claim)));
+  }
+});
+
+test('reject fixtures fail for their documented reason', () => {
+  for (const [name, expected] of Object.entries(REJECTS)) {
+    const bytes = new Uint8Array(readFileSync(`${VECTOR_DIRECTORY}reject/${name}.json`));
+    assert.throws(() => decodeIntentClaimV1(bytes), new RegExp(expected), `${name} must be rejected with "${expected}"`);
+  }
 });

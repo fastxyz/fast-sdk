@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import Ajv2020 from 'ajv/dist/2020.js';
 import { test } from 'vitest';
 import { canonicalJson } from '../src/canonical-json.ts';
 import { encodeIntentClaim } from '../src/claims.ts';
@@ -404,4 +405,17 @@ test('prepareIntentClaimV1 succeeds on a plain valid withdraw without freezing t
   const prepared = prepareIntentClaimV1({ intents: [buildTransferIntent(USDC, RECEIVER)], ...PREP });
   assert.ok(prepared.byteLength > 0);
   assert.deepEqual(finishIntentClaimV1(prepared, TX), encodeIntentClaimV1(withdraw));
+});
+
+test('the published JSON Schema accepts every accept fixture and rejects structural rejects', () => {
+  const schema = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../schemas/allset-intent-v1.json', import.meta.url)), 'utf8'),
+  );
+  const validate = new Ajv2020({ strict: true }).compile(schema);
+  for (const name of Object.keys(VECTORS)) {
+    assert.ok(validate(JSON.parse(readFileSync(`${VECTOR_DIRECTORY}${name}.json`, 'utf8'))), name);
+  }
+  for (const name of ['unknown-key', 'zero-intents']) {
+    assert.ok(!validate(JSON.parse(readFileSync(`${VECTOR_DIRECTORY}reject/${name}.json`, 'utf8'))), name);
+  }
 });

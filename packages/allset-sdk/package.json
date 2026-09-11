@@ -24,7 +24,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "schemas"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --out-dir dist",
@@ -52,6 +53,7 @@
     "viem": "^2.46.2"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0"
+    "@types/node": "^25.5.0",
+    "ajv": "^8.20.0"
   }
 }

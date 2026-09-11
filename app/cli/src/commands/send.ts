@@ -318,6 +318,13 @@ export const send: Command<SendArgs> = {
           tokenFastTokenId: toHex(tokenInfo.fastTokenId).slice(2),
           amount: amountRaw.toString(),
           receiverEvmAddress: args.address,
+          chainId: chainCfg.chainId,
+          bridgeContract: chainCfg.bridgeContract,
+          display: {
+            amount: amountRaw,
+            tokenSymbol: resolvedTokenName,
+            tokenDecimals: decimals,
+          },
           signer,
           provider,
           networkId: network.networkId,

@@ -117,6 +117,9 @@ function fastReceiverBytes32(field: string, value: string): Hex {
     if (hexToBytes(bytes32).length !== 32) {
       throw new Error('must decode to exactly 32 bytes');
     }
+    if (bytes32ToFastAddress(bytes32) !== value) {
+      throw new Error('must use the canonical lowercase Fast address encoding');
+    }
     return bytes32;
   } catch (error) {
     throw new Error(`allset/intent/v1: ${field}: ${(error as Error).message}`);

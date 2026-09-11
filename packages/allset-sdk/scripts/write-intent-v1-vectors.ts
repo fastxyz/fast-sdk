@@ -16,6 +16,7 @@ const USDC = '0x3600000000000000000000000000000000000000';
 const RECEIVER = '0xa5f5e16d993478809abbd82cb0cd80e88c992560';
 const FAST_RECEIVER = 'fast17lqf2st89vqwm9yrgv2nhzx0mznqe0uukglkcl55lmecsgq9247qej58nf';
 const SHORT_FAST_RECEIVER = toFastAddress(new Uint8Array(31).fill(7));
+const NONZERO_PADDING_FAST_RECEIVER = 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpa4p6au';
 const CALLDATA =
   '0xa9059cbb000000000000000000000000a5f5e16d993478809abbd82cb0cd80e88c99256000000000000000000000000000000000000000000000000000000000000f4240' as const;
 const transactionId = (byte: string): Hex => `0x${byte.repeat(32)}` as Hex;
@@ -105,6 +106,8 @@ export const REJECTS: Record<string, string> = {
   'symbol-too-long': 'token_symbol',
   'fast-bad-checksum': 'fast_receiver',
   'fast-wrong-length': 'fast_receiver',
+  'fast-uppercase': 'fast_receiver',
+  'fast-nonzero-padding': 'fast_receiver',
   'revoke-nonzero': 'value',
   'kind-mismatch': 'kind',
   'non-canonical-whitespace': 'canonical',
@@ -182,6 +185,8 @@ const REJECT_BODIES: Record<string, string> = {
   'symbol-too-long': symbolText.replace('"éééééééé"', '"ééééééééé"'),
   'fast-bad-checksum': batchText.replace(FAST_RECEIVER, FAST_RECEIVER.slice(0, -1) + 'g'),
   'fast-wrong-length': depositBackText.replace(FAST_RECEIVER, SHORT_FAST_RECEIVER),
+  'fast-uppercase': depositBackText.replace(FAST_RECEIVER, FAST_RECEIVER.toUpperCase()),
+  'fast-nonzero-padding': depositBackText.replace(FAST_RECEIVER, NONZERO_PADDING_FAST_RECEIVER),
   'revoke-nonzero': revokeText.replace('"value": "0"', '"value": "1"'),
   'kind-mismatch': revokeText.replace('"kind": "revoke"', '"kind": "withdraw"'),
   'non-canonical-whitespace': withdrawText.replace(/\n */g, ''),

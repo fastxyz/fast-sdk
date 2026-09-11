@@ -245,6 +245,15 @@ test('validation enforces the shared domains and derives batch for two or more i
       }),
     /32 bytes/,
   );
+  assert.throws(
+    () =>
+      encodeIntentClaimV1({
+        ...withdraw,
+        kind: 'deposit_back',
+        intents: [{ action: 'deposit_back', token: USDC, fastReceiver: FAST_RECEIVER.toUpperCase(), value: 0n }],
+      }),
+    /fast_receiver/,
+  );
   assert.throws(() => encodeIntentClaimV1({ ...withdraw, intents: [] }), /intents/);
   assert.throws(
     () =>

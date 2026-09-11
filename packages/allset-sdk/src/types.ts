@@ -60,6 +60,17 @@ export interface ExecuteIntentParams {
   externalAddress?: string;
   /** Deadline in seconds from now (default: 3600) */
   deadlineSeconds?: number;
+  /** EVM chain id of the destination bridge. Required when claimEncoding is "v1". */
+  chainId?: number;
+  /** Bridge contract address on that chain. Required when claimEncoding is "v1". */
+  bridgeContract?: string;
+  /**
+   * "legacy" (default): bare ABI claim_data and null user_data.
+   * "v1": canonical JSON claim_data and the allset/transfer/v1 tag.
+   */
+  claimEncoding?: 'v1' | 'legacy';
+  /** Advisory wallet display data. Used only by v1 and never mapped into the transaction ABI. */
+  display?: { amount: bigint; tokenSymbol: string; tokenDecimals: number };
   /** Ed25519 signer from @fastxyz/sdk */
   signer: Signer;
   /** Fast RPC provider from @fastxyz/sdk */
@@ -89,6 +100,17 @@ export interface ExecuteWithdrawParams {
   receiverEvmAddress: string;
   /** Deadline in seconds from now (default: 3600) */
   deadlineSeconds?: number;
+  /** EVM chain id of the destination bridge. Required when claimEncoding is "v1". */
+  chainId?: number;
+  /** Bridge contract address on that chain. Required when claimEncoding is "v1". */
+  bridgeContract?: string;
+  /**
+   * "legacy" (default): bare ABI claim_data and null user_data.
+   * "v1": canonical JSON claim_data and the allset/transfer/v1 tag.
+   */
+  claimEncoding?: 'v1' | 'legacy';
+  /** Advisory wallet display data. Used only by v1 and never mapped into the transaction ABI. */
+  display?: { amount: bigint; tokenSymbol: string; tokenDecimals: number };
   /** Ed25519 signer from @fastxyz/sdk */
   signer: Signer;
   /** Fast RPC provider from @fastxyz/sdk */

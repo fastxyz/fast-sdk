@@ -5,9 +5,9 @@
  * unchanged ABI IntentClaim consumed by the bridge contracts.
  */
 
-import { encodeAbiParameters, type Address, type Hex } from 'viem';
+import { decodeAbiParameters, encodeAbiParameters, hexToBytes, type Address, type Hex } from 'viem';
 import { canonicalJson, type CanonicalValue, type KeyLayout } from './canonical-json.js';
-import { fastAddressToBytes32 } from './address.js';
+import { bytes32ToFastAddress, fastAddressToBytes32 } from './address.js';
 import { encodeIntentClaim } from './claims.js';
 import { IntentAction, type Intent } from './intents.js';
 
@@ -405,6 +405,184 @@ export function intentClaimV1ToAbi(claim: IntentClaimV1): Hex {
     deadline: claim.deadline,
     intents: claim.intents.map(intentV1ToLegacy),
   });
+}
+
+/**
+ * Lift legacy ABI intents into v1 objects. Payloads must be exactly canonical:
+ * decodable values with padding or trailing bytes are refused.
+ */
+export function intentsToV1(intents: Intent[]): IntentV1[] {
+  return intents.map((intent, index) => {
+    const payload = lower(intent.payload) as Hex;
+    let lifted: IntentV1;
+
+    switch (intent.action) {
+      case IntentAction.DynamicTransfer: {
+        const [token, receiver] = decodeAbiParameters([{ type: 'address' }, { type: 'address' }], payload);
+        lifted = { action: 'transfer', token: lower(token), receiver: lower(receiver), value: intent.value };
+        break;
+      }
+      case IntentAction.Execute: {
+        const [target, calldata] = decodeAbiParameters([{ type: 'address' }, { type: 'bytes' }], payload);
+        lifted = { action: 'execute', target: lower(target), calldata: lower(calldata) as Hex, value: intent.value };
+        break;
+      }
+      case IntentAction.DynamicDeposit: {
+        const [token, fastReceiver] = decodeAbiParameters([{ type: 'address' }, { type: 'bytes32' }], payload);
+        lifted = {
+          action: 'deposit_back',
+          token: lower(token),
+          fastReceiver: bytes32ToFastAddress(fastReceiver),
+          value: intent.value,
+        };
+        break;
+      }
+      case IntentAction.Revoke:
+        if (payload !== '0x' || intent.value !== 0n) {
+          throw new Error(`allset/intent/v1: intents[${index}]: revoke must have empty payload and value 0`);
+        }
+        lifted = { action: 'revoke', value: 0n };
+        break;
+      default:
+        throw new Error(`allset/intent/v1: intents[${index}]: unknown action ${intent.action}`);
+    }
+
+    const roundTrip = intentV1ToLegacy(lifted);
+    if (roundTrip.payload !== payload || roundTrip.value !== intent.value) {
+      throw new Error(`allset/intent/v1: intents[${index}]: legacy payload is not canonical`);
+    }
+    return lifted;
+  });
+}
+
+/** Copy caller-owned advisory data before any asynchronous work begins. */
+function snapshotDisplay(display: IntentClaimV1['display']): IntentClaimV1['display'] {
+  return display
+    ? {
+        amount: BigInt(display.amount),
+        tokenSymbol: String(display.tokenSymbol),
+        tokenDecimals: Number(display.tokenDecimals),
+      }
+    : undefined;
+}
+
+/** Freeze plain object and array graphs; non-empty typed arrays cannot be frozen. */
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== 'object' || ArrayBuffer.isView(value) || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+  return value;
+}
+
+export interface PreparedIntentClaimV1 {
+  readonly claim: Readonly<Omit<IntentClaimV1, 'transferTx'>>;
+  readonly deadline: bigint;
+  readonly userData: Uint8Array;
+  readonly byteLength: number;
+}
+
+const PLACEHOLDER_TX = `0x${'00'.repeat(32)}` as Hex;
+
+/** Validate and snapshot every v1 input before the Fast transfer is signed. */
+export function prepareIntentClaimV1(params: {
+  intents: Intent[];
+  chainId?: number;
+  bridgeContract?: string;
+  deadlineSeconds?: number;
+  display?: IntentClaimV1['display'];
+  /** Millisecond clock hook used by deterministic tests. */
+  now?: () => number;
+}): PreparedIntentClaimV1 {
+  if (params.chainId === undefined) {
+    throw new Error('allset/intent/v1: chainId is required for claimEncoding "v1"');
+  }
+  if (params.bridgeContract === undefined) {
+    throw new Error('allset/intent/v1: bridgeContract is required for claimEncoding "v1"');
+  }
+  const seconds = params.deadlineSeconds ?? 3600;
+  if (!Number.isSafeInteger(seconds) || seconds <= 0 || seconds >= 2 ** 40) {
+    throw new Error('allset/intent/v1: deadlineSeconds must be a positive safe integer below 2^40');
+  }
+  const nowSeconds = Math.floor((params.now ?? Date.now)() / 1000);
+  if (!Number.isSafeInteger(nowSeconds) || nowSeconds < 0) {
+    throw new Error('allset/intent/v1: clock is not a valid unix time');
+  }
+
+  const deadline = BigInt(nowSeconds) + BigInt(seconds);
+  const intents = intentsToV1(params.intents);
+  const display = snapshotDisplay(params.display);
+  const full: IntentClaimV1 = {
+    schema: INTENT_V1_SCHEMA,
+    kind: derivedKind(intents),
+    chain: `eip155:${params.chainId}`,
+    bridge: lower(params.bridgeContract),
+    transferTx: PLACEHOLDER_TX,
+    deadline,
+    intents,
+    ...(display ? { display } : {}),
+  };
+  const bytes = encodeIntentClaimV1(full);
+  const { transferTx: _placeholder, ...claim } = full;
+  return deepFreeze({
+    claim,
+    deadline,
+    userData: transferUserDataTag(params.chainId),
+    byteLength: bytes.length,
+  });
+}
+
+/** Bind the prepared snapshot to the settled transfer's fixed-width id. */
+export function finishIntentClaimV1(prepared: PreparedIntentClaimV1, transferTx: Hex): Uint8Array {
+  const bytes = encodeIntentClaimV1({ ...prepared.claim, transferTx });
+  if (bytes.length !== prepared.byteLength) {
+    throw new Error('allset/intent/v1: internal: finished size differs from prepared size');
+  }
+  return bytes;
+}
+
+/** Build a claim for callers that already know the transfer id and deadline. Default: legacy. */
+export function buildClaimBytes(params: {
+  transferFastTxId: Hex;
+  deadline: bigint;
+  intents: Intent[];
+  chainId?: number;
+  bridgeContract?: string;
+  claimEncoding?: 'v1' | 'legacy';
+  display?: IntentClaimV1['display'];
+}): { encoding: 'v1' | 'legacy'; claimData: Uint8Array; userData: Uint8Array | null } {
+  const encoding = params.claimEncoding ?? 'legacy';
+  if (encoding === 'v1') {
+    if (params.chainId === undefined) {
+      throw new Error('allset/intent/v1: chainId is required for claimEncoding "v1"');
+    }
+    if (params.bridgeContract === undefined) {
+      throw new Error('allset/intent/v1: bridgeContract is required for claimEncoding "v1"');
+    }
+    const intents = intentsToV1(params.intents);
+    const display = snapshotDisplay(params.display);
+    const claim: IntentClaimV1 = {
+      schema: INTENT_V1_SCHEMA,
+      kind: derivedKind(intents),
+      chain: `eip155:${params.chainId}`,
+      bridge: lower(params.bridgeContract),
+      transferTx: params.transferFastTxId,
+      deadline: params.deadline,
+      intents,
+      ...(display ? { display } : {}),
+    };
+    return {
+      encoding,
+      claimData: encodeIntentClaimV1(claim),
+      userData: transferUserDataTag(params.chainId),
+    };
+  }
+
+  const encoded = encodeIntentClaim({
+    transferFastTxId: params.transferFastTxId,
+    deadline: params.deadline,
+    intents: params.intents,
+  });
+  return { encoding: 'legacy', claimData: hexToBytes(encoded), userData: null };
 }
 
 export function transferUserDataTag(chainId: number): Uint8Array {

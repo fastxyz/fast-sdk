@@ -8,6 +8,7 @@ import { buildDepositTransaction } from "./deposit.js";
 import { FastError } from "./errors.js";
 import { ERC20_ABI, type EvmClients, estimateGasReserve, gasTokenErc20, weiToTokenUnits } from "./evm.js";
 import { InsufficientBalanceError } from "./eip7702.js";
+import { finishIntentClaimV1, prepareIntentClaimV1 } from "./intent-v1.js";
 import { buildTransferIntent, type Intent, IntentAction } from "./intents.js";
 import { relayExecute } from "./relay.js";
 import type {
@@ -421,6 +422,30 @@ export async function executeIntent(
     );
   }
 
+  if (!Number.isSafeInteger(deadlineSeconds) || deadlineSeconds <= 0) {
+    throw new FastError("INVALID_PARAMS", "executeIntent deadlineSeconds must be a positive integer", {
+      note: "Fractional, zero, negative or non-finite deadlines cannot be encoded.",
+    });
+  }
+
+  const encoding = params.claimEncoding ?? "legacy";
+  let prepared = null;
+  if (encoding === "v1") {
+    try {
+      prepared = prepareIntentClaimV1({
+        intents,
+        chainId: params.chainId,
+        bridgeContract: params.bridgeContract,
+        deadlineSeconds,
+        display: params.display,
+      });
+    } catch (error) {
+      throw new FastError("INVALID_PARAMS", (error as Error).message, {
+        note: 'claimEncoding "v1" needs chainId, bridgeContract, a valid deadline and canonical intents (AllSet#576)',
+      });
+    }
+  }
+
   const tokenId = hexToUint8Array(tokenFastTokenId);
   const publicKey = await signer.getPublicKey();
   const fastAddress = await signer.getFastAddress();
@@ -442,7 +467,7 @@ export async function executeIntent(
       tokenId,
       recipient: fastAddressToBytes(fastBridgeAddress),
       amount: BigInt(amount),
-      userData: null,
+      userData: prepared ? prepared.userData : null,
     })
     .sign();
 
@@ -464,13 +489,16 @@ export async function executeIntent(
   const transferFastTxId = extractClaimId(transferCrossSign.transaction);
 
   // Step 3: Build and encode the intent claim
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
-  const intentClaimEncoded = encodeIntentClaim({
-    transferFastTxId,
-    deadline,
-    intents,
-  });
-  const intentBytes = hexToUint8Array(intentClaimEncoded);
+  const deadline = prepared ? prepared.deadline : BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
+  const intentBytes = prepared
+    ? finishIntentClaimV1(prepared, transferFastTxId)
+    : hexToUint8Array(
+        encodeIntentClaim({
+          transferFastTxId,
+          deadline,
+          intents,
+        }),
+      );
 
   // Step 4: Submit intent claim on Fast network
   const accountInfo2 = await provider.getAccountInfo({

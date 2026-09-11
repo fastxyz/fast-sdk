@@ -19,6 +19,8 @@ import {
   buildExecuteIntent,
   buildDepositBackIntent,
   buildRevokeIntent,
+  decodeIntentClaimV1,
+  transferUserDataTag,
   // evm-executor
   createEvmWallet,
   createEvmExecutor,
@@ -850,6 +852,136 @@ test('executeIntent throws FastError on relayer failure', async () => {
       return true;
     },
   );
+});
+
+/** Wrap the real signer so the test observes the actual Signer API used by TransactionBuilder. */
+function spyOnSigner(touched: string[], beforeGetPublicKey?: () => void): Signer {
+  return new Proxy(testSigner, {
+    get(target, key, receiver) {
+      const value = Reflect.get(target, key, receiver);
+      if (typeof value !== 'function') return value;
+      return (...args: unknown[]) => {
+        touched.push(String(key));
+        if (key === 'getPublicKey') beforeGetPublicKey?.();
+        return value.apply(target, args);
+      };
+    },
+  });
+}
+
+function spyOnProvider(touched: string[], submitted: unknown[]): FastProvider {
+  return {
+    getAccountInfo: async () => {
+      touched.push('getAccountInfo');
+      return { nextNonce: 1n } as any;
+    },
+    submitTransaction: async (envelope: unknown) => {
+      touched.push('submitTransaction');
+      submitted.push(envelope);
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+}
+
+const crossSignFetch = async (url: RequestInfo | URL) =>
+  String(url).includes('/relay') ? Response.json({ ok: true }) : Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+
+function submittedClaim(submitted: unknown[], index: number): any {
+  const tx = (submitted[index] as any).transaction.value;
+  return tx.claims?.[0] ?? tx.claim;
+}
+
+test('executeIntent with claimEncoding v1 validates before touching the signer or the provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const signer = spyOnSigner(touched);
+  const provider = spyOnProvider(touched, submitted);
+  const base = {
+    ...BASE_INTENT_PARAMS,
+    signer,
+    provider,
+    claimEncoding: 'v1' as const,
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+  };
+  const transfer = [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)];
+
+  await assert.rejects(executeIntent({ ...BASE_INTENT_PARAMS, signer, provider, intents: transfer, deadlineSeconds: 0.5 }), /deadlineSeconds/);
+  await assert.rejects(executeIntent({ ...base, intents: transfer, bridgeContract: undefined }), /bridgeContract/);
+  await assert.rejects(executeIntent({ ...base, intents: [{ ...buildRevokeIntent(), value: 1n }] }), /revoke/);
+  for (const bad of [0.5, 0, Infinity, 1e30]) {
+    await assert.rejects(executeIntent({ ...base, intents: transfer, deadlineSeconds: bad }), /deadlineSeconds/);
+  }
+  const huge = buildExecuteIntent(TOKEN_ADDRESS, `0x${'00'.repeat(2100)}`);
+  await assert.rejects(executeIntent({ ...base, intents: [huge] }), /4096/);
+
+  assert.deepEqual(touched, [], 'every rejection above must happen before any signer or provider call');
+  assert.equal(submitted.length, 0);
+});
+
+test('executeIntent with claimEncoding v1 sends the tag on the transfer and decodable JSON in the claim', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = crossSignFetch;
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+
+  await executeIntent({
+    ...BASE_INTENT_PARAMS,
+    intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+    signer: spyOnSigner(touched),
+    provider: spyOnProvider(touched, submitted),
+    claimEncoding: 'v1',
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+    display: { amount: 1000000n, tokenSymbol: 'USDC', tokenDecimals: 6 },
+  });
+
+  assert.equal(submitted.length, 2);
+  const transfer = submittedClaim(submitted, 0);
+  assert.equal(transfer.type, 'TokenTransfer');
+  assert.deepEqual(Array.from(transfer.value.userData as Uint8Array), Array.from(transferUserDataTag(5042)));
+  const external = submittedClaim(submitted, 1);
+  assert.equal(external.type, 'ExternalClaim');
+  const decoded = decodeIntentClaimV1(external.value.claim.claimData as Uint8Array);
+  assert.equal(decoded.chain, 'eip155:5042');
+  assert.equal(decoded.bridge, BRIDGE_CONTRACT.toLowerCase());
+  assert.equal(decoded.kind, 'withdraw');
+  assert.equal(decoded.display?.tokenSymbol, 'USDC');
+});
+
+test('executeIntent with claimEncoding v1 is immune to caller mutation during the async legs', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = crossSignFetch;
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const display = { amount: 1000000n, tokenSymbol: 'USDC', tokenDecimals: 6 };
+  const signer = spyOnSigner(touched, () => {
+    display.tokenSymbol = 'é'.repeat(9);
+    display.tokenDecimals = 99;
+  });
+
+  await executeIntent({
+    ...BASE_INTENT_PARAMS,
+    intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+    signer,
+    provider: spyOnProvider(touched, submitted),
+    claimEncoding: 'v1',
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+    display,
+  });
+
+  assert.ok(touched.includes('getPublicKey'));
+  assert.equal(submitted.length, 2);
+  const decoded = decodeIntentClaimV1(submittedClaim(submitted, 1).value.claim.claimData as Uint8Array);
+  assert.equal(decoded.display?.tokenSymbol, 'USDC');
+  assert.equal(decoded.display?.tokenDecimals, 6);
 });
 
 // ---------------------------------------------------------------------------

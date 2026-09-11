@@ -1,5 +1,42 @@
 # @fastxyz/sdk
 
+## 2.3.1
+
+### Patch Changes
+
+- 37e62af: Update the bundled mainnet `defaultToken` tokenId. The symbol remains
+  `fastUSD`, but its `tokenId` changes from
+  `0x125b60bb2e805336f0934077d4f9fdb36f45bec9ded8d7b0e637516cc43a86eb` to
+  `0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130`.
+
+  **Behavior change**: CLI commands that resolve the network's default
+  token without an explicit `--token` flag (e.g. `fast send`, `fast info
+balance`) and any `--token fastUSD` invocations on mainnet now operate
+  against the new tokenId. The dedicated `fast fund fastusd` command is
+  unaffected. Testnet default (`testUSDC`) is unchanged.
+
+## 2.3.0
+
+### Minor Changes
+
+- 7aad16b: Add the key-handover flow to `@fastxyz/sdk/wallet`. An agent calls `KeyHandoverAgent.generateAuthRequest()` to produce an HPKE-encrypted authorization request (an `auth_url` plus a 6-digit verification code); the user approves it in the Fast wallet, and `decryptAuthPayload()` turns the returned handover code into the account's ed25519 private key. Also exports the wallet-side helpers `parseAuthRequest` / `sealHandover` and the `KEY_HANDOVER_ERROR` codes. Uses HPKE Base mode — DHKEM(X25519, HKDF-SHA256) with AES-256-GCM — binding the ciphertext to the exact request bytes; `decryptAuthPayload` accepts either a bare base64url code or a quoted chat message.
+
+### Patch Changes
+
+- 8ecfb10: Add the encrypted key-handover flow.
+  - `@fastxyz/sdk/wallet`: new `KeyHandoverAgent` (`generateAuthRequest` /
+    `decryptAuthPayload`) implementing the HPKE Base / DHKEM(X25519,
+    HKDF-SHA256) / AES-256-GCM protocol bound to the byte-exact request
+    payload. Wallet-side `parseAuthRequest` / `sealHandover` helpers and
+    `KEY_HANDOVER_ERROR` codes are exported. New `KeyHandoverAgent.exportPending()`
+    / `restore()` enable cross-process flows. Fix: `decryptAuthPayload` now
+    routes `INVALID_HANDOVER_CODE` distinctly from `MALFORMED_HANDOVER_MESSAGE`.
+  - `@fastxyz/cli`: new `fast authorize request` / `fast authorize complete`
+    commands that wrap the protocol so shell-based agents can obtain a Fast
+    account private key without writing SDK glue. State is persisted at
+    `~/.fast/handover-pending.json` (mode 0600, ~5 min, single-pending)
+    between the two commands.
+
 ## 2.2.0
 
 ### Minor Changes

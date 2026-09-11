@@ -175,3 +175,5 @@ MIT
 ## Legal
 
 Use of the SDK constitutes acceptance of both [Terms of Service](https://pi2labs.org/terms-of-service) and [Acceptable Use Policy](https://pi2labs.org/acceptable-use-policy)
+
+FastSet is a payment and settlement network that currently uses an initial limited operator/validator set, which may expand over time. Do not claim mature or fully decentralized operation unless approved by legal.

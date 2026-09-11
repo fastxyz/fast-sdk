@@ -6,6 +6,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { toFastAddress } from '@fastxyz/sdk';
 import { encodeAbiParameters, type Address, type Hex } from 'viem';
 import { fastAddressToBytes32 } from '../src/address.js';
 import { encodeIntentClaimV1, INTENT_V1_SCHEMA, type IntentClaimV1 } from '../src/intent-v1.js';
@@ -14,6 +15,7 @@ const BRIDGE = '0x8677edaa374b7a47ff0093947aabe4acbb2d4538';
 const USDC = '0x3600000000000000000000000000000000000000';
 const RECEIVER = '0xa5f5e16d993478809abbd82cb0cd80e88c992560';
 const FAST_RECEIVER = 'fast17lqf2st89vqwm9yrgv2nhzx0mznqe0uukglkcl55lmecsgq9247qej58nf';
+const SHORT_FAST_RECEIVER = toFastAddress(new Uint8Array(31).fill(7));
 const CALLDATA =
   '0xa9059cbb000000000000000000000000a5f5e16d993478809abbd82cb0cd80e88c99256000000000000000000000000000000000000000000000000000000000000f4240' as const;
 const transactionId = (byte: string): Hex => `0x${byte.repeat(32)}` as Hex;
@@ -60,6 +62,19 @@ export const VECTORS: Record<string, IntentClaimV1> = {
       },
     ],
   },
+  'deposit-back': {
+    ...withdraw,
+    kind: 'deposit_back',
+    transferTx: transactionId('44'),
+    intents: [
+      {
+        action: 'deposit_back',
+        token: USDC,
+        fastReceiver: FAST_RECEIVER,
+        value: 0n,
+      },
+    ],
+  },
   revoke: {
     ...withdraw,
     kind: 'revoke',
@@ -89,6 +104,7 @@ export const REJECTS: Record<string, string> = {
   'deadline-overflow': 'deadline',
   'symbol-too-long': 'token_symbol',
   'fast-bad-checksum': 'fast_receiver',
+  'fast-wrong-length': 'fast_receiver',
   'revoke-nonzero': 'value',
   'kind-mismatch': 'kind',
   'non-canonical-whitespace': 'canonical',
@@ -158,12 +174,14 @@ const text = (claim: IntentClaimV1): string => textDecoder.decode(encodeIntentCl
 const withdrawText = text(withdraw);
 const revokeText = text(VECTORS.revoke);
 const batchText = text(VECTORS.batch);
+const depositBackText = text(VECTORS['deposit-back']);
 const symbolText = text(VECTORS['symbol-16-bytes']);
 
 const REJECT_BODIES: Record<string, string> = {
   'deadline-overflow': withdrawText.replace('"1789071600"', '"18446744073709551616"'),
   'symbol-too-long': symbolText.replace('"éééééééé"', '"ééééééééé"'),
   'fast-bad-checksum': batchText.replace(FAST_RECEIVER, FAST_RECEIVER.slice(0, -1) + 'g'),
+  'fast-wrong-length': depositBackText.replace(FAST_RECEIVER, SHORT_FAST_RECEIVER),
   'revoke-nonzero': revokeText.replace('"value": "0"', '"value": "1"'),
   'kind-mismatch': revokeText.replace('"kind": "revoke"', '"kind": "withdraw"'),
   'non-canonical-whitespace': withdrawText.replace(/\n */g, ''),

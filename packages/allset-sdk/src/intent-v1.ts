@@ -113,7 +113,11 @@ function requireHex(field: string, value: unknown, pattern: RegExp, description:
 
 function fastReceiverBytes32(field: string, value: string): Hex {
   try {
-    return fastAddressToBytes32(value);
+    const bytes32 = fastAddressToBytes32(value);
+    if (hexToBytes(bytes32).length !== 32) {
+      throw new Error('must decode to exactly 32 bytes');
+    }
+    return bytes32;
   } catch (error) {
     throw new Error(`allset/intent/v1: ${field}: ${(error as Error).message}`);
   }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { toFastAddress } from '@fastxyz/sdk';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { test } from 'vitest';
 import { canonicalJson } from '../src/canonical-json.ts';
@@ -46,6 +47,7 @@ const USDC = '0x3600000000000000000000000000000000000000';
 const RECEIVER = '0xa5f5E16D993478809ABbD82Cb0Cd80E88C992560';
 const TX = `0x${'11'.repeat(32)}` as `0x${string}`;
 const FAST_RECEIVER = 'fast17lqf2st89vqwm9yrgv2nhzx0mznqe0uukglkcl55lmecsgq9247qej58nf';
+const SHORT_FAST_RECEIVER = toFastAddress(new Uint8Array(31).fill(7));
 
 const withdraw: IntentClaimV1 = {
   schema: INTENT_V1_SCHEMA,
@@ -224,6 +226,24 @@ test('validation enforces the shared domains and derives batch for two or more i
         ],
       }),
     /fast_receiver/,
+  );
+  assert.equal((fastAddressToBytes32(FAST_RECEIVER).length - 2) / 2, 32);
+  assert.equal((fastAddressToBytes32(SHORT_FAST_RECEIVER).length - 2) / 2, 31);
+  assert.doesNotThrow(() =>
+    encodeIntentClaimV1({
+      ...withdraw,
+      kind: 'deposit_back',
+      intents: [{ action: 'deposit_back', token: USDC, fastReceiver: FAST_RECEIVER, value: 0n }],
+    }),
+  );
+  assert.throws(
+    () =>
+      encodeIntentClaimV1({
+        ...withdraw,
+        kind: 'deposit_back',
+        intents: [{ action: 'deposit_back', token: USDC, fastReceiver: SHORT_FAST_RECEIVER, value: 0n }],
+      }),
+    /32 bytes/,
   );
   assert.throws(() => encodeIntentClaimV1({ ...withdraw, intents: [] }), /intents/);
   assert.throws(

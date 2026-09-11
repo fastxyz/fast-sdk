@@ -8,7 +8,7 @@ import { buildDepositTransaction } from "./deposit.js";
 import { FastError } from "./errors.js";
 import { ERC20_ABI, type EvmClients, estimateGasReserve, gasTokenErc20, weiToTokenUnits } from "./evm.js";
 import { InsufficientBalanceError } from "./eip7702.js";
-import { finishIntentClaimV1, prepareIntentClaimV1 } from "./intent-v1.js";
+import { finishIntentClaimV1, prepareIntentClaimV1, type IntentV1 } from "./intent-v1.js";
 import { buildTransferIntent, type Intent, IntentAction } from "./intents.js";
 import { relayExecute } from "./relay.js";
 import type {
@@ -72,6 +72,19 @@ function resolveExternalAddress(
         return target;
       } catch {}
     }
+  }
+  return null;
+}
+
+function resolveV1ExternalAddress(
+  intents: readonly IntentV1[],
+  externalAddressOverride?: string,
+): `0x${string}` | null {
+  if (externalAddressOverride) return externalAddressOverride as `0x${string}`;
+
+  for (const intent of intents) {
+    if (intent.action === "transfer") return intent.receiver as `0x${string}`;
+    if (intent.action === "execute") return intent.target as `0x${string}`;
   }
   return null;
 }
@@ -430,6 +443,7 @@ export async function executeIntent(
 
   const encoding = params.claimEncoding ?? "legacy";
   let prepared = null;
+  let v1ExternalAddress: `0x${string}` | null = null;
   if (encoding === "v1") {
     try {
       prepared = prepareIntentClaimV1({
@@ -443,6 +457,19 @@ export async function executeIntent(
       throw new FastError("INVALID_PARAMS", (error as Error).message, {
         note: 'claimEncoding "v1" needs chainId, bridgeContract, a valid deadline and canonical intents (AllSet#576)',
       });
+    }
+    v1ExternalAddress = resolveV1ExternalAddress(
+      prepared.claim.intents,
+      externalAddressOverride,
+    );
+    if (!v1ExternalAddress) {
+      throw new FastError(
+        "INVALID_PARAMS",
+        "executeIntent requires externalAddress when intents do not include a transfer recipient or execute target",
+        {
+          note: "Pass externalAddress for flows like buildDepositBackIntent() or buildRevokeIntent().",
+        },
+      );
     }
   }
 
@@ -539,10 +566,9 @@ export async function executeIntent(
   const intentFastTxId = extractClaimId(intentCrossSign.transaction);
 
   // Step 6: Resolve external address and submit to relayer
-  const externalAddress = resolveExternalAddress(
-    intents,
-    externalAddressOverride,
-  );
+  const externalAddress = prepared
+    ? v1ExternalAddress
+    : resolveExternalAddress(intents, externalAddressOverride);
   if (!externalAddress) {
     throw new FastError(
       "INVALID_PARAMS",

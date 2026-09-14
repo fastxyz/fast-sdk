@@ -566,6 +566,9 @@ export function buildClaimBytes(params: {
   display?: IntentClaimV1['display'];
 }): { encoding: 'v1' | 'legacy'; claimData: Uint8Array; userData: Uint8Array | null } {
   const encoding = params.claimEncoding ?? 'legacy';
+  if (encoding !== 'legacy' && encoding !== 'v1') {
+    throw new Error('allset/intent/v1: claimEncoding must be "legacy" or "v1"');
+  }
   if (encoding === 'v1') {
     if (params.chainId === undefined) {
       throw new Error('allset/intent/v1: chainId is required for claimEncoding "v1"');

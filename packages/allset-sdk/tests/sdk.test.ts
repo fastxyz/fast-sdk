@@ -975,6 +975,27 @@ test('executeIntent with claimEncoding v1 rejects revoke batches before touching
   }
 });
 
+test('executeIntent rejects an unknown runtime claimEncoding before touching the signer or provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const signer = spyOnSigner(touched, () => {
+    throw new Error('signer touched before claimEncoding was rejected');
+  });
+
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: 'v2' as 'v1',
+    }),
+    /claimEncoding/,
+  );
+  assert.deepEqual(touched, []);
+  assert.equal(submitted.length, 0);
+});
+
 test('executeIntent with claimEncoding v1 sends the tag on the transfer and decodable JSON in the claim', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = crossSignFetch;

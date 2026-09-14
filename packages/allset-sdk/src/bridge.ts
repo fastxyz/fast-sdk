@@ -442,6 +442,15 @@ export async function executeIntent(
   }
 
   const encoding = params.claimEncoding ?? "legacy";
+  if (encoding !== "legacy" && encoding !== "v1") {
+    throw new FastError(
+      "INVALID_PARAMS",
+      'executeIntent claimEncoding must be "legacy" or "v1"',
+      {
+        note: "Omit claimEncoding to keep the legacy default.",
+      },
+    );
+  }
   let prepared = null;
   let v1ExternalAddress: `0x${string}` | null = null;
   if (encoding === "v1") {

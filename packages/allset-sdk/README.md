@@ -153,6 +153,8 @@ The default is still `'legacy'`; it flips to `'v1'` only after cross-sign and th
 
 A `revoke` action must be the claim's sole intent. Multi-intent batches may combine the other supported actions but cannot contain `revoke`.
 
+Intent `value` fields and `display.amount` use `bigint`; non-`bigint` runtime values are rejected during v1 preflight before signer or provider access.
+
 Schema package subpath: `@fastxyz/allset-sdk/schemas/allset-intent-v1.json`. Encoders: `encodeIntentClaimV1`, `decodeIntentClaimV1`, `intentClaimV1ToAbi`, `transferUserDataTag`, `readTransferUserDataTag`.
 
 ---

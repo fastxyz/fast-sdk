@@ -100,6 +100,9 @@ function requireCanonicalUint(field: string, value: string): bigint {
 }
 
 function requireU256(field: string, value: bigint): void {
+  if (typeof value !== 'bigint') {
+    throw new Error(`allset/intent/v1: ${field} must be a bigint`);
+  }
   if (value < 0n || value > U256_MAX) {
     throw new Error(`allset/intent/v1: ${field} out of range`);
   }

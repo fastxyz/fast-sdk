@@ -920,6 +920,29 @@ test('executeIntent with claimEncoding v1 validates before touching the signer o
   assert.equal(submitted.length, 0);
 });
 
+test('executeIntent with claimEncoding v1 rejects fractional intent values before touching the signer or provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const signer = spyOnSigner(touched, () => {
+    throw new Error('signer touched before fractional intent value was rejected');
+  });
+
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [{ ...buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS), value: 0.5 as unknown as bigint }],
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: 'v1',
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+    }),
+    /value.*bigint/,
+  );
+  assert.deepEqual(touched, []);
+  assert.equal(submitted.length, 0);
+});
+
 test('executeIntent with claimEncoding v1 rejects sparse intents before touching the signer or provider', async () => {
   const touched: string[] = [];
   const submitted: unknown[] = [];

@@ -384,6 +384,10 @@ test('prepareIntentClaimV1 validates every input, including the deadline, before
     () => prepareIntentClaimV1({ intents, ...PREP, display: { amount: 1n, tokenSymbol: 'é'.repeat(9), tokenDecimals: 6 } }),
     /token_symbol/,
   );
+  assert.throws(
+    () => prepareIntentClaimV1({ intents: [{ ...intents[0]!, value: 0.5 as unknown as bigint }], ...PREP }),
+    /value.*bigint/,
+  );
   assert.throws(() => prepareIntentClaimV1({ intents: [{ ...buildRevokeIntent(), value: 1n }], ...PREP }), /revoke/);
   for (const bad of [0.5, 0, -1, Infinity, NaN, 1e30, 2 ** 53]) {
     assert.throws(() => prepareIntentClaimV1({ intents, ...PREP, deadlineSeconds: bad }), /deadlineSeconds/, String(bad));

@@ -151,6 +151,8 @@ const result = await executeIntent({
 
 The default is still `'legacy'`; it flips to `'v1'` only after cross-sign and the Fast App decoder are deployed (AllSet#576). Legacy claims stay accepted for as long as untagged intents remain valid on the contracts.
 
+A `revoke` action must be the claim's sole intent. Multi-intent batches may combine the other supported actions but cannot contain `revoke`.
+
 Schema: `schemas/allset-intent-v1.json`. Encoders: `encodeIntentClaimV1`, `decodeIntentClaimV1`, `intentClaimV1ToAbi`, `transferUserDataTag`, `readTransferUserDataTag`.
 
 ---

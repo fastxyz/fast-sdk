@@ -162,6 +162,9 @@ function validateClaim(claim: IntentClaimV1): void {
       throw new Error(`allset/intent/v1: intents[${index}] is missing`);
     }
   }
+  if (claim.intents.length > 1 && claim.intents.some((intent) => intent.action === 'revoke')) {
+    throw new Error('allset/intent/v1: revoke must be the sole intent');
+  }
 
   claim.intents.forEach((intent, index) => {
     const field = (name: string): string => `intents[${index}].${name}`;

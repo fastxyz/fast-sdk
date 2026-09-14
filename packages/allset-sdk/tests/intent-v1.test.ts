@@ -271,6 +271,11 @@ test('validation enforces the shared domains and derives batch for two or more i
       intents: [withdraw.intents[0], withdraw.intents[0]],
     }),
   );
+  const revoke = { action: 'revoke' as const, value: 0n };
+  assert.doesNotThrow(() => encodeIntentClaimV1({ ...withdraw, kind: 'revoke', intents: [revoke] }));
+  for (const intents of [[revoke, withdraw.intents[0]], [withdraw.intents[0], revoke], [revoke, revoke]]) {
+    assert.throws(() => encodeIntentClaimV1({ ...withdraw, kind: 'batch', intents }), /revoke/);
+  }
   assert.doesNotThrow(() => encodeIntentClaimV1({ ...withdraw, chain: 'eip155:9999999999999' }));
   assert.throws(() => encodeIntentClaimV1({ ...withdraw, chain: 'eip155:10000000000000' }), /chain/);
 });
@@ -444,7 +449,7 @@ test('the published JSON Schema accepts every accept fixture and rejects structu
   for (const name of Object.keys(VECTORS)) {
     assert.ok(validate(JSON.parse(readFileSync(`${VECTOR_DIRECTORY}${name}.json`, 'utf8'))), name);
   }
-  for (const name of ['unknown-key', 'zero-intents']) {
+  for (const name of ['unknown-key', 'zero-intents', 'revoke-in-batch']) {
     assert.ok(!validate(JSON.parse(readFileSync(`${VECTOR_DIRECTORY}reject/${name}.json`, 'utf8'))), name);
   }
 });

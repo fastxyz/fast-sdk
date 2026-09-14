@@ -109,6 +109,7 @@ export const REJECTS: Record<string, string> = {
   'fast-uppercase': 'fast_receiver',
   'fast-nonzero-padding': 'fast_receiver',
   'revoke-nonzero': 'value',
+  'revoke-in-batch': 'revoke',
   'kind-mismatch': 'kind',
   'non-canonical-whitespace': 'canonical',
   'unknown-key': 'unknown key',
@@ -179,6 +180,12 @@ const revokeText = text(VECTORS.revoke);
 const batchText = text(VECTORS.batch);
 const depositBackText = text(VECTORS['deposit-back']);
 const symbolText = text(VECTORS['symbol-16-bytes']);
+const revokeInBatchText = revokeText
+  .replace('"kind": "revoke"', '"kind": "batch"')
+  .replace(
+    '      "value": "0"\n    }\n  ]',
+    '      "value": "0"\n    },\n    {\n      "action": "revoke",\n      "value": "0"\n    }\n  ]',
+  );
 
 const REJECT_BODIES: Record<string, string> = {
   'deadline-overflow': withdrawText.replace('"1789071600"', '"18446744073709551616"'),
@@ -188,6 +195,7 @@ const REJECT_BODIES: Record<string, string> = {
   'fast-uppercase': depositBackText.replace(FAST_RECEIVER, FAST_RECEIVER.toUpperCase()),
   'fast-nonzero-padding': depositBackText.replace(FAST_RECEIVER, NONZERO_PADDING_FAST_RECEIVER),
   'revoke-nonzero': revokeText.replace('"value": "0"', '"value": "1"'),
+  'revoke-in-batch': revokeInBatchText,
   'kind-mismatch': revokeText.replace('"kind": "revoke"', '"kind": "withdraw"'),
   'non-canonical-whitespace': withdrawText.replace(/\n */g, ''),
   'unknown-key': withdrawText.replace('"schema": "allset/intent/v1",', '"schema": "allset/intent/v1",\n  "memo": "x",'),

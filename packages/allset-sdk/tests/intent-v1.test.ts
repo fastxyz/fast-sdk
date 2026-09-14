@@ -457,3 +457,9 @@ test('the published JSON Schema accepts every accept fixture and rejects structu
     assert.ok(!validate(JSON.parse(readFileSync(`${VECTOR_DIRECTORY}reject/${name}.json`, 'utf8'))), name);
   }
 });
+
+test('the distributed package resolves the published JSON Schema subpath', () => {
+  const schemaUrl = import.meta.resolve('@fastxyz/allset-sdk/schemas/allset-intent-v1.json');
+  const schema = JSON.parse(readFileSync(fileURLToPath(schemaUrl), 'utf8'));
+  assert.equal(schema.$id, 'https://allset.fast.xyz/schemas/allset-intent-v1.json');
+});

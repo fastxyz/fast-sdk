@@ -21,7 +21,8 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    }
+    },
+    "./schemas/allset-intent-v1.json": "./schemas/allset-intent-v1.json"
   },
   "files": [
     "dist",

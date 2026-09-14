@@ -370,6 +370,10 @@ test('buildClaimBytes defaults to legacy and produces v1 only when asked', () =>
     () => buildClaimBytes({ transferFastTxId: TX, deadline: 1789071600n, intents, claimEncoding: 'v2' as 'v1' }),
     /claimEncoding/,
   );
+  assert.throws(
+    () => buildClaimBytes({ transferFastTxId: TX, deadline: 1789071600n, intents, claimEncoding: null as unknown as 'v1' }),
+    /claimEncoding/,
+  );
 });
 
 test('prepareIntentClaimV1 validates every input, including the deadline, before any effect', () => {

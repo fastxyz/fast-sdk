@@ -992,6 +992,16 @@ test('executeIntent rejects an unknown runtime claimEncoding before touching the
     }),
     /claimEncoding/,
   );
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: null as unknown as 'v1',
+    }),
+    /claimEncoding/,
+  );
   assert.deepEqual(touched, []);
   assert.equal(submitted.length, 0);
 });

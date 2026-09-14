@@ -149,7 +149,7 @@ const result = await executeIntent({
 
 `executeWithdraw` / `executeIntent` can sign a self-describing canonical-JSON `claim_data` instead of the bare ABI struct: pass `claimEncoding: 'v1'` together with `chainId` and `bridgeContract` (and optionally `display: { amount, tokenSymbol, tokenDecimals }`). The transfer leg then carries a 32-byte `allset/transfer/v1:<chainId>` tag in `user_data`, so the Fast App signing pop-up and the explorer can read what is being authorized. The bytes the bridge contract sees are unchanged: cross-sign derives them. All v1 inputs are validated before the Fast transfer is signed.
 
-The default is still `'legacy'`; it flips to `'v1'` only after cross-sign and the Fast App decoder are deployed (AllSet#576). Legacy claims stay accepted for as long as untagged intents remain valid on the contracts.
+The default is still `'legacy'`; it flips to `'v1'` only after cross-sign and the Fast App decoder are deployed (AllSet#576). Only an omitted/`undefined` `claimEncoding` selects that default; supplied runtime values other than `'legacy'` or `'v1'`, including `null`, are rejected. Legacy claims stay accepted for as long as untagged intents remain valid on the contracts.
 
 A `revoke` action must be the claim's sole intent. Multi-intent batches may combine the other supported actions but cannot contain `revoke`.
 

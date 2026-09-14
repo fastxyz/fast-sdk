@@ -441,7 +441,7 @@ export async function executeIntent(
     });
   }
 
-  const encoding = params.claimEncoding ?? "legacy";
+  const encoding = params.claimEncoding === undefined ? "legacy" : params.claimEncoding;
   if (encoding !== "legacy" && encoding !== "v1") {
     throw new FastError(
       "INVALID_PARAMS",

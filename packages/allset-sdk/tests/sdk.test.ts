@@ -920,6 +920,31 @@ test('executeIntent with claimEncoding v1 validates before touching the signer o
   assert.equal(submitted.length, 0);
 });
 
+test('executeIntent with claimEncoding v1 rejects sparse intents before touching the signer or provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const intents = [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)];
+  intents.length = 2;
+  const signer = spyOnSigner(touched, () => {
+    throw new Error('signer touched before sparse intents were rejected');
+  });
+
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents,
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: 'v1',
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+    }),
+    /intents\[1\].*missing/,
+  );
+  assert.deepEqual(touched, []);
+  assert.equal(submitted.length, 0);
+});
+
 test('executeIntent with claimEncoding v1 sends the tag on the transfer and decodable JSON in the claim', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = crossSignFetch;

@@ -157,6 +157,11 @@ function validateClaim(claim: IntentClaimV1): void {
   if (!Array.isArray(claim.intents) || claim.intents.length === 0) {
     throw new Error('allset/intent/v1: intents must not be empty');
   }
+  for (let index = 0; index < claim.intents.length; index++) {
+    if (!Object.hasOwn(claim.intents, index)) {
+      throw new Error(`allset/intent/v1: intents[${index}] is missing`);
+    }
+  }
 
   claim.intents.forEach((intent, index) => {
     const field = (name: string): string => `intents[${index}].${name}`;

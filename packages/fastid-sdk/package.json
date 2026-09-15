@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/fastid-sdk",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Programmatic client for id.fast.xyz — everything a non-admin user can do, for agents",
   "license": "Apache-2.0",
   "repository": {

@@ -199,23 +199,29 @@ describe("browser-bound OAuth proofs", () => {
     expect(instructions.instructions).toMatch(/same wallet/i);
     expect(instructions.instructions).toMatch(/browser/i);
 
-    await expect(
-      h.client.waitForOAuthProof("github", "https://github.com/OctoCat", {
-        timeoutMs: 100,
-        intervalMs: 0,
-      }),
-    ).resolves.toMatchObject({
-      available: true,
-      provider: "github",
-      value: "octocat",
-      addressHex: h.signer.signerHex,
-      network: "fast:testnet",
-    });
-    const probesSeen = h.calls.filter(({ url }) => url.includes("proof-available"));
-    expect(probesSeen).toHaveLength(2);
-    expect(probesSeen[0].url).toBe(
-      `https://testnet.id.fast.xyz/api/oauth/proof-available?address=${h.signer.signerHex}&kind=github&value=octocat`,
-    );
+    // Success polling is independent of runner load; timeout behavior has its own tests.
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    try {
+      await expect(
+        h.client.waitForOAuthProof("github", "https://github.com/OctoCat", {
+          timeoutMs: 100,
+          intervalMs: 0,
+        }),
+      ).resolves.toMatchObject({
+        available: true,
+        provider: "github",
+        value: "octocat",
+        addressHex: h.signer.signerHex,
+        network: "fast:testnet",
+      });
+      const probesSeen = h.calls.filter(({ url }) => url.includes("proof-available"));
+      expect(probesSeen).toHaveLength(2);
+      expect(probesSeen[0].url).toBe(
+        `https://testnet.id.fast.xyz/api/oauth/proof-available?address=${h.signer.signerHex}&kind=github&value=octocat`,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("snapshots OAuth wait options before the first proof probe", async () => {
@@ -242,10 +248,15 @@ describe("browser-bound OAuth proofs", () => {
       },
     });
 
-    await expect(
-      h.client.waitForOAuthProof("github", "octocat", options),
-    ).resolves.toMatchObject({ available: true, value: "octocat" });
-    expect(probes).toBe(2);
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    try {
+      await expect(
+        h.client.waitForOAuthProof("github", "octocat", options),
+      ).resolves.toMatchObject({ available: true, value: "octocat" });
+      expect(probes).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("times out without treating false as authority to sign or submit", async () => {

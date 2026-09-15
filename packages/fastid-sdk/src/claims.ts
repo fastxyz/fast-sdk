@@ -208,8 +208,11 @@ export class ClaimService {
     let identity: Awaited<ReturnType<IdReads["identity"]>> | undefined;
     try {
       identity = await this.#reads.identity(this.#signer.address);
-    } catch {
-      identity = undefined;
+    } catch (cause) {
+      throw new PreSubmitError(
+        "identity preflight is indeterminate; refusing to continue to payment",
+        { cause },
+      );
     }
     if (
       identity?.address === this.#signer.address &&

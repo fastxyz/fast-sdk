@@ -35,6 +35,11 @@ DOI imports, profile updates, revocation, sealed reports and sharing URLs. Use
 `fast:mainnet` when intending to use production. Paid operations use the supplied
 signer; preserve pending or indeterminate results instead of paying again.
 `retryRegistration` retries registration only and never submits another payment.
+`claimName()` performs a fail-closed identity preflight: a transport failure,
+invalid HTTP status, malformed response, or wrong-account/network response stops
+before availability, fee resolution, signing, provider submission, or registration.
+This contract is specific to the SDK; the website keeps its existing behavior,
+and the preflight does not remove races between a read and a later registration.
 GitHub/ORCID OAuth uses the existing browser page, the same wallet/network and a
 known provider identity; the SDK polls the persisted proof, without receiving
 OAuth callbacks or tokens. See the served [agent guide](https://id.fast.xyz/AGENTS.md)

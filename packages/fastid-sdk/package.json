@@ -1,0 +1,53 @@
+{
+  "name": "@fastxyz/fastid-sdk",
+  "version": "0.0.0",
+  "description": "Programmatic client for id.fast.xyz — everything a non-admin user can do, for agents",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fastxyz/fast-sdk.git",
+    "directory": "packages/fastid-sdk"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "prebuild": "node scripts/package-artifact.mjs clean",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "smoke:package": "node scripts/package-consumer.mjs",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@fastxyz/schema": "workspace:*",
+    "@fastxyz/sdk": "workspace:*",
+    "@hpke/core": "^1.9.0",
+    "@noble/ed25519": "^2.1.0",
+    "@noble/hashes": "^1.5.0",
+    "effect": "^3.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5",
+    "vitest": "^3.0.0"
+  },
+  "packageManager": "pnpm@10.1.0"
+}

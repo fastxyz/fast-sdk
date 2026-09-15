@@ -167,11 +167,12 @@ const sourceRoot = process.env.ID_SDK_BINDER_ROOT
   : resolve(packageRoot, "src");
 
 describe("non-admin public SDK binder", () => {
+  // Cold TypeScript graph construction took 6.7s in workspace CI; preserve all checks.
   it("contains no admin route reference or admin-named public export", () => {
     const result = scanNoAdmin(sourceRoot);
     expect(result.routeViolations).toEqual([]);
     expect(result.adminExports).toEqual([]);
-  });
+  }, 15_000);
 
   it("has live positive controls without rejecting the reserved name", () => {
     const result = scanNoAdmin(sourceRoot);
@@ -179,7 +180,7 @@ describe("non-admin public SDK binder", () => {
     expect(result.stringLiterals).toContain("admin");
     expect(isAdminRouteLiteral("admin")).toBe(false);
     expect(isAdminRouteLiteral("/api/admin/reserve")).toBe(true);
-  });
+  }, 15_000);
 
   it("runs the dynamic-template positive control through the real scanner", () => {
     const scratch = mkdtempSync(join(tmpdir(), "id-sdk-binder-dynamic-"));

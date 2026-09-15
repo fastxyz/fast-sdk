@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -73,44 +70,7 @@ function reportPosts(calls: Array<{ url: string; init?: RequestInit }>) {
 }
 
 describe("sealed reports", () => {
-  it("matches the index crossing fixture attribution bytes", () => {
-    const fixture = JSON.parse(
-      readFileSync(
-        join(
-          process.cwd(),
-          "..",
-          "fastset-id-index",
-          "tests",
-          "fixtures",
-          "report-envelope-v1.json",
-        ),
-        "utf8",
-      ),
-    ) as {
-      signed_envelope: {
-        attribution_message_hex: string;
-        body: {
-          area: string;
-          received_hour: string;
-          seals: Array<{
-            recipient_key_id: string;
-            enc: string;
-            ciphertext: string;
-          }>;
-        };
-      };
-    };
-    const envelope = fixture.signed_envelope;
-    expect(
-      toHex(
-        attributionMessage(
-          envelope.body.area,
-          hourUnixSecs(envelope.body.received_hour),
-          envelope.body.seals,
-        ),
-      ),
-    ).toBe(envelope.attribution_message_hex);
-  });
+  // Private index-fixture crossing coverage runs in fast-id's id-sdk gate.
 
   it("fetches config first and sends the exact anonymous sealed envelope", async () => {
     const h = await harness();

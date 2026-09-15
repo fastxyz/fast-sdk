@@ -285,6 +285,7 @@ describe("claim preflight", () => {
         network: "fast:testnet",
         address: OTHER_ADDRESS,
         name: "alice.one",
+        name_claim_tx: CLAIM_TX_ID,
       },
     }],
     ["wrong network", {
@@ -292,6 +293,7 @@ describe("claim preflight", () => {
         network: "fast:mainnet",
         address: SIGNER_ADDRESS,
         name: "alice.one",
+        name_claim_tx: CLAIM_TX_ID,
       },
     }],
   ] as const)("fails closed on identity %s", async (_label, options) => {

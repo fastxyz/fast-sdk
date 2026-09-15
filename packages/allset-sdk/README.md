@@ -153,7 +153,7 @@ The default is still `'legacy'`; it flips to `'v1'` only after cross-sign and th
 
 A `revoke` action must be the claim's sole intent. Multi-intent batches may combine the other supported actions but cannot contain `revoke`.
 
-Intent `value` fields must be `bigint` at runtime. `display.amount` is advisory and is first normalized with `BigInt(...)` into the owned snapshot, then range-validated; inputs accepted by that conversion therefore become a valid `bigint` value.
+The v1 claim `deadline` and intent `value` fields must be `bigint` at runtime. `display.amount` is advisory and is first normalized with `BigInt(...)` into the owned snapshot, then range-validated; inputs accepted by that conversion therefore become a valid `bigint` value.
 
 Schema package subpath: `@fastxyz/allset-sdk/schemas/allset-intent-v1.json`. Encoders: `encodeIntentClaimV1`, `decodeIntentClaimV1`, `intentClaimV1ToAbi`, `transferUserDataTag`, `readTransferUserDataTag`.
 

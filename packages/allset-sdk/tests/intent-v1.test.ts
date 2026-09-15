@@ -188,6 +188,13 @@ test('ABI mapping preserves value for every action and requires zero for revoke'
 test('validation enforces the shared domains and derives batch for two or more intents', () => {
   assert.doesNotThrow(() => encodeIntentClaimV1({ ...withdraw, deadline: 2n ** 64n - 1n }));
   assert.throws(() => encodeIntentClaimV1({ ...withdraw, deadline: 2n ** 64n }), /deadline/);
+  for (const deadline of [0.5, NaN, '01']) {
+    assert.throws(
+      () => encodeIntentClaimV1({ ...withdraw, deadline: deadline as unknown as bigint }),
+      /deadline.*bigint/,
+      String(deadline),
+    );
+  }
   assert.doesNotThrow(() =>
     encodeIntentClaimV1({
       ...withdraw,

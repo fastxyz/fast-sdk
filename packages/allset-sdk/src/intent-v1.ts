@@ -154,6 +154,9 @@ function validateClaim(claim: IntentClaimV1): void {
   }
   requireHex('bridge', claim.bridge, HEX20, 'a 20-byte hex address');
   requireHex('transfer_tx', claim.transferTx, HEX32, 'a 32-byte hex value');
+  if (typeof claim.deadline !== 'bigint') {
+    throw new Error('allset/intent/v1: deadline must be a bigint');
+  }
   if (claim.deadline < 0n || claim.deadline > U64_MAX) {
     throw new Error('allset/intent/v1: deadline out of range for u64');
   }

@@ -1,0 +1,16 @@
+{
+  "schema": "allset/intent/v1",
+  "kind": "deposit_back",
+  "chain": "eip155:5042",
+  "bridge": "0x8677edaa374b7a47ff0093947aabe4acbb2d4538",
+  "transfer_tx": "0x4444444444444444444444444444444444444444444444444444444444444444",
+  "deadline": "1789071600",
+  "intents": [
+    {
+      "action": "deposit_back",
+      "token": "0x3600000000000000000000000000000000000000",
+      "fast_receiver": "fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpa4p6au",
+      "value": "0"
+    }
+  ]
+}

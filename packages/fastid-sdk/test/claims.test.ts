@@ -11,6 +11,7 @@ import {
   NameUnavailableError,
   NonceConflictError,
   PendingNetworkMismatchError,
+  PreSubmitError,
   RegistrationPendingError,
   RegistrationTerminalError,
   SigningError,
@@ -23,6 +24,10 @@ import { classifyPreflight } from "../src/claim-preflight.js";
 
 const TOKEN_ID = "11".repeat(32);
 const CLAIM_TX_ID = "22".repeat(32);
+const SIGNER_ADDRESS =
+  "fast132yw8ht5p8cetl2jmvknewjawt9xwzdlrk2pyxlnwjyqrdq0dawqkehkfr";
+const OTHER_ADDRESS =
+  "fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -87,6 +92,8 @@ interface HarnessOptions {
   networkInfo?: Response;
   links?: unknown;
   identity?: unknown;
+  identityResponse?: Response;
+  identityError?: unknown;
   resolved?: unknown;
   provider?: ProviderHarness;
   signer?: Signer;
@@ -116,7 +123,11 @@ async function harness(options: HarnessOptions = {}) {
       );
     }
     if (url.endsWith(`/${encodeURIComponent(signer.address)}/identity.json`)) {
-      return json(options.identity ?? { network: "fast:testnet", address: signer.address });
+      if (options.identityError !== undefined) throw options.identityError;
+      return (
+        options.identityResponse ??
+        json(options.identity ?? { network: "fast:testnet", address: signer.address })
+      );
     }
     if (url.endsWith(`/${encodeURIComponent(signer.address)}/id.json`)) {
       return json(
@@ -261,6 +272,58 @@ describe("claim preflight", () => {
     expect(h.sign).not.toHaveBeenCalled();
     expect(h.provider.getAccountInfo).not.toHaveBeenCalled();
     expect(h.provider.submitTransaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["transport failure", { identityError: new TypeError("connection reset") }],
+    ["invalid HTTP status", { identityResponse: json({ error: "busy" }, 503) }],
+    ["malformed successful payload", {
+      identityResponse: new Response("not JSON", { status: 200 }),
+    }],
+    ["wrong account", {
+      identity: {
+        network: "fast:testnet",
+        address: OTHER_ADDRESS,
+        name: "alice.one",
+        name_claim_tx: CLAIM_TX_ID,
+      },
+    }],
+    ["wrong network", {
+      identity: {
+        network: "fast:mainnet",
+        address: SIGNER_ADDRESS,
+        name: "alice.one",
+        name_claim_tx: CLAIM_TX_ID,
+      },
+    }],
+  ] as const)("fails closed on identity %s", async (_label, options) => {
+    const h = await harness(options);
+
+    let error: unknown;
+    try {
+      await h.client.claimName("alice.smith");
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toBeInstanceOf(PreSubmitError);
+    expect(error).not.toBeInstanceOf(IndeterminateSubmissionError);
+    expect((error as Error & { cause?: unknown }).cause).toBeDefined();
+    expect(h.calls.some(({ url }) => url.includes("/api/availability?"))).toBe(false);
+    expect(h.calls.some(({ url }) => url.includes("/proxy-rest/"))).toBe(false);
+    expect(h.sign).not.toHaveBeenCalled();
+    expect(h.provider.getAccountInfo).not.toHaveBeenCalled();
+    expect(h.provider.submitTransaction).not.toHaveBeenCalled();
+    expect(registrationCalls(h.calls)).toHaveLength(0);
+  });
+
+  it("continues for a valid same-network unnamed identity", async () => {
+    const h = await harness();
+
+    await expect(h.client.claimName("alice.smith")).resolves.toMatchObject({
+      registration: "registered",
+    });
+    expect(h.calls.some(({ url }) => url.includes("/api/availability?"))).toBe(true);
+    expect(h.provider.submitTransaction).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed on an unavailable authoritative fee", async () => {

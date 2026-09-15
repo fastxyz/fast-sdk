@@ -920,6 +920,30 @@ test('executeIntent with claimEncoding v1 validates before touching the signer o
   assert.equal(submitted.length, 0);
 });
 
+test('executeIntent rejects a malformed externalAddress before touching the signer or provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const signer = spyOnSigner(touched, () => {
+    throw new Error('signer touched before externalAddress was rejected');
+  });
+
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      externalAddress: '0x1234',
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: 'v1',
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+    }),
+    /externalAddress.*20-byte/,
+  );
+  assert.deepEqual(touched, []);
+  assert.equal(submitted.length, 0);
+});
+
 test('executeIntent with claimEncoding v1 rejects fractional intent values before touching the signer or provider', async () => {
   const touched: string[] = [];
   const submitted: unknown[] = [];

@@ -53,7 +53,7 @@ export interface ExecuteIntentParams {
   /** Intents to execute on EVM chain after bridge */
   intents: Intent[];
   /**
-   * EVM address for the relayer target.
+   * 0x-prefixed 20-byte EVM address used as relayer metadata.
    * Required when intents do not include a transfer recipient or execute target
    * (e.g., for buildDepositBackIntent or buildRevokeIntent flows).
    */

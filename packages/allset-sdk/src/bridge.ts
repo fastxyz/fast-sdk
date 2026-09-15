@@ -425,12 +425,15 @@ export async function executeIntent(
     );
   }
 
-  if (externalAddressOverride && !externalAddressOverride.startsWith("0x")) {
+  if (
+    externalAddressOverride !== undefined &&
+    (typeof externalAddressOverride !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(externalAddressOverride))
+  ) {
     throw new FastError(
       "INVALID_PARAMS",
-      "executeIntent externalAddress must be an EVM address",
+      "executeIntent externalAddress must be a 20-byte EVM address",
       {
-        note: "Pass a 0x-prefixed address for the relayer target.",
+        note: "Pass a 0x-prefixed 20-byte hexadecimal address for the relayer metadata.",
       },
     );
   }

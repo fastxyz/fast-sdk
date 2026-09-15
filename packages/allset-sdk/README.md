@@ -246,7 +246,7 @@ interface ExecuteIntentParams {
   tokenFastTokenId: string; // hex, no 0x prefix
   amount: string;
   intents: Intent[];
-  externalAddress?: string; // override EVM target (required for depositBack/revoke flows)
+  externalAddress?: string; // 0x-prefixed 20-byte relayer metadata (required for depositBack/revoke flows)
   deadlineSeconds?: number; // default: 3600
   networkId: string; // 'fast:testnet' | 'fast:mainnet' | ...
   signer: Signer; // from @fastxyz/sdk

@@ -8,7 +8,7 @@ import {
 } from '@fastxyz/schema';
 import { hashHex, TransactionBuilder } from '@fastxyz/sdk';
 import { Effect, Schema } from 'effect';
-import { TransactionFailedError, TransactionSubmissionUnknownError } from '../errors/index.js';
+import { FastSdkError, TransactionFailedError, TransactionSubmissionUnknownError } from '../errors/index.js';
 import { FastRpc } from './api/fast.js';
 import type { ResolvedSigner } from './signer-resolver.js';
 
@@ -28,6 +28,57 @@ export interface TxPipelineIncomplete {
 
 export type TxPipelineResult = TxPipelineSuccess | TxPipelineIncomplete;
 export type TxPipelineError = TransactionFailedError | TransactionSubmissionUnknownError;
+
+// These tags are produced after the proxy/validator has received and rejected
+// the request. They are not an indeterminate network outcome. Transport
+// failures, timeouts, and unknown SDK causes intentionally remain unknown.
+const definitiveSubmissionErrorTags = new Set([
+  'RestError',
+  'InvalidRequestError',
+  'NotFoundError',
+  'TooManyCertificatesRequestedError',
+  'ProxyUnexpectedNonceError',
+  'VerifierSigsInvalidError',
+  'GeneralError',
+  'UpstreamError',
+  'IpRateLimitedError',
+  'ServiceUnavailableError',
+  'DatabaseError',
+  'UnexpectedNonceError',
+  'InsufficientFundingError',
+  'PreviousTransactionPendingError',
+  'InvalidSignatureError',
+  'MissingEarlierConfirmationsError',
+  'CertificateTooYoungError',
+  'NonSubmittableOperationError',
+  'ValidatorGenericError',
+]);
+
+export const isDefinitiveSubmissionFailure = (cause: unknown): boolean => {
+  const underlying = cause instanceof FastSdkError ? cause.cause : cause;
+  if (!underlying || typeof underlying !== 'object') return false;
+  const tag = (underlying as { readonly _tag?: unknown })._tag;
+  return typeof tag === 'string' && definitiveSubmissionErrorTags.has(tag);
+};
+
+export const classifySubmissionError = (params: {
+  readonly txHash: string;
+  readonly nonce: bigint;
+  readonly envelope: TransactionEnvelope;
+  readonly recoveryEnvelope: unknown;
+  readonly cause: unknown;
+}): TxPipelineError => {
+  if (isDefinitiveSubmissionFailure(params.cause)) {
+    const message =
+      params.cause instanceof FastSdkError
+        ? params.cause.message
+        : params.cause instanceof Error
+          ? params.cause.message
+          : 'Transaction submission was rejected by the Fast network.';
+    return new TransactionFailedError({ message, cause: params.cause });
+  }
+  return new TransactionSubmissionUnknownError(params);
+};
 
 export interface SubmitOperationParams {
   readonly resolved: ResolvedSigner;
@@ -239,15 +290,14 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
 
     // 5. Submit
     const submitResult = yield* rpc.submitTransaction(envelope).pipe(
-      Effect.mapError(
-        (cause) =>
-          new TransactionSubmissionUnknownError({
-            txHash: recovery.txHash,
-            nonce,
-            envelope,
-            recoveryEnvelope: recovery.recoveryEnvelope,
-            cause,
-          }),
+      Effect.mapError((cause) =>
+        classifySubmissionError({
+          txHash: recovery.txHash,
+          nonce,
+          envelope,
+          recoveryEnvelope: recovery.recoveryEnvelope,
+          cause,
+        }),
       ),
     );
 

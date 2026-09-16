@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { TransactionEnvelopeFromRest } from '@fastxyz/schema';
 import { Effect, Layer, Schema } from 'effect';
-import { canonicalizeMultiSigSigners, MultiSigSigner, Signer } from '@fastxyz/sdk';
-import { FastSdkError, TransactionSubmissionUnknownError } from '../../src/errors/index';
+import { canonicalizeMultiSigSigners, MultiSigSigner, ProxyUnexpectedNonceError, Signer } from '@fastxyz/sdk';
+import { FastSdkError, TransactionFailedError, TransactionSubmissionUnknownError } from '../../src/errors/index';
 import { submitOperation } from '../../src/services/tx-pipeline';
 import { FastRpc } from '../../src/services/api/fast';
 
@@ -160,6 +160,45 @@ describe('submitOperation (single-signer)', () => {
     expect(() => JSON.stringify(error.details)).not.toThrow();
     expect(Schema.decodeUnknownSync(TransactionEnvelopeFromRest)(error.details.recoveryEnvelope)).toEqual(submittedEnvelope);
     expect(error.message).toContain('Do not rebuild or retry this operation');
+  });
+
+  it('preserves a deterministic proxy rejection instead of reporting an unknown submission', async () => {
+    const signer = new Signer(SECRET);
+    const rejection = new ProxyUnexpectedNonceError({
+      message: 'nonce 7 does not match expected nonce 8',
+      txNonce: 7n,
+      expectedNonce: 8n,
+    });
+    const rpcStub = Layer.succeed(FastRpc, {
+      getAccountInfo: (_p: unknown) => Effect.succeed({ nextNonce: 7n }) as never,
+      submitTransaction: (_envelope: unknown) => Effect.fail(new FastSdkError({ message: rejection.message, cause: rejection })) as never,
+      getPendingMultisigTransactions: (_p: unknown) => Effect.succeed([]) as never,
+      getTokenInfo: (_p: unknown) => Effect.succeed({}) as never,
+      getTransactionCertificates: (_p: unknown) => Effect.succeed([]) as never,
+      getRpcUrl: () => Effect.succeed('http://test'),
+    } as unknown as never);
+
+    const exit = await Effect.runPromiseExit(
+      submitOperation({
+        resolved: { kind: 'single', signer, account: {} as never },
+        networkId: 'fast:testnet',
+        operation: {
+          type: 'TokenTransfer',
+          value: {
+            tokenId: new Uint8Array(32),
+            recipient: new Uint8Array(32),
+            amount: 1n,
+            userData: null,
+          },
+        },
+      }).pipe(Effect.provide(rpcStub)),
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    expect(exit.cause.error).toBeInstanceOf(TransactionFailedError);
+    expect(exit.cause.error).toMatchObject({ errorCode: 'TX_FAILED', message: rejection.message });
+    expect(exit.cause.error.cause).toBeInstanceOf(FastSdkError);
   });
 });
 

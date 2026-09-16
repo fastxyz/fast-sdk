@@ -13,7 +13,7 @@ import { AccountStore } from '../../services/storage/account.js';
 import { HistoryStore, recordConfirmedHistory } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
 import { summarizeTransaction, transactionOperations } from '../../services/transaction-summary.js';
-import { prepareSubmissionRecovery } from '../../services/tx-pipeline.js';
+import { classifySubmissionError, prepareSubmissionRecovery } from '../../services/tx-pipeline.js';
 import type { Command } from '../index.js';
 
 /** Truncate a bech32 fast address for compact display. */
@@ -405,15 +405,14 @@ export const multisigVote: Command<MultisigVoteArgs> = {
         );
       }
       const submitResult = yield* rpc.submitTransaction(myEnvelope).pipe(
-        Effect.mapError(
-          (cause) =>
-            new TransactionSubmissionUnknownError({
-              txHash: recovery.txHash,
-              nonce: target.envelope.transaction.value.nonce,
-              envelope: myEnvelope,
-              recoveryEnvelope: recovery.recoveryEnvelope,
-              cause,
-            }),
+        Effect.mapError((cause) =>
+          classifySubmissionError({
+            txHash: recovery.txHash,
+            nonce: target.envelope.transaction.value.nonce,
+            envelope: myEnvelope,
+            recoveryEnvelope: recovery.recoveryEnvelope,
+            cause,
+          }),
         ),
       );
 

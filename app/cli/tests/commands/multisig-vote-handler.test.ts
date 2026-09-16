@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { canonicalizeMultiSigSigners, deriveMultiSigAddress, fromFastAddress, Signer, toFastAddress } from '@fastxyz/sdk';
+import { canonicalizeMultiSigSigners, deriveMultiSigAddress, fromFastAddress, ProxyUnexpectedNonceError, Signer, toFastAddress } from '@fastxyz/sdk';
 import Db from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
@@ -10,7 +10,7 @@ import { Effect, Layer, Option } from 'effect';
 import { describe, expect, it } from 'vitest';
 import { multisigVote } from '../../src/commands/multisig/vote.js';
 import { bundledNetworks } from '../../src/config/networks.js';
-import { DatabaseError, FastSdkError, TransactionSubmissionUnknownError } from '../../src/errors/index.js';
+import { DatabaseError, FastSdkError, TransactionFailedError, TransactionSubmissionUnknownError } from '../../src/errors/index.js';
 import type { HistoryEntry } from '../../src/schemas/history.js';
 import { FastRpc } from '../../src/services/api/fast.js';
 import { ClientConfig } from '../../src/services/config/client.js';
@@ -31,9 +31,17 @@ type VoteScenario = {
   readonly historyFailure?: boolean;
   readonly metadataFailure?: boolean;
   readonly submitFailure?: boolean;
+  readonly deterministicSubmitFailure?: boolean;
 };
 
-const runVoteScenario = async ({ asMember, submitType, historyFailure = false, metadataFailure = false, submitFailure = false }: VoteScenario) => {
+const runVoteScenario = async ({
+  asMember,
+  submitType,
+  historyFailure = false,
+  metadataFailure = false,
+  submitFailure = false,
+  deterministicSubmitFailure = false,
+}: VoteScenario) => {
   const sqlite = new Db(join(mkdtempSync(join(tmpdir(), 'fast-vote-handler-')), 'fast.db'));
   try {
     const db = drizzle(sqlite);
@@ -154,9 +162,20 @@ const runVoteScenario = async ({ asMember, submitType, historyFailure = false, m
           },
           submitTransaction: () => {
             submissions++;
-            return submitFailure
-              ? Effect.fail(new FastSdkError({ message: 'connection closed after request body' }))
-              : Effect.succeed({ type: submitType });
+            return deterministicSubmitFailure
+              ? Effect.fail(
+                  new FastSdkError({
+                    message: 'nonce 0 does not match expected nonce 1',
+                    cause: new ProxyUnexpectedNonceError({
+                      message: 'nonce 0 does not match expected nonce 1',
+                      txNonce: 0n,
+                      expectedNonce: 1n,
+                    }),
+                  }),
+                )
+              : submitFailure
+                ? Effect.fail(new FastSdkError({ message: 'connection closed after request body' }))
+                : Effect.succeed({ type: submitType });
           },
         } as never);
 
@@ -237,5 +256,19 @@ describe('multisig vote handler', () => {
     expect(error.details).toMatchObject({ txHash: error.txHash, nonce: '0' });
     expect(error.message).toContain('Do not rebuild or retry this operation');
     expect(result.history).toHaveLength(0);
+  });
+
+  it('surfaces a deterministic proxy rejection as a failed vote, not an unknown submission', async () => {
+    const result = await runVoteScenario({ asMember: 'bob', submitType: 'Success', deterministicSubmitFailure: true });
+
+    expect(result.submissions).toBe(1);
+    expect(result.exit._tag).toBe('Failure');
+    if (result.exit._tag !== 'Failure' || result.exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    expect(result.exit.cause.error).toBeInstanceOf(TransactionFailedError);
+    expect(result.exit.cause.error).toMatchObject({
+      errorCode: 'TX_FAILED',
+      message: 'nonce 0 does not match expected nonce 1',
+    });
+    expect(result.exit.cause.error.cause).toBeInstanceOf(FastSdkError);
   });
 });

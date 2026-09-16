@@ -83,7 +83,15 @@ export const tokenCreate: Command<TokenCreateArgs> = {
           );
         }
         try {
-          minterBytes.push(fromFastAddress(m));
+          const bytes = fromFastAddress(m);
+          if (bytes.length !== 32) {
+            return yield* Effect.fail(
+              new InvalidAddressError({
+                message: `--minters entry "${m}" must decode to exactly 32 bytes`,
+              }),
+            );
+          }
+          minterBytes.push(bytes);
         } catch (cause) {
           return yield* Effect.fail(
             new InvalidAddressError({

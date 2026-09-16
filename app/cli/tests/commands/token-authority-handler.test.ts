@@ -1,4 +1,5 @@
 import { Signer, canonicalizeMultiSigSigners, deriveMultiSigAddress, fromFastAddress, toFastAddress } from '@fastxyz/sdk';
+import { bech32m } from 'bech32';
 import { Effect, Layer, Option } from 'effect';
 import { describe, expect, it } from 'vitest';
 import { tokenBurn } from '../../src/commands/token/burn.js';
@@ -6,7 +7,7 @@ import { tokenCreate } from '../../src/commands/token/create.js';
 import { tokenManage } from '../../src/commands/token/manage.js';
 import { tokenMint } from '../../src/commands/token/mint.js';
 import { bundledNetworks } from '../../src/config/networks.js';
-import { DatabaseError } from '../../src/errors/index.js';
+import { DatabaseError, InvalidAddressError } from '../../src/errors/index.js';
 import { FastRpc } from '../../src/services/api/fast.js';
 import { ClientConfig } from '../../src/services/config/client.js';
 import { Output } from '../../src/services/output.js';
@@ -19,6 +20,7 @@ const seed = (value: number) => new Uint8Array(32).fill(value);
 const tokenId = new Uint8Array(32).fill(0xee);
 const tokenHex = `0x${'ee'.repeat(32)}`;
 const nativeTokenHex = `0xfa575e70${'00'.repeat(28)}`;
+const invalidFastAddress = bech32m.encode('fast', bech32m.toWords(new Uint8Array(31)));
 
 const makeBaseLayer = async ({ historyFailure = false }: { readonly historyFailure?: boolean } = {}) => {
   const accountSeed = seed(1);
@@ -154,6 +156,44 @@ const tokenMetadata = (admin: Uint8Array, mints: readonly Uint8Array[], updateId
 });
 
 describe('token authority handlers', () => {
+  it('token mint rejects a non-32-byte recipient before submission', async () => {
+    const { layer } = await makeBaseLayer();
+    const rpcLayer = Layer.succeed(FastRpc, {
+      getTokenInfo: () => Effect.die('token lookup must not run'),
+      submitTransaction: () => Effect.die('submission must not run'),
+    } as never);
+
+    const exit = await Effect.runPromiseExit(
+      tokenMint
+        .handler({ token: tokenHex, to: invalidFastAddress, amount: '1', replacePending: false } as never)
+        .pipe(Effect.provide(Layer.merge(layer, rpcLayer))),
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    expect(exit.cause.error).toBeInstanceOf(InvalidAddressError);
+  });
+
+  it('token manage rejects a non-32-byte new admin before submission', async () => {
+    const { account, layer } = await makeBaseLayer();
+    let submissions = 0;
+    const rpcLayer = Layer.succeed(FastRpc, {
+      getTokenInfo: () => Effect.succeed(tokenMetadata(fromFastAddress(account.fastAddress), [])),
+      submitTransaction: () => Effect.sync(() => void submissions++),
+    } as never);
+
+    const exit = await Effect.runPromiseExit(
+      tokenManage
+        .handler({ token: tokenHex, admin: invalidFastAddress, replacePending: false } as never)
+        .pipe(Effect.provide(Layer.merge(layer, rpcLayer))),
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    expect(exit.cause.error).toBeInstanceOf(InvalidAddressError);
+    expect(submissions).toBe(0);
+  });
+
   it('token mint rejects an account absent from the on-chain minter set', async () => {
     const { account, layer } = await makeBaseLayer();
     let submissions = 0;

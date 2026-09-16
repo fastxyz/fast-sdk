@@ -44,8 +44,15 @@ const parseAddr = (addr: string, label: string): Uint8Array => {
     });
   }
   try {
-    return fromFastAddress(addr);
+    const bytes = fromFastAddress(addr);
+    if (bytes.length !== 32) {
+      throw new InvalidAddressError({
+        message: `${label} "${addr}" must decode to exactly 32 bytes`,
+      });
+    }
+    return bytes;
   } catch (cause) {
+    if (cause instanceof InvalidAddressError) throw cause;
     throw new InvalidAddressError({
       message: `${label} "${addr}" is not a valid bech32 fast1... address: ${cause instanceof Error ? cause.message : String(cause)}`,
     });

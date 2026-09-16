@@ -61,6 +61,13 @@ export const tokenMint: Command<TokenMintArgs> = {
             message: `--to "${args.to}" is not a valid bech32 fast1... address: ${cause instanceof Error ? cause.message : String(cause)}`,
           }),
       });
+      if (recipientBytes.length !== 32) {
+        return yield* Effect.fail(
+          new InvalidAddressError({
+            message: `--to "${args.to}" must decode to exactly 32 bytes`,
+          }),
+        );
+      }
 
       let tokenId: Uint8Array;
       let decimals: number;

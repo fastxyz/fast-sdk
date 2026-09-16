@@ -183,6 +183,7 @@ export const tokenManage: Command<TokenManageArgs> = {
       const result = yield* submitOperation({
         resolved,
         networkId: network.networkId as never,
+        replacePending: args.replacePending,
         operation: {
           type: 'TokenManagement',
           value: {

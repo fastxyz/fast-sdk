@@ -94,6 +94,7 @@ export const tokenBurn: Command<TokenBurnArgs> = {
       const result = yield* submitOperation({
         resolved,
         networkId: network.networkId as never,
+        replacePending: args.replacePending,
         operation: {
           type: 'Burn',
           value: {

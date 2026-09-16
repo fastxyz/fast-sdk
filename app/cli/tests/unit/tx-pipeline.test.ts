@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Effect, Layer } from 'effect';
-import { Signer } from '@fastxyz/sdk';
+import { canonicalizeMultiSigSigners, MultiSigSigner, Signer } from '@fastxyz/sdk';
 import { submitOperation } from '../../src/services/tx-pipeline';
 import { FastRpc } from '../../src/services/api/fast';
 
@@ -108,5 +108,90 @@ describe('submitOperation (single-signer)', () => {
     );
 
     expect(exit._tag).toBe('Failure');
+  });
+});
+
+describe('submitOperation (multisig replacement safety)', () => {
+  const makeFixture = async () => {
+    const first = new Signer(new Uint8Array(32).fill(0x11));
+    const second = new Signer(new Uint8Array(32).fill(0x22));
+    const config = {
+      authorized_signers: canonicalizeMultiSigSigners([await first.getPublicKey(), await second.getPublicKey()]),
+      quorum: 2n,
+      nonce: 0n,
+    };
+    const signer = new MultiSigSigner({ config, secretKey: new Uint8Array(32).fill(0x11) });
+    const operation = {
+      type: 'TokenTransfer' as const,
+      value: {
+        tokenId: new Uint8Array(32),
+        recipient: new Uint8Array(32).fill(0x44),
+        amount: 1n,
+        userData: null,
+      },
+    };
+    const pending = await signer.signTransaction({
+      networkId: 'fast:testnet',
+      nonce: 4n,
+      operations: [operation],
+    });
+    return { signer, operation, pending };
+  };
+
+  it('refuses to replace a proposal at the current nonce by default', async () => {
+    const { signer, operation, pending } = await makeFixture();
+    let submitCalls = 0;
+    const rpcStub = Layer.succeed(FastRpc, {
+      getAccountInfo: (_p: unknown) => Effect.succeed({ nextNonce: 4n }) as never,
+      getPendingMultisigTransactions: (_p: unknown) => Effect.succeed([pending]) as never,
+      submitTransaction: (_envelope: unknown) =>
+        Effect.sync(() => {
+          submitCalls++;
+          return { type: 'IncompleteMultiSig' } as never;
+        }) as never,
+      getTokenInfo: (_p: unknown) => Effect.succeed({}) as never,
+      getTransactionCertificates: (_p: unknown) => Effect.succeed([]) as never,
+      getRpcUrl: () => Effect.succeed('http://test'),
+    } as unknown as never);
+
+    const exit = await Effect.runPromiseExit(
+      submitOperation({
+        resolved: { kind: 'multisig', signer, account: {} as never, memberAccount: {} as never },
+        networkId: 'fast:testnet',
+        operation,
+      }).pipe(Effect.provide(rpcStub)),
+    );
+
+    expect(exit._tag).toBe('Failure');
+    expect(submitCalls).toBe(0);
+  });
+
+  it('replaces a proposal only after explicit opt-in', async () => {
+    const { signer, operation, pending } = await makeFixture();
+    let submitCalls = 0;
+    const rpcStub = Layer.succeed(FastRpc, {
+      getAccountInfo: (_p: unknown) => Effect.succeed({ nextNonce: 4n }) as never,
+      getPendingMultisigTransactions: (_p: unknown) => Effect.succeed([pending]) as never,
+      submitTransaction: (_envelope: unknown) =>
+        Effect.sync(() => {
+          submitCalls++;
+          return { type: 'IncompleteMultiSig' } as never;
+        }) as never,
+      getTokenInfo: (_p: unknown) => Effect.succeed({}) as never,
+      getTransactionCertificates: (_p: unknown) => Effect.succeed([]) as never,
+      getRpcUrl: () => Effect.succeed('http://test'),
+    } as unknown as never);
+
+    const result = await Effect.runPromise(
+      submitOperation({
+        resolved: { kind: 'multisig', signer, account: {} as never, memberAccount: {} as never },
+        networkId: 'fast:testnet',
+        operation,
+        replacePending: true,
+      }).pipe(Effect.provide(rpcStub)),
+    );
+
+    expect(result.status).toBe('incomplete-multisig');
+    expect(submitCalls).toBe(1);
   });
 });

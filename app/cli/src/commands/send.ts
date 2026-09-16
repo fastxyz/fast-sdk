@@ -379,6 +379,7 @@ export const send: Command<SendArgs> = {
           resolved,
           networkId: network.networkId as never,
           operation: { type: 'TokenTransfer' as const, value: tokenTransfer },
+          replacePending: args.replacePending,
         });
 
         // Multisig partial: the proxy returns IncompleteMultiSig until quorum.

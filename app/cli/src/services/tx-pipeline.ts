@@ -25,6 +25,12 @@ export interface SubmitOperationParams {
   readonly resolved: ResolvedSigner;
   readonly networkId: NetworkId;
   readonly operation: OperationInputParams;
+  /**
+   * Explicitly allow replacing an existing multisig proposal at the
+   * account's current nonce. The proxy permits replacement, so callers must
+   * opt in instead of silently discarding another proposal.
+   */
+  readonly replacePending?: boolean;
 }
 
 const opAsBuilderCall = (builder: TransactionBuilder, op: OperationInputParams): TransactionBuilder => {
@@ -103,6 +109,33 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
       );
     }
     const nonce = accountInfo?.nextNonce ?? 0n;
+
+    // The proxy keeps proposals outside accountInfo.pendingConfirmation.
+    // Submitting another proposal at the same nonce can replace an existing
+    // one, so fail closed unless the CLI caller explicitly opted in.
+    if (params.resolved.kind === 'multisig') {
+      const rawPending = yield* rpc.getPendingMultisigTransactions({ address: senderBytes } as never).pipe(
+        Effect.mapError(
+          (cause) =>
+            new TransactionFailedError({
+              message: 'Failed to fetch pending multisig transactions',
+              cause,
+            }),
+        ),
+      );
+      const pendingAtCurrentNonce = (rawPending as ReadonlyArray<TransactionEnvelope>).filter(
+        (candidate) => candidate.transaction.value.nonce === nonce,
+      );
+      if (pendingAtCurrentNonce.length > 0 && !params.replacePending) {
+        return yield* Effect.fail(
+          new TransactionFailedError({
+            message:
+              `Account already has ${pendingAtCurrentNonce.length} multisig proposal(s) at nonce ${nonce}. ` +
+              'Refusing to replace them; inspect with `fast multisig pending` and pass `--replace-pending` only if replacement is intentional.',
+          }),
+        );
+      }
+    }
 
     // 3. Build + sign envelope
     let envelope: TransactionEnvelope;

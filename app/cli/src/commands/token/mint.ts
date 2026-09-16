@@ -131,6 +131,7 @@ export const tokenMint: Command<TokenMintArgs> = {
       const result = yield* submitOperation({
         resolved,
         networkId: network.networkId as never,
+        replacePending: args.replacePending,
         operation: {
           type: 'Mint',
           value: {

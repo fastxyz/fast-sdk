@@ -333,6 +333,12 @@ const sendParser = command(
         description: message`Local single-signer member to sign as (multisig wallets only)`,
       }),
     ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
+    ),
   }),
   { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
 );
@@ -610,6 +616,12 @@ const tokenCreateParser = command(
         description: message`For multisig: which local member key signs`,
       }),
     ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
+    ),
   }),
   { description: message`Create a new token` },
 );
@@ -632,6 +644,12 @@ const tokenMintParser = command(
         description: message`For multisig: which local member key signs`,
       }),
     ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
+    ),
   }),
   { description: message`Mint tokens to a recipient (caller must be a minter)` },
 );
@@ -650,6 +668,12 @@ const tokenBurnParser = command(
       option('--as', string({ metavar: 'NAME' }), {
         description: message`For multisig: which local member key signs`,
       }),
+    ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
     ),
   }),
   { description: message`Burn tokens from the active account's balance` },
@@ -686,6 +710,12 @@ const tokenManageParser = command(
       option('--as', string({ metavar: 'NAME' }), {
         description: message`For multisig: which local member key signs`,
       }),
+    ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
     ),
   }),
   {

@@ -121,6 +121,7 @@ export const tokenCreate: Command<TokenCreateArgs> = {
       const result = yield* submitOperation({
         resolved,
         networkId: network.networkId as never,
+        replacePending: args.replacePending,
         operation: {
           type: 'TokenCreation',
           value: {
@@ -133,19 +134,6 @@ export const tokenCreate: Command<TokenCreateArgs> = {
         },
       });
 
-      if (result.status === 'incomplete-multisig') {
-        const quorum = resolved.kind === 'multisig' ? resolved.account.multisigConfig.quorum : 1;
-        yield* output.humanLine(`Submitted as multisig partial: 1/${quorum} signatures collected.`);
-        yield* output.humanLine(`Cosigners can run \`fast multisig pending\` to view, \`fast multisig vote\` to sign.`);
-        yield* output.ok({
-          status: 'incomplete-multisig',
-          tokenName: args.name,
-          wallet: accountInfo.name,
-        });
-        return;
-      }
-
-      // Record in local history (only on success — incomplete-multisig has no cert)
       const senderBytes = yield* Effect.tryPromise({
         try: () => (resolved.kind === 'single' ? resolved.signer.getPublicKey() : resolved.signer.getDerivedAddressBytes()),
         catch: (cause) =>
@@ -155,6 +143,22 @@ export const tokenCreate: Command<TokenCreateArgs> = {
           }),
       });
       const tokenId = getTokenId(senderBytes, result.nonce, 0n);
+
+      if (result.status === 'incomplete-multisig') {
+        const quorum = resolved.kind === 'multisig' ? resolved.account.multisigConfig.quorum : 1;
+        yield* output.humanLine(`Submitted as multisig partial: 1/${quorum} signatures collected.`);
+        yield* output.humanLine(`Token ID will be: ${toHex(tokenId)}`);
+        yield* output.humanLine(`Cosigners can run \`fast multisig pending\` to view, \`fast multisig vote\` to sign.`);
+        yield* output.ok({
+          status: 'incomplete-multisig',
+          tokenName: args.name,
+          tokenId: toHex(tokenId),
+          wallet: accountInfo.name,
+        });
+        return;
+      }
+
+      // Record in local history (only on success — incomplete-multisig has no cert)
       const explorerUrl = `${network.explorerUrl}/txs/${result.txHash}`;
       yield* historyStore.record(
         makeHistoryEntry({

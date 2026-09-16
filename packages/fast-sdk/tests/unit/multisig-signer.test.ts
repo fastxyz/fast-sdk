@@ -115,6 +115,15 @@ describe('assertAuthorizedSigner', () => {
     await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(MultiSigConfigInvalidError);
   });
 
+  it.each([-1n, 1n << 64n])('rejects nonce %s outside the u64 range', async (nonce) => {
+    const config = {
+      authorized_signers: canonicalizeMultiSigSigners([await getPublicKeyAsync(SECRET_A), await getPublicKeyAsync(SECRET_B)]),
+      quorum: 2n,
+      nonce,
+    };
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(/nonce must be a u64/);
+  });
+
   it('throws MultiSigConfigInvalidError on duplicate signers', async () => {
     const pkA = await getPublicKeyAsync(SECRET_A);
     const config = {

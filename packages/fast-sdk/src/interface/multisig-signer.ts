@@ -37,6 +37,8 @@ export type MultiSigConfig = {
   nonce: bigint;
 };
 
+const U64_MAX = (1n << 64n) - 1n;
+
 /**
  * Derive the 32-byte address of a multisig account from its config.
  * Matches the Rust `MultiSigConfig::address()` algorithm:
@@ -114,6 +116,11 @@ function validateConfig(config: MultiSigConfig): void {
   if (config.quorum > BigInt(signers.length)) {
     throw new MultiSigConfigInvalidError({
       reason: `quorum (${config.quorum}) exceeds signer count (${signers.length})`,
+    });
+  }
+  if (config.nonce < 0n || config.nonce > U64_MAX) {
+    throw new MultiSigConfigInvalidError({
+      reason: `nonce must be a u64 (got ${config.nonce})`,
     });
   }
   for (let i = 0; i < signers.length; i++) {

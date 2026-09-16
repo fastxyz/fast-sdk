@@ -24,11 +24,12 @@ npm install @fastxyz/sdk
 
 ## Core Concepts
 
-| Class                | Purpose                                      |
-| -------------------- | -------------------------------------------- |
-| `Signer`             | Holds an Ed25519 private key, signs messages |
-| `FastProvider`       | REST client for the Fast proxy API           |
-| `TransactionBuilder` | Fluent builder for all transaction types     |
+| Class                | Purpose                                                     |
+| -------------------- | ----------------------------------------------------------- |
+| `Signer`             | Holds an Ed25519 private key, signs messages                |
+| `FastProvider`       | REST client for the Fast proxy API                          |
+| `TransactionBuilder` | Fluent builder for all transaction types                    |
+| `MultiSigWorkflow`   | Prepare, inspect, co-sign, and submit multisig transactions |
 
 **Typical flow:** Create Signer → Create Provider → Get account info → Build transaction → Sign → Submit.
 
@@ -173,6 +174,52 @@ const tokenInfo = await provider.getTokenInfo({ tokenIds: [tokenIdBytes] });
 const pending = await provider.getPendingMultisigTransactions({ address: pubKey });
 ```
 
+### 8. Multisig Without the CLI
+
+The public multisig workflow is browser/Node neutral. It stores no keys and
+does not prompt. Applications can prepare the exact unsigned transaction,
+display or audit it, and only then sign those same bytes.
+
+```ts
+import { canonicalizeMultiSigSigners, FastProvider, MultiSigSigner, MultiSigWorkflow } from '@fastxyz/sdk';
+import { testnet } from '@fastxyz/sdk/networks';
+
+const config = {
+  authorized_signers: canonicalizeMultiSigSigners([alicePublicKey, bobPublicKey]),
+  quorum: 2n,
+  nonce: 0n,
+};
+const signer = new MultiSigSigner({ config, secretKey: aliceSecretKey });
+const workflow = new MultiSigWorkflow({
+  provider: new FastProvider(testnet),
+  networkId: testnet.networkId!,
+  config,
+});
+
+const prepared = await workflow.prepare({
+  signer,
+  operations: [
+    {
+      type: 'TokenTransfer',
+      value: { tokenId, recipient, amount: 1000n, userData: null },
+    },
+  ],
+});
+
+// Present/audit every field before any signature exists.
+console.log(prepared.transaction, prepared.txHash);
+
+const result = await workflow.submitPrepared({ signer, prepared });
+// "pending-signatures" until quorum; "submitted" after proxy acceptance.
+console.log(result.status);
+```
+
+Cosigners call `workflow.getState()` to inspect current-nonce proposals and
+`workflow.vote({ signer, txHash })` to approve one. Sender, network, nonce, and
+the complete multisig config are checked before signing. Competing proposals
+fail closed unless `replacePending: true` is explicit. The workflow does not
+invent a fee estimate: no canonical public fee schedule is currently exposed.
+
 ---
 
 ## API Reference
@@ -223,7 +270,7 @@ const provider = new FastProvider({
 | `getTransactionCertificates(params)`     | Fetch finalized certificates                |
 | `getPendingMultisigTransactions(params)` | Fetch pending multisig txs                  |
 | `getEscrowJob(params)`                   | Fetch a single escrow job by ID             |
-| `getEscrowJobs(params)`                  | List escrow jobs by role and status          |
+| `getEscrowJobs(params)`                  | List escrow jobs by role and status         |
 
 ### TransactionBuilder
 
@@ -298,6 +345,7 @@ pnpm turbo test   # Run the repo test pipeline
 `TransactionBuilder` now defaults to `Release20260407` which uses a `claims` array instead of a single `claim`.
 
 **Before (v1.x):**
+
 ```ts
 const builder = new TransactionBuilder({ networkId, signer, nonce });
 builder.addBurn({ tokenId, amount });
@@ -306,6 +354,7 @@ const envelope = await builder.sign();
 ```
 
 **After (v2.0):**
+
 ```ts
 const builder = new TransactionBuilder({ networkId, signer, nonce });
 builder.addBurn({ tokenId, amount });
@@ -316,11 +365,13 @@ const envelope = await builder.sign();
 **REST API migration**: `FastProvider` now uses REST endpoints. `ProviderOptions.rpcUrl` is renamed to `url`. Proxy paths changed from `/proxy` to `/proxy-rest`.
 
 **Before (v1.x):**
+
 ```ts
 const provider = new FastProvider({ rpcUrl: 'https://api.fast.xyz/proxy' });
 ```
 
 **After (v2.0):**
+
 ```ts
 const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
 ```
@@ -341,11 +392,11 @@ const provider = new FastProvider({ url: 'https://api.fast.xyz/proxy-rest' });
   } from "@fastxyz/sdk";
 ```
 
-| v1.x | v2.0 | Status |
-|---|---|---|
-| `JsonRpcProtocolError` | — | Removed |
-| `RpcError` | `RestError` | Replaced |
-| `RpcTimeoutError` | `RestTimeoutError` | Deprecated alias (will be removed) |
+| v1.x                   | v2.0               | Status                             |
+| ---------------------- | ------------------ | ---------------------------------- |
+| `JsonRpcProtocolError` | —                  | Removed                            |
+| `RpcError`             | `RestError`        | Replaced                           |
+| `RpcTimeoutError`      | `RestTimeoutError` | Deprecated alias (will be removed) |
 
 ### New Features
 
@@ -369,8 +420,8 @@ const envelope = await builder.sign();
 
 ### Network Version Compatibility
 
-| Network Version | Schema | SDK | Default |
-|---|---|---|---|
+| Network Version | Schema    | SDK       | Default      |
+| --------------- | --------- | --------- | ------------ |
 | Release20260319 | `>=1.0.0` | `>=1.0.0` | v1.x default |
 | Release20260407 | `>=2.0.0` | `>=2.0.0` | v2.x default |
 

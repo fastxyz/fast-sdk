@@ -9,6 +9,10 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -25,11 +29,18 @@
     "./wallet": {
       "import": "./dist/wallet/index.js",
       "types": "./dist/wallet/index.d.ts"
+    },
+    "./multisig": {
+      "import": "./dist/multisig/index.js",
+      "types": "./dist/multisig/index.d.ts"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/core/index.ts src/networks/index.ts src/wallet/index.ts --format esm --dts",
-    "dev": "tsup src/index.ts src/core/index.ts src/networks/index.ts src/wallet/index.ts --format esm --watch --dts",
+    "clean": "node scripts/clean-dist.mjs",
+    "prebuild": "pnpm clean",
+    "build": "tsup src/index.ts src/core/index.ts src/networks/index.ts src/wallet/index.ts src/multisig/index.ts --format esm --dts",
+    "dev": "tsup src/index.ts src/core/index.ts src/networks/index.ts src/wallet/index.ts src/multisig/index.ts --format esm --watch --dts",
+    "prepack": "pnpm build",
     "test": "vitest run"
   },
   "dependencies": {

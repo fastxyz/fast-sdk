@@ -152,7 +152,7 @@ export const infoHistory: Command<InfoHistoryArgs> = {
         ["HASH", "TYPE", "FROM", "TO", "AMOUNT", "TOKEN", "STATUS", "TIME"],
         entries.map((e) => [
           `${e.hash.slice(0, 10)}...`,
-          routeLabel[inferRoute(e)] ?? e.type,
+          e.type === "transfer" ? routeLabel[inferRoute(e)] ?? e.type : e.type,
           `${e.from.slice(0, 10)}...`,
           `${e.to.slice(0, 10)}...`,
           e.formatted,

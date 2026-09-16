@@ -13,10 +13,10 @@
 
 import type { DocPage } from "@optique/core/doc";
 import { formatDocPage } from "@optique/core/doc";
-import type { Message } from "@optique/core/message";
 import { formatMessage } from "@optique/core/message";
+import type { Message } from "@optique/core/message";
 import { getDocPageSync, parse } from "@optique/core/parser";
-import { type Effect, Option } from "effect";
+import { Effect, Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
 import { globalPreParser, parser } from "./cli.js";
@@ -28,6 +28,7 @@ import {
 } from "./errors/index.js";
 import { getAppName, getVersion } from "./services/config/app.js";
 import { writeFail, writeOk } from "./services/output.js";
+import { TOKEN_COMMAND_FALLBACKS } from "./token-command-fallbacks.js";
 
 // ---------------------------------------------------------------------------
 // Helpers — convert DocPage to a plain JSON-serialisable object
@@ -115,12 +116,7 @@ if (argv.length === 0 || argv.includes("--help")) {
         : {
             ...rawDoc,
             usage: undefined,
-            brief: [
-              {
-                type: "text" as const,
-                text: `Usage: ${getAppName()} <command> [options]`,
-              },
-            ],
+            brief: [{ type: "text" as const, text: `Usage: ${getAppName()} <command> [options]` }],
             sections: [
               {
                 title: "Commands",
@@ -136,10 +132,7 @@ if (argv.length === 0 || argv.includes("--help")) {
               },
             ],
             footer: [
-              {
-                type: "text" as const,
-                text: `Run \`${getAppName()} <command> --help\` for command details.`,
-              },
+              { type: "text" as const, text: `Run \`${getAppName()} <command> --help\` for command details.` },
             ],
           };
 
@@ -163,21 +156,18 @@ const KNOWN_COMMANDS = [
   "send",
   "fund",
   "pay",
+  "multisig",
+  "token",
   "authorize",
 ] as const;
 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
   account: ["create", "import", "list", "set-default", "export", "delete"],
   network: ["list", "add", "set-default", "remove"],
-  info: [
-    "status",
-    "balance",
-    "tx",
-    "history",
-    "bridge-tokens",
-    "bridge-chains",
-  ],
+  info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
   fund: ["usdc", "fastusd"],
+  multisig: ["init", "export", "import", "pending", "vote"],
+  token: ["create", "mint", "burn", "manage"],
   authorize: ["request", "complete"],
 };
 
@@ -197,10 +187,7 @@ const levenshtein = (a: string, b: string): number => {
   return dp[m][n];
 };
 
-const suggest = (
-  token: string,
-  candidates: readonly string[],
-): string | null => {
+const suggest = (token: string, candidates: readonly string[]): string | null => {
   let best: string | null = null;
   let bestDist = Infinity;
   for (const c of candidates) {
@@ -215,14 +202,8 @@ const suggest = (
 
 // Global option flags shared by every command (used to identify unknown flags).
 const GLOBAL_FLAGS = new Set([
-  "--json",
-  "--debug",
-  "--non-interactive",
-  "--network",
-  "--account",
-  "--password",
-  "--help",
-  "--version",
+  "--json", "--debug", "--non-interactive", "--network", "--account", "--password",
+  "--help", "--version",
 ]);
 
 const SUBCOMMAND_REQUIREMENTS: Record<
@@ -237,8 +218,8 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   // ── Top-level commands with required args ──────────────────────────────────
   send: {
     usage:
-      "fast send <address> <amount> [--from-chain <chain>] [--to-chain <chain>] [--token <token>]",
-    options: ["--from-chain", "--to-chain", "--token", "--eip-7702"],
+      "fast send <address> <amount> [--from-chain <chain>] [--to-chain <chain>] [--token <token>] [--memo <text>] [--as <member>] [--replace-pending]",
+    options: ["--from-chain", "--to-chain", "--token", "--eip-7702", "--memo", "--as", "--replace-pending"],
     check: (positionals) => {
       if (positionals.length < 2) return "Missing required argument: <address>";
       if (positionals.length < 3) return "Missing required argument: <amount>";
@@ -246,8 +227,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     },
   },
   pay: {
-    usage:
-      "fast pay <url> [--dry-run] [--method <method>] [--header <key:value>] [--body <data>]",
+    usage: "fast pay <url> [--dry-run] [--method <method>] [--header <key:value>] [--body <data>]",
     options: ["--dry-run", "--method", "--header", "--body"],
     check: (positionals) => {
       if (positionals.length < 2) return "Missing required argument: <url>";
@@ -334,8 +314,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     check: () => null,
   },
   "account import": {
-    usage:
-      "fast account import [--name <name>] [--private-key <hex>] [--key-file <path>]",
+    usage: "fast account import [--name <name>] [--private-key <hex>] [--key-file <path>]",
     options: ["--name", "--private-key", "--key-file"],
     check: () => null,
   },
@@ -358,8 +337,8 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     check: () => null,
   },
   "authorize request": {
-    usage: "fast authorize request [--requester <name>]",
-    options: ["--requester"],
+    usage: "fast authorize request [--requester <name>] [--url <url>]",
+    options: ["--requester", "--url"],
     check: () => null,
   },
   "authorize complete": {
@@ -369,10 +348,154 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     check: () => null,
   },
   "info history": {
-    usage:
-      "fast info history [--from <address>] [--to <address>] [--token <token>] [--limit <n>] [--offset <n>]",
+    usage: "fast info history [--from <address>] [--to <address>] [--token <token>] [--limit <n>] [--offset <n>]",
     options: ["--from", "--to", "--token", "--limit", "--offset"],
     check: () => null,
+  },
+  "multisig init": {
+    usage:
+      "fast multisig init --signers <addr|name,...> --quorum <n> --config-nonce <n> --name <alias> [--network <name>] [--set-default]",
+    options: [
+      "--signers",
+      "--quorum",
+      "--config-nonce",
+      "--name",
+      "--network",
+      "--set-default",
+    ],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--signers" || a.startsWith("--signers=")))
+        return "Missing required option: --signers <addr|name,...>";
+      if (!allArgv.some((a) => a === "--quorum" || a.startsWith("--quorum=")))
+        return "Missing required option: --quorum <n>";
+      if (
+        !allArgv.some(
+          (a) => a === "--config-nonce" || a.startsWith("--config-nonce="),
+        )
+      )
+        return "Missing required option: --config-nonce <n>";
+      if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
+        return "Missing required option: --name <alias>";
+      return null;
+    },
+  },
+  "multisig export": {
+    usage: "fast multisig export <name> [--out <path>]",
+    options: ["--out"],
+    check: (positionals) => {
+      if (positionals.length < 3) return "Missing required argument: <name>";
+      return null;
+    },
+  },
+  "multisig pending": {
+    usage: "fast multisig pending [--as <name>] [--account <name>]",
+    options: ["--as"],
+    check: () => null,
+  },
+  "multisig vote": {
+    usage: "fast multisig vote [--tx <hash>] [--as <name>] [--yes]",
+    options: ["--tx", "--as", "--yes"],
+    check: () => null,
+  },
+  "token create": {
+    ...TOKEN_COMMAND_FALLBACKS.create,
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
+        return "Missing required option: --name <s>";
+      if (
+        !allArgv.some((a) => a === "--decimals" || a.startsWith("--decimals="))
+      )
+        return "Missing required option: --decimals <n>";
+      if (
+        !allArgv.some(
+          (a) => a === "--initial-supply" || a.startsWith("--initial-supply="),
+        )
+      )
+        return "Missing required option: --initial-supply <amt>";
+      return null;
+    },
+  },
+  "token mint": {
+    ...TOKEN_COMMAND_FALLBACKS.mint,
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
+        return "Missing required option: --token <id|name>";
+      if (!allArgv.some((a) => a === "--to" || a.startsWith("--to=")))
+        return "Missing required option: --to <addr>";
+      if (!allArgv.some((a) => a === "--amount" || a.startsWith("--amount=")))
+        return "Missing required option: --amount <n>";
+      return null;
+    },
+  },
+  "token burn": {
+    ...TOKEN_COMMAND_FALLBACKS.burn,
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
+        return "Missing required option: --token <id|name>";
+      if (!allArgv.some((a) => a === "--amount" || a.startsWith("--amount=")))
+        return "Missing required option: --amount <n>";
+      return null;
+    },
+  },
+  "token manage": {
+    ...TOKEN_COMMAND_FALLBACKS.manage,
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
+        return "Missing required option: --token <id|name>";
+      const hasAdmin = allArgv.some(
+        (a) => a === "--admin" || a.startsWith("--admin="),
+      );
+      const hasAdd = allArgv.some(
+        (a) => a === "--add-minters" || a.startsWith("--add-minters="),
+      );
+      const hasRemove = allArgv.some(
+        (a) => a === "--remove-minters" || a.startsWith("--remove-minters="),
+      );
+      if (!hasAdmin && !hasAdd && !hasRemove)
+        return "At least one of --admin, --add-minters, --remove-minters must be provided";
+      return null;
+    },
+  },
+  "multisig import": {
+    usage:
+      "fast multisig import (--from <file> | --signers <addr,...> --quorum <n> --config-nonce <n>) [--name <alias>] [--network <name>] [--set-default] [--expect-address <addr>]",
+    options: [
+      "--from",
+      "--signers",
+      "--quorum",
+      "--config-nonce",
+      "--expect-address",
+      "--name",
+      "--network",
+      "--set-default",
+    ],
+    check: (_positionals, allArgv) => {
+      const hasFrom = allArgv.some(
+        (a) => a === "--from" || a.startsWith("--from="),
+      );
+      const hasSigners = allArgv.some(
+        (a) => a === "--signers" || a.startsWith("--signers="),
+      );
+      if (hasFrom && hasSigners) {
+        return "--from and --signers are mutually exclusive";
+      }
+      if (!hasFrom && !hasSigners) {
+        return "Missing required option: --from <file> or --signers <addr,...>";
+      }
+      if (hasSigners) {
+        if (!allArgv.some((a) => a === "--quorum" || a.startsWith("--quorum=")))
+          return "Missing required option: --quorum <n>";
+        if (
+          !allArgv.some(
+            (a) => a === "--config-nonce" || a.startsWith("--config-nonce="),
+          )
+        )
+          return "Missing required option: --config-nonce <n>";
+        if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
+          return "Missing required option: --name <alias>";
+      }
+      return null;
+    },
   },
 };
 
@@ -416,9 +539,7 @@ if (!result.success) {
       // Try the deepest matching key (3-deep first, then 2-deep) so e.g.
       // `fund usdc fiat` matches "fund usdc fiat" not "fund usdc".
       const thirdToken = positionals[2];
-      const deepKey = thirdToken
-        ? `${firstToken} ${secondToken} ${thirdToken}`
-        : null;
+      const deepKey = thirdToken ? `${firstToken} ${secondToken} ${thirdToken}` : null;
       const shallowKey = `${firstToken} ${secondToken}`;
       const key =
         deepKey && deepKey in SUBCOMMAND_REQUIREMENTS ? deepKey : shallowKey;
@@ -429,8 +550,7 @@ if (!result.success) {
           msg = `${hint}\n  Usage: ${req.usage}`;
         } else if (req.options) {
           const unknown = findUnknownFlag(argv, req.options);
-          if (unknown)
-            msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
+          if (unknown) msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
         }
       }
     }
@@ -443,8 +563,7 @@ if (!result.success) {
         msg = `${hint}\n  Usage: ${req.usage}`;
       } else if (req.options) {
         const unknown = findUnknownFlag(argv, req.options);
-        if (unknown)
-          msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
+        if (unknown) msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
       }
     }
   }
@@ -460,15 +579,10 @@ const resolveNetwork = async (): Promise<string> => {
   if (parsed.network) return parsed.network;
   try {
     const { Effect: Eff, ManagedRuntime, Layer } = await import("effect");
-    const { NetworkConfigService } = await import(
-      "./services/storage/network.js"
-    );
+    const { NetworkConfigService } = await import("./services/storage/network.js");
     const { DatabaseLive } = await import("./services/storage/database.js");
     const { AppConfigLive } = await import("./services/config/app.js");
-    const layer = Layer.provide(
-      NetworkConfigService.Default,
-      Layer.merge(DatabaseLive, AppConfigLive),
-    );
+    const layer = Layer.provide(NetworkConfigService.Default, Layer.merge(DatabaseLive, AppConfigLive));
     const runtime = ManagedRuntime.make(layer);
     const name = await runtime.runPromise(
       Eff.flatMap(NetworkConfigService, (s) => s.getDefault()).pipe(
@@ -497,9 +611,7 @@ if (parsed.debug) {
   const dbPath = `${process.env.HOME ?? "~"}/.fast/fast.db`;
   process.stderr.write(`[debug] command:         ${parsed.cmd}\n`);
   process.stderr.write(`[debug] network:         ${network}\n`);
-  process.stderr.write(
-    `[debug] account:         ${parsed.account ?? "(default)"}\n`,
-  );
+  process.stderr.write(`[debug] account:         ${parsed.account ?? "(default)"}\n`);
   process.stderr.write(`[debug] non-interactive: ${parsed.nonInteractive}\n`);
   process.stderr.write(`[debug] db:              ${dbPath}\n`);
 }

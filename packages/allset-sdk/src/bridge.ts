@@ -8,6 +8,7 @@ import { buildDepositTransaction } from "./deposit.js";
 import { FastError } from "./errors.js";
 import { ERC20_ABI, type EvmClients, estimateGasReserve, gasTokenErc20, weiToTokenUnits } from "./evm.js";
 import { InsufficientBalanceError } from "./eip7702.js";
+import { finishIntentClaimV1, prepareIntentClaimV1, type IntentV1 } from "./intent-v1.js";
 import { buildTransferIntent, type Intent, IntentAction } from "./intents.js";
 import { relayExecute } from "./relay.js";
 import type {
@@ -71,6 +72,19 @@ function resolveExternalAddress(
         return target;
       } catch {}
     }
+  }
+  return null;
+}
+
+function resolveV1ExternalAddress(
+  intents: readonly IntentV1[],
+  externalAddressOverride?: string,
+): `0x${string}` | null {
+  if (externalAddressOverride) return externalAddressOverride as `0x${string}`;
+
+  for (const intent of intents) {
+    if (intent.action === "transfer") return intent.receiver as `0x${string}`;
+    if (intent.action === "execute") return intent.target as `0x${string}`;
   }
   return null;
 }
@@ -411,14 +425,64 @@ export async function executeIntent(
     );
   }
 
-  if (externalAddressOverride && !externalAddressOverride.startsWith("0x")) {
+  if (
+    externalAddressOverride !== undefined &&
+    (typeof externalAddressOverride !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(externalAddressOverride))
+  ) {
     throw new FastError(
       "INVALID_PARAMS",
-      "executeIntent externalAddress must be an EVM address",
+      "executeIntent externalAddress must be a 20-byte EVM address",
       {
-        note: "Pass a 0x-prefixed address for the relayer target.",
+        note: "Pass a 0x-prefixed 20-byte hexadecimal address for the relayer metadata.",
       },
     );
+  }
+
+  if (!Number.isSafeInteger(deadlineSeconds) || deadlineSeconds <= 0) {
+    throw new FastError("INVALID_PARAMS", "executeIntent deadlineSeconds must be a positive integer", {
+      note: "Fractional, zero, negative or non-finite deadlines cannot be encoded.",
+    });
+  }
+
+  const encoding = params.claimEncoding === undefined ? "legacy" : params.claimEncoding;
+  if (encoding !== "legacy" && encoding !== "v1") {
+    throw new FastError(
+      "INVALID_PARAMS",
+      'executeIntent claimEncoding must be "legacy" or "v1"',
+      {
+        note: "Omit claimEncoding to keep the legacy default.",
+      },
+    );
+  }
+  let prepared = null;
+  let v1ExternalAddress: `0x${string}` | null = null;
+  if (encoding === "v1") {
+    try {
+      prepared = prepareIntentClaimV1({
+        intents,
+        chainId: params.chainId,
+        bridgeContract: params.bridgeContract,
+        deadlineSeconds,
+        display: params.display,
+      });
+    } catch (error) {
+      throw new FastError("INVALID_PARAMS", (error as Error).message, {
+        note: 'claimEncoding "v1" needs chainId, bridgeContract, a valid deadline and canonical intents (AllSet#576)',
+      });
+    }
+    v1ExternalAddress = resolveV1ExternalAddress(
+      prepared.claim.intents,
+      externalAddressOverride,
+    );
+    if (!v1ExternalAddress) {
+      throw new FastError(
+        "INVALID_PARAMS",
+        "executeIntent requires externalAddress when intents do not include a transfer recipient or execute target",
+        {
+          note: "Pass externalAddress for flows like buildDepositBackIntent() or buildRevokeIntent().",
+        },
+      );
+    }
   }
 
   const tokenId = hexToUint8Array(tokenFastTokenId);
@@ -442,7 +506,7 @@ export async function executeIntent(
       tokenId,
       recipient: fastAddressToBytes(fastBridgeAddress),
       amount: BigInt(amount),
-      userData: null,
+      userData: prepared ? prepared.userData : null,
     })
     .sign();
 
@@ -464,13 +528,16 @@ export async function executeIntent(
   const transferFastTxId = extractClaimId(transferCrossSign.transaction);
 
   // Step 3: Build and encode the intent claim
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
-  const intentClaimEncoded = encodeIntentClaim({
-    transferFastTxId,
-    deadline,
-    intents,
-  });
-  const intentBytes = hexToUint8Array(intentClaimEncoded);
+  const deadline = prepared ? prepared.deadline : BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
+  const intentBytes = prepared
+    ? finishIntentClaimV1(prepared, transferFastTxId)
+    : hexToUint8Array(
+        encodeIntentClaim({
+          transferFastTxId,
+          deadline,
+          intents,
+        }),
+      );
 
   // Step 4: Submit intent claim on Fast network
   const accountInfo2 = await provider.getAccountInfo({
@@ -511,10 +578,9 @@ export async function executeIntent(
   const intentFastTxId = extractClaimId(intentCrossSign.transaction);
 
   // Step 6: Resolve external address and submit to relayer
-  const externalAddress = resolveExternalAddress(
-    intents,
-    externalAddressOverride,
-  );
+  const externalAddress = prepared
+    ? v1ExternalAddress
+    : resolveExternalAddress(intents, externalAddressOverride);
   if (!externalAddress) {
     throw new FastError(
       "INVALID_PARAMS",

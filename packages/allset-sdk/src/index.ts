@@ -4,6 +4,7 @@ export * from './deposit.js';
 export * from './eip7702.js';
 export * from './evm.js';
 export * from './intents.js';
+export * from './intent-v1.js';
 export * from './bridge.js';
 export * from './relay.js';
 export * from './types.js';

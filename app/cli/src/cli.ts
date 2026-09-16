@@ -4,18 +4,12 @@
  * Every leaf command produces a typed object with a `cmd` discriminant field
  * so that dispatch in main.ts can be a type-safe `switch`.
  */
-import { merge, object, or } from "@optique/core/constructs";
-import { message } from "@optique/core/message";
-import { multiple, optional, withDefault } from "@optique/core/modifiers";
-import type { InferValue } from "@optique/core/parser";
-import {
-  argument,
-  command,
-  constant,
-  option,
-  passThrough,
-} from "@optique/core/primitives";
-import { integer, string } from "@optique/core/valueparser";
+import { merge, object, or } from '@optique/core/constructs';
+import { message, optionName } from '@optique/core/message';
+import { multiple, optional, withDefault } from '@optique/core/modifiers';
+import type { InferValue } from '@optique/core/parser';
+import { argument, command, constant, option, passThrough } from '@optique/core/primitives';
+import { integer, string } from '@optique/core/valueparser';
 
 // ---------------------------------------------------------------------------
 // Global options (shared by every leaf command)
@@ -27,43 +21,33 @@ import { integer, string } from "@optique/core/valueparser";
  * output mode before the full parse.
  */
 export const globalPreParser = object({
-  json: withDefault(option("--json"), false),
-  help: withDefault(option("--help"), false),
-  version: withDefault(option("--version"), false),
-  _rest: passThrough({ format: "greedy" }),
+  json: withDefault(option('--json'), false),
+  help: withDefault(option('--help'), false),
+  version: withDefault(option('--version'), false),
+  _rest: passThrough({ format: 'greedy' }),
 });
 
 export const globalOptions = object({
-  json: withDefault(
-    option("--json", {
-      description: message`Emit machine-parseable JSON to stdout`,
-    }),
-    false,
-  ),
-  debug: withDefault(
-    option("--debug", {
-      description: message`Enable verbose logging to stderr`,
-    }),
-    false,
-  ),
+  json: withDefault(option('--json', { description: message`Emit machine-parseable JSON to stdout` }), false),
+  debug: withDefault(option('--debug', { description: message`Enable verbose logging to stderr` }), false),
   nonInteractive: withDefault(
-    option("--non-interactive", {
+    option('--non-interactive', {
       description: message`Auto-confirm dangerous operations; fail when input is missing`,
     }),
     false,
   ),
   network: optional(
-    option("--network", string({ metavar: "NAME" }), {
+    option('--network', string({ metavar: 'NAME' }), {
       description: message`Override the network for this command`,
     }),
   ),
   account: optional(
-    option("--account", string({ metavar: "NAME" }), {
+    option('--account', string({ metavar: 'NAME' }), {
       description: message`Use the named account for signing operations`,
     }),
   ),
   password: withDefault(
-    option("--password", string({ metavar: "PASSWORD" }), {
+    option('--password', string({ metavar: 'PASSWORD' }), {
       description: message`Keystore password for decrypting the account key`,
     }),
     () => process.env.FAST_PASSWORD,
@@ -75,11 +59,11 @@ export const globalOptions = object({
 // ---------------------------------------------------------------------------
 
 const accountCreateParser = command(
-  "create",
+  'create',
   object({
-    cmd: constant("account-create" as const),
+    cmd: constant('account-create' as const),
     name: optional(
-      option("--name", string({ metavar: "NAME" }), {
+      option('--name', string({ metavar: 'NAME' }), {
         description: message`Alias for the account`,
       }),
     ),
@@ -88,21 +72,21 @@ const accountCreateParser = command(
 );
 
 const accountImportParser = command(
-  "import",
+  'import',
   object({
-    cmd: constant("account-import" as const),
+    cmd: constant('account-import' as const),
     name: optional(
-      option("--name", string({ metavar: "NAME" }), {
+      option('--name', string({ metavar: 'NAME' }), {
         description: message`Alias for the account`,
       }),
     ),
     privateKey: optional(
-      option("--private-key", string({ metavar: "HEX" }), {
+      option('--private-key', string({ metavar: 'HEX' }), {
         description: message`Hex-encoded Ed25519 seed (0x-prefixed or raw)`,
       }),
     ),
     keyFile: optional(
-      option("--key-file", string({ metavar: "PATH" }), {
+      option('--key-file', string({ metavar: 'PATH' }), {
         description: message`Path to a JSON file containing a privateKey field`,
       }),
     ),
@@ -111,18 +95,18 @@ const accountImportParser = command(
 );
 
 const accountListParser = command(
-  "list",
+  'list',
   object({
-    cmd: constant("account-list" as const),
+    cmd: constant('account-list' as const),
   }),
   { description: message`List all accounts` },
 );
 
 const accountSetDefaultParser = command(
-  "set-default",
+  'set-default',
   object({
-    cmd: constant("account-set-default" as const),
-    name: argument(string({ metavar: "NAME" }), {
+    cmd: constant('account-set-default' as const),
+    name: argument(string({ metavar: 'NAME' }), {
       description: message`Alias of an existing account`,
     }),
   }),
@@ -130,11 +114,11 @@ const accountSetDefaultParser = command(
 );
 
 const accountExportParser = command(
-  "export",
+  'export',
   object({
-    cmd: constant("account-export" as const),
+    cmd: constant('account-export' as const),
     name: optional(
-      argument(string({ metavar: "NAME" }), {
+      argument(string({ metavar: 'NAME' }), {
         description: message`Account alias (defaults to default account)`,
       }),
     ),
@@ -143,10 +127,10 @@ const accountExportParser = command(
 );
 
 const accountDeleteParser = command(
-  "delete",
+  'delete',
   object({
-    cmd: constant("account-delete" as const),
-    name: argument(string({ metavar: "NAME" }), {
+    cmd: constant('account-delete' as const),
+    name: argument(string({ metavar: 'NAME' }), {
       description: message`Account alias to delete`,
     }),
   }),
@@ -154,15 +138,8 @@ const accountDeleteParser = command(
 );
 
 const accountGroup = command(
-  "account",
-  or(
-    accountCreateParser,
-    accountImportParser,
-    accountListParser,
-    accountSetDefaultParser,
-    accountExportParser,
-    accountDeleteParser,
-  ),
+  'account',
+  or(accountCreateParser, accountImportParser, accountListParser, accountSetDefaultParser, accountExportParser, accountDeleteParser),
   { description: message`Manage accounts` },
 );
 
@@ -171,21 +148,21 @@ const accountGroup = command(
 // ---------------------------------------------------------------------------
 
 const networkListParser = command(
-  "list",
+  'list',
   object({
-    cmd: constant("network-list" as const),
+    cmd: constant('network-list' as const),
   }),
   { description: message`List available networks` },
 );
 
 const networkAddParser = command(
-  "add",
+  'add',
   object({
-    cmd: constant("network-add" as const),
-    name: argument(string({ metavar: "NAME" }), {
+    cmd: constant('network-add' as const),
+    name: argument(string({ metavar: 'NAME' }), {
       description: message`Name for the custom network`,
     }),
-    config: option("--config", string({ metavar: "PATH" }), {
+    config: option('--config', string({ metavar: 'PATH' }), {
       description: message`Path to network config JSON file`,
     }),
   }),
@@ -193,10 +170,10 @@ const networkAddParser = command(
 );
 
 const networkSetDefaultParser = command(
-  "set-default",
+  'set-default',
   object({
-    cmd: constant("network-set-default" as const),
-    name: argument(string({ metavar: "NAME" }), {
+    cmd: constant('network-set-default' as const),
+    name: argument(string({ metavar: 'NAME' }), {
       description: message`Network name`,
     }),
   }),
@@ -204,45 +181,38 @@ const networkSetDefaultParser = command(
 );
 
 const networkRemoveParser = command(
-  "remove",
+  'remove',
   object({
-    cmd: constant("network-remove" as const),
-    name: argument(string({ metavar: "NAME" }), {
+    cmd: constant('network-remove' as const),
+    name: argument(string({ metavar: 'NAME' }), {
       description: message`Name of the custom network to remove`,
     }),
   }),
   { description: message`Remove a custom network` },
 );
 
-const networkGroup = command(
-  "network",
-  or(
-    networkListParser,
-    networkAddParser,
-    networkSetDefaultParser,
-    networkRemoveParser,
-  ),
-  { description: message`Manage networks` },
-);
+const networkGroup = command('network', or(networkListParser, networkAddParser, networkSetDefaultParser, networkRemoveParser), {
+  description: message`Manage networks`,
+});
 
 // ---------------------------------------------------------------------------
 // Info commands
 // ---------------------------------------------------------------------------
 
 const infoStatusParser = command(
-  "status",
+  'status',
   object({
-    cmd: constant("info-status" as const),
+    cmd: constant('info-status' as const),
   }),
   { description: message`Health check for current network` },
 );
 
 const infoBalanceParser = command(
-  "balance",
+  'balance',
   object({
-    cmd: constant("info-balance" as const),
+    cmd: constant('info-balance' as const),
     token: optional(
-      option("--token", string({ metavar: "TOKEN" }), {
+      option('--token', string({ metavar: 'TOKEN' }), {
         description: message`Filter by token name or token ID`,
       }),
     ),
@@ -251,10 +221,10 @@ const infoBalanceParser = command(
 );
 
 const infoTxParser = command(
-  "tx",
+  'tx',
   object({
-    cmd: constant("info-tx" as const),
-    hash: argument(string({ metavar: "HASH" }), {
+    cmd: constant('info-tx' as const),
+    hash: argument(string({ metavar: 'HASH' }), {
       description: message`Transaction hash (hex)`,
     }),
   }),
@@ -262,32 +232,32 @@ const infoTxParser = command(
 );
 
 const infoHistoryParser = command(
-  "history",
+  'history',
   object({
-    cmd: constant("info-history" as const),
+    cmd: constant('info-history' as const),
     from: optional(
-      option("--from", string({ metavar: "ADDRESS" }), {
+      option('--from', string({ metavar: 'ADDRESS' }), {
         description: message`Filter by sender account name or address`,
       }),
     ),
     to: optional(
-      option("--to", string({ metavar: "ADDRESS" }), {
+      option('--to', string({ metavar: 'ADDRESS' }), {
         description: message`Filter by recipient address`,
       }),
     ),
     token: optional(
-      option("--token", string({ metavar: "TOKEN" }), {
+      option('--token', string({ metavar: 'TOKEN' }), {
         description: message`Filter by token`,
       }),
     ),
     limit: withDefault(
-      option("--limit", integer(), {
+      option('--limit', integer(), {
         description: message`Max number of records to return`,
       }),
       20,
     ),
     offset: withDefault(
-      option("--offset", integer(), {
+      option('--offset', integer(), {
         description: message`Number of records to skip`,
       }),
       0,
@@ -297,31 +267,24 @@ const infoHistoryParser = command(
 );
 
 const infoBridgeTokensParser = command(
-  "bridge-tokens",
+  'bridge-tokens',
   object({
-    cmd: constant("info-bridge-tokens" as const),
+    cmd: constant('info-bridge-tokens' as const),
   }),
   { description: message`List tokens available for Fast-EVM transfers` },
 );
 
 const infoBridgeChainsParser = command(
-  "bridge-chains",
+  'bridge-chains',
   object({
-    cmd: constant("info-bridge-chains" as const),
+    cmd: constant('info-bridge-chains' as const),
   }),
   { description: message`List chains available for Fast-EVM transfers` },
 );
 
 const infoGroup = command(
-  "info",
-  or(
-    infoStatusParser,
-    infoBalanceParser,
-    infoTxParser,
-    infoHistoryParser,
-    infoBridgeTokensParser,
-    infoBridgeChainsParser,
-  ),
+  'info',
+  or(infoStatusParser, infoBalanceParser, infoTxParser, infoHistoryParser, infoBridgeTokensParser, infoBridgeChainsParser),
   { description: message`Query network and account information` },
 );
 
@@ -330,40 +293,54 @@ const infoGroup = command(
 // ---------------------------------------------------------------------------
 
 const sendParser = command(
-  "send",
+  'send',
   object({
-    cmd: constant("send" as const),
-    address: argument(string({ metavar: "ADDRESS" }), {
+    cmd: constant('send' as const),
+    address: argument(string({ metavar: 'ADDRESS' }), {
       description: message`Recipient address (fast1... for Fast, 0x... for EVM)`,
     }),
-    amount: argument(string({ metavar: "AMOUNT" }), {
+    amount: argument(string({ metavar: 'AMOUNT' }), {
       description: message`Human-readable amount (e.g., 10.5)`,
     }),
     token: optional(
-      option("--token", string({ metavar: "TOKEN" }), {
+      option('--token', string({ metavar: 'TOKEN' }), {
         description: message`Token to send (e.g., testUSDC, USDC)`,
       }),
     ),
+    memo: optional(
+      option('--memo', string({ metavar: 'STRING' }), {
+        description: message`Fast transfer memo (max 32 bytes UTF-8)`,
+      }),
+    ),
     fromChain: optional(
-      option("--from-chain", string({ metavar: "CHAIN" }), {
+      option('--from-chain', string({ metavar: 'CHAIN' }), {
         description: message`Source EVM chain for bridge-in (e.g., arbitrum-sepolia)`,
       }),
     ),
     toChain: optional(
-      option("--to-chain", string({ metavar: "CHAIN" }), {
+      option('--to-chain', string({ metavar: 'CHAIN' }), {
         description: message`Destination EVM chain for bridge-out (e.g., arbitrum-sepolia)`,
       }),
     ),
     eip7702: withDefault(
-      option("--eip-7702", {
+      option('--eip-7702', {
         description: message`Use EIP-7702 smart deposit for EVM → Fast (gas paid in USDC, no ETH required)`,
       }),
       false,
     ),
+    as: optional(
+      option('--as', string({ metavar: 'NAME' }), {
+        description: message`Local single-signer member to sign as (multisig wallets only)`,
+      }),
+    ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
+    ),
   }),
-  {
-    description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)`,
-  },
+  { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
 );
 
 // ---------------------------------------------------------------------------
@@ -371,11 +348,11 @@ const sendParser = command(
 // ---------------------------------------------------------------------------
 
 const fundUsdcFiatParser = command(
-  "fiat",
+  'fiat',
   object({
-    cmd: constant("fund-usdc-fiat" as const),
+    cmd: constant('fund-usdc-fiat' as const),
     address: optional(
-      option("--address", string({ metavar: "ADDRESS" }), {
+      option('--address', string({ metavar: 'ADDRESS' }), {
         description: message`Fast address to fund (default: default account)`,
       }),
     ),
@@ -384,49 +361,45 @@ const fundUsdcFiatParser = command(
 );
 
 const fundUsdcCryptoParser = command(
-  "crypto",
+  'crypto',
   object({
-    cmd: constant("fund-usdc-crypto" as const),
-    amount: argument(string({ metavar: "AMOUNT" }), {
+    cmd: constant('fund-usdc-crypto' as const),
+    amount: argument(string({ metavar: 'AMOUNT' }), {
       description: message`Human-readable amount to fund (e.g., 100.00)`,
     }),
-    chain: option("--chain", string({ metavar: "CHAIN" }), {
+    chain: option('--chain', string({ metavar: 'CHAIN' }), {
       description: message`EVM chain to bridge from (see fast info bridge-chains)`,
     }),
     token: optional(
-      option("--token", string({ metavar: "TOKEN" }), {
+      option('--token', string({ metavar: 'TOKEN' }), {
         description: message`Token to bridge (default: USDC / testUSDC)`,
       }),
     ),
     eip7702: withDefault(
-      option("--eip-7702", {
+      option('--eip-7702', {
         description: message`Use EIP-7702 smart deposit (gas paid in USDC via paymaster, no ETH required)`,
       }),
       false,
     ),
   }),
-  {
-    description: message`Bridge USDC from an EVM chain into your Fast account`,
-  },
+  { description: message`Bridge USDC from an EVM chain into your Fast account` },
 );
 
-const fundUsdcGroup = command(
-  "usdc",
-  or(fundUsdcFiatParser, fundUsdcCryptoParser),
-  { description: message`Fund your Fast account with USDC (fiat or crypto)` },
-);
+const fundUsdcGroup = command('usdc', or(fundUsdcFiatParser, fundUsdcCryptoParser), {
+  description: message`Fund your Fast account with USDC (fiat or crypto)`,
+});
 
 const fundFastUsdParser = command(
-  "fastusd",
+  'fastusd',
   object({
-    cmd: constant("fund-fastusd" as const),
+    cmd: constant('fund-fastusd' as const),
     to: optional(
-      option("--to", string({ metavar: "ADDRESS" }), {
+      option('--to', string({ metavar: 'ADDRESS' }), {
         description: message`Fast address to fund (default: default account)`,
       }),
     ),
     amount: optional(
-      option("--amount", string({ metavar: "AMOUNT" }), {
+      option('--amount', string({ metavar: 'AMOUNT' }), {
         description: message`Optional amount (decimal, e.g. 10.5)`,
       }),
     ),
@@ -436,43 +409,41 @@ const fundFastUsdParser = command(
   },
 );
 
-const fundGroup = command("fund", or(fundUsdcGroup, fundFastUsdParser), {
-  description: message`Fund your account`,
-});
+const fundGroup = command('fund', or(fundUsdcGroup, fundFastUsdParser), { description: message`Fund your account` });
 
 // ---------------------------------------------------------------------------
 // Pay command
 // ---------------------------------------------------------------------------
 
 const payParser = command(
-  "pay",
+  'pay',
   object({
-    cmd: constant("pay" as const),
-    url: argument(string({ metavar: "URL" }), {
+    cmd: constant('pay' as const),
+    url: argument(string({ metavar: 'URL' }), {
       description: message`URL of the x402-protected resource`,
     }),
     dryRun: withDefault(
-      option("--dry-run", {
+      option('--dry-run', {
         description: message`Inspect payment requirements without paying`,
       }),
       false,
     ),
     method: withDefault(
-      option("--method", string({ metavar: "METHOD" }), {
+      option('--method', string({ metavar: 'METHOD' }), {
         description: message`HTTP method (default: GET)`,
       }),
-      "GET",
+      'GET',
     ),
     header: withDefault(
       multiple(
-        option("--header", string({ metavar: "KEY: VALUE" }), {
+        option('--header', string({ metavar: 'KEY: VALUE' }), {
           description: message`Custom header (repeatable)`,
         }),
       ),
       [] as string[],
     ),
     body: optional(
-      option("--body", string({ metavar: "DATA" }), {
+      option('--body', string({ metavar: 'DATA' }), {
         description: message`Request body (prefix with @ to read from file)`,
       }),
     ),
@@ -481,20 +452,296 @@ const payParser = command(
 );
 
 // ---------------------------------------------------------------------------
+// Multisig commands
+// ---------------------------------------------------------------------------
+
+const multisigInitParser = command(
+  'init',
+  object({
+    cmd: constant('multisig-init' as const),
+    signers: option('--signers', string({ metavar: 'ADDR_OR_NAME,...' }), {
+      description: message`Comma-separated bech32 addresses or local account names`,
+    }),
+    quorum: option('--quorum', integer({ metavar: 'N' }), {
+      description: message`Number of signatures required to authorize a transaction`,
+    }),
+    configNonce: option('--config-nonce', string({ metavar: 'U64' }), {
+      description: message`Nonce included in the multisig config (decimal u64)`,
+    }),
+    name: option('--name', string({ metavar: 'ALIAS' }), {
+      description: message`Local alias for the multisig wallet`,
+    }),
+    setDefault: withDefault(
+      option('--set-default', {
+        description: message`Mark this wallet as the default account`,
+      }),
+      false,
+    ),
+  }),
+  { description: message`Create a multisig wallet config` },
+);
+
+const multisigExportParser = command(
+  'export',
+  object({
+    cmd: constant('multisig-export' as const),
+    name: argument(string({ metavar: 'NAME' }), {
+      description: message`Local alias of the multisig wallet to export`,
+    }),
+    out: optional(
+      option('--out', string({ metavar: 'PATH' }), {
+        description: message`Write the wallet config JSON to this path (default: stdout)`,
+      }),
+    ),
+  }),
+  { description: message`Export a multisig wallet config as JSON` },
+);
+
+const multisigImportParser = command(
+  'import',
+  merge(
+    object({
+      cmd: constant('multisig-import' as const),
+      name: optional(
+        option('--name', string({ metavar: 'ALIAS' }), {
+          description: message`Local alias for the multisig wallet (required when not using --from)`,
+        }),
+      ),
+      setDefault: withDefault(
+        option('--set-default', {
+          description: message`Mark this wallet as the default account`,
+        }),
+        false,
+      ),
+    }),
+    or(
+      object({
+        from: option('--from', string({ metavar: 'FILE' }), {
+          description: message`Path to a multisig wallet config JSON to import`,
+        }),
+      }),
+      object({
+        signers: option('--signers', string({ metavar: 'ADDR,...' }), {
+          description: message`Comma-separated bech32 fast addresses (sorted/dedup'd)`,
+        }),
+        quorum: option('--quorum', integer({ metavar: 'N' }), {
+          description: message`Number of signatures required to authorize a transaction`,
+        }),
+        configNonce: option('--config-nonce', string({ metavar: 'U64' }), {
+          description: message`Nonce included in the multisig config (decimal u64)`,
+        }),
+        expectAddress: optional(
+          option('--expect-address', string({ metavar: 'ADDR' }), {
+            description: message`If set, verify the derived address matches this value`,
+          }),
+        ),
+      }),
+    ),
+  ),
+  { description: message`Import an existing multisig wallet` },
+);
+
+const multisigPendingParser = command(
+  'pending',
+  object({
+    cmd: constant('multisig-pending' as const),
+    asMember: optional(
+      option('--as', string({ metavar: 'NAME' }), {
+        description: message`Local single-signer account to check "have I signed"`,
+      }),
+    ),
+  }),
+  { description: message`List pending multisig transactions for the active wallet` },
+);
+
+const multisigVoteParser = command(
+  'vote',
+  object({
+    cmd: constant('multisig-vote' as const),
+    tx: optional(
+      option('--tx', string({ metavar: 'HASH' }), {
+        description: message`Transaction hash to sign (required when multiple are pending)`,
+      }),
+    ),
+    asMember: optional(
+      option('--as', string({ metavar: 'NAME' }), {
+        description: message`Local single-signer account to sign as`,
+      }),
+    ),
+    yes: withDefault(
+      option('--yes', {
+        description: message`Skip the interactive confirmation`,
+      }),
+      false,
+    ),
+  }),
+  { description: message`Sign a pending multisig transaction` },
+);
+
+const multisigGroup = command(
+  'multisig',
+  or(multisigInitParser, multisigExportParser, multisigImportParser, multisigPendingParser, multisigVoteParser),
+  { description: message`Multisig wallet operations` },
+);
+
+// ---------------------------------------------------------------------------
+// Token commands
+// ---------------------------------------------------------------------------
+
+const tokenCreateParser = command(
+  'create',
+  object({
+    cmd: constant('token-create' as const),
+    name: option('--name', string({ metavar: 'STRING' }), {
+      description: message`Human-readable token name`,
+    }),
+    decimals: option('--decimals', integer({ metavar: '0-18' }), {
+      description: message`Number of fractional digits (0-18)`,
+    }),
+    initialSupply: option('--initial-supply', string({ metavar: 'AMOUNT' }), {
+      description: message`Initial total supply (decimal; will be scaled by decimals)`,
+    }),
+    minters: optional(
+      option('--minters', string({ metavar: 'ADDR,...' }), {
+        description: message`Comma-separated bech32 addresses authorized to mint`,
+      }),
+    ),
+    memo: optional(
+      option('--memo', string({ metavar: 'STRING' }), {
+        description: message`UserData memo (max 32 bytes UTF-8)`,
+      }),
+    ),
+    asMember: optional(
+      option('--as', string({ metavar: 'NAME' }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
+    ),
+  }),
+  { description: message`Create a new token` },
+);
+
+const tokenMintParser = command(
+  'mint',
+  object({
+    cmd: constant('token-mint' as const),
+    token: option('--token', string({ metavar: 'ID_OR_NAME' }), {
+      description: message`Token id (hex, 64 chars, optional 0x) or registered token name`,
+    }),
+    to: option('--to', string({ metavar: 'ADDR' }), {
+      description: message`Bech32 fast1... recipient address`,
+    }),
+    amount: option('--amount', string({ metavar: 'AMOUNT' }), {
+      description: message`Decimal amount; scaled by the token's decimals`,
+    }),
+    asMember: optional(
+      option('--as', string({ metavar: 'NAME' }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
+    ),
+  }),
+  { description: message`Mint tokens to a recipient (caller must be a minter)` },
+);
+
+const tokenBurnParser = command(
+  'burn',
+  object({
+    cmd: constant('token-burn' as const),
+    token: option('--token', string({ metavar: 'ID_OR_NAME' }), {
+      description: message`Token id (hex, 64 chars, optional 0x) or registered token name`,
+    }),
+    amount: option('--amount', string({ metavar: 'AMOUNT' }), {
+      description: message`Decimal amount; scaled by the token's decimals`,
+    }),
+    asMember: optional(
+      option('--as', string({ metavar: 'NAME' }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
+    ),
+  }),
+  { description: message`Burn tokens from the active account's balance` },
+);
+
+const tokenManageParser = command(
+  'manage',
+  object({
+    cmd: constant('token-manage' as const),
+    token: option('--token', string({ metavar: 'ID_OR_NAME' }), {
+      description: message`Token id (hex, 64 chars, optional 0x) or registered token name`,
+    }),
+    admin: optional(
+      option('--admin', string({ metavar: 'ADDR' }), {
+        description: message`Transfer admin to this bech32 fast1... address`,
+      }),
+    ),
+    addMinters: optional(
+      option('--add-minters', string({ metavar: 'ADDR,...' }), {
+        description: message`Comma-separated minter addresses to add`,
+      }),
+    ),
+    removeMinters: optional(
+      option('--remove-minters', string({ metavar: 'ADDR,...' }), {
+        description: message`Comma-separated minter addresses to remove`,
+      }),
+    ),
+    memo: optional(
+      option('--memo', string({ metavar: 'STRING' }), {
+        description: message`UserData memo (max 32 bytes UTF-8)`,
+      }),
+    ),
+    asMember: optional(
+      option('--as', string({ metavar: 'NAME' }), {
+        description: message`For multisig: which local member key signs`,
+      }),
+    ),
+    replacePending: withDefault(
+      option('--replace-pending', {
+        description: message`Replace existing multisig proposal(s) at the current nonce`,
+      }),
+      false,
+    ),
+  }),
+  {
+    description: message`Update a token's admin or minters (caller must be current admin)`,
+  },
+);
+
+const tokenGroup = command('token', or(tokenCreateParser, tokenMintParser, tokenBurnParser, tokenManageParser), {
+  description: message`Token operations`,
+});
+
+// ---------------------------------------------------------------------------
 // Authorize commands
 // ---------------------------------------------------------------------------
 
 const authorizeRequestParser = command(
-  "request",
+  'request',
   object({
-    cmd: constant("authorize-request" as const),
+    cmd: constant('authorize-request' as const),
     requester: optional(
-      option("--requester", string({ metavar: "NAME" }), {
+      option('--requester', string({ metavar: 'NAME' }), {
         description: message`Free-text label shown to the wallet user`,
       }),
     ),
     url: optional(
-      option("--url", string({ metavar: "URL" }), {
+      option('--url', string({ metavar: 'URL' }), {
         description: message`Override the wallet base URL (default: https://app.fast.xyz/authorize)`,
       }),
     ),
@@ -505,22 +752,22 @@ const authorizeRequestParser = command(
 );
 
 const authorizeCompleteParser = command(
-  "complete",
+  'complete',
   object({
-    cmd: constant("authorize-complete" as const),
+    cmd: constant('authorize-complete' as const),
     message: optional(
-      option("--message", string({ metavar: "TEXT" }), {
+      option('--message', string({ metavar: 'TEXT' }), {
         description: message`Handover code or chat message containing it`,
       }),
     ),
     stdin: withDefault(
-      option("--stdin", {
+      option('--stdin', {
         description: message`Read handover code from stdin instead of an argument`,
       }),
       false,
     ),
     printAccount: withDefault(
-      option("--print-account", {
+      option('--print-account', {
         description: message`Also print the derived Fast address and public key`,
       }),
       false,
@@ -531,25 +778,15 @@ const authorizeCompleteParser = command(
   },
 );
 
-const authorizeGroup = command(
-  "authorize",
-  or(authorizeRequestParser, authorizeCompleteParser),
-  { description: message`Agent-side key handover protocol` },
-);
+const authorizeGroup = command('authorize', or(authorizeRequestParser, authorizeCompleteParser), {
+  description: message`Agent-side key handover protocol`,
+});
 
 // ---------------------------------------------------------------------------
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
-const commands = or(
-  accountGroup,
-  networkGroup,
-  infoGroup,
-  sendParser,
-  fundGroup,
-  payParser,
-  authorizeGroup,
-);
+const commands = or(accountGroup, networkGroup, infoGroup, sendParser, fundGroup, payParser, multisigGroup, tokenGroup, authorizeGroup);
 
 export const parser = merge(globalOptions, commands);
 
@@ -582,6 +819,17 @@ export type FundUsdcFiatArgs = InferValue<typeof fundUsdcFiatParser>;
 export type FundUsdcCryptoArgs = InferValue<typeof fundUsdcCryptoParser>;
 export type FundFastUsdArgs = InferValue<typeof fundFastUsdParser>;
 export type PayArgs = InferValue<typeof payParser>;
+
+export type MultisigInitArgs = InferValue<typeof multisigInitParser>;
+export type MultisigExportArgs = InferValue<typeof multisigExportParser>;
+export type MultisigImportArgs = InferValue<typeof multisigImportParser>;
+export type MultisigPendingArgs = InferValue<typeof multisigPendingParser>;
+export type MultisigVoteArgs = InferValue<typeof multisigVoteParser>;
+
+export type TokenCreateArgs = InferValue<typeof tokenCreateParser>;
+export type TokenMintArgs = InferValue<typeof tokenMintParser>;
+export type TokenBurnArgs = InferValue<typeof tokenBurnParser>;
+export type TokenManageArgs = InferValue<typeof tokenManageParser>;
 export type AuthorizeRequestArgs = InferValue<typeof authorizeRequestParser>;
 export type AuthorizeCompleteArgs = InferValue<typeof authorizeCompleteParser>;
 
@@ -589,7 +837,7 @@ export type AuthorizeCompleteArgs = InferValue<typeof authorizeCompleteParser>;
 export type ParsedArgs = InferValue<typeof parser>;
 
 /** Union of just the leaf-command discriminants. */
-export type CommandName = ParsedArgs["cmd"];
+export type CommandName = ParsedArgs['cmd'];
 
 // Re-export for convenience
-export type { InferValue } from "@optique/core/parser";
+export type { InferValue } from '@optique/core/parser';

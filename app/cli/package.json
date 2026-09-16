@@ -35,6 +35,7 @@
     "cli-table3": "^0.6.5",
     "drizzle-orm": "^0.45.2",
     "effect": "^3.21.0",
+    "json-with-bigint": "^3.5.8",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -48,7 +49,8 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.5.0",
     "@types/uuid": "^10.0.0",
-    "drizzle-kit": "^0.31.10"
+    "drizzle-kit": "^0.31.10",
+    "viem": "^2.46.2"
   },
   "publishConfig": {
     "access": "public",

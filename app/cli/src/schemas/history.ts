@@ -1,6 +1,11 @@
 export interface HistoryEntry {
   readonly hash: string;
-  readonly type: "transfer";
+  readonly type:
+    | "transfer"
+    | "token-create"
+    | "token-mint"
+    | "token-burn"
+    | "token-manage";
   readonly from: string;
   readonly to: string;
   readonly amount: string;

@@ -28,7 +28,7 @@ import { Output } from '../services/output.js';
 import { Prompt } from '../services/prompt.js';
 import { resolveSigner } from '../services/signer-resolver.js';
 import { AccountStore } from '../services/storage/account.js';
-import { HistoryStore } from '../services/storage/history.js';
+import { HistoryStore, recordConfirmedHistory } from '../services/storage/history.js';
 import { NetworkConfigService } from '../services/storage/network.js';
 import { resolveToken, tokenIsKnownOnNetwork } from '../services/token-resolver.js';
 import { submitOperation } from '../services/tx-pipeline.js';
@@ -407,30 +407,35 @@ export const send: Command<SendArgs> = {
       // fast→fast:   Fast tx → Fast explorer (/txs/)
       const explorerUrl = route === 'evm-to-fast' && evmExplorerUrl ? `${evmExplorerUrl}/tx/${txHash}` : `${network.explorerUrl}/txs/${txHash}`;
 
-      // Record in local history
-      yield* historyStore.record(
-        makeHistoryEntry({
-          hash: txHash,
-          type: 'transfer',
-          from: fromAddress,
-          to: args.address,
-          amount: amountRaw.toString(),
-          formatted: args.amount,
-          tokenName: resolvedTokenName,
-          tokenId: toHex(tokenInfo.fastTokenId),
-          network: config.network,
-          status: route === 'fast' ? 'confirmed' : 'pending',
-          timestamp: new Date().toISOString(),
-          explorerUrl,
-          route,
-          chainId:
-            route === 'evm-to-fast'
-              ? network.allSet!.chains[fromChain!]!.chainId
-              : route === 'fast-to-evm'
-                ? network.allSet!.chains[toChain!]!.chainId
-                : null,
-        }),
-      );
+      // A confirmed Fast settlement is authoritative even if the local cache
+      // fails. Bridge routes remain pending and retain their existing failure
+      // behavior rather than being described as confirmed.
+      const historyEntry = makeHistoryEntry({
+        hash: txHash,
+        type: 'transfer',
+        from: fromAddress,
+        to: args.address,
+        amount: amountRaw.toString(),
+        formatted: args.amount,
+        tokenName: resolvedTokenName,
+        tokenId: toHex(tokenInfo.fastTokenId),
+        network: config.network,
+        status: route === 'fast' ? 'confirmed' : 'pending',
+        timestamp: new Date().toISOString(),
+        explorerUrl,
+        route,
+        chainId:
+          route === 'evm-to-fast'
+            ? network.allSet!.chains[fromChain!]!.chainId
+            : route === 'fast-to-evm'
+              ? network.allSet!.chains[toChain!]!.chainId
+              : null,
+      });
+      if (route === 'fast') {
+        yield* recordConfirmedHistory(historyStore, output, historyEntry);
+      } else {
+        yield* historyStore.record(historyEntry);
+      }
 
       if (estimatedTime) {
         yield* output.humanLine(`Sent ${args.amount} ${resolvedTokenName} to ${args.address}`);

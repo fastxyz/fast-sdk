@@ -357,26 +357,6 @@ export const multisigVote: Command<MultisigVoteArgs> = {
       const existingPartials = multisig.signatures;
       const alreadySigned = existingPartials.some(([signer]) => bytesEqual(signer, myPubkey));
 
-      // Resolve display metadata before signing so a finalized transaction can
-      // be recorded with the same human units used by direct token commands.
-      const firstOperation = transactionOperations(target.envelope.transaction)[0];
-      const firstValue = firstOperation?.value as { readonly tokenId?: unknown } | undefined;
-      let historyTokenMetadata: VoteTokenMetadata | undefined;
-      if (firstValue?.tokenId instanceof Uint8Array) {
-        const tokenInfo = (yield* rpc.getTokenInfo({ tokenIds: [firstValue.tokenId] } as never)) as {
-          readonly requestedTokenMetadata?: ReadonlyArray<readonly [Uint8Array, { readonly tokenName: string; readonly decimals: number } | null]>;
-        };
-        const metadata = tokenInfo.requestedTokenMetadata?.[0]?.[1];
-        if (!metadata) {
-          return yield* Effect.fail(
-            new TransactionFailedError({
-              message: `Token metadata is unavailable for ${toHex(firstValue.tokenId)}; refusing to sign without complete history metadata.`,
-            }),
-          );
-        }
-        historyTokenMetadata = metadata;
-      }
-
       // 8. Display + confirm (unless suppressed).
       const authorizedSigners = multisig.config.authorizedSigners;
       const quorum = Number(multisig.config.quorum);
@@ -418,6 +398,19 @@ export const multisigVote: Command<MultisigVoteArgs> = {
       const reachedQuorum = yield* voteReachedQuorum(submitResult);
 
       if (reachedQuorum) {
+        // Metadata only enriches local history. Never let an index/metadata
+        // outage block signing, quorum, or a successfully settled operation.
+        const firstOperation = transactionOperations(target.envelope.transaction)[0];
+        const firstValue = firstOperation?.value as { readonly tokenId?: unknown } | undefined;
+        let historyTokenMetadata: VoteTokenMetadata | undefined;
+        if (firstValue?.tokenId instanceof Uint8Array) {
+          const tokenInfo = (yield* rpc
+            .getTokenInfo({ tokenIds: [firstValue.tokenId] } as never)
+            .pipe(Effect.catchAll(() => Effect.succeed(null)))) as {
+            readonly requestedTokenMetadata?: ReadonlyArray<readonly [Uint8Array, VoteTokenMetadata | null]>;
+          } | null;
+          historyTokenMetadata = tokenInfo?.requestedTokenMetadata?.[0]?.[1] ?? undefined;
+        }
         const historyEntry = makeVoteHistoryEntry({
           envelope: target.envelope,
           txHash: target.hash,

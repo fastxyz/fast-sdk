@@ -35,7 +35,6 @@ import { Effect, Layer, Ref, Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 import {
   AddressDerivationMismatchError,
-  AlreadyVotedError,
   DatabaseError,
   NotAMemberError,
   WalletKindMismatchError,
@@ -269,98 +268,6 @@ describe('multisig 2-of-3 integration', () => {
     expect((result.bobSubmit as { type: string }).type).toBe('Success');
     expect(result.pendingAfter).toBe(0);
   }, 15_000);
-
-  it('double-sign refused: alice cannot vote on her own initiation', async () => {
-    const layer = makeBaseLayer();
-    const aliceAddr = await fastAddressOf(SEED(0xaa));
-    const bobAddr = await fastAddressOf(SEED(0xbb));
-    const carolAddr = await fastAddressOf(SEED(0xcc));
-
-    const sortedSigners = canonicalAddresses([aliceAddr, bobAddr, carolAddr]);
-    const sdkConfig = {
-      authorized_signers: sortedSigners.map((a) => fromFastAddress(a)),
-      quorum: 2n,
-      nonce: 0n,
-    };
-    const multisigFastAddr = await deriveMultiSigAddress(sdkConfig);
-
-    const exit = await Effect.runPromiseExit(
-      Effect.gen(function* () {
-        const accounts = yield* AccountStore;
-        yield* accounts.create('alice', SEED(0xaa), null);
-        yield* accounts.create('bob', SEED(0xbb), null);
-        yield* accounts.create('carol', SEED(0xcc), null);
-
-        const ms = yield* accounts.createMultiSig(
-          {
-            version: 1,
-            name: 'treasury',
-            signers: sortedSigners,
-            quorum: 2,
-            configNonce: '0',
-            fastAddress: multisigFastAddr,
-            network: 'testnet',
-          },
-          true,
-        );
-
-        const aliceResolved = yield* resolveSigner({
-          account: ms as AccountInfo,
-          asMember: 'alice',
-          password: null,
-        });
-        if (aliceResolved.kind !== 'multisig') throw new Error('expected multisig signer for alice');
-
-        const aliceEnvelope = yield* Effect.promise(() =>
-          aliceResolved.signer.signTransaction({
-            networkId: 'fast:testnet' as const,
-            nonce: 0n,
-            operations: [
-              {
-                type: 'TokenTransfer' as const,
-                value: {
-                  tokenId: new Uint8Array(32),
-                  recipient: new Uint8Array(32).fill(0x42),
-                  amount: 1000n,
-                  userData: null,
-                },
-              },
-            ],
-          }),
-        );
-
-        const rpcRef = yield* Ref.make<StubRpcState>(initialState);
-        yield* submitTransaction(rpcRef, aliceEnvelope);
-
-        // Alice tries to vote on the same envelope.
-        const myPubkey = yield* Effect.promise(() => aliceResolved.signer.getSignerPublicKey());
-
-        const state = yield* Ref.get(rpcRef);
-        const pending = Array.from(state.pending.values())[0]!;
-        if (pending.signature.type !== 'MultiSig') throw new Error('unreachable');
-        const existingPartials = pending.signature.value.signatures;
-        const alreadySigned = existingPartials.some(([signer]) => bytesEqual(signer, myPubkey));
-        const txHash = yield* Effect.promise(() => computeTxHash(pending));
-        if (alreadySigned) {
-          return yield* Effect.fail(
-            new AlreadyVotedError({
-              walletName: ms.name,
-              txHash,
-            }),
-          );
-        }
-        // Should not reach here.
-        return null;
-      }).pipe(Effect.provide(layer)),
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag !== 'Failure') throw new Error('unreachable');
-    const err = exit.cause._tag === 'Fail' ? exit.cause.error : null;
-    expect(err).toBeInstanceOf(AlreadyVotedError);
-    if (!(err instanceof AlreadyVotedError)) throw new Error('unreachable');
-    expect(err.walletName).toBe('treasury');
-  });
 
   it('NotAMemberError: alice is local but not a signer of the multisig', async () => {
     const layer = makeBaseLayer();

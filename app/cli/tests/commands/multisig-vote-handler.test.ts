@@ -10,6 +10,8 @@ import { Effect, Layer, Option } from 'effect';
 import { describe, expect, it } from 'vitest';
 import { multisigVote } from '../../src/commands/multisig/vote.js';
 import { bundledNetworks } from '../../src/config/networks.js';
+import { FastSdkError } from '../../src/errors/index.js';
+import type { HistoryEntry } from '../../src/schemas/history.js';
 import { FastRpc } from '../../src/services/api/fast.js';
 import { ClientConfig } from '../../src/services/config/client.js';
 import { Output } from '../../src/services/output.js';
@@ -23,9 +25,15 @@ import { NetworkConfigService } from '../../src/services/storage/network.js';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const seed = (value: number) => new Uint8Array(32).fill(value);
 
-describe('multisig vote handler', () => {
-  it('shows the exact transaction before the real confirmation and submission', async () => {
-    const sqlite = new Db(join(mkdtempSync(join(tmpdir(), 'fast-vote-handler-')), 'fast.db'));
+type VoteScenario = {
+  readonly asMember: 'alice' | 'bob';
+  readonly submitType: 'Success' | 'IncompleteMultiSig';
+  readonly metadataFailure?: boolean;
+};
+
+const runVoteScenario = async ({ asMember, submitType, metadataFailure = false }: VoteScenario) => {
+  const sqlite = new Db(join(mkdtempSync(join(tmpdir(), 'fast-vote-handler-')), 'fast.db'));
+  try {
     const db = drizzle(sqlite);
     migrate(db, { migrationsFolder: join(__dirname, '../../drizzle') });
     const dbLayer = Layer.succeed(DatabaseService, {
@@ -33,8 +41,10 @@ describe('multisig vote handler', () => {
     } as never);
     const accountsLayer = AccountStore.Default.pipe(Layer.provide(dbLayer));
     const lines: string[] = [];
-    let submitted = 0;
-    let confirmedAfterDetails = false;
+    const confirmations: string[] = [];
+    const history: HistoryEntry[] = [];
+    let submissions = 0;
+    let metadataCalls = 0;
 
     const baseLayers = Layer.mergeAll(
       dbLayer,
@@ -60,18 +70,15 @@ describe('multisig vote handler', () => {
       Layer.succeed(Prompt, {
         password: () => Effect.die('password prompt must not run'),
         input: () => Effect.die('input prompt must not run'),
-        confirm: () =>
+        confirm: (message: string) =>
           Effect.sync(() => {
-            const output = lines.join('\n');
-            confirmedAfterDetails =
-              output.includes('[1] TokenTransfer') &&
-              output.includes('"amount": "100000"') &&
-              output.includes('fast:testnet') &&
-              output.includes('Operations: 1');
+            confirmations.push(message);
             return true;
           }),
       } as never),
-      Layer.succeed(HistoryStore, { record: () => Effect.void } as never),
+      Layer.succeed(HistoryStore, {
+        record: (entry: HistoryEntry) => Effect.sync(() => void history.push(entry)),
+      } as never),
     );
 
     await Effect.runPromise(
@@ -130,22 +137,61 @@ describe('multisig vote handler', () => {
         const rpcLayer = Layer.succeed(FastRpc, {
           getPendingMultisigTransactions: () => Effect.succeed([envelope]),
           getAccountInfo: () => Effect.succeed({ nextNonce: 0n, pendingConfirmation: null }),
-          getTokenInfo: () =>
-            Effect.succeed({
-              requestedTokenMetadata: [[new Uint8Array(32).fill(0xd7), { tokenName: 'TEST', decimals: 6 }]],
-            }),
+          getTokenInfo: () => {
+            metadataCalls++;
+            return metadataFailure
+              ? Effect.fail(new FastSdkError({ message: 'metadata unavailable' }))
+              : Effect.succeed({
+                  requestedTokenMetadata: [[new Uint8Array(32).fill(0xd7), { tokenName: 'TEST', decimals: 6 }]],
+                });
+          },
           submitTransaction: () =>
             Effect.sync(() => {
-              submitted++;
-              return { type: 'IncompleteMultiSig' };
+              submissions++;
+              return { type: submitType };
             }),
         } as never);
 
-        yield* multisigVote.handler({ asMember: 'bob', yes: false } as never).pipe(Effect.provide(Layer.merge(baseLayers, rpcLayer)));
+        yield* multisigVote.handler({ asMember, yes: false } as never).pipe(Effect.provide(Layer.merge(baseLayers, rpcLayer)));
       }).pipe(Effect.provide(baseLayers)),
     );
 
-    expect(confirmedAfterDetails).toBe(true);
-    expect(submitted).toBe(1);
+    return { confirmations, history, lines, metadataCalls, submissions };
+  } finally {
+    sqlite.close();
+  }
+};
+
+describe('multisig vote handler', () => {
+  it('shows the exact transaction before the real confirmation and submission', async () => {
+    const result = await runVoteScenario({ asMember: 'bob', submitType: 'IncompleteMultiSig' });
+    const output = result.lines.join('\n');
+
+    expect(output).toContain('[1] TokenTransfer');
+    expect(output).toContain('"amount": "100000"');
+    expect(output).toContain('fast:testnet');
+    expect(output).toContain('Operations: 1');
+    expect(result.confirmations).toEqual(['Sign and submit?']);
+    expect(result.submissions).toBe(1);
+    expect(result.metadataCalls).toBe(0);
+  });
+
+  it('resubmits an already-recorded signature after explicit confirmation', async () => {
+    const result = await runVoteScenario({ asMember: 'alice', submitType: 'IncompleteMultiSig' });
+
+    expect(result.lines.join('\n')).toContain('your signature is already recorded; this will resubmit it');
+    expect(result.confirmations).toEqual(['Resubmit existing signature?']);
+    expect(result.submissions).toBe(1);
+  });
+
+  it('does not let a post-submit metadata failure hide successful quorum', async () => {
+    const result = await runVoteScenario({ asMember: 'bob', submitType: 'Success', metadataFailure: true });
+
+    expect(result.submissions).toBe(1);
+    expect(result.metadataCalls).toBe(1);
+    expect(result.lines.join('\n')).toContain('Quorum reached.');
+    expect(result.history).toHaveLength(1);
+    expect(result.history[0]!.tokenName).toMatch(/^0x/);
+    expect(result.history[0]!.formatted).toBe('100000');
   });
 });

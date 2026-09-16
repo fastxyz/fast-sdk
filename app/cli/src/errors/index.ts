@@ -10,7 +10,6 @@ import type {
   AccountExistsError,
   AccountNotFoundError,
   AddressDerivationMismatchError,
-  AlreadyVotedError,
   AmbiguousMemberError,
   DefaultAccountError,
   MultiSigConfigInvalidError,
@@ -110,7 +109,6 @@ export type ClientError =
   | NotAMemberError
   | AmbiguousMemberError
   | AddressDerivationMismatchError
-  | AlreadyVotedError
   | WalletKindMismatchError
   | WalletNetworkMismatchError
   | PendingAlreadyExistsError

@@ -426,8 +426,6 @@ All extend the existing tagged-error pattern in
   required
 - `AddressDerivationMismatch` — import file's `fastAddress` ≠
   recomputed
-- `AlreadyVoted` — caller's pubkey already in pending tx's
-  signatures
 - `WalletKindMismatch` — operation requires single (e.g. `account
 export`) but row is multisig, or vice versa
 - `IncompleteMultiSigSubmission` — not an error per se, but a

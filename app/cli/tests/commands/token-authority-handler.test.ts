@@ -150,7 +150,11 @@ describe('token authority handlers', () => {
     let submissions = 0;
     const rpcLayer = Layer.succeed(FastRpc, {
       getTokenInfo: () => Effect.succeed(tokenMetadata(new Uint8Array(32), [seed(9)])),
-      submitTransaction: () => Effect.sync(() => void submissions),
+      submitTransaction: () =>
+        Effect.sync(() => {
+          submissions++;
+          return { type: 'Success' };
+        }),
     } as never);
 
     await expect(
@@ -230,7 +234,11 @@ describe('token authority handlers', () => {
     let submissions = 0;
     const rpcLayer = Layer.succeed(FastRpc, {
       getTokenInfo: () => Effect.succeed(tokenMetadata(seed(9), [])),
-      submitTransaction: () => Effect.sync(() => void submissions),
+      submitTransaction: () =>
+        Effect.sync(() => {
+          submissions++;
+          return { type: 'Success' };
+        }),
     } as never);
 
     await expect(
@@ -255,7 +263,11 @@ describe('token authority handlers', () => {
     let submissions = 0;
     const rpcLayer = Layer.succeed(FastRpc, {
       getTokenInfo: () => Effect.succeed(tokenMetadata(accountBytes, [])),
-      submitTransaction: () => Effect.sync(() => void submissions),
+      submitTransaction: () =>
+        Effect.sync(() => {
+          submissions++;
+          return { type: 'Success' };
+        }),
     } as never);
 
     await expect(

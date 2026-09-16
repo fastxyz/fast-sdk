@@ -106,17 +106,6 @@ export class AddressDerivationMismatchError extends Data.TaggedError(
   }
 }
 
-export class AlreadyVotedError extends Data.TaggedError("AlreadyVotedError")<{
-  readonly walletName: string;
-  readonly txHash: string;
-}> {
-  readonly exitCode = 2 as const;
-  readonly errorCode = "ALREADY_VOTED" as const;
-  get message() {
-    return `You have already signed transaction ${this.txHash} on wallet "${this.walletName}".`;
-  }
-}
-
 export class WalletKindMismatchError extends Data.TaggedError(
   "WalletKindMismatchError",
 )<{

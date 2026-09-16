@@ -125,24 +125,24 @@ export const infoBalance: Command<InfoBalanceArgs> = {
         yield* output.humanLine('No bridge chains configured for this network.');
       }
 
-      const configuredIds = new Set(
-        uniqueTokens.map((token) => token.fastTokenId.replace(/^0x/, '').toLowerCase()),
-      );
-      for (const tokenIdHex of fastBalanceMap.keys()) {
-        if (configuredIds.has(tokenIdHex)) continue;
-        const tokenInfo = (yield* rpc.getTokenInfo({
-          tokenIds: [fromHex(tokenIdHex)],
-        } as never)) as {
-          requestedTokenMetadata?: ReadonlyArray<
-            readonly [Uint8Array, { tokenName: string; decimals: number } | null]
-          >;
-        };
-        const metadata = tokenInfo.requestedTokenMetadata?.[0]?.[1];
-        addToken(
-          metadata?.tokenName ?? `0x${tokenIdHex.slice(0, 12)}…`,
-          `0x${tokenIdHex}`,
-          metadata?.decimals ?? 0,
-        );
+      const configuredIds = new Set(uniqueTokens.map((token) => token.fastTokenId.replace(/^0x/, '').toLowerCase()));
+      const unconfiguredIds = Array.from(fastBalanceMap.keys()).filter((tokenIdHex) => !configuredIds.has(tokenIdHex));
+      const metadataById = new Map<string, { tokenName: string; decimals: number }>();
+      if (unconfiguredIds.length > 0) {
+        const tokenInfo = (yield* rpc
+          .getTokenInfo({
+            tokenIds: unconfiguredIds.map(fromHex),
+          } as never)
+          .pipe(Effect.catchAll(() => Effect.succeed(null)))) as {
+          requestedTokenMetadata?: ReadonlyArray<readonly [Uint8Array, { tokenName: string; decimals: number } | null]>;
+        } | null;
+        for (const [tokenId, metadata] of tokenInfo?.requestedTokenMetadata ?? []) {
+          if (metadata) metadataById.set(bytesToHex(tokenId), metadata);
+        }
+      }
+      for (const tokenIdHex of unconfiguredIds) {
+        const metadata = metadataById.get(tokenIdHex);
+        addToken(metadata?.tokenName ?? `0x${tokenIdHex.slice(0, 12)}…`, `0x${tokenIdHex}`, metadata?.decimals ?? 0);
       }
 
       if (evmAddress === null) {

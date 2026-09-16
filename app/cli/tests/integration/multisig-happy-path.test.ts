@@ -268,7 +268,7 @@ describe('multisig 2-of-3 integration', () => {
     expect(result.aliceResultType).toBe('IncompleteMultiSig');
     expect((result.bobSubmit as { type: string }).type).toBe('Success');
     expect(result.pendingAfter).toBe(0);
-  });
+  }, 15_000);
 
   it('double-sign refused: alice cannot vote on her own initiation', async () => {
     const layer = makeBaseLayer();

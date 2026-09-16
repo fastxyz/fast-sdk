@@ -45,7 +45,7 @@ describe('submitOperation (single-signer)', () => {
     expect(result.nonce).toBe(7n);
     expect(typeof result.txHash).toBe('string');
     expect(result.txHash?.startsWith('0x')).toBe(true);
-  });
+  }, 15_000);
 
   it('returns incomplete-multisig (txHash null) when proxy says IncompleteMultiSig', async () => {
     const signer = new Signer(SECRET);

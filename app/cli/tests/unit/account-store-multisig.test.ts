@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,66 @@ import { DatabaseService } from '../../src/services/storage/database.js';
 import { DatabaseError } from '../../src/errors/index.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
+
+function applySqlMigration(sqlite: Db.Database, filename: string): void {
+  const sql = readFileSync(join(__dirname, '../../drizzle', filename), 'utf8');
+  sqlite.exec(sql.replaceAll('--> statement-breakpoint', ''));
+}
+
+describe('accounts migration', () => {
+  it('preserves an existing 0000 single-signer account when applying 0001', () => {
+    const sqlite = new Db(':memory:');
+    try {
+      applySqlMigration(sqlite, '0000_colossal_blizzard.sql');
+      sqlite.prepare(`
+        INSERT INTO accounts (
+          name, fast_address, evm_address, encrypted_key, encrypted, is_default, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'legacy',
+        'fast1legacy',
+        '0x1234567890abcdef1234567890abcdef12345678',
+        Buffer.from('encrypted-private-key'),
+        1,
+        1,
+        '2026-05-04T00:00:00.000Z',
+      );
+
+      applySqlMigration(sqlite, '0001_bumpy_komodo.sql');
+
+      const account = sqlite.prepare('SELECT * FROM accounts WHERE name = ?').get('legacy') as {
+        name: string;
+        kind: string;
+        fast_address: string;
+        evm_address: string;
+        encrypted_key: Buffer;
+        encrypted: number;
+        multisig_config: string | null;
+        is_default: number;
+        created_at: string;
+      };
+      const createSql = sqlite
+        .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'accounts'")
+        .pluck()
+        .get() as string;
+
+      expect(account).toEqual({
+        name: 'legacy',
+        kind: 'single',
+        fast_address: 'fast1legacy',
+        evm_address: '0x1234567890abcdef1234567890abcdef12345678',
+        encrypted_key: Buffer.from('encrypted-private-key'),
+        encrypted: 1,
+        multisig_config: null,
+        is_default: 1,
+        created_at: '2026-05-04T00:00:00.000Z',
+      });
+      expect(createSql).toContain('accounts_kind_payload_check');
+    } finally {
+      sqlite.close();
+    }
+  });
+});
 
 describe('AccountStore.createMultiSig', () => {
   it('inserts a multisig row and reads it back', async () => {

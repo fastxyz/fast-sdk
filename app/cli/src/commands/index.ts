@@ -22,8 +22,16 @@ import { networkAdd } from "./network/add.js";
 import { networkList } from "./network/list.js";
 import { networkRemove } from "./network/remove.js";
 import { networkSetDefault } from "./network/set-default.js";
+import {
+  multisigExport,
+  multisigImport,
+  multisigInit,
+  multisigPending,
+  multisigVote,
+} from "./multisig/index.js";
 import { pay } from "./pay.js";
 import { send } from "./send.js";
+import { tokenBurn, tokenCreate, tokenManage, tokenMint } from "./token/index.js";
 
 export const commands = [
   authorizeComplete,
@@ -37,6 +45,11 @@ export const commands = [
   fundFastUsd,
   fundUsdcCrypto,
   fundUsdcFiat,
+  multisigExport,
+  multisigImport,
+  multisigInit,
+  multisigPending,
+  multisigVote,
   infoBalance,
   infoBridgeChains,
   infoBridgeTokens,
@@ -49,6 +62,10 @@ export const commands = [
   networkSetDefault,
   send,
   pay,
+  tokenBurn,
+  tokenCreate,
+  tokenManage,
+  tokenMint,
 ];
 
 /**

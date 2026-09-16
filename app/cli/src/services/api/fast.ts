@@ -1,11 +1,13 @@
 import type {
   GetAccountInfoParams,
+  GetPendingMultisigParams,
   GetTokenInfoParams,
   GetTransactionCertificatesParams,
   TransactionEnvelope,
 } from "@fastxyz/schema";
 import {
   getAccountInfo as sdkGetAccountInfo,
+  getPendingMultisigTransactions as sdkGetPendingMultisigTransactions,
   getTokenInfo as sdkGetTokenInfo,
   getTransactionCertificates as sdkGetTransactionCertificates,
   submitTransaction as sdkSubmitTransaction,
@@ -27,6 +29,9 @@ export interface FastRpcShape {
   ) => Effect.Effect<unknown, FastSdkError>;
   readonly getTokenInfo: (
     params: GetTokenInfoParams,
+  ) => Effect.Effect<unknown, FastSdkError>;
+  readonly getPendingMultisigTransactions: (
+    params: GetPendingMultisigParams,
   ) => Effect.Effect<unknown, FastSdkError>;
   readonly getRpcUrl: () => Effect.Effect<string, FastSdkError>;
 }
@@ -113,6 +118,17 @@ export const FastRpcLive = Layer.effect(
           debugLog(config.debug, "getTokenInfo >", params);
           const result = yield* mapFastSdkError(sdkGetTokenInfo(rpcUrl, params));
           debugLog(config.debug, "getTokenInfo <", result);
+          return result;
+        }),
+
+      getPendingMultisigTransactions: (params) =>
+        Effect.gen(function* () {
+          const rpcUrl = yield* getRpcUrl();
+          debugLog(config.debug, "getPendingMultisigTransactions >", params);
+          const result = yield* mapFastSdkError(
+            sdkGetPendingMultisigTransactions(rpcUrl, params),
+          );
+          debugLog(config.debug, "getPendingMultisigTransactions <", result);
           return result;
         }),
     };

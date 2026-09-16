@@ -74,6 +74,9 @@ importers:
       effect:
         specifier: ^3.21.0
         version: 3.21.0
+      json-with-bigint:
+        specifier: ^3.5.8
+        version: 3.5.8
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
@@ -111,6 +114,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      viem:
+        specifier: ^2.46.2
+        version: 2.47.6(typescript@6.0.2)
 
   packages/allset-sdk:
     dependencies:

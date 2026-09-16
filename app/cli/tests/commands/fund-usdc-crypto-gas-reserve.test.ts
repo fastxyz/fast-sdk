@@ -50,6 +50,8 @@ function harness(balance: bigint) {
       resolveAccount: () =>
         Effect.succeed({
           name: "test",
+          kind: "single",
+          fastAddress: "fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq9p5s0",
           evmAddress: "0x1111111111111111111111111111111111111111",
           encrypted: false,
         }),

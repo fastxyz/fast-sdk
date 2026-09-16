@@ -38,6 +38,9 @@ fast send fast1abc...xyz 10
 # Send a specific token explicitly
 fast send fast1abc...xyz 10 --token USDC
 
+# Attach a Fast UserData memo (32 UTF-8 bytes maximum)
+fast send fast1abc...xyz 10 --token USDC --memo "invoice-42"
+
 # Bridge USDC from Arbitrum Sepolia to Fast (--token USDC is required on
 # mainnet because the network default — fastUSD — is not on EVM chains)
 fast fund usdc crypto 50 --chain arbitrum-sepolia --token USDC
@@ -107,6 +110,43 @@ If a custom network omits `defaultToken`, callers must pass `--token`
 explicitly; otherwise the command errors with `INVALID_USAGE`.
 
 ## Commands
+
+### `fast multisig`
+
+Create or import a Rust-compatible multisig wallet, inspect its current-nonce
+pending transactions, and co-sign them:
+
+```bash
+fast multisig init --name treasury --signers alice,bob,fast1... --quorum 2 --config-nonce 0
+fast multisig import --from ./wallet.json --name treasury
+fast multisig pending --account treasury --as alice
+fast multisig vote --account treasury --as alice --tx 0x...
+```
+
+Signer order is canonicalized by decoded 32-byte address (not bech32 text).
+`vote` prints the complete transaction before an interactive signature. Export
+uses exclusive file creation and never overwrites an existing file.
+
+Initiating `send` or `token` operations performs a best-effort preflight and
+refuses when it observes another multisig proposal at the current nonce.
+Inspect it with `fast multisig pending`; only pass `--replace-pending` when
+replacing that observed proposal is intentional. This check is not atomic with
+submission: concurrent initiators can both observe an empty pending set, and
+the proxy may then replace the first proposal. A voter that fetched proposal A
+before an explicit replacement with B can likewise submit its stale vote and
+restore A. Strict no-replacement semantics require operator-wide serialization
+across initiation, replacement, and voting; after replacement, all stale voting
+sessions must be abandoned. A future conditional-submit primitive in the proxy
+is required to enforce this invariant server-side.
+
+If the proxy accepts a signed envelope but its response is lost, the CLI emits
+`TX_SUBMISSION_UNKNOWN` with the precomputed transaction hash, nonce, and exact
+signed REST envelope. Do not rerun the original command: first reconcile that
+identity against the explorer, account nonce, and pending multisig proposals.
+Where resubmission is appropriate, resubmit the preserved envelope rather than
+building a new transaction with a new timestamp or nonce.
+
+---
 
 ### `fast account create`
 

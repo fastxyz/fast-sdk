@@ -9,9 +9,15 @@ export * from "./usage.js";
 import type {
   AccountExistsError,
   AccountNotFoundError,
+  AddressDerivationMismatchError,
+  AmbiguousMemberError,
   DefaultAccountError,
+  MultiSigConfigInvalidError,
   NoDefaultAccountError,
+  NotAMemberError,
   PasswordRequiredError,
+  WalletKindMismatchError,
+  WalletNetworkMismatchError,
   WrongPasswordError,
 } from "./account.js";
 import type {
@@ -51,6 +57,7 @@ import type {
   InvalidAmountError,
   TokenNotFoundError,
   TransactionFailedError,
+  TransactionSubmissionUnknownError,
   TxNotFoundError,
 } from "./transaction.js";
 import type {
@@ -63,6 +70,7 @@ export interface ClientErrorMeta {
   readonly exitCode: 0 | 1 | 2;
   readonly errorCode: string;
   readonly message: string;
+  readonly details?: unknown;
 }
 
 export type ClientError =
@@ -87,6 +95,7 @@ export type ClientError =
   | InsufficientGasError
   | FastSdkError
   | TransactionFailedError
+  | TransactionSubmissionUnknownError
   | UserCancelledError
   | PasswordRequiredError
   | WrongPasswordError
@@ -99,6 +108,12 @@ export type ClientError =
   | InvalidPaymentLinkError
   | InsufficientPaymentBalanceError
   | FileIOError
+  | MultiSigConfigInvalidError
+  | NotAMemberError
+  | AmbiguousMemberError
+  | AddressDerivationMismatchError
+  | WalletKindMismatchError
+  | WalletNetworkMismatchError
   | PendingAlreadyExistsError
   | NoPendingRequestError
   | CorruptPendingStateError

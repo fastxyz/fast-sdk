@@ -1,12 +1,13 @@
-import { fromFastAddress } from "@fastxyz/sdk";
-import { Effect } from "effect";
-import type { FundUsdcFiatArgs } from "../../../cli.js";
-import { InvalidAddressError, InvalidUsageError } from "../../../errors/index.js";
-import { ClientConfig } from "../../../services/config/client.js";
-import { Output } from "../../../services/output.js";
-import { AccountStore } from "../../../services/storage/account.js";
-import type { Command } from "../../index.js";
-import { buildRampUrl } from "./fiat-url.js";
+import { fromFastAddress } from '@fastxyz/sdk';
+import { Effect } from 'effect';
+import type { FundUsdcFiatArgs } from '../../../cli.js';
+import { InvalidAddressError, InvalidUsageError } from '../../../errors/index.js';
+import { ClientConfig } from '../../../services/config/client.js';
+import { Output } from '../../../services/output.js';
+import { AccountStore } from '../../../services/storage/account.js';
+import { ensureMultisigNetwork } from '../../../services/signer-resolver.js';
+import type { Command } from '../../index.js';
+import { buildRampUrl } from './fiat-url.js';
 
 const isValidFastAddress = (address: string): boolean => {
   try {
@@ -18,14 +19,14 @@ const isValidFastAddress = (address: string): boolean => {
 };
 
 export const fundUsdcFiat: Command<FundUsdcFiatArgs> = {
-  cmd: "fund-usdc-fiat",
+  cmd: 'fund-usdc-fiat',
   handler: (args) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore;
       const output = yield* Output;
       const config = yield* ClientConfig;
 
-      if (config.network !== "mainnet") {
+      if (config.network !== 'mainnet') {
         return yield* Effect.fail(
           new InvalidUsageError({
             message: `Fiat funding is only available on mainnet. Current network: ${config.network}. Switch with --network mainnet.`,
@@ -45,16 +46,19 @@ export const fundUsdcFiat: Command<FundUsdcFiatArgs> = {
         address = args.address;
       } else {
         const account = yield* accounts.resolveAccount(config.account);
+        if (account.kind === 'multisig') {
+          yield* ensureMultisigNetwork(account, config.network);
+        }
         address = account.fastAddress;
       }
 
       const url = buildRampUrl(address);
 
-      yield* output.humanLine("Open this URL in your browser to fund your account:");
-      yield* output.humanLine("");
+      yield* output.humanLine('Open this URL in your browser to fund your account:');
+      yield* output.humanLine('');
       yield* output.humanLine(`  ${url}`);
-      yield* output.humanLine("");
+      yield* output.humanLine('');
 
-      yield* output.ok({ url, address, tokenName: "USDC" });
+      yield* output.ok({ url, address, tokenName: 'USDC' });
     }),
 };

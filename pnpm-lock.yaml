@@ -74,6 +74,9 @@ importers:
       effect:
         specifier: ^3.21.0
         version: 3.21.0
+      json-with-bigint:
+        specifier: ^3.5.8
+        version: 3.5.8
       uuid:
         specifier: ^11.1.0
         version: 11.1.0

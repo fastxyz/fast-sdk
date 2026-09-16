@@ -83,4 +83,37 @@ describe('MultiSigWalletConfigSchema', () => {
       network: 'testnet',
     });
   });
+
+  it('preserves a Rust u64 config_nonce above Number.MAX_SAFE_INTEGER', async () => {
+    const decoded = await Effect.runPromise(
+      parseMultiSigWalletConfig(
+        `{"signers":["fast1qqqq","fast1pppp"],"quorum":2,"config_nonce":18446744073709551615,"address":"fast1rustwallet","proxy_url":"https://testnet.api.fast.xyz/proxy-rest","network_id":"fast:testnet"}`,
+      ),
+    );
+
+    expect(decoded.configNonce).toBe('18446744073709551615');
+  });
+
+  it('rejects config nonces outside u64', async () => {
+    await expect(
+      Effect.runPromise(
+        parseMultiSigWalletConfig(
+          `{"signers":["fast1qqqq","fast1pppp"],"quorum":2,"config_nonce":18446744073709551616,"address":"fast1rustwallet","proxy_url":"https://testnet.api.fast.xyz/proxy-rest","network_id":"fast:testnet"}`,
+        ),
+      ),
+    ).rejects.toThrow(/not a valid u64/);
+  });
+
+  it('reports native-schema errors without falling through to Rust decoding', async () => {
+    await expect(
+      Effect.runPromise(
+        parseMultiSigWalletConfig(
+          JSON.stringify({
+            ...SAMPLE,
+            signers: [SAMPLE.signers[0], SAMPLE.signers[0]],
+          }),
+        ),
+      ),
+    ).rejects.toThrow(/duplicate signers/);
+  });
 });

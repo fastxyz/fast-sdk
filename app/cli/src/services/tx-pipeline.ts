@@ -26,9 +26,10 @@ export interface SubmitOperationParams {
   readonly networkId: NetworkId;
   readonly operation: OperationInputParams;
   /**
-   * Explicitly allow replacing an existing multisig proposal at the
-   * account's current nonce. The proxy permits replacement, so callers must
-   * opt in instead of silently discarding another proposal.
+   * Allow replacing a multisig proposal observed by the best-effort preflight
+   * at the account's current nonce. This is not an authoritative compare-and-
+   * swap: concurrent clients can both observe no proposal before either
+   * submits, because the proxy submit API has no conditional-write primitive.
    */
   readonly replacePending?: boolean;
 }
@@ -110,9 +111,10 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
     }
     const nonce = accountInfo?.nextNonce ?? 0n;
 
-    // The proxy keeps proposals outside accountInfo.pendingConfirmation.
-    // Submitting another proposal at the same nonce can replace an existing
-    // one, so fail closed unless the CLI caller explicitly opted in.
+    // Best-effort preflight: the proxy keeps proposals outside
+    // accountInfo.pendingConfirmation. This blocks replacement when a proposal
+    // is already observable, but it cannot close the GET -> submit race without
+    // an authoritative conditional-submit primitive in the proxy.
     if (params.resolved.kind === 'multisig') {
       const rawPending = yield* rpc.getPendingMultisigTransactions({ address: senderBytes } as never).pipe(
         Effect.mapError(

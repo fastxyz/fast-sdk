@@ -121,4 +121,59 @@ describe('AccountStore.createMultiSig', () => {
     expect(result.fetched.multisigConfig.name).toBe('treasury');
     expect(result.fetched.fastAddress).toBe('fast1xyz');
   });
+
+  it('rolls back the insert and preserves the prior default when default switching fails', async () => {
+    const sqlite = new Db(':memory:');
+    try {
+      const db = drizzle(sqlite);
+      migrate(db, { migrationsFolder: join(__dirname, '../../drizzle') });
+      const dbServiceLayer = Layer.succeed(DatabaseService, {
+        query: <A>(fn: (db: never) => A, message: string) =>
+          Effect.try({
+            try: () => fn(db as never),
+            catch: (cause) => new DatabaseError({ message, cause }),
+          }),
+      } as never);
+      const accountLayer = AccountStore.Default.pipe(Layer.provide(dbServiceLayer));
+
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const store = yield* AccountStore;
+          yield* store.create('alice', new Uint8Array(32).fill(1), null);
+        }).pipe(Effect.provide(accountLayer)),
+      );
+
+      sqlite.exec(`
+        CREATE TRIGGER fail_treasury_default
+        BEFORE UPDATE OF is_default ON accounts
+        WHEN NEW.name = 'treasury' AND NEW.is_default = 1
+        BEGIN
+          SELECT RAISE(ABORT, 'injected default switch failure');
+        END;
+      `);
+
+      const exit = await Effect.runPromiseExit(
+        Effect.gen(function* () {
+          const store = yield* AccountStore;
+          return yield* store.createMultiSig(
+            {
+              version: 1,
+              name: 'treasury',
+              signers: ['fast1aaaa', 'fast1bbbb'],
+              quorum: 2,
+              configNonce: '0',
+              fastAddress: 'fast1xyz',
+              network: 'testnet',
+            },
+            true,
+          );
+        }).pipe(Effect.provide(accountLayer)),
+      );
+
+      expect(exit._tag).toBe('Failure');
+      expect(sqlite.prepare('SELECT name, is_default FROM accounts ORDER BY name').all()).toEqual([{ name: 'alice', is_default: 1 }]);
+    } finally {
+      sqlite.close();
+    }
+  });
 });

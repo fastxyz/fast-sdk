@@ -111,7 +111,7 @@ describe('submitOperation (single-signer)', () => {
   });
 });
 
-describe('submitOperation (multisig replacement safety)', () => {
+describe('submitOperation (multisig replacement preflight)', () => {
   const makeFixture = async () => {
     const first = new Signer(new Uint8Array(32).fill(0x11));
     const second = new Signer(new Uint8Array(32).fill(0x22));
@@ -138,7 +138,7 @@ describe('submitOperation (multisig replacement safety)', () => {
     return { signer, operation, pending };
   };
 
-  it('refuses to replace a proposal at the current nonce by default', async () => {
+  it('refuses when the preflight observes a proposal at the current nonce', async () => {
     const { signer, operation, pending } = await makeFixture();
     let submitCalls = 0;
     const rpcStub = Layer.succeed(FastRpc, {
@@ -166,7 +166,7 @@ describe('submitOperation (multisig replacement safety)', () => {
     expect(submitCalls).toBe(0);
   });
 
-  it('replaces a proposal only after explicit opt-in', async () => {
+  it('allows replacement of an observed proposal after explicit opt-in', async () => {
     const { signer, operation, pending } = await makeFixture();
     let submitCalls = 0;
     const rpcStub = Layer.succeed(FastRpc, {

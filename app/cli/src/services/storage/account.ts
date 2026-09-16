@@ -183,50 +183,49 @@ const createMultiSig = (
       return yield* Effect.fail(new AccountExistsError({ name: config.name }));
     }
 
-    const isFirst = yield* handle.query(
-      (db) => countAccounts(db) === 0,
-      "Failed to count accounts",
-    );
     const createdAt = new Date().toISOString();
 
-    yield* handle.query(
+    const isDefault = yield* handle.query(
       (db) =>
-        db
-          .insert(accounts)
-          .values({
-            name: config.name,
-            kind: "multisig",
-            fastAddress: config.fastAddress,
-            evmAddress: null,
-            encryptedKey: null,
-            encrypted: null,
-            multisigConfig: stringifyMultiSigWalletConfig(config),
-            isDefault: isFirst || setDefault,
-            createdAt,
-          })
-          .run(),
+        db.transaction((tx) => {
+          const isFirst =
+            tx.select({ cnt: count() }).from(accounts).get()!.cnt === 0;
+          tx.insert(accounts)
+            .values({
+              name: config.name,
+              kind: "multisig",
+              fastAddress: config.fastAddress,
+              evmAddress: null,
+              encryptedKey: null,
+              encrypted: null,
+              multisigConfig: stringifyMultiSigWalletConfig(config),
+              isDefault: isFirst,
+              createdAt,
+            })
+            .run();
+
+          if (setDefault && !isFirst) {
+            tx.update(accounts)
+              .set({ isDefault: false })
+              .where(eq(accounts.isDefault, true))
+              .run();
+            tx.update(accounts)
+              .set({ isDefault: true })
+              .where(eq(accounts.name, config.name))
+              .run();
+          }
+
+          return isFirst || setDefault;
+        }),
       "Failed to store multisig account",
     );
-
-    if (setDefault && !isFirst) {
-      yield* handle.query((db) => {
-        db.update(accounts)
-          .set({ isDefault: false })
-          .where(eq(accounts.isDefault, true))
-          .run();
-        db.update(accounts)
-          .set({ isDefault: true })
-          .where(eq(accounts.name, config.name))
-          .run();
-      }, "Failed to mark multisig as default");
-    }
 
     return {
       kind: "multisig" as const,
       name: config.name,
       fastAddress: config.fastAddress,
       multisigConfig: config,
-      isDefault: isFirst || setDefault,
+      isDefault,
       createdAt,
     };
   });

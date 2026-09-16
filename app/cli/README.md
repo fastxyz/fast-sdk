@@ -127,9 +127,14 @@ Signer order is canonicalized by decoded 32-byte address (not bech32 text).
 `vote` prints the complete transaction before an interactive signature. Export
 uses exclusive file creation and never overwrites an existing file.
 
-Initiating `send` or `token` operations fails closed when another multisig
-proposal exists at the current nonce. Inspect it with `fast multisig pending`;
-only pass `--replace-pending` when replacing that proposal is intentional.
+Initiating `send` or `token` operations performs a best-effort preflight and
+refuses when it observes another multisig proposal at the current nonce.
+Inspect it with `fast multisig pending`; only pass `--replace-pending` when
+replacing that observed proposal is intentional. This check is not atomic with
+submission: concurrent initiators can both observe an empty pending set, and
+the proxy may then replace the first proposal. Strict no-replacement semantics
+require serialization by the operator or a future conditional-submit primitive
+in the proxy.
 
 ---
 

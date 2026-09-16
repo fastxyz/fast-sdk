@@ -1,7 +1,7 @@
 import { fromFastAddress, fromHex, toHex } from '@fastxyz/sdk';
 import { Effect } from 'effect';
 import type { TokenMintArgs } from '../../cli.js';
-import { InvalidAddressError, InvalidAmountError, TokenNotFoundError } from '../../errors/index.js';
+import { InvalidAddressError, InvalidAmountError, InvalidUsageError, TokenNotFoundError } from '../../errors/index.js';
 import { makeHistoryEntry } from '../../schemas/history.js';
 import { FastRpc } from '../../services/api/fast.js';
 import { ClientConfig } from '../../services/config/client.js';
@@ -16,6 +16,7 @@ import { submitOperation } from '../../services/tx-pipeline.js';
 import type { Command } from '../index.js';
 
 const HEX_TOKEN_ID = /^(0x)?[0-9a-fA-F]{64}$/;
+const NATIVE_TOKEN_ID = `0x${'fa575e70'}${'00'.repeat(28)}`;
 
 const parseAmount = (s: string, decimals: number): bigint => {
   const trimmed = s.trim();
@@ -66,16 +67,6 @@ export const tokenMint: Command<TokenMintArgs> = {
       const network = yield* networks.resolve(config.network);
       if (HEX_TOKEN_ID.test(args.token)) {
         tokenId = fromHex(args.token);
-        const info = (yield* rpc.getTokenInfo({
-          tokenIds: [tokenId],
-        } as never)) as unknown as {
-          requestedTokenMetadata: ReadonlyArray<readonly [Uint8Array, { decimals: number } | null]>;
-        };
-        const found = info.requestedTokenMetadata?.[0];
-        if (!found || !found[1]) {
-          return yield* Effect.fail(new TokenNotFoundError({ token: args.token }));
-        }
-        decimals = found[1].decimals;
       } else {
         const resolved = yield* Effect.try({
           try: () => resolveToken(args.token, network, undefined),
@@ -85,12 +76,43 @@ export const tokenMint: Command<TokenMintArgs> = {
         decimals = resolved.decimals;
       }
 
+      if (toHex(tokenId).toLowerCase() === NATIVE_TOKEN_ID) {
+        return yield* Effect.fail(new InvalidUsageError({ message: 'Cannot mint the native token.' }));
+      }
+      const info = (yield* rpc.getTokenInfo({
+        tokenIds: [tokenId],
+      } as never)) as unknown as {
+        requestedTokenMetadata: ReadonlyArray<
+          readonly [
+            Uint8Array,
+            {
+              decimals: number;
+              mints: readonly Uint8Array[];
+            } | null,
+          ]
+        >;
+      };
+      const found = info.requestedTokenMetadata?.[0];
+      if (!found || !found[1]) {
+        return yield* Effect.fail(new TokenNotFoundError({ token: args.token }));
+      }
+      decimals = found[1].decimals;
+
       const amount = yield* Effect.try({
         try: () => parseAmount(args.amount, decimals),
         catch: (e) => e as InvalidAmountError,
       });
 
       const accountInfo = yield* accounts.resolveAccount(config.account);
+      const accountBytes = fromFastAddress(accountInfo.fastAddress);
+      const isMinter = found[1].mints.some((minter) => toHex(minter) === toHex(accountBytes));
+      if (!isMinter) {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: `Account ${accountInfo.fastAddress} is not an authorized minter for ${args.token}.`,
+          }),
+        );
+      }
       const resolved = yield* resolveSigner({
         account: accountInfo,
         asMember: args.asMember,

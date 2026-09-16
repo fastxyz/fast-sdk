@@ -1,4 +1,4 @@
-import { fromFastAddress, fromHex, toHex } from '@fastxyz/sdk';
+import { fromFastAddress, fromHex, toFastAddress, toHex } from '@fastxyz/sdk';
 import { Effect } from 'effect';
 import type { TokenManageArgs } from '../../cli.js';
 import { InvalidAddressError, InvalidUsageError, TokenNotFoundError } from '../../errors/index.js';
@@ -16,6 +16,7 @@ import { submitOperation } from '../../services/tx-pipeline.js';
 import type { Command } from '../index.js';
 
 const HEX_TOKEN_ID = /^(0x)?[0-9a-fA-F]{64}$/;
+const NATIVE_TOKEN_ID = `0x${'fa575e70'}${'00'.repeat(28)}`;
 
 const splitAddrs = (csv: string | undefined): string[] =>
   (csv ?? '')
@@ -84,11 +85,24 @@ export const tokenManage: Command<TokenManageArgs> = {
         tokenId = resolved.fastTokenId;
       }
 
-      // Fetch current metadata for updateId
+      if (toHex(tokenId).toLowerCase() === NATIVE_TOKEN_ID) {
+        return yield* Effect.fail(new InvalidUsageError({ message: 'Cannot manage the native token.' }));
+      }
+
+      // Fetch current metadata for updateId and authority preflight.
       const info = (yield* rpc.getTokenInfo({
         tokenIds: [tokenId],
       } as never)) as unknown as {
-        requestedTokenMetadata: ReadonlyArray<readonly [Uint8Array, { updateId: bigint } | null]>;
+        requestedTokenMetadata: ReadonlyArray<
+          readonly [
+            Uint8Array,
+            {
+              updateId: bigint;
+              admin: Uint8Array;
+              mints: readonly Uint8Array[];
+            } | null,
+          ]
+        >;
       };
       const found = info.requestedTokenMetadata?.[0];
       if (!found || !found[1]) {
@@ -100,16 +114,27 @@ export const tokenManage: Command<TokenManageArgs> = {
       // and fastset validator_tests confirming sequential ops use 0, 1, 2,...
       const currentUpdateId = found[1].updateId;
 
+      const addMinters = splitAddrs(args.addMinters);
+      const removeMinters = splitAddrs(args.removeMinters);
+      const allChanges = [...addMinters, ...removeMinters];
+      if (new Set(allChanges).size !== allChanges.length) {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: 'Minter changes contain a duplicate or an address present in both add and remove.',
+          }),
+        );
+      }
+
       // Build mints array
       const mintsChange: Array<readonly [{ type: 'Add' | 'Remove' }, Uint8Array]> = [];
-      for (const addr of splitAddrs(args.addMinters)) {
+      for (const addr of addMinters) {
         const bytes = yield* Effect.try({
           try: () => parseAddr(addr, '--add-minters entry'),
           catch: (e) => e as InvalidAddressError,
         });
         mintsChange.push([{ type: 'Add' }, bytes]);
       }
-      for (const addr of splitAddrs(args.removeMinters)) {
+      for (const addr of removeMinters) {
         const bytes = yield* Effect.try({
           try: () => parseAddr(addr, '--remove-minters entry'),
           catch: (e) => e as InvalidAddressError,
@@ -131,6 +156,13 @@ export const tokenManage: Command<TokenManageArgs> = {
       });
 
       const accountInfo = yield* accounts.resolveAccount(config.account);
+      if (toHex(found[1].admin) !== toHex(fromFastAddress(accountInfo.fastAddress))) {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: `Account ${accountInfo.fastAddress} is not the current token admin (${toFastAddress(found[1].admin)}).`,
+          }),
+        );
+      }
       const resolved = yield* resolveSigner({
         account: accountInfo,
         asMember: args.asMember,

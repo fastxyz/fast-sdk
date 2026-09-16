@@ -94,6 +94,13 @@ export const send: Command<SendArgs> = {
       } else {
         route = 'fast';
       }
+      if (args.memo && route !== 'fast') {
+        return yield* Effect.fail(
+          new InvalidUsageError({
+            message: '--memo is supported only for Fast-to-Fast transfers',
+          }),
+        );
+      }
 
       // Parse amount
       const amountFloat = Number.parseFloat(args.amount);
@@ -346,11 +353,26 @@ export const send: Command<SendArgs> = {
         });
 
         const recipientBytes = new Uint8Array(bech32m.fromWords(bech32m.decode(args.address).words));
+        const memoBytes = args.memo ? new TextEncoder().encode(args.memo) : null;
+        if (memoBytes && memoBytes.length > 32) {
+          return yield* Effect.fail(
+            new InvalidUsageError({
+              message: `--memo too long: ${memoBytes.length} bytes (max 32)`,
+            }),
+          );
+        }
+        const userData = memoBytes
+          ? (() => {
+              const padded = new Uint8Array(32);
+              padded.set(memoBytes);
+              return padded;
+            })()
+          : null;
         const tokenTransfer = {
           tokenId: tokenInfo.fastTokenId,
           recipient: recipientBytes,
           amount: amountRaw,
-          userData: null,
+          userData,
         };
 
         const result = yield* submitOperation({

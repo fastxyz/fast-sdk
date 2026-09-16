@@ -1,6 +1,7 @@
 import type { Command } from '../index.js';
 import { getEvmErc20Balance } from '@fastxyz/allset-sdk';
 import { bech32m } from 'bech32';
+import { fromHex } from '@fastxyz/sdk';
 import { Effect } from 'effect';
 import type { InfoBalanceArgs } from '../../cli.js';
 import { FastRpc } from '../../services/api/fast.js';
@@ -122,6 +123,26 @@ export const infoBalance: Command<InfoBalanceArgs> = {
         }
       } else {
         yield* output.humanLine('No bridge chains configured for this network.');
+      }
+
+      const configuredIds = new Set(
+        uniqueTokens.map((token) => token.fastTokenId.replace(/^0x/, '').toLowerCase()),
+      );
+      for (const tokenIdHex of fastBalanceMap.keys()) {
+        if (configuredIds.has(tokenIdHex)) continue;
+        const tokenInfo = (yield* rpc.getTokenInfo({
+          tokenIds: [fromHex(tokenIdHex)],
+        } as never)) as {
+          requestedTokenMetadata?: ReadonlyArray<
+            readonly [Uint8Array, { tokenName: string; decimals: number } | null]
+          >;
+        };
+        const metadata = tokenInfo.requestedTokenMetadata?.[0]?.[1];
+        addToken(
+          metadata?.tokenName ?? `0x${tokenIdHex.slice(0, 12)}…`,
+          `0x${tokenIdHex}`,
+          metadata?.decimals ?? 0,
+        );
       }
 
       if (evmAddress === null) {

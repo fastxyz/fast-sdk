@@ -102,6 +102,25 @@ export const send: Command<SendArgs> = {
         );
       }
 
+      // Decode and validate Fast recipients before token/account resolution or
+      // interactive confirmation. EVM routes deliberately skip this branch.
+      let recipientBytes: Uint8Array | null = null;
+      if (route === 'fast') {
+        recipientBytes = yield* Effect.try({
+          try: () => {
+            const decoded = bech32m.decode(args.address);
+            if (decoded.prefix !== 'fast') throw new Error('unexpected address prefix');
+            const bytes = new Uint8Array(bech32m.fromWords(decoded.words));
+            if (bytes.length !== 32) throw new Error('unexpected address length');
+            return bytes;
+          },
+          catch: () =>
+            new InvalidAddressError({
+              message: `Invalid Fast recipient address "${args.address}".`,
+            }),
+        });
+      }
+
       // Parse amount
       const amountFloat = Number.parseFloat(args.amount);
       if (Number.isNaN(amountFloat)) {
@@ -352,13 +371,9 @@ export const send: Command<SendArgs> = {
           passwordFor: (member) => (member.encrypted ? prompt.password() : Effect.succeed(null)),
         });
 
-        const recipientBytes = yield* Effect.try({
-          try: () => new Uint8Array(bech32m.fromWords(bech32m.decode(args.address).words)),
-          catch: () =>
-            new InvalidAddressError({
-              message: `Invalid Fast recipient address "${args.address}".`,
-            }),
-        });
+        if (recipientBytes === null) {
+          return yield* Effect.fail(new InvalidAddressError({ message: `Invalid Fast recipient address "${args.address}".` }));
+        }
         const memoBytes = args.memo ? new TextEncoder().encode(args.memo) : null;
         if (memoBytes && memoBytes.length > 32) {
           return yield* Effect.fail(

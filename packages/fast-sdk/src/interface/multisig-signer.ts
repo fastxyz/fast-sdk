@@ -43,7 +43,7 @@ export type MultiSigConfig = {
  * `keccak256(BCS::serialize(MultiSigConfig{ authorized_signers, quorum, nonce }))`.
  */
 export async function deriveMultiSigAddressBytes(config: MultiSigConfig): Promise<Uint8Array> {
-  validateConfig(config);
+  validateMultiSigConfig(config);
   return run(hash(bcsSchema.MultiSigConfig, config));
 }
 
@@ -87,7 +87,8 @@ export function canonicalizeMultiSigSigners(signers: readonly Uint8Array[]): Uin
   return signers.map((signer) => new Uint8Array(signer)).sort(compareMultiSigSignerBytes);
 }
 
-function validateConfig(config: MultiSigConfig): void {
+/** Validate a multisig config using the protocol's canonical constraints. */
+export function validateMultiSigConfig(config: MultiSigConfig): void {
   const signers = config.authorized_signers;
   if (signers.length < 2) {
     throw new MultiSigConfigInvalidError({
@@ -128,7 +129,7 @@ function validateConfig(config: MultiSigConfig): void {
 }
 
 export async function assertAuthorizedSigner(config: MultiSigConfig, secretKey: Uint8Array): Promise<void> {
-  validateConfig(config);
+  validateMultiSigConfig(config);
   const pk = await getPublicKeyAsync(secretKey);
   const matched = config.authorized_signers.some((s) => bytesEqual(s, pk));
   if (!matched) throw new NotAuthorizedSignerError();
@@ -259,6 +260,26 @@ export class MultiSigSigner {
     if (opts.operations.length === 0) {
       throw new Error('signTransaction requires at least one operation');
     }
+    const versioned = await this.buildTransaction(opts);
+    return this.signEnvelopeFor(versioned);
+  }
+
+  /**
+   * Build the exact unsigned transaction that {@link signTransaction} would
+   * sign. This lets headless consumers inspect or present the complete
+   * payload before any signature is created.
+   */
+  async buildTransaction(opts: {
+    networkId: NetworkId;
+    nonce: NonceInput;
+    operations: OperationInputParams[];
+    version?: TransactionVersion;
+    archival?: boolean;
+    feeToken?: TokenIdInput | null;
+  }): Promise<VersionedTransaction> {
+    if (opts.operations.length === 0) {
+      throw new Error('buildTransaction requires at least one operation');
+    }
     const sender = await this.getDerivedAddressBytes();
     const type: TransactionVersion = opts.version ?? LatestTransactionVersion;
     const versionConfig = getTransactionVersionConfig(type);
@@ -271,7 +292,6 @@ export class MultiSigSigner {
       archival: opts.archival ?? false,
       feeToken: opts.feeToken ?? null,
     });
-    const versioned = { type, value: internal } as VersionedTransaction;
-    return this.signEnvelopeFor(versioned);
+    return { type, value: internal } as VersionedTransaction;
   }
 }

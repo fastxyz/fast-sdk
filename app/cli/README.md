@@ -117,7 +117,7 @@ Create or import a Rust-compatible multisig wallet, inspect its current-nonce
 pending transactions, and co-sign them:
 
 ```bash
-fast multisig init --name treasury --signers alice,bob,fast1... --quorum 2
+fast multisig init --name treasury --signers alice,bob,fast1... --quorum 2 --config-nonce 0
 fast multisig import --from ./wallet.json --name treasury
 fast multisig pending --account treasury --as alice
 fast multisig vote --account treasury --as alice --tx 0x...

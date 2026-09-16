@@ -68,9 +68,9 @@ fast-cli
    depending on `row.kind`.
 3. CLI builds the `TokenTransfer` operation, fetches nonce via
    `getAccountInfo`.
-4. `signer.signTransaction(tx)` returns a `SignatureOrMultiSig` —
-   either a bare `Signature` (single) or a `MultiSig` with one
-   partial entry (multisig).
+4. The single-signer builder or `MultiSigSigner.signTransaction(input)`
+   returns a complete `TransactionEnvelope`; the multisig envelope contains
+   one partial entry.
 5. `submitTransaction(envelope)` returns `Success(cert)` or
    `IncompleteMultiSig`.
 6. `reportResult` branches: cert hash + history persistence on
@@ -130,8 +130,8 @@ This is both the in-DB `multisigConfig` value and the
 }
 ```
 
-- `signers` is bech32, sorted lexicographically (canonical form,
-  matches the Rust derivation order).
+- `signers` is bech32, sorted by the decoded 32-byte address (canonical
+  form, matching the Rust derivation order).
 - `configNonce` is a string (u64 may exceed
   `Number.MAX_SAFE_INTEGER`).
 - `fastAddress` is included for round-trip verification on import.
@@ -148,7 +148,7 @@ truncated bech32 with local-account name lookup when applicable.
 New file: `packages/fast-sdk/src/interface/multisig-signer.ts`.
 
 ```ts
-import type { MultiSigConfig, SignatureOrMultiSig } from '@fastxyz/schema';
+import type { TransactionEnvelope, TransactionInput, VersionedTransaction } from '@fastxyz/schema';
 
 export interface MultiSigSignerInit {
   config: MultiSigConfig;
@@ -158,12 +158,13 @@ export interface MultiSigSignerInit {
 export class MultiSigSigner {
   constructor(init: MultiSigSignerInit);
   getFastAddress(): Promise<string>;
-  getSignerPublicKey(): Uint8Array;
-  signTransaction(txMessage: Uint8Array): Promise<SignatureOrMultiSig>;
+  getSignerPublicKey(): Promise<Uint8Array>;
+  signTransaction(input: TransactionInput): Promise<TransactionEnvelope>;
+  signEnvelopeFor(transaction: VersionedTransaction): Promise<TransactionEnvelope>;
 }
 
 export function deriveMultiSigAddress(config: MultiSigConfig): Promise<string>;
-export function assertAuthorizedSigner(config: MultiSigConfig, secretKey: Uint8Array): void;
+export function assertAuthorizedSigner(config: MultiSigConfig, secretKey: Uint8Array): Promise<void>;
 ```
 
 **Signer invariants** are validated lazily on first operation that needs
@@ -181,9 +182,9 @@ config/secret; methods throw on violation:
 is in the `fastset-rust-sdk` crate. Cross-tool unit-test fixtures
 guard against silent divergence.
 
-**Signature output** is `SignatureOrMultiSig.MultiSig({ config,
-signatures: [[myPubkey, sig]] })`. Single entry; the proxy
-aggregates with other partials.
+**Signature output** is a `TransactionEnvelope` whose signature is
+`MultiSig({ config, signatures: [[myPubkey, sig]] })`. The proxy aggregates
+that single partial with other signers' partials.
 
 **Index export** in `packages/fast-sdk/src/index.ts`:
 
@@ -434,7 +435,8 @@ export`) but row is multisig, or vice versa
 
 - 2-of-3 happy path: `multisig init` → `send` → second-member
   `vote` → `Success`
-- `vote` refuses double-sign
+- `vote` detects an existing signer partial and only resubmits it after an
+  explicit confirmation (or an explicit non-interactive invocation)
 - `send` against multisig with no local member key → clear error
 - `multisig import --from` with mismatched address → reject
 - `account export` on multisig → friendly error

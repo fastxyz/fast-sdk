@@ -1,7 +1,14 @@
-import { bcsSchema, type NetworkId, type OperationInputParams, type TransactionEnvelope, VersionedTransactionFromBcs } from '@fastxyz/schema';
+import {
+  bcsSchema,
+  type NetworkId,
+  type OperationInputParams,
+  type TransactionEnvelope,
+  TransactionEnvelopeFromRest,
+  VersionedTransactionFromBcs,
+} from '@fastxyz/schema';
 import { hashHex, TransactionBuilder } from '@fastxyz/sdk';
 import { Effect, Schema } from 'effect';
-import { TransactionFailedError } from '../errors/index.js';
+import { TransactionFailedError, TransactionSubmissionUnknownError } from '../errors/index.js';
 import { FastRpc } from './api/fast.js';
 import type { ResolvedSigner } from './signer-resolver.js';
 
@@ -20,6 +27,7 @@ export interface TxPipelineIncomplete {
 }
 
 export type TxPipelineResult = TxPipelineSuccess | TxPipelineIncomplete;
+export type TxPipelineError = TransactionFailedError | TransactionSubmissionUnknownError;
 
 export interface SubmitOperationParams {
   readonly resolved: ResolvedSigner;
@@ -29,10 +37,62 @@ export interface SubmitOperationParams {
    * Allow replacing a multisig proposal observed by the best-effort preflight
    * at the account's current nonce. This is not an authoritative compare-and-
    * swap: concurrent clients can both observe no proposal before either
-   * submits, because the proxy submit API has no conditional-write primitive.
+   * submits, and a delayed vote can restore a proposal that was replaced after
+   * the voter fetched it. Operator serialization must cover initiation,
+   * replacement, and voting because the proxy has no conditional-write
+   * primitive.
    */
   readonly replacePending?: boolean;
 }
+
+export interface SubmissionRecovery {
+  readonly txHash: string;
+  readonly recoveryEnvelope: unknown;
+}
+
+/**
+ * Compute the immutable transaction identity and a JSON-safe representation of
+ * the exact signed envelope before the mutable submit request begins.
+ */
+export const prepareSubmissionRecovery = (envelope: TransactionEnvelope): Effect.Effect<SubmissionRecovery, TransactionFailedError> =>
+  Effect.gen(function* () {
+    const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(envelope.transaction).pipe(
+      Effect.mapError(
+        (cause) =>
+          new TransactionFailedError({
+            message: 'Failed to encode transaction for hashing',
+            cause,
+          }),
+      ),
+    );
+    const txHash = yield* Effect.tryPromise({
+      try: () => hashHex(bcsSchema.VersionedTransaction, bcsInput),
+      catch: (cause) =>
+        new TransactionFailedError({
+          message: 'Failed to compute transaction hash',
+          cause,
+        }),
+    });
+    const encodedRecoveryEnvelope = yield* Schema.encode(TransactionEnvelopeFromRest)(envelope).pipe(
+      Effect.mapError(
+        (cause) =>
+          new TransactionFailedError({
+            message: 'Failed to encode the signed recovery envelope',
+            cause,
+          }),
+      ),
+    );
+    const recoveryEnvelope = yield* Effect.try({
+      try: () =>
+        JSON.parse(JSON.stringify(encodedRecoveryEnvelope, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))) as unknown,
+      catch: (cause) =>
+        new TransactionFailedError({
+          message: 'Failed to serialize the signed recovery envelope',
+          cause,
+        }),
+    });
+    return { txHash, recoveryEnvelope };
+  });
 
 const opAsBuilderCall = (builder: TransactionBuilder, op: OperationInputParams): TransactionBuilder => {
   switch (op.type) {
@@ -67,7 +127,7 @@ const opAsBuilderCall = (builder: TransactionBuilder, op: OperationInputParams):
   }
 };
 
-export const submitOperation = (params: SubmitOperationParams): Effect.Effect<TxPipelineResult, TransactionFailedError, FastRpc> =>
+export const submitOperation = (params: SubmitOperationParams): Effect.Effect<TxPipelineResult, TxPipelineError, FastRpc> =>
   Effect.gen(function* () {
     const rpc = yield* FastRpc;
 
@@ -173,18 +233,25 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
       });
     }
 
-    // 4. Submit
+    // 4. Freeze recovery identity before the mutable submit request. A lost
+    // response is indeterminate: the proxy may have accepted the envelope.
+    const recovery = yield* prepareSubmissionRecovery(envelope);
+
+    // 5. Submit
     const submitResult = yield* rpc.submitTransaction(envelope).pipe(
       Effect.mapError(
         (cause) =>
-          new TransactionFailedError({
-            message: 'Failed to submit transaction',
+          new TransactionSubmissionUnknownError({
+            txHash: recovery.txHash,
+            nonce,
+            envelope,
+            recoveryEnvelope: recovery.recoveryEnvelope,
             cause,
           }),
       ),
     );
 
-    // 5. Branch on result type
+    // 6. Branch on result type
     const submitObj = (submitResult as { type?: string } | null) ?? null;
     if (submitObj?.type === 'IncompleteMultiSig') {
       return {
@@ -209,29 +276,10 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
       );
     }
 
-    // 6. Success: compute hash
-    const bcsInput = yield* Schema.encode(VersionedTransactionFromBcs)(envelope.transaction).pipe(
-      Effect.mapError(
-        (cause) =>
-          new TransactionFailedError({
-            message: 'Failed to encode transaction for hashing',
-            cause,
-          }),
-      ),
-    );
-    const txHash = yield* Effect.tryPromise({
-      try: () => hashHex(bcsSchema.VersionedTransaction, bcsInput),
-      catch: (cause) =>
-        new TransactionFailedError({
-          message: 'Failed to compute transaction hash',
-          cause,
-        }),
-    });
-
     return {
       status: 'success',
       envelope,
-      txHash,
+      txHash: recovery.txHash,
       nonce,
     } satisfies TxPipelineSuccess;
   });

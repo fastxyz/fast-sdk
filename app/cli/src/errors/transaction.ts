@@ -1,3 +1,4 @@
+import type { TransactionEnvelope } from "@fastxyz/schema";
 import { Data } from "effect";
 
 export class TxNotFoundError extends Data.TaggedError("TxNotFoundError")<{
@@ -18,6 +19,34 @@ export class TransactionFailedError extends Data.TaggedError(
 }> {
   readonly exitCode = 2 as const;
   readonly errorCode = "TX_FAILED" as const;
+}
+
+export class TransactionSubmissionUnknownError extends Data.TaggedError(
+  "TransactionSubmissionUnknownError",
+)<{
+  readonly txHash: string;
+  readonly nonce: bigint;
+  readonly envelope: TransactionEnvelope;
+  readonly recoveryEnvelope: unknown;
+  readonly cause?: unknown;
+}> {
+  readonly exitCode = 1 as const;
+  readonly errorCode = "TX_SUBMISSION_UNKNOWN" as const;
+  get message() {
+    return (
+      `Submission outcome is unknown for transaction ${this.txHash} at nonce ${this.nonce}. ` +
+      "The proxy may already have accepted it. Do not rebuild or retry this operation; " +
+      "first inspect this hash and the account nonce/pending state. " +
+      "The exact signed envelope is included in the recovery details."
+    );
+  }
+  get details() {
+    return {
+      txHash: this.txHash,
+      nonce: this.nonce.toString(),
+      recoveryEnvelope: this.recoveryEnvelope,
+    };
+  }
 }
 
 export class InvalidAddressError extends Data.TaggedError(

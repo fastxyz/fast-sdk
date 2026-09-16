@@ -428,6 +428,10 @@ All extend the existing tagged-error pattern in
   recomputed
 - `WalletKindMismatch` — operation requires single (e.g. `account
 export`) but row is multisig, or vice versa
+- `TransactionSubmissionUnknown` — the mutable submit request may have been
+  accepted but its response was lost; carries the precomputed hash, nonce, and
+  exact signed REST envelope and forbids rebuilding/replaying the operation
+  until reconciled
 - `IncompleteMultiSigSubmission` — not an error per se, but a
   result variant the CLI surfaces distinctly from `Success`
 

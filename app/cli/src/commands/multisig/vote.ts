@@ -2,7 +2,7 @@ import { bcsSchema, type TransactionEnvelope, VersionedTransactionFromBcs } from
 import { fromFastAddress, getTokenId, hashHex, toFastAddress, toHex } from '@fastxyz/sdk';
 import { Effect, Schema } from 'effect';
 import type { MultisigVoteArgs } from '../../cli.js';
-import { FastSdkError, TransactionFailedError, WalletKindMismatchError } from '../../errors/index.js';
+import { FastSdkError, TransactionFailedError, TransactionSubmissionUnknownError, WalletKindMismatchError } from '../../errors/index.js';
 import { makeHistoryEntry, type HistoryEntry } from '../../schemas/history.js';
 import { FastRpc } from '../../services/api/fast.js';
 import { ClientConfig } from '../../services/config/client.js';
@@ -13,6 +13,7 @@ import { AccountStore } from '../../services/storage/account.js';
 import { HistoryStore } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
 import { summarizeTransaction, transactionOperations } from '../../services/transaction-summary.js';
+import { prepareSubmissionRecovery } from '../../services/tx-pipeline.js';
 import type { Command } from '../index.js';
 
 /** Truncate a bech32 fast address for compact display. */
@@ -392,8 +393,29 @@ export const multisigVote: Command<MultisigVoteArgs> = {
           }),
       });
 
-      // 10. Submit.
-      const submitResult = yield* rpc.submitTransaction(myEnvelope);
+      // 10. Freeze the exact recovery identity before submitting. If the
+      // response is lost, rebuilding would change the timestamp and can replay
+      // an already-settled operation at the next nonce.
+      const recovery = yield* prepareSubmissionRecovery(myEnvelope);
+      if (normalizeHash(recovery.txHash) !== normalizeHash(target.hash)) {
+        return yield* Effect.fail(
+          new TransactionFailedError({
+            message: 'Signed vote transaction hash changed unexpectedly before submission.',
+          }),
+        );
+      }
+      const submitResult = yield* rpc.submitTransaction(myEnvelope).pipe(
+        Effect.mapError(
+          (cause) =>
+            new TransactionSubmissionUnknownError({
+              txHash: recovery.txHash,
+              nonce: target.envelope.transaction.value.nonce,
+              envelope: myEnvelope,
+              recoveryEnvelope: recovery.recoveryEnvelope,
+              cause,
+            }),
+        ),
+      );
 
       const reachedQuorum = yield* voteReachedQuorum(submitResult);
 

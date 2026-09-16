@@ -132,9 +132,19 @@ refuses when it observes another multisig proposal at the current nonce.
 Inspect it with `fast multisig pending`; only pass `--replace-pending` when
 replacing that observed proposal is intentional. This check is not atomic with
 submission: concurrent initiators can both observe an empty pending set, and
-the proxy may then replace the first proposal. Strict no-replacement semantics
-require serialization by the operator or a future conditional-submit primitive
-in the proxy.
+the proxy may then replace the first proposal. A voter that fetched proposal A
+before an explicit replacement with B can likewise submit its stale vote and
+restore A. Strict no-replacement semantics require operator-wide serialization
+across initiation, replacement, and voting; after replacement, all stale voting
+sessions must be abandoned. A future conditional-submit primitive in the proxy
+is required to enforce this invariant server-side.
+
+If the proxy accepts a signed envelope but its response is lost, the CLI emits
+`TX_SUBMISSION_UNKNOWN` with the precomputed transaction hash, nonce, and exact
+signed REST envelope. Do not rerun the original command: first reconcile that
+identity against the explorer, account nonce, and pending multisig proposals.
+Where resubmission is appropriate, resubmit the preserved envelope rather than
+building a new transaction with a new timestamp or nonce.
 
 ---
 

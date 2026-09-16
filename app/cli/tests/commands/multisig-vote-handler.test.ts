@@ -10,7 +10,7 @@ import { Effect, Layer, Option } from 'effect';
 import { describe, expect, it } from 'vitest';
 import { multisigVote } from '../../src/commands/multisig/vote.js';
 import { bundledNetworks } from '../../src/config/networks.js';
-import { FastSdkError } from '../../src/errors/index.js';
+import { FastSdkError, TransactionSubmissionUnknownError } from '../../src/errors/index.js';
 import type { HistoryEntry } from '../../src/schemas/history.js';
 import { FastRpc } from '../../src/services/api/fast.js';
 import { ClientConfig } from '../../src/services/config/client.js';
@@ -29,9 +29,10 @@ type VoteScenario = {
   readonly asMember: 'alice' | 'bob';
   readonly submitType: 'Success' | 'IncompleteMultiSig';
   readonly metadataFailure?: boolean;
+  readonly submitFailure?: boolean;
 };
 
-const runVoteScenario = async ({ asMember, submitType, metadataFailure = false }: VoteScenario) => {
+const runVoteScenario = async ({ asMember, submitType, metadataFailure = false, submitFailure = false }: VoteScenario) => {
   const sqlite = new Db(join(mkdtempSync(join(tmpdir(), 'fast-vote-handler-')), 'fast.db'));
   try {
     const db = drizzle(sqlite);
@@ -81,7 +82,7 @@ const runVoteScenario = async ({ asMember, submitType, metadataFailure = false }
       } as never),
     );
 
-    await Effect.runPromise(
+    const exit = await Effect.runPromiseExit(
       Effect.gen(function* () {
         const accounts = yield* AccountStore;
         yield* accounts.create('alice', seed(1), null);
@@ -145,18 +146,19 @@ const runVoteScenario = async ({ asMember, submitType, metadataFailure = false }
                   requestedTokenMetadata: [[new Uint8Array(32).fill(0xd7), { tokenName: 'TEST', decimals: 6 }]],
                 });
           },
-          submitTransaction: () =>
-            Effect.sync(() => {
-              submissions++;
-              return { type: submitType };
-            }),
+          submitTransaction: () => {
+            submissions++;
+            return submitFailure
+              ? Effect.fail(new FastSdkError({ message: 'connection closed after request body' }))
+              : Effect.succeed({ type: submitType });
+          },
         } as never);
 
         yield* multisigVote.handler({ asMember, yes: false } as never).pipe(Effect.provide(Layer.merge(baseLayers, rpcLayer)));
       }).pipe(Effect.provide(baseLayers)),
     );
 
-    return { confirmations, history, lines, metadataCalls, submissions };
+    return { confirmations, exit, history, lines, metadataCalls, submissions };
   } finally {
     sqlite.close();
   }
@@ -167,6 +169,7 @@ describe('multisig vote handler', () => {
     const result = await runVoteScenario({ asMember: 'bob', submitType: 'IncompleteMultiSig' });
     const output = result.lines.join('\n');
 
+    expect(result.exit._tag).toBe('Success');
     expect(output).toContain('[1] TokenTransfer');
     expect(output).toContain('"amount": "100000"');
     expect(output).toContain('fast:testnet');
@@ -179,6 +182,7 @@ describe('multisig vote handler', () => {
   it('resubmits an already-recorded signature after explicit confirmation', async () => {
     const result = await runVoteScenario({ asMember: 'alice', submitType: 'IncompleteMultiSig' });
 
+    expect(result.exit._tag).toBe('Success');
     expect(result.lines.join('\n')).toContain('your signature is already recorded; this will resubmit it');
     expect(result.confirmations).toEqual(['Resubmit existing signature?']);
     expect(result.submissions).toBe(1);
@@ -187,11 +191,28 @@ describe('multisig vote handler', () => {
   it('does not let a post-submit metadata failure hide successful quorum', async () => {
     const result = await runVoteScenario({ asMember: 'bob', submitType: 'Success', metadataFailure: true });
 
+    expect(result.exit._tag).toBe('Success');
     expect(result.submissions).toBe(1);
     expect(result.metadataCalls).toBe(1);
     expect(result.lines.join('\n')).toContain('Quorum reached.');
     expect(result.history).toHaveLength(1);
     expect(result.history[0]!.tokenName).toMatch(/^0x/);
     expect(result.history[0]!.formatted).toBe('100000');
+  });
+
+  it('surfaces the exact transaction identity when a final-vote response is lost', async () => {
+    const result = await runVoteScenario({ asMember: 'bob', submitType: 'Success', submitFailure: true });
+
+    expect(result.submissions).toBe(1);
+    expect(result.exit._tag).toBe('Failure');
+    if (result.exit._tag !== 'Failure' || result.exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    const error = result.exit.cause.error;
+    expect(error).toBeInstanceOf(TransactionSubmissionUnknownError);
+    if (!(error instanceof TransactionSubmissionUnknownError)) throw new Error('expected unknown-submission error');
+    expect(error.txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(error.nonce).toBe(0n);
+    expect(error.details).toMatchObject({ txHash: error.txHash, nonce: '0' });
+    expect(error.message).toContain('Do not rebuild or retry this operation');
+    expect(result.history).toHaveLength(0);
   });
 });

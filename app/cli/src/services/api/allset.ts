@@ -1,6 +1,7 @@
 import type { Account, Chain } from "viem";
 import {
   createEvmExecutor as sdkCreateEvmExecutor,
+  estimateGasReserveAt as sdkEstimateGasReserveAt,
   createEvmWallet as sdkCreateEvmWallet,
   executeDeposit as sdkExecuteDeposit,
   executeWithdraw as sdkExecuteWithdraw,
@@ -33,6 +34,8 @@ export interface AllSetShape {
     ownerAddress: string,
   ) => BalanceEffect;
   readonly nativeBalance: (rpcUrl: string, address: string) => BalanceEffect;
+  /** Fee budget (native wei) for an ERC-20 approve + bridge deposit at current fees. */
+  readonly gasReserve: (rpcUrl: string) => BalanceEffect;
 }
 
 export class AllSet extends Context.Tag("AllSet")<AllSet, AllSetShape>() {}
@@ -72,5 +75,11 @@ export const AllSetLive = Layer.succeed(AllSet, {
     Effect.tryPromise({
       try: () => sdkGetEvmNativeBalance(rpcUrl, address),
       catch: mapBridgeError("Native balance query"),
+    }),
+
+  gasReserve: (rpcUrl) =>
+    Effect.tryPromise({
+      try: () => sdkEstimateGasReserveAt(rpcUrl),
+      catch: mapBridgeError("Gas reserve estimate"),
     }),
 });

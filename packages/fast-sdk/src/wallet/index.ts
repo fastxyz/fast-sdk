@@ -19,7 +19,7 @@
  * });
  * ```
  */
-export { FastWalletClient } from "./client";
+
 export type {
   ConnectArgs,
   FastWalletClientOptions,
@@ -28,8 +28,19 @@ export type {
   SignArgs,
   WindowLike,
 } from "./client";
+export { FastWalletClient } from "./client";
 export { encodeTxForWalletSigning } from "./encode-tx";
 export { FastWalletError } from "./errors";
+export type {
+  DecryptResult,
+  KeyHandoverAgentOptions,
+  SerializedPending,
+} from "./key-handover/agent";
+export { KeyHandoverAgent } from "./key-handover/agent";
+export type { ErrorCode as KeyHandoverErrorCode } from "./key-handover/errors";
+export { ERROR as KEY_HANDOVER_ERROR } from "./key-handover/errors";
+export type { ParsedAuthRequest } from "./key-handover/wallet";
+export { parseAuthRequest, sealHandover } from "./key-handover/wallet";
 export {
   parseConnectRequestEnvelope,
   parseResultMsg,
@@ -44,9 +55,3 @@ export type {
   SignRequestEnvelope,
   SignResult,
 } from "./types";
-export { KeyHandoverAgent } from "./key-handover/agent";
-export type { DecryptResult, KeyHandoverAgentOptions } from "./key-handover/agent";
-export { parseAuthRequest, sealHandover } from "./key-handover/wallet";
-export type { ParsedAuthRequest } from "./key-handover/wallet";
-export { ERROR as KEY_HANDOVER_ERROR } from "./key-handover/errors";
-export type { ErrorCode as KeyHandoverErrorCode } from "./key-handover/errors";

@@ -19,6 +19,8 @@ import {
   buildExecuteIntent,
   buildDepositBackIntent,
   buildRevokeIntent,
+  decodeIntentClaimV1,
+  transferUserDataTag,
   // evm-executor
   createEvmWallet,
   createEvmExecutor,
@@ -30,6 +32,11 @@ import {
   // eip7702
   smartDeposit,
   InsufficientBalanceError,
+  CHAIN_MAP,
+  arc,
+  gasTokenErc20,
+  weiToTokenUnits,
+
 } from '../src/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
@@ -289,6 +296,39 @@ test('createEvmExecutor supports ethereum mainnet (chainId 1)', () => {
   assert.ok(clients.publicClient);
 });
 
+test('createEvmExecutor maps chainId 5042 to Arc on both clients', () => {
+  const account = createEvmWallet(`0x${'33'.repeat(32)}`);
+  const clients = createEvmExecutor(account, 'https://allset.fast.xyz/chain/rpc/arc', 5042);
+  assert.equal(clients.walletClient.chain?.id, 5042);
+  assert.equal(clients.publicClient.chain?.id, 5042);
+  assert.equal(clients.publicClient.chain?.name, 'Arc');
+  assert.equal(clients.publicClient.chain?.nativeCurrency.symbol, 'USDC');
+  assert.equal(CHAIN_MAP[5042], arc);
+});
+
+test('gasTokenErc20 is set for Arc only', () => {
+  assert.equal(gasTokenErc20(arc), '0x3600000000000000000000000000000000000000');
+  assert.equal(gasTokenErc20(CHAIN_MAP[1]), undefined);
+  assert.equal(gasTokenErc20(CHAIN_MAP[8453]), undefined);
+  assert.equal(gasTokenErc20(undefined), undefined);
+});
+
+test('weiToTokenUnits converts 18-decimal wei to 6-decimal units, rounding up', () => {
+  assert.equal(weiToTokenUnits(0n, 6), 0n);
+  assert.equal(weiToTokenUnits(1n, 6), 1n);
+  assert.equal(weiToTokenUnits(10n ** 12n, 6), 1n);
+  assert.equal(weiToTokenUnits(10n ** 12n + 1n, 6), 2n);
+  // 20 gwei * 300k gas * 2 = 0.012 USDC on Arc
+  assert.equal(weiToTokenUnits(20n * 10n ** 9n * 300_000n * 2n, 6), 12_000n);
+  assert.equal(weiToTokenUnits(5n * 10n ** 18n, 18), 5n * 10n ** 18n);
+  // more than 18 decimals scales up exactly instead of throwing
+  assert.equal(weiToTokenUnits(1n, 24), 10n ** 6n);
+  assert.equal(weiToTokenUnits(20n * 10n ** 9n * 300_000n * 2n, 24), 12n * 10n ** 21n);
+  assert.equal(weiToTokenUnits(7n, 0), 1n);
+  assert.throws(() => weiToTokenUnits(1n, -1), RangeError);
+  assert.throws(() => weiToTokenUnits(1n, 6.5), RangeError);
+});
+
 test('createEvmExecutor returns walletClient and publicClient', () => {
   const account = createEvmWallet(`0x${'22'.repeat(32)}`);
   const clients = createEvmExecutor(account, 'http://localhost:8545', 421614);
@@ -397,6 +437,92 @@ test('executeDeposit sends approve + deposit transaction for ERC-20', async () =
   assert.equal(sentTx?.value, '0');
   assert.equal(result.txHash, TX_HASH);
   assert.equal(result.orderId, TX_HASH);
+});
+
+// Witness for the Arc gas-reserve guard: on Arc the deposited USDC is also the
+// gas token, so executeDeposit must refuse balance == amount before any write.
+function arcMockClients(balance: bigint) {
+  const writes: string[] = [];
+  let approved = false;
+  const clients = {
+    walletClient: {
+      account: { address: EVM_ADDRESS },
+      sendTransaction: async () => {
+        writes.push('deposit');
+        return TX_HASH;
+      },
+      writeContract: async () => {
+        writes.push('approve');
+        approved = true;
+        return TX_HASH;
+      },
+    },
+    publicClient: {
+      chain: arc,
+      estimateFeesPerGas: async () => ({ maxFeePerGas: 20_000_000_000n, maxPriorityFeePerGas: 0n }),
+      waitForTransactionReceipt: async () => ({ status: 'success' }),
+      readContract: async ({ functionName }: { functionName: string }) => {
+        if (functionName === 'balanceOf') return balance;
+        if (functionName === 'decimals') return 6;
+        if (functionName === 'allowance') return approved ? 1_000_000n : 0n;
+        throw new Error(`unexpected readContract ${functionName}`);
+      },
+    },
+  };
+  return { clients, writes };
+}
+
+const ARC_USDC = '0x3600000000000000000000000000000000000000';
+// 20 gwei * 300k gas * 2 = 0.012 USDC = 12_000 units
+const ARC_RESERVE_UNITS = 12_000n;
+
+test('executeDeposit on Arc refuses balance == amount (gas comes from the same USDC) with zero writes', async () => {
+  const { clients, writes } = arcMockClients(1_000_000n);
+  await assert.rejects(
+    executeDeposit({
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+      tokenAddress: ARC_USDC,
+      amount: '1000000',
+      receiverAddress: FAST_ADDRESS,
+      evmClients: clients as any,
+    }),
+    (err: unknown) => {
+      assert.ok(err instanceof InsufficientBalanceError, `expected InsufficientBalanceError, got ${String(err)}`);
+      assert.equal(err.balance, 1_000_000n);
+      assert.equal(err.required, 1_000_000n + ARC_RESERVE_UNITS);
+      assert.equal(err.tokenAddress, ARC_USDC);
+      return true;
+    },
+  );
+  assert.deepEqual(writes, []);
+});
+
+test('executeDeposit on Arc proceeds (approve then deposit) once balance covers amount + reserve', async () => {
+  const { clients, writes } = arcMockClients(1_000_000n + ARC_RESERVE_UNITS);
+  const result = await executeDeposit({
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+    tokenAddress: ARC_USDC,
+    amount: '1000000',
+    receiverAddress: FAST_ADDRESS,
+    evmClients: clients as any,
+  });
+  assert.deepEqual(writes, ['approve', 'deposit']);
+  assert.equal(result.txHash, TX_HASH);
+});
+
+test('executeDeposit reserve guard does not apply to a non-gas token on Arc', async () => {
+  const { clients, writes } = arcMockClients(1_000_000n);
+  await executeDeposit({
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+    tokenAddress: TOKEN_ADDRESS, // not the gas token
+    amount: '1000000',
+    receiverAddress: FAST_ADDRESS,
+    evmClients: clients as any,
+  });
+  assert.deepEqual(writes, ['approve', 'deposit']);
 });
 
 test('executeDeposit always approves before depositing', async () => {
@@ -726,6 +852,284 @@ test('executeIntent throws FastError on relayer failure', async () => {
       return true;
     },
   );
+});
+
+/** Wrap the real signer so the test observes the actual Signer API used by TransactionBuilder. */
+function spyOnSigner(touched: string[], beforeGetPublicKey?: () => void): Signer {
+  return new Proxy(testSigner, {
+    get(target, key, receiver) {
+      const value = Reflect.get(target, key, receiver);
+      if (typeof value !== 'function') return value;
+      return (...args: unknown[]) => {
+        touched.push(String(key));
+        if (key === 'getPublicKey') beforeGetPublicKey?.();
+        return value.apply(target, args);
+      };
+    },
+  });
+}
+
+function spyOnProvider(touched: string[], submitted: unknown[]): FastProvider {
+  return {
+    getAccountInfo: async () => {
+      touched.push('getAccountInfo');
+      return { nextNonce: 1n } as any;
+    },
+    submitTransaction: async (envelope: unknown) => {
+      touched.push('submitTransaction');
+      submitted.push(envelope);
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+}
+
+const crossSignFetch = async (url: RequestInfo | URL) =>
+  String(url).includes('/relay') ? Response.json({ ok: true }) : Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+
+function submittedClaim(submitted: unknown[], index: number): any {
+  const tx = (submitted[index] as any).transaction.value;
+  return tx.claims?.[0] ?? tx.claim;
+}
+
+test('executeIntent with claimEncoding v1 validates before touching the signer or the provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const signer = spyOnSigner(touched);
+  const provider = spyOnProvider(touched, submitted);
+  const base = {
+    ...BASE_INTENT_PARAMS,
+    signer,
+    provider,
+    claimEncoding: 'v1' as const,
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+  };
+  const transfer = [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)];
+
+  await assert.rejects(executeIntent({ ...BASE_INTENT_PARAMS, signer, provider, intents: transfer, deadlineSeconds: 0.5 }), /deadlineSeconds/);
+  await assert.rejects(executeIntent({ ...base, intents: transfer, bridgeContract: undefined }), /bridgeContract/);
+  await assert.rejects(executeIntent({ ...base, intents: [{ ...buildRevokeIntent(), value: 1n }] }), /revoke/);
+  await assert.rejects(executeIntent({ ...base, intents: [buildRevokeIntent()] }), /externalAddress/);
+  for (const bad of [0.5, 0, Infinity, 1e30]) {
+    await assert.rejects(executeIntent({ ...base, intents: transfer, deadlineSeconds: bad }), /deadlineSeconds/);
+  }
+  const huge = buildExecuteIntent(TOKEN_ADDRESS, `0x${'00'.repeat(2100)}`);
+  await assert.rejects(executeIntent({ ...base, intents: [huge] }), /4096/);
+
+  assert.deepEqual(touched, [], 'every rejection above must happen before any signer or provider call');
+  assert.equal(submitted.length, 0);
+});
+
+test('executeIntent rejects a malformed externalAddress before touching the signer or provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const signer = spyOnSigner(touched, () => {
+    throw new Error('signer touched before externalAddress was rejected');
+  });
+
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      externalAddress: '0x1234',
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: 'v1',
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+    }),
+    /externalAddress.*20-byte/,
+  );
+  assert.deepEqual(touched, []);
+  assert.equal(submitted.length, 0);
+});
+
+test('executeIntent with claimEncoding v1 rejects fractional intent values before touching the signer or provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const signer = spyOnSigner(touched, () => {
+    throw new Error('signer touched before fractional intent value was rejected');
+  });
+
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [{ ...buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS), value: 0.5 as unknown as bigint }],
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: 'v1',
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+    }),
+    /value.*bigint/,
+  );
+  assert.deepEqual(touched, []);
+  assert.equal(submitted.length, 0);
+});
+
+test('executeIntent with claimEncoding v1 rejects sparse intents before touching the signer or provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const intents = [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)];
+  intents.length = 2;
+  const signer = spyOnSigner(touched, () => {
+    throw new Error('signer touched before sparse intents were rejected');
+  });
+
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents,
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: 'v1',
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+    }),
+    /intents\[1\].*missing/,
+  );
+  assert.deepEqual(touched, []);
+  assert.equal(submitted.length, 0);
+});
+
+test('executeIntent with claimEncoding v1 rejects revoke batches before touching the signer or provider', async () => {
+  for (const intents of [
+    [buildRevokeIntent(), buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+    [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS), buildRevokeIntent()],
+    [buildRevokeIntent(), buildRevokeIntent()],
+  ]) {
+    const touched: string[] = [];
+    const submitted: unknown[] = [];
+    const signer = spyOnSigner(touched, () => {
+      throw new Error('signer touched before revoke batch was rejected');
+    });
+
+    await assert.rejects(
+      executeIntent({
+        ...BASE_INTENT_PARAMS,
+        intents,
+        externalAddress: EVM_ADDRESS,
+        signer,
+        provider: spyOnProvider(touched, submitted),
+        claimEncoding: 'v1',
+        chainId: 5042,
+        bridgeContract: BRIDGE_CONTRACT,
+      }),
+      /revoke.*sole intent/,
+    );
+    assert.deepEqual(touched, []);
+    assert.equal(submitted.length, 0);
+  }
+});
+
+test('executeIntent rejects an unknown runtime claimEncoding before touching the signer or provider', async () => {
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const signer = spyOnSigner(touched, () => {
+    throw new Error('signer touched before claimEncoding was rejected');
+  });
+
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: 'v2' as 'v1',
+    }),
+    /claimEncoding/,
+  );
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer,
+      provider: spyOnProvider(touched, submitted),
+      claimEncoding: null as unknown as 'v1',
+    }),
+    /claimEncoding/,
+  );
+  assert.deepEqual(touched, []);
+  assert.equal(submitted.length, 0);
+});
+
+test('executeIntent with claimEncoding v1 sends the tag on the transfer and decodable JSON in the claim', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = crossSignFetch;
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+
+  await executeIntent({
+    ...BASE_INTENT_PARAMS,
+    intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+    signer: spyOnSigner(touched),
+    provider: spyOnProvider(touched, submitted),
+    claimEncoding: 'v1',
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+    display: { amount: 1000000n, tokenSymbol: 'USDC', tokenDecimals: 6 },
+  });
+
+  assert.equal(submitted.length, 2);
+  const transfer = submittedClaim(submitted, 0);
+  assert.equal(transfer.type, 'TokenTransfer');
+  assert.deepEqual(Array.from(transfer.value.userData as Uint8Array), Array.from(transferUserDataTag(5042)));
+  const external = submittedClaim(submitted, 1);
+  assert.equal(external.type, 'ExternalClaim');
+  const decoded = decodeIntentClaimV1(external.value.claim.claimData as Uint8Array);
+  assert.equal(decoded.chain, 'eip155:5042');
+  assert.equal(decoded.bridge, BRIDGE_CONTRACT.toLowerCase());
+  assert.equal(decoded.kind, 'withdraw');
+  assert.equal(decoded.display?.tokenSymbol, 'USDC');
+});
+
+test('executeIntent with claimEncoding v1 is immune to caller mutation during the async legs', async () => {
+  const originalFetch = globalThis.fetch;
+  let relayerBody: Record<string, unknown> | undefined;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/relay')) {
+      relayerBody = JSON.parse(String(init?.body));
+      return Response.json({ ok: true });
+    }
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  const display = { amount: 1000000n, tokenSymbol: 'USDC', tokenDecimals: 6 };
+  const intents = [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)];
+  const signer = spyOnSigner(touched, () => {
+    display.tokenSymbol = 'é'.repeat(9);
+    display.tokenDecimals = 99;
+    intents[0] = buildTransferIntent(TOKEN_ADDRESS, '0x2222222222222222222222222222222222222222');
+  });
+
+  await executeIntent({
+    ...BASE_INTENT_PARAMS,
+    intents,
+    signer,
+    provider: spyOnProvider(touched, submitted),
+    claimEncoding: 'v1',
+    chainId: 5042,
+    bridgeContract: BRIDGE_CONTRACT,
+    display,
+  });
+
+  assert.ok(touched.includes('getPublicKey'));
+  assert.equal(submitted.length, 2);
+  const decoded = decodeIntentClaimV1(submittedClaim(submitted, 1).value.claim.claimData as Uint8Array);
+  assert.equal(decoded.display?.tokenSymbol, 'USDC');
+  assert.equal(decoded.display?.tokenDecimals, 6);
+  assert.equal(decoded.intents[0]?.action, 'transfer');
+  if (decoded.intents[0]?.action === 'transfer') {
+    assert.equal(decoded.intents[0].receiver, EVM_ADDRESS);
+  }
+  assert.equal(relayerBody?.external_address, EVM_ADDRESS);
 });
 
 // ---------------------------------------------------------------------------

@@ -1,16 +1,29 @@
+import { bytesToHex } from "@noble/hashes/utils.js";
+import { decodeBase64Url, encodeBase64Url } from "./crypto/base64url";
+import { fingerprint } from "./crypto/fingerprint";
 import {
-  type HpkeKeyPair,
   exportRecipientPublicKey,
   generateKeyPair,
+  type HpkeKeyPair,
   hpkeOpen,
 } from "./crypto/hpke";
-import { fingerprint } from "./crypto/fingerprint";
-import { ERROR } from "./errors";
-import { decodeHandoverCode, extractSingleQuotedCandidate } from "./protocol/handover";
+import { ERROR, type ErrorCode } from "./errors";
+import {
+  decodeHandoverCode,
+  extractSingleQuotedCandidate,
+} from "./protocol/handover";
 import { decodePlaintextSeed } from "./protocol/plaintext";
 import { encodeRequest } from "./protocol/request";
-import { PendingStore } from "./state/pending";
-import { bytesToHex } from "@noble/hashes/utils.js";
+import { type PendingRecord, PendingStore } from "./state/pending";
+
+export interface SerializedPending {
+  v: 1;
+  hpke_private_key_jwk: JsonWebKey;
+  request_payload: string;
+  fingerprint: string;
+  expires_at: string;
+  failure_count: number;
+}
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const DEFAULT_WALLET_BASE_URL = "https://app.fast.xyz/authorize";
@@ -22,7 +35,7 @@ export interface KeyHandoverAgentOptions {
 
 export type DecryptResult =
   | { status: "success"; private_key: string }
-  | { status: "error"; error: { code: string; message: string } };
+  | { status: "error"; error: { code: ErrorCode; message: string } };
 
 export class KeyHandoverAgent {
   private readonly walletBaseUrl: string;
@@ -70,13 +83,80 @@ export class KeyHandoverAgent {
     };
   }
 
+  async exportPending(): Promise<SerializedPending | null> {
+    const record = this.pending.peek();
+    if (!record || !this.currentKeyPair) return null;
+    const jwk = await crypto.subtle.exportKey(
+      "jwk",
+      this.currentKeyPair.privateKey,
+    );
+    return {
+      v: 1,
+      hpke_private_key_jwk: jwk,
+      request_payload: encodeBase64Url(record.requestPayloadBytes),
+      fingerprint: record.fingerprint,
+      expires_at: record.expiresAt,
+      failure_count: record.failureCount,
+    };
+  }
+
+  static async restore(
+    state: SerializedPending,
+    opts?: KeyHandoverAgentOptions,
+  ): Promise<KeyHandoverAgent> {
+    if (state.v !== 1) {
+      throw new Error("unsupported serialized pending version");
+    }
+    if (
+      !Number.isInteger(state.failure_count) ||
+      state.failure_count < 0 ||
+      state.failure_count >= 3
+    ) {
+      throw new Error(
+        `invalid failure_count: ${state.failure_count} (must be integer in [0,2])`,
+      );
+    }
+    const privateKey = await crypto.subtle.importKey(
+      "jwk",
+      state.hpke_private_key_jwk,
+      { name: "X25519" },
+      true,
+      ["deriveBits"],
+    );
+    const publicKeyJwk: JsonWebKey = {
+      kty: state.hpke_private_key_jwk.kty,
+      crv: state.hpke_private_key_jwk.crv,
+      x: state.hpke_private_key_jwk.x,
+    };
+    const publicKey = await crypto.subtle.importKey(
+      "jwk",
+      publicKeyJwk,
+      { name: "X25519" },
+      true,
+      [],
+    );
+    const requestPayloadBytes = decodeBase64Url(state.request_payload);
+    const agent = new KeyHandoverAgent(opts);
+    agent.currentKeyPair = { publicKey, privateKey };
+    const record: PendingRecord = {
+      hpkePrivateKey: privateKey,
+      requestPayloadBytes,
+      fingerprint: state.fingerprint,
+      expiresAt: state.expires_at,
+      state: "pending",
+      failureCount: state.failure_count,
+    };
+    agent.pending.setRecord(record);
+    return agent;
+  }
+
   async decryptAuthPayload(input: { message: string }): Promise<DecryptResult> {
     let payload: { enc: Uint8Array; ciphertext: Uint8Array };
     try {
       const code = extractSingleQuotedCandidate(input.message);
       payload = decodeHandoverCode(code);
     } catch (err) {
-      return error(ERROR.MALFORMED_HANDOVER_MESSAGE, err);
+      return errorFromMessage(err, ERROR.MALFORMED_HANDOVER_MESSAGE);
     }
 
     let record: { hpkePrivateKey: CryptoKey; requestPayloadBytes: Uint8Array };
@@ -116,17 +196,25 @@ function toIsoSeconds(date: Date): string {
   return `${date.toISOString().slice(0, 19)}Z`;
 }
 
-function error(code: string, cause: unknown): DecryptResult {
+function error(code: ErrorCode, cause: unknown): DecryptResult {
   return {
     status: "error",
     error: { code, message: messageOf(cause) },
   };
 }
 
-function errorFromMessage(cause: unknown): DecryptResult {
+function errorFromMessage(
+  cause: unknown,
+  fallback: ErrorCode = ERROR.MISSING_PENDING_REQUEST,
+): DecryptResult {
   const message = messageOf(cause);
-  const code = message.split(":")[0]?.trim() || ERROR.MISSING_PENDING_REQUEST;
+  const candidate = message.split(":")[0]?.trim();
+  const code = isErrorCode(candidate) ? candidate : fallback;
   return { status: "error", error: { code, message } };
+}
+
+function isErrorCode(value: string | undefined): value is ErrorCode {
+  return Object.values(ERROR).some((code) => code === value);
 }
 
 function messageOf(cause: unknown): string {

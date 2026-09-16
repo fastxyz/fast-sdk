@@ -7,7 +7,7 @@ export interface PendingSeed {
   expiresAt: string;
 }
 
-interface PendingRecord extends PendingSeed {
+export interface PendingRecord extends PendingSeed {
   state: "pending" | "consuming";
   failureCount: number;
 }
@@ -19,6 +19,10 @@ export class PendingStore {
 
   set(seed: PendingSeed): void {
     this.record = { ...seed, state: "pending", failureCount: 0 };
+  }
+
+  setRecord(record: PendingRecord): void {
+    this.record = record;
   }
 
   peek(): PendingRecord | null {
@@ -35,7 +39,9 @@ export class PendingStore {
       throw new Error(`${ERROR.REQUEST_EXPIRED}: request expired`);
     }
     if (record.state !== "pending") {
-      throw new Error(`${ERROR.REQUEST_NOT_PENDING}: request already consuming`);
+      throw new Error(
+        `${ERROR.REQUEST_NOT_PENDING}: request already consuming`,
+      );
     }
     record.state = "consuming";
     return record;

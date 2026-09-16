@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/sdk",
-  "version": "2.2.0",
+  "version": "2.3.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/fastxyz/fast-sdk",
@@ -45,6 +45,9 @@
   "devDependencies": {
     "@types/node": "^25.5.0",
     "vitest": "^4.1.1"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "publishConfig": {
     "access": "public",

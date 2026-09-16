@@ -1,5 +1,6 @@
 export * from "./account.js";
 export * from "./io.js";
+export * from "./key-handover.js";
 export * from "./network.js";
 export * from "./payment.js";
 export * from "./transaction.js";
@@ -26,6 +27,13 @@ import type {
   FileIOError,
   InternalError,
 } from "./io.js";
+import type {
+  CorruptPendingStateError,
+  KeyHandoverProtocolError,
+  MissingHandoverMessageError,
+  NoPendingRequestError,
+  PendingAlreadyExistsError,
+} from "./key-handover.js";
 import type {
   DefaultNetworkError,
   InvalidNetworkConfigError,
@@ -104,4 +112,9 @@ export type ClientError =
   | AddressDerivationMismatchError
   | AlreadyVotedError
   | WalletKindMismatchError
-  | WalletNetworkMismatchError;
+  | WalletNetworkMismatchError
+  | PendingAlreadyExistsError
+  | NoPendingRequestError
+  | CorruptPendingStateError
+  | MissingHandoverMessageError
+  | KeyHandoverProtocolError;

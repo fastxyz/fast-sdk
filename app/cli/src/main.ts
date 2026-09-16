@@ -148,7 +148,17 @@ if (argv.length === 0 || argv.includes("--help")) {
 
 // ── Full parse ──────────────────────────────────────────────────────────────
 
-const KNOWN_COMMANDS = ["account", "network", "info", "send", "fund", "pay", "multisig", "token"] as const;
+const KNOWN_COMMANDS = [
+  "account",
+  "network",
+  "info",
+  "send",
+  "fund",
+  "pay",
+  "multisig",
+  "token",
+  "authorize",
+] as const;
 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
   account: ["create", "import", "list", "set-default", "export", "delete"],
@@ -157,6 +167,7 @@ const SUBCOMMANDS: Record<string, readonly string[]> = {
   fund: ["usdc", "fastusd"],
   multisig: ["init", "export", "import", "pending", "vote"],
   token: ["create", "mint", "burn", "manage"],
+  authorize: ["request", "complete"],
 };
 
 /** Simple Levenshtein distance for short strings. */
@@ -321,6 +332,17 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   "info balance": {
     usage: "fast info balance [--token <token>]",
     options: ["--token"],
+    check: () => null,
+  },
+  "authorize request": {
+    usage: "fast authorize request [--requester <name>] [--url <url>]",
+    options: ["--requester", "--url"],
+    check: () => null,
+  },
+  "authorize complete": {
+    usage:
+      "fast authorize complete [--message <text> | --stdin] [--print-account] [--json]",
+    options: ["--message", "--stdin", "--print-account"],
     check: () => null,
   },
   "info history": {

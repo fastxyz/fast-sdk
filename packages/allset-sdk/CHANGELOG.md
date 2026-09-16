@@ -1,5 +1,28 @@
 # @fastxyz/allset-sdk
 
+## 1.1.0
+
+### Minor Changes
+
+- 58f0f9f: Add Arc mainnet (chain 5042) to `CHAIN_MAP` via a `defineChain` export `arc`, so `createEvmExecutor(account, rpcUrl, 5042)` resolves without a caller-supplied Chain object.
+
+  On chains whose gas token is the deposited ERC-20 (Arc: USDC, declared via `chain.custom.gasTokenErc20`), `executeDeposit` now requires `balance >= amount + fee reserve` for the approve + deposit pair and throws `InsufficientBalanceError` otherwise, instead of letting the approve consume the gas and the deposit revert. New helpers: `gasTokenErc20`, `estimateGasReserve`, `estimateGasReserveAt`, `weiToTokenUnits`, `DEPOSIT_GAS_UNITS`.
+
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [37e62af]
+  - @fastxyz/sdk@2.3.1
+
+## 1.0.5
+
+### Patch Changes
+
+- Updated dependencies [7aad16b]
+- Updated dependencies [8ecfb10]
+  - @fastxyz/sdk@2.3.0
+
 ## 1.0.4
 
 ### Patch Changes

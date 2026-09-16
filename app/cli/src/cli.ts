@@ -727,6 +727,63 @@ const tokenGroup = command(
 );
 
 // ---------------------------------------------------------------------------
+// Authorize commands
+// ---------------------------------------------------------------------------
+
+const authorizeRequestParser = command(
+  "request",
+  object({
+    cmd: constant("authorize-request" as const),
+    requester: optional(
+      option("--requester", string({ metavar: "NAME" }), {
+        description: message`Free-text label shown to the wallet user`,
+      }),
+    ),
+    url: optional(
+      option("--url", string({ metavar: "URL" }), {
+        description: message`Override the wallet base URL (default: https://app.fast.xyz/authorize)`,
+      }),
+    ),
+  }),
+  {
+    description: message`Generate an authorization request URL for an account handover`,
+  },
+);
+
+const authorizeCompleteParser = command(
+  "complete",
+  object({
+    cmd: constant("authorize-complete" as const),
+    message: optional(
+      option("--message", string({ metavar: "TEXT" }), {
+        description: message`Handover code or chat message containing it`,
+      }),
+    ),
+    stdin: withDefault(
+      option("--stdin", {
+        description: message`Read handover code from stdin instead of an argument`,
+      }),
+      false,
+    ),
+    printAccount: withDefault(
+      option("--print-account", {
+        description: message`Also print the derived Fast address and public key`,
+      }),
+      false,
+    ),
+  }),
+  {
+    description: message`Decrypt a pasted handover code and print the private key`,
+  },
+);
+
+const authorizeGroup = command(
+  "authorize",
+  or(authorizeRequestParser, authorizeCompleteParser),
+  { description: message`Agent-side key handover protocol` },
+);
+
+// ---------------------------------------------------------------------------
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
@@ -739,6 +796,7 @@ const commands = or(
   payParser,
   multisigGroup,
   tokenGroup,
+  authorizeGroup,
 );
 
 export const parser = merge(globalOptions, commands);
@@ -783,6 +841,8 @@ export type TokenCreateArgs = InferValue<typeof tokenCreateParser>;
 export type TokenMintArgs = InferValue<typeof tokenMintParser>;
 export type TokenBurnArgs = InferValue<typeof tokenBurnParser>;
 export type TokenManageArgs = InferValue<typeof tokenManageParser>;
+export type AuthorizeRequestArgs = InferValue<typeof authorizeRequestParser>;
+export type AuthorizeCompleteArgs = InferValue<typeof authorizeCompleteParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
 export type ParsedArgs = InferValue<typeof parser>;

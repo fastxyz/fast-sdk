@@ -145,6 +145,18 @@ const result = await executeIntent({
 });
 ```
 
+### Claim encoding (`allset/intent/v1`)
+
+`executeWithdraw` / `executeIntent` can sign a self-describing canonical-JSON `claim_data` instead of the bare ABI struct: pass `claimEncoding: 'v1'` together with `chainId` and `bridgeContract` (and optionally `display: { amount, tokenSymbol, tokenDecimals }`). The transfer leg then carries a 32-byte `allset/transfer/v1:<chainId>` tag in `user_data`, so the Fast App signing pop-up and the explorer can read what is being authorized. The bytes the bridge contract sees are unchanged: cross-sign derives them. All v1 inputs are validated before the Fast transfer is signed.
+
+The default is still `'legacy'`; it flips to `'v1'` only after cross-sign and the Fast App decoder are deployed (AllSet#576). Only an omitted/`undefined` `claimEncoding` selects that default; supplied runtime values other than `'legacy'` or `'v1'`, including `null`, are rejected. Legacy claims stay accepted for as long as untagged intents remain valid on the contracts.
+
+A `revoke` action must be the claim's sole intent. Multi-intent batches may combine the other supported actions but cannot contain `revoke`.
+
+The v1 claim `deadline` and intent `value` fields must be `bigint` at runtime. `display.amount` is advisory and is first normalized with `BigInt(...)` into the owned snapshot, then range-validated; inputs accepted by that conversion therefore become a valid `bigint` value.
+
+Schema package subpath: `@fastxyz/allset-sdk/schemas/allset-intent-v1.json`. Encoders: `encodeIntentClaimV1`, `decodeIntentClaimV1`, `intentClaimV1ToAbi`, `transferUserDataTag`, `readTransferUserDataTag`.
+
 ---
 
 ## API Reference
@@ -170,7 +182,7 @@ Creates viem `walletClient` and `publicClient` for the given chain.
 const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, 421614);
 ```
 
-Supported chain IDs: `1` (Ethereum), `11155111` (Sepolia), `421614` (Arbitrum Sepolia), `42161` (Arbitrum), `8453` (Base).
+Supported chain IDs: `1` (Ethereum), `11155111` (Sepolia), `421614` (Arbitrum Sepolia), `42161` (Arbitrum), `8453` (Base), `5042` (Arc).
 
 ---
 
@@ -234,7 +246,7 @@ interface ExecuteIntentParams {
   tokenFastTokenId: string; // hex, no 0x prefix
   amount: string;
   intents: Intent[];
-  externalAddress?: string; // override EVM target (required for depositBack/revoke flows)
+  externalAddress?: string; // 0x-prefixed 20-byte relayer metadata (required for depositBack/revoke flows)
   deadlineSeconds?: number; // default: 3600
   networkId: string; // 'fast:testnet' | 'fast:mainnet' | ...
   signer: Signer; // from @fastxyz/sdk

@@ -16,7 +16,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
           bridgeContract: "0xb53600976275D6f541a3B929328d07714EFA581F",
           fastBridgeAddress: "fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8",
           relayerUrl: "https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer",
-          evmRpcUrl: "https://lb.drpc.live/arbitrum-sepolia/Av_ucIUlR08slbBUFg1E4U0n6sODvwMR8JF6QmlfqV1j",
+          evmRpcUrl: "https://testnet.allset.fast.xyz/chain/rpc/arbitrum-sepolia",
           evmExplorerUrl: "https://sepolia.arbiscan.io",
           tokens: {
             testUSDC: {
@@ -31,7 +31,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
           bridgeContract: "0xb53600976275D6f541a3B929328d07714EFA581F",
           fastBridgeAddress: "fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958",
           relayerUrl: "https://testnet.allset.fast.xyz/ethereum-sepolia/relayer",
-          evmRpcUrl: "https://lb.drpc.live/sepolia/Av_ucIUlR08slbBUFg1E4U0n6sODvwMR8JF6QmlfqV1j",
+          evmRpcUrl: "https://testnet.allset.fast.xyz/chain/rpc/ethereum-sepolia",
           evmExplorerUrl: "https://sepolia.etherscan.io",
           tokens: {
             testUSDC: {
@@ -58,7 +58,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
           bridgeContract: "0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538",
           fastBridgeAddress: "fast1x8xphxc78pdaljjs0reh7xpp8xv6pnhyq2pmnmumne49axtjwm4seau7c8",
           relayerUrl: "https://allset.fast.xyz/ethereum/relayer",
-          evmRpcUrl: "https://lb.drpc.live/ethereum/Av_ucIUlR08slbBUFg1E4U0n6sODvwMR8JF6QmlfqV1j",
+          evmRpcUrl: "https://allset.fast.xyz/chain/rpc/ethereum",
           evmExplorerUrl: "https://etherscan.io",
           tokens: {
             USDC: {
@@ -73,7 +73,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
           bridgeContract: "0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538",
           fastBridgeAddress: "fast1xzuzv3p3zl8pljk5cyq3xn0vpjj9jmhk53zlcv56mu04gwkg256s6ewung",
           relayerUrl: "https://allset.fast.xyz/arbitrum/relayer",
-          evmRpcUrl: "https://lb.drpc.live/arbitrum/Av_ucIUlR08slbBUFg1E4U0n6sODvwMR8JF6QmlfqV1j",
+          evmRpcUrl: "https://allset.fast.xyz/chain/rpc/arbitrum",
           evmExplorerUrl: "https://arbiscan.io",
           tokens: {
             USDC: {
@@ -88,11 +88,28 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
           bridgeContract: "0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538",
           fastBridgeAddress: "fast1aq2hlz8t3ex0vke7056zraxzetmxmpaw84ws9lljdhpqtqkctu4spty8l6",
           relayerUrl: "https://allset.fast.xyz/base/relayer",
-          evmRpcUrl: "https://lb.drpc.live/base/Av_ucIUlR08slbBUFg1E4U0n6sODvwMR8JF6QmlfqV1j",
+          evmRpcUrl: "https://allset.fast.xyz/chain/rpc/base",
           evmExplorerUrl: "https://basescan.org",
           tokens: {
             USDC: {
               evmAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              fastTokenId: "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
+              decimals: 6,
+            },
+          },
+        },
+        arc: {
+          chainId: 5042,
+          // Arc burns USDC for gas; deposits of USDC must leave a fee reserve.
+          gasToken: { symbol: "USDC", erc20Address: "0x3600000000000000000000000000000000000000" },
+          bridgeContract: "0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538",
+          fastBridgeAddress: "fast17lqf2st89vqwm9yrgv2nhzx0mznqe0uukglkcl55lmecsgq9247qej58nf",
+          relayerUrl: "https://allset.fast.xyz/arc/relayer",
+          evmRpcUrl: "https://allset.fast.xyz/chain/rpc/arc",
+          evmExplorerUrl: "https://explorer.arc.io",
+          tokens: {
+            USDC: {
+              evmAddress: "0x3600000000000000000000000000000000000000",
               fastTokenId: "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
               decimals: 6,
             },

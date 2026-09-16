@@ -23,7 +23,9 @@ export interface HpkeKeyPair {
 }
 
 export async function generateKeyPair(): Promise<HpkeKeyPair> {
-  const kp = await suite().kem.generateKeyPair();
+  const kp = (await crypto.subtle.generateKey({ name: "X25519" }, true, [
+    "deriveBits",
+  ])) as CryptoKeyPair;
   return { publicKey: kp.publicKey, privateKey: kp.privateKey };
 }
 

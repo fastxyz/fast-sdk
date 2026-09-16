@@ -344,6 +344,88 @@ fast fund fastusd --to fast1someoneelse --amount 10
 
 ---
 
+### `fast authorize request`
+
+Generate a one-time HPKE authorization request. The command creates a URL for the wallet user to open, and stores a short-lived key in `~/.fast/handover-pending.json` (mode 0600, up to 5 minutes).
+
+```bash
+fast authorize request [--requester NAME] [--url URL]
+```
+
+**Options:**
+
+- `--requester <name>` — Optional label shown to the wallet user to identify who is requesting
+- `--url <url>` — Override the wallet base URL the auth link points to (default: `https://app.fast.xyz/authorize`). Useful for local dev against a non-production wallet, e.g. `--url http://localhost:3000/authorize`.
+
+**Output (human):**
+
+```
+Authorization URL:
+  https://app.fast.xyz/authorize?data=eyJ...
+
+Fingerprint:    123456
+Expires at:     2026-05-25T12:05:00Z
+
+Show the URL to the wallet user. Once they paste back the handover
+code, run:
+  fast authorize complete --message '<paste here>'
+```
+
+**Output (`--json`):**
+
+```json
+{
+  "auth_url": "...",
+  "request_fingerprint": "123456",
+  "request_expires_at": "2026-05-25T12:05:00Z"
+}
+```
+
+**Security note:** `~/.fast/handover-pending.json` contains the HPKE one-time private key — not the account seed. An attacker who steals only this file cannot derive the account key; they would also need to intercept the handover code the wallet user pastes back. The file expires within 5 minutes and is deleted after a successful `authorize complete`.
+
+---
+
+### `fast authorize complete`
+
+Decrypt a handover code returned by the wallet user and print the account private key to stdout.
+
+```bash
+fast authorize complete [--message TEXT | --stdin] [--print-account] [--json]
+```
+
+**Options:**
+
+- `--message <text>` — Handover code or chat message containing it (bare base64url or quoted)
+- `--stdin` — Read the handover code from stdin (e.g., `cat code.txt | fast authorize complete --stdin`)
+- `--print-account` — Also print the derived Fast address and public key
+- `--json` — Emit JSON output
+
+If neither `--message` nor `--stdin` is provided, the CLI prompts interactively. With `--non-interactive`, absence of both flags is an error.
+
+**Output (human, default):**
+
+```
+0x1313131313131313131313131313131313131313131313131313131313131313
+```
+
+**Output (human, `--print-account`):**
+
+```
+Private key:     0x1313...
+Address:         fast1abc...xyz
+Public key:      0xdead...beef
+```
+
+**Output (`--json`):**
+
+```json
+{ "private_key": "0x1313..." }
+```
+
+After a successful decryption, `~/.fast/handover-pending.json` is deleted. On decryption failures, the state file is updated (or deleted after 3 attempts) so the same request may be retried.
+
+---
+
 ### `fast pay <url>`
 
 Pay for an x402-protected HTTP resource. The CLI handles the 402 response, signs and submits payment, and retries the request automatically.

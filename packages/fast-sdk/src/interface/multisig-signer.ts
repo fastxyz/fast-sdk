@@ -90,6 +90,11 @@ export function canonicalizeMultiSigSigners(signers: readonly Uint8Array[]): Uin
 /** Validate a multisig config using the protocol's canonical constraints. */
 export function validateMultiSigConfig(config: MultiSigConfig): void {
   const signers = config.authorized_signers;
+  if (config.nonce < 0n || config.nonce > (1n << 64n) - 1n) {
+    throw new MultiSigConfigInvalidError({
+      reason: `nonce must fit u64 (got ${config.nonce})`,
+    });
+  }
   if (signers.length < 2) {
     throw new MultiSigConfigInvalidError({
       reason: `authorized_signers must have at least 2 entries (got ${signers.length})`,

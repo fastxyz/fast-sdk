@@ -15,6 +15,9 @@ import { deriveMultiSigAddressBytes, type MultiSigConfig, MultiSigSigner, valida
 import type { FastProvider } from '../interface/provider.js';
 import { run } from '../core/run.js';
 
+export { MultiSigSigner, validateMultiSigConfig } from '../interface/multisig-signer.js';
+export type { MultiSigConfig } from '../interface/multisig-signer.js';
+
 export type MultiSigWorkflowErrorCode =
   | 'PENDING_CONFIRMATION'
   | 'PENDING_REPLACEMENT'
@@ -25,6 +28,7 @@ export type MultiSigWorkflowErrorCode =
   | 'SENDER_MISMATCH'
   | 'NETWORK_MISMATCH'
   | 'CONFIG_MISMATCH'
+  | 'PREPARED_PAYLOAD_MISMATCH'
   | 'UNEXPECTED_SUBMIT_RESULT';
 
 /** A fail-closed error raised before a headless multisig workflow signs. */
@@ -232,20 +236,22 @@ export class MultiSigWorkflow {
 
   /** Sign and submit the exact transaction returned by {@link prepare}. */
   async submitPrepared(params: SubmitPreparedMultiSigTransactionParams): Promise<MultiSigSubmission> {
+    // Snapshot caller-owned input before the first await. Hashing and signing
+    // then operate only on this private graph, closing mutation races between
+    // integrity validation and signature serialization.
+    const transaction = structuredClone(params.prepared.transaction);
+    const expectedHash = params.prepared.txHash;
     this.assertSigner(params.signer);
     const state = await this.fetchState();
     if (state.pendingConfirmation != null) {
       throw new MultiSigWorkflowError('PENDING_CONFIRMATION', 'A transaction is awaiting validator confirmation.');
     }
-    if (params.prepared.transaction.value.nonce !== state.nextNonce) {
-      throw new MultiSigWorkflowError(
-        'STALE_NONCE',
-        `Prepared nonce ${params.prepared.transaction.value.nonce} no longer matches current nonce ${state.nextNonce}.`,
-      );
+    if (transaction.value.nonce !== state.nextNonce) {
+      throw new MultiSigWorkflowError('STALE_NONCE', `Prepared nonce ${transaction.value.nonce} no longer matches current nonce ${state.nextNonce}.`);
     }
-    const preparedHash = await getMultiSigTransactionHash(params.prepared.transaction);
-    if (preparedHash !== params.prepared.txHash) {
-      throw new MultiSigWorkflowError('CONFIG_MISMATCH', 'Prepared transaction hash does not match its payload.');
+    const preparedHash = await getMultiSigTransactionHash(transaction);
+    if (preparedHash !== expectedHash) {
+      throw new MultiSigWorkflowError('PREPARED_PAYLOAD_MISMATCH', 'Prepared transaction hash does not match its payload.');
     }
     const competing = state.pending.filter((entry) => entry.txHash !== preparedHash);
     if (competing.length > 0 && !params.replacePending) {
@@ -254,8 +260,8 @@ export class MultiSigWorkflow {
         `${competing.length} competing proposal(s) exist at nonce ${state.nextNonce}; refusing implicit replacement.`,
       );
     }
-    this.assertTransaction(params.prepared.transaction);
-    const envelope = await params.signer.signEnvelopeFor(params.prepared.transaction);
+    this.assertTransaction(transaction);
+    const envelope = await params.signer.signEnvelopeFor(transaction);
     return this.submit(envelope, preparedHash);
   }
 

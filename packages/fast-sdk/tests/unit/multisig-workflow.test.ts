@@ -2,7 +2,12 @@ import type { SubmitTransactionResult, TransactionEnvelope } from '@fastxyz/sche
 import { getPublicKeyAsync } from '@noble/ed25519';
 import { describe, expect, it } from 'vitest';
 import { canonicalizeMultiSigSigners, type MultiSigConfig, MultiSigSigner } from '../../src/interface/multisig-signer.js';
-import { MultiSigWorkflow, MultiSigWorkflowError } from '../../src/multisig/index.js';
+import {
+  MultiSigSigner as SubpathMultiSigSigner,
+  MultiSigWorkflow,
+  MultiSigWorkflowError,
+  validateMultiSigConfig as subpathValidateMultiSigConfig,
+} from '../../src/multisig/index.js';
 
 const seed = (byte: number) => new Uint8Array(32).fill(byte);
 
@@ -51,6 +56,11 @@ const makeProvider = (state: {
   }) as never;
 
 describe('MultiSigWorkflow', () => {
+  it('exports signer construction and validation from the multisig entry point', () => {
+    expect(SubpathMultiSigSigner).toBe(MultiSigSigner);
+    expect(subpathValidateMultiSigConfig).toBeTypeOf('function');
+  });
+
   it('prepares an inspectable unsigned payload, then signs and submits those exact bytes', async () => {
     const { config, first } = await fixture();
     const submitted: TransactionEnvelope[] = [];
@@ -71,7 +81,45 @@ describe('MultiSigWorkflow', () => {
     const result = await workflow.submitPrepared({ signer: first, prepared });
     expect(result.status).toBe('pending-signatures');
     expect(submitted).toHaveLength(1);
-    expect(submitted[0]!.transaction).toBe(prepared.transaction);
+    expect(submitted[0]!.transaction).not.toBe(prepared.transaction);
+    expect(submitted[0]!.transaction).toEqual(prepared.transaction);
+  });
+
+  it('rejects a payload changed before submission with a dedicated stable code', async () => {
+    const { config, first } = await fixture();
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({}),
+      networkId: 'fast:testnet',
+      config,
+    });
+    const prepared = await workflow.prepare({ signer: first, operations: [transfer] });
+    const claim = (prepared.transaction.value as unknown as { claims: Array<typeof transfer> }).claims[0]!;
+    (claim.value as { amount: bigint }).amount = 8n;
+
+    await expect(workflow.submitPrepared({ signer: first, prepared })).rejects.toMatchObject({
+      code: 'PREPARED_PAYLOAD_MISMATCH',
+    });
+  });
+
+  it('snapshots prepared bytes before awaiting so concurrent caller mutation cannot change the signature', async () => {
+    const { config, first } = await fixture();
+    const submitted: TransactionEnvelope[] = [];
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({ submitted }),
+      networkId: 'fast:testnet',
+      config,
+    });
+    const prepared = await workflow.prepare({ signer: first, operations: [transfer] });
+    const expectedHash = prepared.txHash;
+
+    const submission = workflow.submitPrepared({ signer: first, prepared });
+    const claim = (prepared.transaction.value as unknown as { claims: Array<typeof transfer> }).claims[0]!;
+    (claim.value as { amount: bigint }).amount = 99n;
+    const result = await submission;
+
+    const submittedClaim = (submitted[0]!.transaction.value as unknown as { claims: Array<typeof transfer> }).claims[0]!;
+    expect(submittedClaim.value.amount).toBe(7n);
+    expect(result.txHash).toBe(expectedHash);
   });
 
   it('refuses implicit replacement and reports replaced hashes after explicit opt-in', async () => {

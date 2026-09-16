@@ -1,31 +1,24 @@
-import {
-  deriveMultiSigAddress,
-  fromFastAddress,
-  type MultiSigConfig,
-} from "@fastxyz/sdk";
-import { Effect, Schema } from "effect";
-import { readFileSync } from "node:fs";
+import { deriveMultiSigAddress, fromFastAddress, type MultiSigConfig } from '@fastxyz/sdk';
+import { Effect, Schema } from 'effect';
+import { readFileSync } from 'node:fs';
 
-import type { MultisigImportArgs } from "../../cli.js";
+import type { MultisigImportArgs } from '../../cli.js';
 import {
   AddressDerivationMismatchError,
   FileIOError,
   InvalidAddressError,
   InvalidUsageError,
   MultiSigConfigInvalidError,
-} from "../../errors/index.js";
-import {
-  MultiSigWalletConfigSchema,
-  parseMultiSigWalletConfig,
-  type MultiSigWalletConfig,
-} from "../../schemas/multisig-wallet.js";
-import { ClientConfig } from "../../services/config/client.js";
-import { Output } from "../../services/output.js";
-import { AccountStore } from "../../services/storage/account.js";
-import { validateName } from "../../services/validate.js";
-import type { Command } from "../index.js";
+} from '../../errors/index.js';
+import { MultiSigWalletConfigSchema, parseMultiSigWalletConfig, type MultiSigWalletConfig } from '../../schemas/multisig-wallet.js';
+import { ClientConfig } from '../../services/config/client.js';
+import { Output } from '../../services/output.js';
+import { AccountStore } from '../../services/storage/account.js';
+import { validateName } from '../../services/validate.js';
+import type { Command } from '../index.js';
+import { canonicalizeSignerAddresses } from './config.js';
 
-const FAST_ADDRESS_PREFIX = "fast1";
+const FAST_ADDRESS_PREFIX = 'fast1';
 
 const validateFastAddress = (entry: string) =>
   Effect.gen(function* () {
@@ -33,7 +26,7 @@ const validateFastAddress = (entry: string) =>
     if (trimmed.length === 0) {
       return yield* Effect.fail(
         new InvalidUsageError({
-          message: "Empty signer entry in --signers list",
+          message: 'Empty signer entry in --signers list',
         }),
       );
     }
@@ -54,11 +47,7 @@ const validateFastAddress = (entry: string) =>
     return trimmed;
   });
 
-const deriveAddress = (
-  signersSorted: readonly string[],
-  quorum: number,
-  configNonce: bigint,
-) =>
+const deriveAddress = (signersSorted: readonly string[], quorum: number, configNonce: bigint) =>
   Effect.gen(function* () {
     const sdkConfig: MultiSigConfig = {
       authorized_signers: signersSorted.map((s) => fromFastAddress(s)),
@@ -75,7 +64,7 @@ const deriveAddress = (
   });
 
 export const multisigImport: Command<MultisigImportArgs> = {
-  cmd: "multisig-import",
+  cmd: 'multisig-import',
   handler: (args: MultisigImportArgs) =>
     Effect.gen(function* () {
       const accounts = yield* AccountStore;
@@ -84,11 +73,11 @@ export const multisigImport: Command<MultisigImportArgs> = {
 
       let walletConfig: MultiSigWalletConfig;
 
-      if ("from" in args && args.from) {
+      if ('from' in args && args.from) {
         // Mode 1: load from file and verify integrity.
         const filePath = args.from;
         const content = yield* Effect.try({
-          try: () => readFileSync(filePath, "utf-8"),
+          try: () => readFileSync(filePath, 'utf-8'),
           catch: (e) =>
             new FileIOError({
               message: `Cannot read wallet config file: ${e instanceof Error ? e.message : String(e)}`,
@@ -110,9 +99,7 @@ export const multisigImport: Command<MultisigImportArgs> = {
           yield* validateFastAddress(s);
         }
 
-        // Use canonical (sorted) order for derivation; this matches what
-        // `multisig init` writes, so a well-formed file already round-trips.
-        const sortedSigners = [...parsed.signers].sort();
+        const sortedSigners = canonicalizeSignerAddresses(parsed.signers);
 
         let nonceBig: bigint;
         try {
@@ -125,11 +112,7 @@ export const multisigImport: Command<MultisigImportArgs> = {
           );
         }
 
-        const derived = yield* deriveAddress(
-          sortedSigners,
-          parsed.quorum,
-          nonceBig,
-        );
+        const derived = yield* deriveAddress(sortedSigners, parsed.quorum, nonceBig);
         if (derived !== parsed.fastAddress) {
           return yield* Effect.fail(
             new AddressDerivationMismatchError({
@@ -141,9 +124,16 @@ export const multisigImport: Command<MultisigImportArgs> = {
 
         // Apply CLI overrides on top of the file config.
         const finalName = args.name ?? parsed.name;
+        if (finalName.length === 0) {
+          return yield* Effect.fail(
+            new InvalidUsageError({
+              message: '--name is required when importing a Rust wallet.json',
+            }),
+          );
+        }
         const finalNetwork = parsed.network;
 
-        const nameErr = validateName(finalName, "Wallet name");
+        const nameErr = validateName(finalName, 'Wallet name');
         if (nameErr) {
           return yield* Effect.fail(new InvalidUsageError({ message: nameErr }));
         }
@@ -159,35 +149,34 @@ export const multisigImport: Command<MultisigImportArgs> = {
         };
       } else {
         // Mode 2: explicit args.
-        if (!("signers" in args)) {
+        if (!('signers' in args)) {
           return yield* Effect.fail(
             new InvalidUsageError({
-              message:
-                "Either --from <file> or --signers/--quorum/--config-nonce must be provided",
+              message: 'Either --from <file> or --signers/--quorum/--config-nonce must be provided',
             }),
           );
         }
         if (!args.name) {
           return yield* Effect.fail(
             new InvalidUsageError({
-              message: "--name is required when not using --from",
+              message: '--name is required when not using --from',
             }),
           );
         }
 
-        const nameErr = validateName(args.name, "Wallet name");
+        const nameErr = validateName(args.name, 'Wallet name');
         if (nameErr) {
           return yield* Effect.fail(new InvalidUsageError({ message: nameErr }));
         }
 
         const rawEntries = args.signers
-          .split(",")
+          .split(',')
           .map((s) => s.trim())
           .filter((s) => s.length > 0);
         if (rawEntries.length < 2) {
           return yield* Effect.fail(
             new InvalidUsageError({
-              message: "--signers must list at least 2 entries",
+              message: '--signers must list at least 2 entries',
             }),
           );
         }
@@ -197,14 +186,14 @@ export const multisigImport: Command<MultisigImportArgs> = {
           validated.push(yield* validateFastAddress(entry));
         }
 
-        const dedupedSorted = Array.from(new Set(validated)).sort();
-        if (dedupedSorted.length !== validated.length) {
+        if (new Set(validated).size !== validated.length) {
           return yield* Effect.fail(
             new MultiSigConfigInvalidError({
-              reason: "duplicate signers in --signers list",
+              reason: 'duplicate signers in --signers list',
             }),
           );
         }
+        const dedupedSorted = canonicalizeSignerAddresses(validated);
 
         if (!/^\d+$/.test(args.configNonce)) {
           return yield* Effect.fail(
@@ -224,11 +213,7 @@ export const multisigImport: Command<MultisigImportArgs> = {
           );
         }
 
-        const derived = yield* deriveAddress(
-          dedupedSorted,
-          args.quorum,
-          nonceBig,
-        );
+        const derived = yield* deriveAddress(dedupedSorted, args.quorum, nonceBig);
         if (args.expectAddress && derived !== args.expectAddress) {
           return yield* Effect.fail(
             new AddressDerivationMismatchError({
@@ -249,9 +234,7 @@ export const multisigImport: Command<MultisigImportArgs> = {
           fastAddress: derived,
           network,
         };
-        walletConfig = yield* Schema.decodeUnknown(MultiSigWalletConfigSchema)(
-          candidate,
-        ).pipe(
+        walletConfig = yield* Schema.decodeUnknown(MultiSigWalletConfigSchema)(candidate).pipe(
           Effect.mapError(
             (e) =>
               new MultiSigConfigInvalidError({
@@ -268,23 +251,21 @@ export const multisigImport: Command<MultisigImportArgs> = {
       yield* output.humanLine(`Imported multisig wallet "${entry.name}"`);
       yield* output.humanLine(`  Fast address: ${entry.fastAddress}`);
       yield* output.humanLine(`  Network:      ${entry.multisigConfig.network}`);
-      yield* output.humanLine(
-        `  Quorum:       ${entry.multisigConfig.quorum} of ${entry.multisigConfig.signers.length}`,
-      );
+      yield* output.humanLine(`  Quorum:       ${entry.multisigConfig.quorum} of ${entry.multisigConfig.signers.length}`);
       yield* output.humanLine(`  Config nonce: ${entry.multisigConfig.configNonce}`);
-      yield* output.humanLine("  Signers:");
+      yield* output.humanLine('  Signers:');
       for (const s of entry.multisigConfig.signers) {
         yield* output.humanLine(`    - ${s}`);
       }
       if (entry.isDefault) {
-        yield* output.humanLine("  (set as default account)");
+        yield* output.humanLine('  (set as default account)');
       }
 
       // JSON output.
       yield* output.ok({
         name: entry.name,
         fastAddress: entry.fastAddress,
-        kind: "multisig" as const,
+        kind: 'multisig' as const,
         isDefault: entry.isDefault,
         multisigConfig: entry.multisigConfig,
       });

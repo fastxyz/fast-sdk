@@ -27,7 +27,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bcsSchema, type TransactionEnvelope, VersionedTransactionFromBcs } from '@fastxyz/schema';
-import { deriveMultiSigAddress, fromFastAddress, hashHex, Signer } from '@fastxyz/sdk';
+import { canonicalizeMultiSigSigners, deriveMultiSigAddress, fromFastAddress, hashHex, Signer, toFastAddress } from '@fastxyz/sdk';
 import Db from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
@@ -50,6 +50,7 @@ import { DatabaseService } from '../../src/services/storage/database.js';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 const SEED = (b: number) => new Uint8Array(32).fill(b);
+const canonicalAddresses = (addresses: string[]) => canonicalizeMultiSigSigners(addresses.map(fromFastAddress)).map(toFastAddress);
 
 const fastAddressOf = async (seed: Uint8Array): Promise<string> => {
   return new Signer(seed).getFastAddress();
@@ -174,7 +175,7 @@ describe('multisig 2-of-3 integration', () => {
     const bobAddr = await fastAddressOf(SEED(0xbb));
     const carolAddr = await fastAddressOf(SEED(0xcc));
 
-    const sortedSigners = [aliceAddr, bobAddr, carolAddr].sort();
+    const sortedSigners = canonicalAddresses([aliceAddr, bobAddr, carolAddr]);
     const sdkConfig = {
       authorized_signers: sortedSigners.map((a) => fromFastAddress(a)),
       quorum: 2n,
@@ -275,7 +276,7 @@ describe('multisig 2-of-3 integration', () => {
     const bobAddr = await fastAddressOf(SEED(0xbb));
     const carolAddr = await fastAddressOf(SEED(0xcc));
 
-    const sortedSigners = [aliceAddr, bobAddr, carolAddr].sort();
+    const sortedSigners = canonicalAddresses([aliceAddr, bobAddr, carolAddr]);
     const sdkConfig = {
       authorized_signers: sortedSigners.map((a) => fromFastAddress(a)),
       quorum: 2n,
@@ -366,7 +367,7 @@ describe('multisig 2-of-3 integration', () => {
     const bobAddr = await fastAddressOf(SEED(0xbb));
     const carolAddr = await fastAddressOf(SEED(0xcc));
 
-    const sortedSigners = [bobAddr, carolAddr].sort();
+    const sortedSigners = canonicalAddresses([bobAddr, carolAddr]);
     const sdkConfig = {
       authorized_signers: sortedSigners.map((a) => fromFastAddress(a)),
       quorum: 2n,
@@ -413,7 +414,7 @@ describe('multisig 2-of-3 integration', () => {
     const bobAddr = await fastAddressOf(SEED(0xbb));
     const carolAddr = await fastAddressOf(SEED(0xcc));
 
-    const sortedSigners = [aliceAddr, bobAddr, carolAddr].sort();
+    const sortedSigners = canonicalAddresses([aliceAddr, bobAddr, carolAddr]);
     const sdkConfig = {
       authorized_signers: sortedSigners.map((a) => fromFastAddress(a)),
       quorum: 2n,
@@ -450,7 +451,7 @@ describe('multisig 2-of-3 integration', () => {
           catch: (e) => new Error(String(e)),
         });
         const parsed = yield* parseMultiSigWalletConfig(content);
-        const sorted = [...parsed.signers].sort();
+        const sorted = canonicalAddresses([...parsed.signers]);
         const nonceBig = BigInt(parsed.configNonce);
         const derived = yield* Effect.tryPromise({
           try: () =>
@@ -488,7 +489,7 @@ describe('multisig 2-of-3 integration', () => {
     const bobAddr = await fastAddressOf(SEED(0xbb));
     const carolAddr = await fastAddressOf(SEED(0xcc));
 
-    const sortedSigners = [aliceAddr, bobAddr, carolAddr].sort();
+    const sortedSigners = canonicalAddresses([aliceAddr, bobAddr, carolAddr]);
     const sdkConfig = {
       authorized_signers: sortedSigners.map((a) => fromFastAddress(a)),
       quorum: 2n,

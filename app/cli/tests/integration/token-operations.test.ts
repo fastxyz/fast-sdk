@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { deriveMultiSigAddress, fromFastAddress } from '@fastxyz/sdk';
+import { canonicalizeMultiSigSigners, deriveMultiSigAddress, fromFastAddress, toFastAddress } from '@fastxyz/sdk';
 import { AccountStore } from '../../src/services/storage/account';
 import { DatabaseService } from '../../src/services/storage/database';
 import { resolveSigner } from '../../src/services/signer-resolver';
@@ -17,6 +17,7 @@ import { FastRpc } from '../../src/services/api/fast';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 const SEED = (b: number) => new Uint8Array(32).fill(b);
+const canonicalAddresses = (addresses: string[]) => canonicalizeMultiSigSigners(addresses.map(fromFastAddress)).map(toFastAddress);
 
 interface RpcState {
   submittedSuccess: number;
@@ -129,7 +130,7 @@ describe('token operations end-to-end (service-level)', () => {
         yield* accounts.create('bob', SEED(0xbb), null);
         const aliceFast = (yield* accounts.get('alice')).fastAddress;
         const bobFast = (yield* accounts.get('bob')).fastAddress;
-        const sortedSigners = [aliceFast, bobFast].sort();
+        const sortedSigners = canonicalAddresses([aliceFast, bobFast]);
         const fastAddress = yield* Effect.promise(() =>
           deriveMultiSigAddress({
             authorized_signers: sortedSigners.map((s) => fromFastAddress(s)),

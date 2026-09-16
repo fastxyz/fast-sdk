@@ -15,13 +15,13 @@ import {
   type TransactionVersion,
   type VersionedTransaction,
   VersionedTransactionFromBcs,
-} from "@fastxyz/schema";
-import { getPublicKeyAsync } from "@noble/ed25519";
-import { Data, Redacted, Schema } from "effect";
-import { domainEncode, hash } from "../core/crypto/bcs";
-import { signMessage } from "../core/crypto/signing";
-import { run } from "../core/run";
-import { toFastAddress } from "./convert";
+} from '@fastxyz/schema';
+import { getPublicKeyAsync } from '@noble/ed25519';
+import { Data, Redacted, Schema } from 'effect';
+import { domainEncode, hash } from '../core/crypto/bcs';
+import { signMessage } from '../core/crypto/signing';
+import { run } from '../core/run';
+import { toFastAddress } from './convert';
 
 /**
  * BCS-input shape for `MultiSigConfig`. Matches the on-chain Rust struct
@@ -32,7 +32,7 @@ import { toFastAddress } from "./convert";
  * `@fastxyz/schema`, which uses camelCase (`authorizedSigners`).
  */
 export type MultiSigConfig = {
-  authorized_signers: Uint8Array[];
+  authorized_signers: readonly Uint8Array[];
   quorum: bigint;
   nonce: bigint;
 };
@@ -42,34 +42,27 @@ export type MultiSigConfig = {
  * Matches the Rust `MultiSigConfig::address()` algorithm:
  * `keccak256(BCS::serialize(MultiSigConfig{ authorized_signers, quorum, nonce }))`.
  */
-export async function deriveMultiSigAddressBytes(
-  config: MultiSigConfig,
-): Promise<Uint8Array> {
+export async function deriveMultiSigAddressBytes(config: MultiSigConfig): Promise<Uint8Array> {
+  validateConfig(config);
   return run(hash(bcsSchema.MultiSigConfig, config));
 }
 
 /**
  * Derive the bech32m `fast1...` address of a multisig account from its config.
  */
-export async function deriveMultiSigAddress(
-  config: MultiSigConfig,
-): Promise<string> {
+export async function deriveMultiSigAddress(config: MultiSigConfig): Promise<string> {
   return toFastAddress(await deriveMultiSigAddressBytes(config));
 }
 
-export class MultiSigConfigInvalidError extends Data.TaggedError(
-  "MultiSigConfigInvalidError",
-)<{ readonly reason: string }> {
+export class MultiSigConfigInvalidError extends Data.TaggedError('MultiSigConfigInvalidError')<{ readonly reason: string }> {
   override get message() {
     return `Invalid multisig config: ${this.reason}`;
   }
 }
 
-export class NotAuthorizedSignerError extends Data.TaggedError(
-  "NotAuthorizedSignerError",
-) {
+export class NotAuthorizedSignerError extends Data.TaggedError('NotAuthorizedSignerError') {
   override get message() {
-    return "secret key is not in config.authorized_signers";
+    return 'secret key is not in config.authorized_signers';
   }
 }
 
@@ -79,12 +72,39 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
+/** Compare signer addresses using the bytewise ordering enforced by Rust. */
+export function compareMultiSigSignerBytes(a: Uint8Array, b: Uint8Array): number {
+  const length = Math.min(a.length, b.length);
+  for (let i = 0; i < length; i++) {
+    const difference = a[i]! - b[i]!;
+    if (difference !== 0) return difference;
+  }
+  return a.length - b.length;
+}
+
+/** Return defensive copies in the canonical Rust/protocol order. */
+export function canonicalizeMultiSigSigners(signers: readonly Uint8Array[]): Uint8Array[] {
+  return signers.map((signer) => new Uint8Array(signer)).sort(compareMultiSigSignerBytes);
+}
+
 function validateConfig(config: MultiSigConfig): void {
   const signers = config.authorized_signers;
   if (signers.length < 2) {
     throw new MultiSigConfigInvalidError({
       reason: `authorized_signers must have at least 2 entries (got ${signers.length})`,
     });
+  }
+  for (let i = 0; i < signers.length; i++) {
+    if (signers[i]!.length !== 32) {
+      throw new MultiSigConfigInvalidError({
+        reason: `authorized_signers[${i}] must be 32 bytes (got ${signers[i]!.length})`,
+      });
+    }
+    if (i > 0 && compareMultiSigSignerBytes(signers[i - 1]!, signers[i]!) >= 0) {
+      throw new MultiSigConfigInvalidError({
+        reason: 'authorized_signers must be strictly sorted by raw address bytes',
+      });
+    }
   }
   if (config.quorum < 1n) {
     throw new MultiSigConfigInvalidError({
@@ -107,10 +127,7 @@ function validateConfig(config: MultiSigConfig): void {
   }
 }
 
-export async function assertAuthorizedSigner(
-  config: MultiSigConfig,
-  secretKey: Uint8Array,
-): Promise<void> {
+export async function assertAuthorizedSigner(config: MultiSigConfig, secretKey: Uint8Array): Promise<void> {
   validateConfig(config);
   const pk = await getPublicKeyAsync(secretKey);
   const matched = config.authorized_signers.some((s) => bytesEqual(s, pk));
@@ -136,44 +153,48 @@ export interface MultiSigSignerInit {
  * stack traces, or `inspect`/`toString` output.
  */
 export class MultiSigSigner {
-  readonly config: MultiSigConfig;
+  private readonly internalConfig: MultiSigConfig;
   private readonly secretKey: Redacted.Redacted<Uint8Array>;
   private validatedOnce = false;
   private cachedPublicKey?: Uint8Array;
 
   constructor(init: MultiSigSignerInit) {
-    this.config = {
-      authorized_signers: init.config.authorized_signers.map(
-        (s) => new Uint8Array(s),
-      ),
+    this.internalConfig = {
+      authorized_signers: init.config.authorized_signers.map((s) => new Uint8Array(s)),
       quorum: init.config.quorum,
       nonce: init.config.nonce,
     };
-    this.secretKey = Redacted.make(init.secretKey);
+    this.secretKey = Redacted.make(new Uint8Array(init.secretKey));
+  }
+
+  get config(): MultiSigConfig {
+    return {
+      authorized_signers: this.internalConfig.authorized_signers.map((signer) => new Uint8Array(signer)),
+      quorum: this.internalConfig.quorum,
+      nonce: this.internalConfig.nonce,
+    };
   }
 
   private async ensureValid(): Promise<void> {
     if (this.validatedOnce) return;
-    await assertAuthorizedSigner(this.config, Redacted.value(this.secretKey));
+    await assertAuthorizedSigner(this.internalConfig, Redacted.value(this.secretKey));
     this.validatedOnce = true;
   }
 
   async getSignerPublicKey(): Promise<Uint8Array> {
     await this.ensureValid();
-    this.cachedPublicKey ??= await getPublicKeyAsync(
-      Redacted.value(this.secretKey),
-    );
-    return this.cachedPublicKey;
+    this.cachedPublicKey ??= await getPublicKeyAsync(Redacted.value(this.secretKey));
+    return new Uint8Array(this.cachedPublicKey);
   }
 
   async getDerivedAddressBytes(): Promise<Uint8Array> {
     await this.ensureValid();
-    return deriveMultiSigAddressBytes(this.config);
+    return deriveMultiSigAddressBytes(this.internalConfig);
   }
 
   async getFastAddress(): Promise<string> {
     await this.ensureValid();
-    return deriveMultiSigAddress(this.config);
+    return deriveMultiSigAddress(this.internalConfig);
   }
 
   /**
@@ -185,41 +206,29 @@ export class MultiSigSigner {
    * sign over the same bytes, and submit. The proxy aggregates
    * partials across co-signers until quorum is reached.
    */
-  async signEnvelopeFor(
-    transaction: VersionedTransaction,
-  ): Promise<TransactionEnvelope> {
+  async signEnvelopeFor(transaction: VersionedTransaction): Promise<TransactionEnvelope> {
+    const expectedSender = await this.getDerivedAddressBytes();
+    if (!bytesEqual(transaction.value.sender, expectedSender)) {
+      throw new MultiSigConfigInvalidError({
+        reason: 'transaction sender does not match the derived multisig address',
+      });
+    }
     const pubkey = await this.getSignerPublicKey();
-    const bcsEncoded = await run(
-      Schema.encode(VersionedTransactionFromBcs)(transaction),
-    );
-    const messageWithDomain = await run(
-      domainEncode(bcsSchema.VersionedTransaction, bcsEncoded),
-    );
-    const rawSig = await run(
-      signMessage(Redacted.value(this.secretKey), messageWithDomain),
-    );
+    const bcsEncoded = await run(Schema.encode(VersionedTransactionFromBcs)(transaction));
+    const messageWithDomain = await run(domainEncode(bcsSchema.VersionedTransaction, bcsEncoded));
+    const rawSig = await run(signMessage(Redacted.value(this.secretKey), messageWithDomain));
 
     // Brand pubkey + sig and convert config to the camelCase Type shape
     // expected by SignatureOrMultiSig (the schema's CamelCaseStruct rename).
-    const brandedPubkey = await run(
-      Schema.decodeUnknown(AddressFromInput)(pubkey),
-    );
-    const brandedSig = await run(
-      Schema.decodeUnknown(SignatureFromInput)(rawSig),
-    );
+    const brandedPubkey = await run(Schema.decodeUnknown(AddressFromInput)(pubkey));
+    const brandedSig = await run(Schema.decodeUnknown(SignatureFromInput)(rawSig));
     const brandedAuthorizedSigners = await Promise.all(
-      this.config.authorized_signers.map((s) =>
-        run(Schema.decodeUnknown(AddressFromInput)(s)),
-      ),
+      this.internalConfig.authorized_signers.map((s) => run(Schema.decodeUnknown(AddressFromInput)(s))),
     );
-    const brandedQuorum = await run(
-      Schema.decodeUnknown(QuorumFromInput)(this.config.quorum),
-    );
-    const brandedNonce = await run(
-      Schema.decodeUnknown(NonceFromInput)(this.config.nonce),
-    );
+    const brandedQuorum = await run(Schema.decodeUnknown(QuorumFromInput)(this.internalConfig.quorum));
+    const brandedNonce = await run(Schema.decodeUnknown(NonceFromInput)(this.internalConfig.nonce));
     const multiSig: SignatureOrMultiSig = {
-      type: "MultiSig",
+      type: 'MultiSig',
       value: {
         config: {
           authorizedSigners: brandedAuthorizedSigners,
@@ -248,7 +257,7 @@ export class MultiSigSigner {
     feeToken?: TokenIdInput | null;
   }): Promise<TransactionEnvelope> {
     if (opts.operations.length === 0) {
-      throw new Error("signTransaction requires at least one operation");
+      throw new Error('signTransaction requires at least one operation');
     }
     const sender = await this.getDerivedAddressBytes();
     const type: TransactionVersion = opts.version ?? LatestTransactionVersion;

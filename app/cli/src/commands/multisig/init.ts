@@ -8,6 +8,7 @@ import { Output } from '../../services/output.js';
 import { AccountStore } from '../../services/storage/account.js';
 import { validateName } from '../../services/validate.js';
 import type { Command } from '../index.js';
+import { canonicalizeSignerAddresses } from './config.js';
 
 const FAST_ADDRESS_PREFIX = 'fast1';
 
@@ -87,15 +88,15 @@ export const multisigInit: Command<MultisigInitArgs> = {
         resolved.push(yield* resolveSignerEntry(entry));
       }
 
-      // Sort + dedupe (canonical order: lexicographic by bech32 string).
-      const dedupedSorted = Array.from(new Set(resolved)).sort();
-      if (dedupedSorted.length !== resolved.length) {
+      // Sort by decoded address bytes, exactly as the Rust CLI/protocol does.
+      if (new Set(resolved).size !== resolved.length) {
         return yield* Effect.fail(
           new MultiSigConfigInvalidError({
             reason: 'duplicate signers in --signers list',
           }),
         );
       }
+      const dedupedSorted = canonicalizeSignerAddresses(resolved);
 
       // Validate config-nonce parses as u64 decimal.
       if (!/^\d+$/.test(args.configNonce)) {

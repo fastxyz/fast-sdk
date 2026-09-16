@@ -28,6 +28,7 @@ import {
 } from "./errors/index.js";
 import { getAppName, getVersion } from "./services/config/app.js";
 import { writeFail, writeOk } from "./services/output.js";
+import { TOKEN_COMMAND_FALLBACKS } from "./token-command-fallbacks.js";
 
 // ---------------------------------------------------------------------------
 // Helpers — convert DocPage to a plain JSON-serialisable object
@@ -397,16 +398,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     check: () => null,
   },
   "token create": {
-    usage:
-      "fast token create --name <s> --decimals <n> --initial-supply <amt> [--minters <addr,...>] [--memo <s>] [--as <name>]",
-    options: [
-      "--name",
-      "--decimals",
-      "--initial-supply",
-      "--minters",
-      "--memo",
-      "--as",
-    ],
+    ...TOKEN_COMMAND_FALLBACKS.create,
     check: (_positionals, allArgv) => {
       if (!allArgv.some((a) => a === "--name" || a.startsWith("--name=")))
         return "Missing required option: --name <s>";
@@ -424,9 +416,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     },
   },
   "token mint": {
-    usage:
-      "fast token mint --token <id|name> --to <addr> --amount <n> [--as <name>]",
-    options: ["--token", "--to", "--amount", "--as"],
+    ...TOKEN_COMMAND_FALLBACKS.mint,
     check: (_positionals, allArgv) => {
       if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
         return "Missing required option: --token <id|name>";
@@ -438,9 +428,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     },
   },
   "token burn": {
-    usage:
-      "fast token burn --token <id|name> --amount <n> [--as <name>]",
-    options: ["--token", "--amount", "--as"],
+    ...TOKEN_COMMAND_FALLBACKS.burn,
     check: (_positionals, allArgv) => {
       if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
         return "Missing required option: --token <id|name>";
@@ -450,16 +438,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     },
   },
   "token manage": {
-    usage:
-      "fast token manage --token <id|name> [--admin <addr>] [--add-minters <addr,...>] [--remove-minters <addr,...>] [--memo <s>] [--as <name>]",
-    options: [
-      "--token",
-      "--admin",
-      "--add-minters",
-      "--remove-minters",
-      "--memo",
-      "--as",
-    ],
+    ...TOKEN_COMMAND_FALLBACKS.manage,
     check: (_positionals, allArgv) => {
       if (!allArgv.some((a) => a === "--token" || a.startsWith("--token=")))
         return "Missing required option: --token <id|name>";

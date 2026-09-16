@@ -1,7 +1,7 @@
 import { fromFastAddress, getTokenId, toHex } from '@fastxyz/sdk';
 import { Effect } from 'effect';
 import type { TokenCreateArgs } from '../../cli.js';
-import { InvalidAddressError, InvalidAmountError, TransactionFailedError } from '../../errors/index.js';
+import { InvalidAddressError, InvalidAmountError, InvalidUsageError, TransactionFailedError } from '../../errors/index.js';
 import { makeHistoryEntry } from '../../schemas/history.js';
 import { FastRpc } from '../../services/api/fast.js';
 import { ClientConfig } from '../../services/config/client.js';
@@ -14,11 +14,11 @@ import { NetworkConfigService } from '../../services/storage/network.js';
 import { submitOperation } from '../../services/tx-pipeline.js';
 import type { Command } from '../index.js';
 
-const encodeMemo = (s: string | undefined): Uint8Array | null => {
+export const encodeMemo = (s: string | undefined): Uint8Array | null => {
   if (!s) return null;
   const bytes = new TextEncoder().encode(s);
   if (bytes.length > 32) {
-    throw new InvalidAmountError({
+    throw new InvalidUsageError({
       message: `--memo too long: ${bytes.length} bytes (max 32)`,
     });
   }
@@ -95,7 +95,7 @@ export const tokenCreate: Command<TokenCreateArgs> = {
 
       const userData = yield* Effect.try({
         try: () => encodeMemo(args.memo),
-        catch: (e) => e as InvalidAmountError,
+        catch: (e) => e as InvalidUsageError,
       });
 
       const accountInfo = yield* accounts.resolveAccount(config.account);

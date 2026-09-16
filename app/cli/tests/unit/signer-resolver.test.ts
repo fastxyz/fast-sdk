@@ -242,6 +242,9 @@ describe('resolveSigner', () => {
     if (exit._tag !== 'Failure') throw new Error('unreachable');
     const err = exit.cause._tag === 'Fail' ? exit.cause.error : null;
     expect(err).toBeInstanceOf(NotAMemberError);
+    if (!(err instanceof NotAMemberError)) throw new Error('unreachable');
+    expect(err.selectedAccount).toBe('mallory');
+    expect(err.message).toBe('Account "mallory" is not an authorized signer of multisig wallet "treasury".');
   });
 
   it('does not request a password for an unencrypted multisig member', async () => {

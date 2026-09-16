@@ -70,7 +70,12 @@ export const resolveSigner = (opts: ResolveSignerOptions) =>
     if (opts.asMember) {
       const found = candidates.find((c) => c.name === opts.asMember);
       if (!found) {
-        return yield* Effect.fail(new NotAMemberError({ walletName: opts.account.name }));
+        return yield* Effect.fail(
+          new NotAMemberError({
+            walletName: opts.account.name,
+            selectedAccount: opts.asMember,
+          }),
+        );
       }
       chosen = found;
     } else if (candidates.length > 1) {

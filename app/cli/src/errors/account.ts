@@ -74,10 +74,14 @@ export class MultiSigConfigInvalidError extends Data.TaggedError(
 
 export class NotAMemberError extends Data.TaggedError("NotAMemberError")<{
   readonly walletName: string;
+  readonly selectedAccount?: string;
 }> {
   readonly exitCode = 2 as const;
   readonly errorCode = "NOT_A_MEMBER" as const;
   get message() {
+    if (this.selectedAccount !== undefined) {
+      return `Account "${this.selectedAccount}" is not an authorized signer of multisig wallet "${this.walletName}".`;
+    }
     return `You don't have a local account for any signer of multisig wallet "${this.walletName}".`;
   }
 }

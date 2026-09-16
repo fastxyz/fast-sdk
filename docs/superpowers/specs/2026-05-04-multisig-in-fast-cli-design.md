@@ -148,7 +148,15 @@ truncated bech32 with local-account name lookup when applicable.
 New file: `packages/fast-sdk/src/interface/multisig-signer.ts`.
 
 ```ts
-import type { TransactionEnvelope, TransactionInput, VersionedTransaction } from '@fastxyz/schema';
+import type {
+  NetworkId,
+  NonceInput,
+  OperationInputParams,
+  TokenIdInput,
+  TransactionEnvelope,
+  TransactionVersion,
+  VersionedTransaction,
+} from '@fastxyz/schema';
 
 export interface MultiSigSignerInit {
   config: MultiSigConfig;
@@ -159,7 +167,14 @@ export class MultiSigSigner {
   constructor(init: MultiSigSignerInit);
   getFastAddress(): Promise<string>;
   getSignerPublicKey(): Promise<Uint8Array>;
-  signTransaction(input: TransactionInput): Promise<TransactionEnvelope>;
+  signTransaction(input: {
+    networkId: NetworkId;
+    nonce: NonceInput;
+    operations: OperationInputParams[];
+    version?: TransactionVersion;
+    archival?: boolean;
+    feeToken?: TokenIdInput | null;
+  }): Promise<TransactionEnvelope>;
   signEnvelopeFor(transaction: VersionedTransaction): Promise<TransactionEnvelope>;
 }
 
@@ -376,7 +391,10 @@ and whether _you_ still need to vote.
 ```
 
 Auto-picks the pending tx if exactly one; requires `--tx` if
-multiple. Refuses if the resolved member has already signed.
+multiple. If the resolved member's partial signature is already recorded,
+the command clearly identifies the operation as a retry and asks before
+resubmitting the same signature. `--yes`, `--non-interactive`, and `--json`
+retain their documented confirmation-skipping behavior.
 
 ## Phasing
 

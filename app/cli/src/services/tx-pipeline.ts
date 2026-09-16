@@ -33,17 +33,11 @@ export type TxPipelineError = TransactionFailedError | TransactionSubmissionUnkn
 // the request. They are not an indeterminate network outcome. Transport
 // failures, timeouts, and unknown SDK causes intentionally remain unknown.
 const definitiveSubmissionErrorTags = new Set([
-  'RestError',
   'InvalidRequestError',
   'NotFoundError',
   'TooManyCertificatesRequestedError',
   'ProxyUnexpectedNonceError',
   'VerifierSigsInvalidError',
-  'GeneralError',
-  'UpstreamError',
-  'IpRateLimitedError',
-  'ServiceUnavailableError',
-  'DatabaseError',
   'UnexpectedNonceError',
   'InsufficientFundingError',
   'PreviousTransactionPendingError',

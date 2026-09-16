@@ -36,8 +36,11 @@
     }
   },
   "scripts": {
+    "clean": "node scripts/clean-dist.mjs",
+    "prebuild": "pnpm clean",
     "build": "tsup src/index.ts src/core/index.ts src/networks/index.ts src/wallet/index.ts src/multisig/index.ts --format esm --dts",
     "dev": "tsup src/index.ts src/core/index.ts src/networks/index.ts src/wallet/index.ts src/multisig/index.ts --format esm --watch --dts",
+    "prepack": "pnpm build",
     "test": "vitest run"
   },
   "dependencies": {

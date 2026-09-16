@@ -38,6 +38,9 @@ fast send fast1abc...xyz 10
 # Send a specific token explicitly
 fast send fast1abc...xyz 10 --token USDC
 
+# Attach a Fast UserData memo (32 UTF-8 bytes maximum)
+fast send fast1abc...xyz 10 --token USDC --memo "invoice-42"
+
 # Bridge USDC from Arbitrum Sepolia to Fast (--token USDC is required on
 # mainnet because the network default — fastUSD — is not on EVM chains)
 fast fund usdc crypto 50 --chain arbitrum-sepolia --token USDC
@@ -107,6 +110,24 @@ If a custom network omits `defaultToken`, callers must pass `--token`
 explicitly; otherwise the command errors with `INVALID_USAGE`.
 
 ## Commands
+
+### `fast multisig`
+
+Create or import a Rust-compatible multisig wallet, inspect its current-nonce
+pending transactions, and co-sign them:
+
+```bash
+fast multisig init --name treasury --signers alice,bob,fast1... --quorum 2
+fast multisig import --from ./wallet.json --name treasury
+fast multisig pending --account treasury --as alice
+fast multisig vote --account treasury --as alice --tx 0x...
+```
+
+Signer order is canonicalized by decoded 32-byte address (not bech32 text).
+`vote` prints the complete transaction before an interactive signature. Export
+uses exclusive file creation and never overwrites an existing file.
+
+---
 
 ### `fast account create`
 

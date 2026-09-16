@@ -55,6 +55,7 @@ describe('multisig vote helpers', () => {
       walletFastAddress: toFastAddress(sender),
       network: 'testnet',
       explorerUrl: 'https://explorer.test/txs/0xabc',
+      tokenMetadata: { tokenName: 'TEST', decimals: 6 },
     });
 
     expect(entry).not.toBeNull();
@@ -62,7 +63,46 @@ describe('multisig vote helpers', () => {
     expect(entry?.from).toBe(toFastAddress(sender));
     expect(entry?.to).toBe(toFastAddress(recipient));
     expect(entry?.amount).toBe('123');
+    expect(entry?.formatted).toBe('0.000123');
+    expect(entry?.tokenName).toBe('TEST');
     expect(entry?.tokenId).toBe(toHex(tokenId));
     expect(entry?.status).toBe('confirmed');
+  });
+
+  it('unwraps a legacy Batch claim when recording history', () => {
+    const sender = new Uint8Array(32).fill(0xaa);
+    const recipient = new Uint8Array(32).fill(0xbb);
+    const tokenId = new Uint8Array(32).fill(0xcc);
+    const envelope = {
+      transaction: {
+        type: 'Release20240101',
+        value: {
+          sender,
+          nonce: 7n,
+          claim: {
+            type: 'Batch',
+            value: [
+              {
+                type: 'TokenTransfer',
+                value: { tokenId, recipient, amount: 1230000n, userData: null },
+              },
+            ],
+          },
+        },
+      },
+    } as unknown as TransactionEnvelope;
+
+    const entry = makeVoteHistoryEntry({
+      envelope,
+      txHash: `0x${'22'.repeat(32)}`,
+      walletFastAddress: toFastAddress(sender),
+      network: 'testnet',
+      explorerUrl: null,
+      tokenMetadata: { tokenName: 'TEST', decimals: 6 },
+    });
+
+    expect(entry?.type).toBe('transfer');
+    expect(entry?.formatted).toBe('1.23');
+    expect(entry?.tokenName).toBe('TEST');
   });
 });

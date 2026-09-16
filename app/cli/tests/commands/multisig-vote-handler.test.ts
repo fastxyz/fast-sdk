@@ -130,6 +130,10 @@ describe('multisig vote handler', () => {
         const rpcLayer = Layer.succeed(FastRpc, {
           getPendingMultisigTransactions: () => Effect.succeed([envelope]),
           getAccountInfo: () => Effect.succeed({ nextNonce: 0n, pendingConfirmation: null }),
+          getTokenInfo: () =>
+            Effect.succeed({
+              requestedTokenMetadata: [[new Uint8Array(32).fill(0xd7), { tokenName: 'TEST', decimals: 6 }]],
+            }),
           submitTransaction: () =>
             Effect.sync(() => {
               submitted++;

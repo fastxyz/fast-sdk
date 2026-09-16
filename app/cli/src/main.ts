@@ -216,8 +216,9 @@ const SUBCOMMAND_REQUIREMENTS: Record<
 > = {
   // ── Top-level commands with required args ──────────────────────────────────
   send: {
-    usage: "fast send <address> <amount> [--from-chain <chain>] [--to-chain <chain>] [--token <token>]",
-    options: ["--from-chain", "--to-chain", "--token", "--eip-7702"],
+    usage:
+      "fast send <address> <amount> [--from-chain <chain>] [--to-chain <chain>] [--token <token>] [--memo <text>] [--as <member>] [--replace-pending]",
+    options: ["--from-chain", "--to-chain", "--token", "--eip-7702", "--memo", "--as", "--replace-pending"],
     check: (positionals) => {
       if (positionals.length < 2) return "Missing required argument: <address>";
       if (positionals.length < 3) return "Missing required argument: <amount>";

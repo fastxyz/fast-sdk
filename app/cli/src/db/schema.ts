@@ -26,7 +26,7 @@ export const accounts = sqliteTable(
   (table) => [
     check(
       "accounts_kind_payload_check",
-      sql`(${table.kind} = 'single' AND ${table.encryptedKey} IS NOT NULL AND ${table.multisigConfig} IS NULL) OR (${table.kind} = 'multisig' AND ${table.encryptedKey} IS NULL AND ${table.multisigConfig} IS NOT NULL)`,
+      sql`(${table.kind} = 'single' AND ${table.evmAddress} IS NOT NULL AND ${table.encryptedKey} IS NOT NULL AND ${table.encrypted} IS NOT NULL AND ${table.multisigConfig} IS NULL) OR (${table.kind} = 'multisig' AND ${table.evmAddress} IS NULL AND ${table.encryptedKey} IS NULL AND ${table.encrypted} IS NULL AND ${table.multisigConfig} IS NOT NULL)`,
     ),
   ],
 );

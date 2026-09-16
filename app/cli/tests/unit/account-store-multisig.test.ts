@@ -71,6 +71,66 @@ describe('accounts migration', () => {
       sqlite.close();
     }
   });
+
+  it('rejects a single-signer row without its EVM address and encryption flag', () => {
+    const sqlite = new Db(':memory:');
+    try {
+      applySqlMigration(sqlite, '0000_colossal_blizzard.sql');
+      applySqlMigration(sqlite, '0001_bumpy_komodo.sql');
+
+      const insert = sqlite.prepare(`
+          INSERT INTO accounts (
+            name, kind, fast_address, evm_address, encrypted_key, encrypted,
+            multisig_config, is_default, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+      expect(() =>
+        insert.run(
+          'invalid-single',
+          'single',
+          'fast1invalidsingle',
+          null,
+          Buffer.from('encrypted-private-key'),
+          null,
+          null,
+          0,
+          '2026-09-16T00:00:00.000Z',
+        ),
+      ).toThrow(/accounts_kind_payload_check/);
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  it('rejects a multisig row carrying single-signer-only fields', () => {
+    const sqlite = new Db(':memory:');
+    try {
+      applySqlMigration(sqlite, '0000_colossal_blizzard.sql');
+      applySqlMigration(sqlite, '0001_bumpy_komodo.sql');
+
+      const insert = sqlite.prepare(`
+          INSERT INTO accounts (
+            name, kind, fast_address, evm_address, encrypted_key, encrypted,
+            multisig_config, is_default, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+      expect(() =>
+        insert.run(
+          'invalid-multisig',
+          'multisig',
+          'fast1invalidmultisig',
+          '0xdead',
+          null,
+          1,
+          '{}',
+          0,
+          '2026-09-16T00:00:00.000Z',
+        ),
+      ).toThrow(/accounts_kind_payload_check/);
+    } finally {
+      sqlite.close();
+    }
+  });
 });
 
 describe('AccountStore.createMultiSig', () => {

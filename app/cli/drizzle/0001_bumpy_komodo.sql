@@ -11,8 +11,8 @@ CREATE TABLE `accounts_new` (
 	`is_default` integer NOT NULL DEFAULT 0,
 	`created_at` text NOT NULL,
 	CONSTRAINT `accounts_kind_payload_check` CHECK (
-		(kind = 'single' AND encrypted_key IS NOT NULL AND multisig_config IS NULL) OR
-		(kind = 'multisig' AND encrypted_key IS NULL AND multisig_config IS NOT NULL)
+		(kind = 'single' AND evm_address IS NOT NULL AND encrypted_key IS NOT NULL AND encrypted IS NOT NULL AND multisig_config IS NULL) OR
+		(kind = 'multisig' AND evm_address IS NULL AND encrypted_key IS NULL AND encrypted IS NULL AND multisig_config IS NOT NULL)
 	)
 );
 --> statement-breakpoint

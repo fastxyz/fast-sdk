@@ -80,7 +80,7 @@
       "checkConstraints": {
         "accounts_kind_payload_check": {
           "name": "accounts_kind_payload_check",
-          "value": "(\"accounts\".\"kind\" = 'single' AND \"accounts\".\"encrypted_key\" IS NOT NULL AND \"accounts\".\"multisig_config\" IS NULL) OR (\"accounts\".\"kind\" = 'multisig' AND \"accounts\".\"encrypted_key\" IS NULL AND \"accounts\".\"multisig_config\" IS NOT NULL)"
+          "value": "(\"accounts\".\"kind\" = 'single' AND \"accounts\".\"evm_address\" IS NOT NULL AND \"accounts\".\"encrypted_key\" IS NOT NULL AND \"accounts\".\"encrypted\" IS NOT NULL AND \"accounts\".\"multisig_config\" IS NULL) OR (\"accounts\".\"kind\" = 'multisig' AND \"accounts\".\"evm_address\" IS NULL AND \"accounts\".\"encrypted_key\" IS NULL AND \"accounts\".\"encrypted\" IS NULL AND \"accounts\".\"multisig_config\" IS NOT NULL)"
         }
       }
     },

@@ -12,7 +12,7 @@ import { ensureMultisigNetwork, resolveSigner } from '../../services/signer-reso
 import { AccountStore } from '../../services/storage/account.js';
 import { HistoryStore } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
-import { summarizeTransaction } from '../../services/transaction-summary.js';
+import { summarizeTransaction, transactionOperations } from '../../services/transaction-summary.js';
 import type { Command } from '../index.js';
 
 /** Truncate a bech32 fast address for compact display. */
@@ -71,13 +71,17 @@ export const voteReachedQuorum = (submitResult: unknown): Effect.Effect<boolean,
   );
 };
 
-const transactionOperations = (envelope: TransactionEnvelope) => {
-  const value = envelope.transaction.value as {
-    readonly claims?: readonly unknown[];
-    readonly claim?: unknown;
-  };
-  if (Array.isArray(value.claims)) return value.claims;
-  return value.claim === undefined ? [] : [value.claim];
+type VoteTokenMetadata = {
+  readonly tokenName: string;
+  readonly decimals: number;
+};
+
+const formatAmount = (amount: bigint, decimals: number): string => {
+  if (decimals === 0) return amount.toString();
+  const padded = amount.toString().padStart(decimals + 1, '0');
+  const whole = padded.slice(0, -decimals) || '0';
+  const fraction = padded.slice(-decimals).replace(/0+$/, '');
+  return fraction.length === 0 ? whole : `${whole}.${fraction}`;
 };
 
 export const makeVoteHistoryEntry = (params: {
@@ -86,8 +90,9 @@ export const makeVoteHistoryEntry = (params: {
   readonly walletFastAddress: string;
   readonly network: string;
   readonly explorerUrl: string | null;
+  readonly tokenMetadata?: VoteTokenMetadata;
 }): HistoryEntry | null => {
-  const operations = transactionOperations(params.envelope);
+  const operations = transactionOperations(params.envelope.transaction);
   const op = operations[0] as
     | {
         readonly type: string;
@@ -102,7 +107,10 @@ export const makeVoteHistoryEntry = (params: {
   };
   const value = op.value ?? {};
   const tokenId = value.tokenId instanceof Uint8Array ? toHex(value.tokenId) : null;
-  const amount = typeof value.amount === 'bigint' ? value.amount.toString() : '0';
+  const amountRaw = typeof value.amount === 'bigint' ? value.amount : 0n;
+  const amount = amountRaw.toString();
+  const tokenName = params.tokenMetadata?.tokenName ?? tokenId ?? '';
+  const formatted = formatAmount(amountRaw, params.tokenMetadata?.decimals ?? 0);
 
   switch (op.type) {
     case 'TokenTransfer': {
@@ -113,8 +121,8 @@ export const makeVoteHistoryEntry = (params: {
         from: params.walletFastAddress,
         to: recipient,
         amount,
-        formatted: amount,
-        tokenName: tokenId ?? '',
+        formatted,
+        tokenName,
         tokenId: tokenId ?? '',
         network: params.network,
         status: 'confirmed',
@@ -124,15 +132,17 @@ export const makeVoteHistoryEntry = (params: {
     }
     case 'TokenCreation': {
       const createdTokenId = toHex(getTokenId(txValue.sender, txValue.nonce, 0n));
-      const initialAmount = typeof value.initialAmount === 'bigint' ? value.initialAmount.toString() : '0';
+      const initialAmountRaw = typeof value.initialAmount === 'bigint' ? value.initialAmount : 0n;
+      const initialAmount = initialAmountRaw.toString();
       const tokenName = typeof value.tokenName === 'string' ? value.tokenName : createdTokenId;
+      const decimals = typeof value.decimals === 'number' ? value.decimals : 0;
       return makeHistoryEntry({
         hash: params.txHash,
         type: 'token-create',
         from: params.walletFastAddress,
         to: '',
         amount: initialAmount,
-        formatted: initialAmount,
+        formatted: formatAmount(initialAmountRaw, decimals),
         tokenName,
         tokenId: createdTokenId,
         network: params.network,
@@ -149,8 +159,8 @@ export const makeVoteHistoryEntry = (params: {
         from: params.walletFastAddress,
         to: recipient,
         amount,
-        formatted: amount,
-        tokenName: tokenId ?? '',
+        formatted,
+        tokenName,
         tokenId: tokenId ?? '',
         network: params.network,
         status: 'confirmed',
@@ -165,8 +175,8 @@ export const makeVoteHistoryEntry = (params: {
         from: params.walletFastAddress,
         to: '',
         amount,
-        formatted: amount,
-        tokenName: tokenId ?? '',
+        formatted,
+        tokenName,
         tokenId: tokenId ?? '',
         network: params.network,
         status: 'confirmed',
@@ -181,7 +191,7 @@ export const makeVoteHistoryEntry = (params: {
         to: '',
         amount: '0',
         formatted: '0',
-        tokenName: tokenId ?? '',
+        tokenName,
         tokenId: tokenId ?? '',
         network: params.network,
         status: 'confirmed',
@@ -347,6 +357,26 @@ export const multisigVote: Command<MultisigVoteArgs> = {
       const existingPartials = multisig.signatures;
       const alreadySigned = existingPartials.some(([signer]) => bytesEqual(signer, myPubkey));
 
+      // Resolve display metadata before signing so a finalized transaction can
+      // be recorded with the same human units used by direct token commands.
+      const firstOperation = transactionOperations(target.envelope.transaction)[0];
+      const firstValue = firstOperation?.value as { readonly tokenId?: unknown } | undefined;
+      let historyTokenMetadata: VoteTokenMetadata | undefined;
+      if (firstValue?.tokenId instanceof Uint8Array) {
+        const tokenInfo = (yield* rpc.getTokenInfo({ tokenIds: [firstValue.tokenId] } as never)) as {
+          readonly requestedTokenMetadata?: ReadonlyArray<readonly [Uint8Array, { readonly tokenName: string; readonly decimals: number } | null]>;
+        };
+        const metadata = tokenInfo.requestedTokenMetadata?.[0]?.[1];
+        if (!metadata) {
+          return yield* Effect.fail(
+            new TransactionFailedError({
+              message: `Token metadata is unavailable for ${toHex(firstValue.tokenId)}; refusing to sign without complete history metadata.`,
+            }),
+          );
+        }
+        historyTokenMetadata = metadata;
+      }
+
       // 8. Display + confirm (unless suppressed).
       const authorizedSigners = multisig.config.authorizedSigners;
       const quorum = Number(multisig.config.quorum);
@@ -394,6 +424,7 @@ export const multisigVote: Command<MultisigVoteArgs> = {
           walletFastAddress: account.fastAddress,
           network: config.network,
           explorerUrl: `${network.explorerUrl}/txs/${target.hash}`,
+          tokenMetadata: historyTokenMetadata,
         });
         if (historyEntry) {
           yield* historyStore.record(historyEntry);

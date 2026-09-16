@@ -2,7 +2,7 @@ import { bcsSchema, type TransactionEnvelope, VersionedTransactionFromBcs } from
 import { fromFastAddress, getTokenId, hashHex, toFastAddress, toHex } from '@fastxyz/sdk';
 import { Effect, Schema } from 'effect';
 import type { MultisigVoteArgs } from '../../cli.js';
-import { AlreadyVotedError, FastSdkError, TransactionFailedError, WalletKindMismatchError } from '../../errors/index.js';
+import { FastSdkError, TransactionFailedError, WalletKindMismatchError } from '../../errors/index.js';
 import { makeHistoryEntry, type HistoryEntry } from '../../schemas/history.js';
 import { FastRpc } from '../../services/api/fast.js';
 import { ClientConfig } from '../../services/config/client.js';
@@ -12,6 +12,7 @@ import { ensureMultisigNetwork, resolveSigner } from '../../services/signer-reso
 import { AccountStore } from '../../services/storage/account.js';
 import { HistoryStore } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
+import { summarizeTransaction } from '../../services/transaction-summary.js';
 import type { Command } from '../index.js';
 
 /** Truncate a bech32 fast address for compact display. */
@@ -222,7 +223,14 @@ export const multisigVote: Command<MultisigVoteArgs> = {
       const raw = yield* rpc.getPendingMultisigTransactions({
         address: addressBytes,
       } as never);
-      const envelopes: ReadonlyArray<TransactionEnvelope> = raw as ReadonlyArray<TransactionEnvelope>;
+      const accountInfo = yield* rpc.getAccountInfo({
+        address: addressBytes,
+        tokenBalancesFilter: null,
+        stateKeyFilter: null,
+        certificateByNonce: null,
+      } as never);
+      const nextNonce = (accountInfo as { nextNonce?: bigint } | null)?.nextNonce ?? 0n;
+      const envelopes = (raw as ReadonlyArray<TransactionEnvelope>).filter((envelope) => envelope.transaction.value.nonce === nextNonce);
 
       if (envelopes.length === 0) {
         yield* output.humanLine(`No pending multisig transactions for "${account.name}".`);
@@ -273,6 +281,40 @@ export const multisigVote: Command<MultisigVoteArgs> = {
         );
       }
 
+      const network = yield* networks.resolve(config.network);
+      const txValue = target.envelope.transaction.value as {
+        readonly sender: Uint8Array;
+        readonly networkId?: string;
+      };
+      if (!bytesEqual(txValue.sender, addressBytes)) {
+        return yield* Effect.fail(
+          new TransactionFailedError({
+            message: `Pending transaction sender does not match multisig wallet ${account.fastAddress}.`,
+          }),
+        );
+      }
+      if (txValue.networkId !== network.networkId) {
+        return yield* Effect.fail(
+          new TransactionFailedError({
+            message: `Pending transaction network ${txValue.networkId ?? '<missing>'} does not match ${network.networkId}.`,
+          }),
+        );
+      }
+      const storedConfig = account.multisigConfig;
+      const envelopeConfig = target.envelope.signature.value.config;
+      const configMatches =
+        envelopeConfig.quorum === BigInt(storedConfig.quorum) &&
+        envelopeConfig.nonce === BigInt(storedConfig.configNonce) &&
+        envelopeConfig.authorizedSigners.length === storedConfig.signers.length &&
+        envelopeConfig.authorizedSigners.every((signer, index) => bytesEqual(signer, fromFastAddress(storedConfig.signers[index]!)));
+      if (!configMatches) {
+        return yield* Effect.fail(
+          new TransactionFailedError({
+            message: 'Pending transaction multisig config does not match the stored wallet config.',
+          }),
+        );
+      }
+
       // 5. Resolve signer (prompts only if the selected member is encrypted).
       const resolved = yield* resolveSigner({
         account,
@@ -300,34 +342,33 @@ export const multisigVote: Command<MultisigVoteArgs> = {
           }),
       });
 
-      // 7. Refuse double-sign.
+      // 7. Detect retry of an already-recorded partial signature.
       const multisig = target.envelope.signature.value;
       const existingPartials = multisig.signatures;
       const alreadySigned = existingPartials.some(([signer]) => bytesEqual(signer, myPubkey));
-      if (alreadySigned) {
-        return yield* Effect.fail(
-          new AlreadyVotedError({
-            walletName: account.name,
-            txHash: target.hash,
-          }),
-        );
-      }
 
       // 8. Display + confirm (unless suppressed).
       const authorizedSigners = multisig.config.authorizedSigners;
       const quorum = Number(multisig.config.quorum);
       const signedCount = existingPartials.length;
+      const projectedSignedCount = alreadySigned ? signedCount : signedCount + 1;
       const myAddress = toFastAddress(myPubkey);
 
       yield* output.humanLine(`Voting on multisig transaction ${target.hash}`);
       yield* output.humanLine(`  Wallet:    ${account.name} (${truncAddr(account.fastAddress)})`);
       yield* output.humanLine(`  As:        ${resolved.memberAccount.name} (${truncAddr(myAddress)})`);
-      yield* output.humanLine(`  Progress:  ${signedCount}/${quorum} of ${authorizedSigners.length} signers (you will make ${signedCount + 1})`);
+      yield* output.humanLine(`  Progress:  ${signedCount}/${quorum} of ${authorizedSigners.length} signers (submission: ${projectedSignedCount})`);
+      for (const line of summarizeTransaction(target.envelope)) {
+        yield* output.humanLine(line);
+      }
+      if (alreadySigned) {
+        yield* output.humanLine('  Retry:     your signature is already recorded; this will resubmit it to retry execution.');
+      }
       yield* output.humanLine('');
 
       const skipConfirm = args.yes || config.nonInteractive || config.json;
       if (!skipConfirm) {
-        const confirmed = yield* prompt.confirm('Sign and submit?');
+        const confirmed = yield* prompt.confirm(alreadySigned ? 'Resubmit existing signature?' : 'Sign and submit?');
         if (!confirmed) return;
       }
 
@@ -347,7 +388,6 @@ export const multisigVote: Command<MultisigVoteArgs> = {
       const reachedQuorum = yield* voteReachedQuorum(submitResult);
 
       if (reachedQuorum) {
-        const network = yield* networks.resolve(config.network);
         const historyEntry = makeVoteHistoryEntry({
           envelope: target.envelope,
           txHash: target.hash,
@@ -360,7 +400,7 @@ export const multisigVote: Command<MultisigVoteArgs> = {
         }
         yield* output.humanLine(`Quorum reached. Transaction ${target.hash} submitted on-chain.`);
       } else {
-        yield* output.humanLine(`Partial signature recorded for ${target.hash} (${signedCount + 1}/${quorum}). Awaiting more signers.`);
+        yield* output.humanLine(`Partial signature recorded for ${target.hash} (${projectedSignedCount}/${quorum}). Awaiting more signers.`);
       }
 
       yield* output.ok({
@@ -369,7 +409,7 @@ export const multisigVote: Command<MultisigVoteArgs> = {
         txHash: target.hash,
         signedAs: resolved.memberAccount.name,
         signerAddress: myAddress,
-        signedCount: signedCount + 1,
+        signedCount: projectedSignedCount,
         quorum,
         reachedQuorum,
       });

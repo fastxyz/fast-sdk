@@ -91,7 +91,18 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
             }),
         ),
       );
-    const nonce = (accountInfoRpc as { nextNonce?: bigint } | null)?.nextNonce ?? 0n;
+    const accountInfo = accountInfoRpc as {
+      readonly nextNonce?: bigint;
+      readonly pendingConfirmation?: unknown;
+    } | null;
+    if (accountInfo?.pendingConfirmation != null) {
+      return yield* Effect.fail(
+        new TransactionFailedError({
+          message: 'Account has a transaction pending validator confirmation; refusing to sign another transaction at this nonce.',
+        }),
+      );
+    }
+    const nonce = accountInfo?.nextNonce ?? 0n;
 
     // 3. Build + sign envelope
     let envelope: TransactionEnvelope;
@@ -152,6 +163,13 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
       return yield* Effect.fail(
         new TransactionFailedError({
           message: 'Transaction is pending verifier signatures and cannot be treated as finalized.',
+        }),
+      );
+    }
+    if (submitObj?.type !== 'Success') {
+      return yield* Effect.fail(
+        new TransactionFailedError({
+          message: `Unexpected submit result: ${submitObj?.type ?? 'missing type'}`,
         }),
       );
     }

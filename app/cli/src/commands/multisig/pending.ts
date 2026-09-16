@@ -8,6 +8,7 @@ import { ClientConfig } from '../../services/config/client.js';
 import { Output } from '../../services/output.js';
 import { ensureMultisigNetwork } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
+import { summarizeTransaction } from '../../services/transaction-summary.js';
 import type { Command } from '../index.js';
 
 /** Truncate a bech32 fast address for compact display. */
@@ -68,12 +69,23 @@ export const multisigPending: Command<MultisigPendingArgs> = {
       const raw = yield* rpc.getPendingMultisigTransactions({
         address: addressBytes,
       } as never);
+      const accountInfo = yield* rpc.getAccountInfo({
+        address: addressBytes,
+        tokenBalancesFilter: null,
+        stateKeyFilter: null,
+        certificateByNonce: null,
+      } as never);
+      const info = accountInfo as {
+        readonly nextNonce?: bigint;
+        readonly pendingConfirmation?: unknown;
+      } | null;
+      const nextNonce = info?.nextNonce ?? 0n;
 
       // Decode through the REST schema. The wrapper types as `unknown`; the
       // proxy already calls Schema.decodeUnknown so this is a no-op cast in
       // practice — but going through the schema again gives us the typed
       // shape with no runtime risk.
-      const envelopes: ReadonlyArray<TransactionEnvelope> = raw as ReadonlyArray<TransactionEnvelope>;
+      const envelopes = (raw as ReadonlyArray<TransactionEnvelope>).filter((envelope) => envelope.transaction.value.nonce === nextNonce);
 
       // 3. Build a map of local fast addresses → account names.
       const allAccounts = yield* accountsSvc.list();
@@ -125,6 +137,7 @@ export const multisigPending: Command<MultisigPendingArgs> = {
         readonly signedCount: number;
         readonly signers: ReadonlyArray<SignerRow>;
         readonly youSigned: boolean | null;
+        readonly summary: readonly string[];
       };
 
       const pendingOutput: PendingEntry[] = [];
@@ -156,6 +169,7 @@ export const multisigPending: Command<MultisigPendingArgs> = {
             signedCount: 0,
             signers: [],
             youSigned: null,
+            summary: summarizeTransaction(envelope),
           });
           continue;
         }
@@ -186,6 +200,9 @@ export const multisigPending: Command<MultisigPendingArgs> = {
         // Human render.
         yield* output.humanLine(`#${i + 1}  hash: ${txHash}`);
         yield* output.humanLine(`     nonce: ${nonce}  version: ${version}  signed: ${signedCount}/${quorum} of ${signerRows.length}`);
+        for (const line of summarizeTransaction(envelope)) {
+          yield* output.humanLine(`   ${line}`);
+        }
         yield* output.humanLine('     signers:');
         for (const row of signerRows) {
           const mark = row.signed ? '✓' : '✗';
@@ -210,12 +227,15 @@ export const multisigPending: Command<MultisigPendingArgs> = {
           signedCount,
           signers: signerRows,
           youSigned,
+          summary: summarizeTransaction(envelope),
         });
       }
 
       yield* output.ok({
         wallet: account.name,
         fastAddress: account.fastAddress,
+        nextNonce: nextNonce.toString(),
+        pendingConfirmation: info?.pendingConfirmation ?? null,
         pending: pendingOutput,
       });
     }),

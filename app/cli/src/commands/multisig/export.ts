@@ -26,7 +26,7 @@ export const multisigExport: Command<MultisigExportArgs> = {
       const json = stringifyMultiSigWalletConfig(account.multisigConfig);
       if (args.out) {
         yield* Effect.try({
-          try: () => writeFileSync(args.out!, json + '\n'),
+          try: () => writeFileSync(args.out!, `${json}\n`, { flag: 'wx', mode: 0o600 }),
           catch: (cause) =>
             new FileIOError({
               message: `Failed to write multisig wallet config to "${args.out}"`,

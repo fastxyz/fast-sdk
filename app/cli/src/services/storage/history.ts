@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { history } from "../../db/schema.js";
 import { TxNotFoundError } from "../../errors/index.js";
 import type { HistoryEntry } from "../../schemas/history.js";
+import type { OutputShape } from "../output.js";
 import { DatabaseService, type DatabaseShape, type DrizzleDB } from "./database.js";
 
 export interface HistoryFilters {
@@ -116,6 +117,33 @@ const updateStatus = (handle: DatabaseShape, hash: string, status: string) =>
   handle.query(
     (db) => db.update(history).set({ status }).where(eq(history.hash, hash)).run(),
     "Failed to update history status",
+  );
+
+const describeFailure = (failure: unknown): string => {
+  const message = failure instanceof Error ? failure.message : String(failure);
+  const nested = failure instanceof Error && "cause" in failure ? failure.cause : undefined;
+  if (nested === undefined) return message;
+  return `${message}: ${nested instanceof Error ? nested.message : String(nested)}`;
+};
+
+/**
+ * Settlement is authoritative; this local cache is not. Once the proxy has
+ * confirmed a transaction, a SQLite failure must not turn that settlement
+ * into a command failure and invite an unsafe resubmission.
+ */
+export const recordConfirmedHistory = (
+  recorder: { readonly record: (entry: HistoryEntry) => Effect.Effect<unknown, unknown> },
+  output: Pick<OutputShape, "humanLine" | "debug">,
+  entry: HistoryEntry,
+): Effect.Effect<void> =>
+  recorder.record(entry).pipe(
+    Effect.asVoid,
+    Effect.catchAll((cause) =>
+      Effect.gen(function* () {
+        yield* output.humanLine(`Warning: transaction ${entry.hash} is confirmed, but local history could not be updated.`);
+        yield* output.debug(`Local history write failed for confirmed transaction ${entry.hash}: ${describeFailure(cause)}`);
+      }),
+    ),
   );
 
 // ── Service ───────���─────────────────────────────────────────────────────────

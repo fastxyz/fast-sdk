@@ -10,7 +10,7 @@ import { Output } from '../../services/output.js';
 import { Prompt } from '../../services/prompt.js';
 import { ensureMultisigNetwork, resolveSigner } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
-import { HistoryStore } from '../../services/storage/history.js';
+import { HistoryStore, recordConfirmedHistory } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
 import { summarizeTransaction, transactionOperations } from '../../services/transaction-summary.js';
 import { prepareSubmissionRecovery } from '../../services/tx-pipeline.js';
@@ -441,9 +441,7 @@ export const multisigVote: Command<MultisigVoteArgs> = {
           explorerUrl: `${network.explorerUrl}/txs/${target.hash}`,
           tokenMetadata: historyTokenMetadata,
         });
-        if (historyEntry) {
-          yield* historyStore.record(historyEntry);
-        }
+        if (historyEntry) yield* recordConfirmedHistory(historyStore, output, historyEntry);
         yield* output.humanLine(`Quorum reached. Transaction ${target.hash} submitted on-chain.`);
       } else {
         yield* output.humanLine(`Partial signature recorded for ${target.hash} (${projectedSignedCount}/${quorum}). Awaiting more signers.`);

@@ -10,7 +10,7 @@ import { Effect, Layer, Option } from 'effect';
 import { describe, expect, it } from 'vitest';
 import { multisigVote } from '../../src/commands/multisig/vote.js';
 import { bundledNetworks } from '../../src/config/networks.js';
-import { FastSdkError, TransactionSubmissionUnknownError } from '../../src/errors/index.js';
+import { DatabaseError, FastSdkError, TransactionSubmissionUnknownError } from '../../src/errors/index.js';
 import type { HistoryEntry } from '../../src/schemas/history.js';
 import { FastRpc } from '../../src/services/api/fast.js';
 import { ClientConfig } from '../../src/services/config/client.js';
@@ -28,11 +28,12 @@ const seed = (value: number) => new Uint8Array(32).fill(value);
 type VoteScenario = {
   readonly asMember: 'alice' | 'bob';
   readonly submitType: 'Success' | 'IncompleteMultiSig';
+  readonly historyFailure?: boolean;
   readonly metadataFailure?: boolean;
   readonly submitFailure?: boolean;
 };
 
-const runVoteScenario = async ({ asMember, submitType, metadataFailure = false, submitFailure = false }: VoteScenario) => {
+const runVoteScenario = async ({ asMember, submitType, historyFailure = false, metadataFailure = false, submitFailure = false }: VoteScenario) => {
   const sqlite = new Db(join(mkdtempSync(join(tmpdir(), 'fast-vote-handler-')), 'fast.db'));
   try {
     const db = drizzle(sqlite);
@@ -43,7 +44,9 @@ const runVoteScenario = async ({ asMember, submitType, metadataFailure = false, 
     const accountsLayer = AccountStore.Default.pipe(Layer.provide(dbLayer));
     const lines: string[] = [];
     const confirmations: string[] = [];
+    const debugLines: string[] = [];
     const history: HistoryEntry[] = [];
+    const results: unknown[] = [];
     let submissions = 0;
     let metadataCalls = 0;
 
@@ -63,10 +66,10 @@ const runVoteScenario = async ({ asMember, submitType, metadataFailure = false, 
       } as never),
       Layer.succeed(Output, {
         humanLine: (line: string) => Effect.sync(() => void lines.push(line)),
-        ok: () => Effect.void,
+        ok: (data: unknown) => Effect.sync(() => void results.push(data)),
         fail: () => Effect.void,
         humanTable: () => Effect.void,
-        debug: () => Effect.void,
+        debug: (line: string) => Effect.sync(() => void debugLines.push(line)),
       } as never),
       Layer.succeed(Prompt, {
         password: () => Effect.die('password prompt must not run'),
@@ -78,7 +81,10 @@ const runVoteScenario = async ({ asMember, submitType, metadataFailure = false, 
           }),
       } as never),
       Layer.succeed(HistoryStore, {
-        record: (entry: HistoryEntry) => Effect.sync(() => void history.push(entry)),
+        record: (entry: HistoryEntry) =>
+          historyFailure
+            ? Effect.fail(new DatabaseError({ message: 'history database unavailable', cause: new Error('disk full') }))
+            : Effect.sync(() => void history.push(entry)),
       } as never),
     );
 
@@ -158,7 +164,7 @@ const runVoteScenario = async ({ asMember, submitType, metadataFailure = false, 
       }).pipe(Effect.provide(baseLayers)),
     );
 
-    return { confirmations, exit, history, lines, metadataCalls, submissions };
+    return { confirmations, debugLines, exit, history, lines, metadataCalls, results, submissions };
   } finally {
     sqlite.close();
   }
@@ -198,6 +204,23 @@ describe('multisig vote handler', () => {
     expect(result.history).toHaveLength(1);
     expect(result.history[0]!.tokenName).toMatch(/^0x/);
     expect(result.history[0]!.formatted).toBe('100000');
+  });
+
+  it('does not let a post-submit history failure hide successful quorum', async () => {
+    const result = await runVoteScenario({ asMember: 'bob', submitType: 'Success', historyFailure: true });
+
+    expect(result.exit._tag).toBe('Success');
+    expect(result.submissions).toBe(1);
+    expect(result.history).toHaveLength(0);
+    expect(result.lines.join('\n')).toContain('confirmed, but local history could not be updated');
+    expect(result.debugLines.join('\n')).toContain('disk full');
+    expect(result.lines.join('\n')).toContain('Quorum reached.');
+    expect(result.results).toEqual([
+      expect.objectContaining({
+        reachedQuorum: true,
+        txHash: expect.stringMatching(/^0x[0-9a-f]{64}$/),
+      }),
+    ]);
   });
 
   it('surfaces the exact transaction identity when a final-vote response is lost', async () => {

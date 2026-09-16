@@ -1,9 +1,12 @@
 import { Signer, canonicalizeMultiSigSigners, deriveMultiSigAddress, fromFastAddress, toFastAddress } from '@fastxyz/sdk';
 import { Effect, Layer, Option } from 'effect';
 import { describe, expect, it } from 'vitest';
+import { tokenBurn } from '../../src/commands/token/burn.js';
+import { tokenCreate } from '../../src/commands/token/create.js';
 import { tokenManage } from '../../src/commands/token/manage.js';
 import { tokenMint } from '../../src/commands/token/mint.js';
 import { bundledNetworks } from '../../src/config/networks.js';
+import { DatabaseError } from '../../src/errors/index.js';
 import { FastRpc } from '../../src/services/api/fast.js';
 import { ClientConfig } from '../../src/services/config/client.js';
 import { Output } from '../../src/services/output.js';
@@ -17,7 +20,7 @@ const tokenId = new Uint8Array(32).fill(0xee);
 const tokenHex = `0x${'ee'.repeat(32)}`;
 const nativeTokenHex = `0xfa575e70${'00'.repeat(28)}`;
 
-const makeBaseLayer = async () => {
+const makeBaseLayer = async ({ historyFailure = false }: { readonly historyFailure?: boolean } = {}) => {
   const accountSeed = seed(1);
   const signer = new Signer(accountSeed);
   const fastAddress = await signer.getFastAddress();
@@ -30,6 +33,8 @@ const makeBaseLayer = async () => {
     encrypted: false,
     createdAt: new Date(0).toISOString(),
   };
+  const lines: string[] = [];
+  const results: unknown[] = [];
 
   return {
     account,
@@ -51,8 +56,8 @@ const makeBaseLayer = async () => {
         resolve: () => Effect.succeed(bundledNetworks.testnet!),
       } as never),
       Layer.succeed(Output, {
-        humanLine: () => Effect.void,
-        ok: () => Effect.void,
+        humanLine: (line: string) => Effect.sync(() => void lines.push(line)),
+        ok: (data: unknown) => Effect.sync(() => void results.push(data)),
         fail: () => Effect.void,
         humanTable: () => Effect.void,
         debug: () => Effect.void,
@@ -62,8 +67,12 @@ const makeBaseLayer = async () => {
         input: () => Effect.die('input prompt must not run'),
         confirm: () => Effect.die('confirmation must not run'),
       } as never),
-      Layer.succeed(HistoryStore, { record: () => Effect.void } as never),
+      Layer.succeed(HistoryStore, {
+        record: () => (historyFailure ? Effect.fail(new DatabaseError({ message: 'history database unavailable' })) : Effect.void),
+      } as never),
     ),
+    lines,
+    results,
   };
 };
 
@@ -313,5 +322,58 @@ describe('token authority handlers', () => {
       .value.claims[0];
     expect(operation.type).toBe('TokenManagement');
     expect(operation.value.updateId).toBe(42n);
+  });
+
+  it.each(['create', 'mint', 'burn', 'manage'] as const)('token %s preserves confirmed settlement when local history fails', async (command) => {
+    const { account, layer, lines, results } = await makeBaseLayer({ historyFailure: true });
+    const accountBytes = fromFastAddress(account.fastAddress);
+    let submissions = 0;
+    const rpcLayer = Layer.succeed(FastRpc, {
+      getAccountInfo: () => Effect.succeed({ nextNonce: 0n, pendingConfirmation: null }),
+      getTokenInfo: () => Effect.succeed(tokenMetadata(accountBytes, [accountBytes], 42n)),
+      submitTransaction: () =>
+        Effect.sync(() => {
+          submissions++;
+          return { type: 'Success' };
+        }),
+    } as never);
+    const handler =
+      command === 'create'
+        ? tokenCreate.handler({
+            name: 'TEST',
+            decimals: 6,
+            initialSupply: '1',
+            replacePending: false,
+          } as never)
+        : command === 'mint'
+          ? tokenMint.handler({
+              token: tokenHex,
+              to: account.fastAddress,
+              amount: '1',
+              replacePending: false,
+            } as never)
+          : command === 'burn'
+            ? tokenBurn.handler({
+                token: tokenHex,
+                amount: '1',
+                replacePending: false,
+              } as never)
+            : tokenManage.handler({
+                token: tokenHex,
+                admin: toFastAddress(seed(8)),
+                replacePending: false,
+              } as never);
+
+    const exit = await Effect.runPromiseExit(handler.pipe(Effect.provide(Layer.merge(layer, rpcLayer))));
+
+    expect(exit._tag).toBe('Success');
+    expect(submissions).toBe(1);
+    expect(lines.join('\n')).toContain('confirmed, but local history could not be updated');
+    expect(results).toEqual([
+      expect.objectContaining({
+        status: 'success',
+        txHash: expect.stringMatching(/^0x[0-9a-f]{64}$/),
+      }),
+    ]);
   });
 });

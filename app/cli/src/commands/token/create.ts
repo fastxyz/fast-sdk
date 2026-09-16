@@ -9,7 +9,7 @@ import { Output } from '../../services/output.js';
 import { Prompt } from '../../services/prompt.js';
 import { resolveSigner } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
-import { HistoryStore } from '../../services/storage/history.js';
+import { HistoryStore, recordConfirmedHistory } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
 import { submitOperation } from '../../services/tx-pipeline.js';
 import type { Command } from '../index.js';
@@ -160,7 +160,9 @@ export const tokenCreate: Command<TokenCreateArgs> = {
 
       // Record in local history (only on success — incomplete-multisig has no cert)
       const explorerUrl = `${network.explorerUrl}/txs/${result.txHash}`;
-      yield* historyStore.record(
+      yield* recordConfirmedHistory(
+        historyStore,
+        output,
         makeHistoryEntry({
           hash: result.txHash,
           type: 'token-create',

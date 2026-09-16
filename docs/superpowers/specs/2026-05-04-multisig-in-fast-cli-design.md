@@ -256,10 +256,10 @@ pending`/`vote`". Does **not** write to `history` (no cert yet).
 
 ### `--memo` flag
 
-On `token create` and `token manage`. Single helper
-`encodeUserData(string?): UserData | null` validates <=32 bytes UTF-8
-and zero-pads. `send`, `token mint`, and `token burn` do not expose
-`--memo`.
+Supported by Fast-to-Fast `send`, `token create`, and `token manage`.
+Each command encodes its own `UserData`, validates at most 32 UTF-8
+bytes, and zero-pads the result. Cross-chain `send`, `token mint`, and
+`token burn` do not support `--memo`.
 
 ## Commands
 
@@ -288,6 +288,7 @@ multisig accounts.
 ```text
 ~ fast send <recipient> <amount>
     [--token <id|name>]
+    [--memo <string>]
     [--account <name>] [--as <name>]
     [--password <pwd>] [--non-interactive] [--yes] [--json]
 ```

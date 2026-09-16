@@ -352,7 +352,13 @@ export const send: Command<SendArgs> = {
           passwordFor: (member) => (member.encrypted ? prompt.password() : Effect.succeed(null)),
         });
 
-        const recipientBytes = new Uint8Array(bech32m.fromWords(bech32m.decode(args.address).words));
+        const recipientBytes = yield* Effect.try({
+          try: () => new Uint8Array(bech32m.fromWords(bech32m.decode(args.address).words)),
+          catch: () =>
+            new InvalidAddressError({
+              message: `Invalid Fast recipient address "${args.address}".`,
+            }),
+        });
         const memoBytes = args.memo ? new TextEncoder().encode(args.memo) : null;
         if (memoBytes && memoBytes.length > 32) {
           return yield* Effect.fail(

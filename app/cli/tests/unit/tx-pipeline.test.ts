@@ -49,7 +49,7 @@ describe('submitOperation (single-signer)', () => {
     expect(result.txHash?.startsWith('0x')).toBe(true);
   }, 15_000);
 
-  it('returns incomplete-multisig (txHash null) when proxy says IncompleteMultiSig', async () => {
+  it('fails instead of reporting a single-signer response as incomplete multisig', async () => {
     const signer = new Signer(SECRET);
 
     const rpcStub = Layer.succeed(FastRpc, {
@@ -61,7 +61,7 @@ describe('submitOperation (single-signer)', () => {
       getRpcUrl: () => Effect.succeed('http://test'),
     } as unknown as never);
 
-    const result = await Effect.runPromise(
+    const exit = await Effect.runPromiseExit(
       submitOperation({
         resolved: { kind: 'single', signer, account: {} as never },
         networkId: 'fast:testnet',
@@ -77,8 +77,12 @@ describe('submitOperation (single-signer)', () => {
       }).pipe(Effect.provide(rpcStub)),
     );
 
-    expect(result.status).toBe('incomplete-multisig');
-    expect(result.txHash).toBeNull();
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    expect(exit.cause.error).toMatchObject({
+      errorCode: 'TX_FAILED',
+      message: 'Unexpected IncompleteMultiSig response for single-signer transaction.',
+    });
   });
 
   it('fails instead of finalizing when proxy says IncompleteVerifierSigs', async () => {

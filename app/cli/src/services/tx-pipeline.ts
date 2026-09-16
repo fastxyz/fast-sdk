@@ -254,6 +254,13 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
     // 6. Branch on result type
     const submitObj = (submitResult as { type?: string } | null) ?? null;
     if (submitObj?.type === 'IncompleteMultiSig') {
+      if (params.resolved.kind !== 'multisig') {
+        return yield* Effect.fail(
+          new TransactionFailedError({
+            message: 'Unexpected IncompleteMultiSig response for single-signer transaction.',
+          }),
+        );
+      }
       return {
         status: 'incomplete-multisig',
         envelope,

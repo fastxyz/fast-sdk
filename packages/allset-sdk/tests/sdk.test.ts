@@ -1596,6 +1596,59 @@ test('executeIntent preserves transfer recovery when cross-sign returns a malfor
   assert.equal(relayCalls, 0);
 });
 
+test('executeIntent rejects non-byte cross-sign transaction values before extracting the transfer ID', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayCalls = 0;
+  const malformedTransaction = [...Array(32).fill(0), ...Array(32).fill(0x11)];
+  malformedTransaction[32] = 256;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) {
+      relayCalls++;
+      return Response.json(RELAY_ACCEPTED);
+    }
+    crossSignCalls++;
+    return Response.json({ result: { transaction: malformedTransaction, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const submissions: unknown[] = [];
+  const provider = {
+    getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+    submitTransaction: async (envelope: unknown) => {
+      submissions.push(structuredClone(envelope));
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+
+  let failure: unknown;
+  try {
+    await executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider,
+      claimEncoding: 'v1',
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+    });
+  } catch (error) {
+    failure = error;
+  }
+
+  assert.ok(failure instanceof PostPaymentRecoveryError);
+  const recovery = failure as PostPaymentRecoveryError;
+  assert.equal(recovery.stage, 'transfer-cross-sign');
+  assert.equal(recovery.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+  assert.deepEqual(recovery.transfer.recoveryEnvelope, submissions[0]);
+  assert.equal(recovery.intent, undefined);
+  assert.equal(submissions.length, 1, 'invalid cross-sign bytes must stop before intent submission');
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayCalls, 0);
+});
+
 test('executeIntent preserves both settled identities when intent cross-sign fails', async () => {
   const originalFetch = globalThis.fetch;
   let crossSignCalls = 0;
@@ -1651,6 +1704,60 @@ test('executeIntent preserves both settled identities when intent cross-sign fai
   assert.equal(crossSignCalls, 2);
   assert.equal(submissions.length, 2);
   assert.equal(relayCalls, 0);
+});
+
+test('executeIntent preserves intent recovery when intent cross-sign returns no transaction bytes', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) {
+      relayCalls++;
+      return Response.json(RELAY_ACCEPTED);
+    }
+    crossSignCalls++;
+    return Response.json({
+      result: {
+        transaction: crossSignCalls === 1 ? MOCK_CROSS_SIGN_TX : [],
+        signature: '0xsig',
+      },
+    });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const submissions: unknown[] = [];
+  const provider = {
+    getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+    submitTransaction: async (envelope: unknown) => {
+      submissions.push(structuredClone(envelope));
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+
+  let failure: unknown;
+  try {
+    await executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider,
+    });
+  } catch (error) {
+    failure = error;
+  }
+
+  assert.ok(failure instanceof PostPaymentRecoveryError);
+  const recovery = failure as PostPaymentRecoveryError;
+  assert.equal(recovery.stage, 'intent-cross-sign');
+  assert.equal(recovery.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+  assert.equal(recovery.intent?.txHash, await hashRecoveryEnvelope(submissions[1]));
+  assert.deepEqual(recovery.transfer.recoveryEnvelope, submissions[0]);
+  assert.deepEqual(recovery.intent?.recoveryEnvelope, submissions[1]);
+  assert.equal(submissions.length, 2);
+  assert.equal(crossSignCalls, 2);
+  assert.equal(relayCalls, 0, 'malformed intent cross-sign bytes must never reach relay');
 });
 
 test('executeIntent rejects a relayer success:false acknowledgement without losing recovery identity', async () => {

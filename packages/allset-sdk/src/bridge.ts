@@ -102,6 +102,24 @@ function normalizeTransactionHash(hash: string): string {
   return lower.startsWith("0x") ? lower.slice(2) : lower;
 }
 
+function extractCrossSignClaimId(transaction: unknown): Hex {
+  if (!Array.isArray(transaction) || transaction.length < 64) {
+    throw new FastError("TX_FAILED", "Cross-sign returned invalid transaction bytes");
+  }
+  for (let index = 0; index < transaction.length; index++) {
+    const byte: unknown = transaction[index];
+    if (typeof byte !== "number" || !Number.isInteger(byte) || byte < 0 || byte > 255) {
+      throw new FastError("TX_FAILED", "Cross-sign returned invalid transaction bytes");
+    }
+  }
+
+  const claimId = extractClaimId(transaction);
+  if (!/^0x[0-9a-f]{64}$/.test(claimId)) {
+    throw new FastError("TX_FAILED", "Cross-sign returned an invalid transaction ID");
+  }
+  return claimId;
+}
+
 type SubmissionIdentity = {
   readonly txHash: string;
   readonly networkId: string;
@@ -640,12 +658,7 @@ export async function executeIntent(
   try {
     transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
     // Derive the Fast tx ID from cross-sign bytes[32:64] — this is the canonical transaction hash
-    transferFastTxId = extractClaimId(transferCrossSign.transaction);
-    if (!/^0x[0-9a-f]{64}$/.test(transferFastTxId)) {
-      throw new FastError("TX_FAILED", "Cross-sign returned an invalid transfer transaction ID", {
-        note: "The Fast transfer was submitted, but its cross-sign result cannot identify it safely.",
-      });
-    }
+    transferFastTxId = extractCrossSignClaimId(transferCrossSign.transaction);
   } catch (cause) {
     throw new PostPaymentRecoveryError({
       stage: "transfer-cross-sign",
@@ -735,7 +748,7 @@ export async function executeIntent(
   let intentFastTxId: Hex;
   try {
     intentCrossSign = await evmSign(intentResult.value, crossSignUrl);
-    intentFastTxId = extractClaimId(intentCrossSign.transaction);
+    intentFastTxId = extractCrossSignClaimId(intentCrossSign.transaction);
   } catch (cause) {
     throw new PostPaymentRecoveryError({
       stage: "intent-cross-sign",

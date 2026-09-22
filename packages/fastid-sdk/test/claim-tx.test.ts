@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/fasttx.js", () => ({
   txIdFromDomainTransaction: vi.fn(
-    async (transaction: { __id?: string } | undefined) =>
-      transaction?.__id ?? "cc".repeat(32),
+    async (transaction: { __id?: string } | undefined) => {
+      if (!transaction) {
+        throw new Error("cannot hash certificate transaction");
+      }
+      return transaction.__id ?? "cc".repeat(32);
+    },
   ),
 }));
 

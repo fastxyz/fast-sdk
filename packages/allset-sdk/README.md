@@ -411,7 +411,7 @@ type FastErrorCode =
 
 class FastError extends Error {
   readonly code: FastErrorCode;
-  readonly context?: Record<string, unknown>;
+  readonly note: string;
 }
 
 interface TransferClaimParams {

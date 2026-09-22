@@ -31,6 +31,16 @@ export class FastError extends Error {
   }
 }
 
+function toJsonSafe(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString();
+  if (value instanceof Uint8Array) return Array.from(value);
+  if (Array.isArray(value)) return value.map(toJsonSafe);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, nested]) => [key, toJsonSafe(nested)]));
+  }
+  return value;
+}
+
 /**
  * The Fast network may have accepted a transaction, but its certificate could
  * not be correlated to the exact signed envelope. Callers must inspect the
@@ -65,5 +75,16 @@ export class IndeterminateTransactionError extends FastError {
     this.recoveryEnvelope = params.recoveryEnvelope;
     this.relatedTxHash = params.relatedTxHash;
     this.cause = params.cause;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stage: this.stage,
+      txHash: this.txHash,
+      mayHaveSettled: this.mayHaveSettled,
+      ...(this.relatedTxHash ? { relatedTxHash: this.relatedTxHash } : {}),
+      recoveryEnvelope: toJsonSafe(this.recoveryEnvelope),
+    };
   }
 }

@@ -121,6 +121,33 @@ test('single entrypoint exposes all public API', () => {
   assert.equal(typeof evmSign, 'function');
 });
 
+test('IndeterminateTransactionError preserves recovery details in JSON', () => {
+  const error = new IndeterminateTransactionError({
+    stage: 'intent',
+    txHash: `0x${'aa'.repeat(32)}`,
+    relatedTxHash: `0x${'bb'.repeat(32)}`,
+    recoveryEnvelope: {
+      transaction: {
+        value: {
+          nonce: 7n,
+          sender: new Uint8Array([1, 2, 3]),
+        },
+      },
+    },
+  });
+
+  const json = JSON.parse(JSON.stringify(error));
+  assert.equal(json.code, 'TX_INDETERMINATE');
+  assert.equal(json.stage, 'intent');
+  assert.equal(json.txHash, `0x${'aa'.repeat(32)}`);
+  assert.equal(json.relatedTxHash, `0x${'bb'.repeat(32)}`);
+  assert.equal(json.mayHaveSettled, true);
+  assert.deepEqual(json.recoveryEnvelope.transaction.value, {
+    nonce: '7',
+    sender: [1, 2, 3],
+  });
+});
+
 test('removed APIs are no longer exported', async () => {
   const mod = (await import('../src/index.ts')) as Record<string, unknown>;
   assert.equal('AllSetProvider' in mod, false);
@@ -739,6 +766,76 @@ test('executeIntent rejects a transfer success certificate for another transacti
   assert.ok(failure.recoveryEnvelope);
   assert.equal(crossSignCalls, 0);
   assert.equal(relayerCalls, 0);
+});
+
+test('executeIntent rejects a transfer success certificate from another network', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  globalThis.fetch = async () => {
+    crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async (envelope: unknown) => {
+          const certificateEnvelope = structuredClone(envelope as object) as any;
+          certificateEnvelope.transaction.value.networkId = 'fast:mainnet';
+          return { type: 'Success', value: { envelope: certificateEnvelope, signatures: [] } };
+        },
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'transfer';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(crossSignCalls, 0);
+});
+
+test('executeIntent rejects a malformed transfer success certificate before cross-signing', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  globalThis.fetch = async () => {
+    crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async () => ({ type: 'Success', value: { envelope: { transaction: null }, signatures: [] } }),
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'transfer';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(crossSignCalls, 0);
 });
 
 test('executeIntent rejects an intent success certificate for another transaction before relaying', async () => {

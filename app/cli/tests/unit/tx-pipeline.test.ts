@@ -46,6 +46,64 @@ describe('submitOperation (single-signer)', () => {
     expect(exit.cause.error).toBeInstanceOf(TransactionSubmissionUnknownError);
   });
 
+  it('preserves recovery when a success certificate uses another network', async () => {
+    const signer = new Signer(SECRET);
+    const rpcStub = Layer.succeed(FastRpc, {
+      getAccountInfo: (_p: unknown) => Effect.succeed({ nextNonce: 7n }) as never,
+      submitTransaction: (envelope: unknown) => {
+        const certificateEnvelope = structuredClone(envelope as object) as any;
+        certificateEnvelope.transaction.value.networkId = 'fast:mainnet';
+        return Effect.succeed({ type: 'Success', value: { envelope: certificateEnvelope } }) as never;
+      },
+      getPendingMultisigTransactions: (_p: unknown) => Effect.succeed([]) as never,
+      getTokenInfo: (_p: unknown) => Effect.succeed({}) as never,
+      getTransactionCertificates: (_p: unknown) => Effect.succeed([]) as never,
+      getRpcUrl: () => Effect.succeed('http://test'),
+    } as unknown as never);
+
+    const exit = await Effect.runPromiseExit(
+      submitOperation({
+        resolved: { kind: 'single', signer, account: {} as never },
+        networkId: 'fast:testnet',
+        operation: {
+          type: 'TokenTransfer',
+          value: { tokenId: new Uint8Array(32), recipient: new Uint8Array(32), amount: 1n, userData: null },
+        },
+      }).pipe(Effect.provide(rpcStub)),
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    expect(exit.cause.error).toBeInstanceOf(TransactionSubmissionUnknownError);
+  });
+
+  it('preserves recovery when a success certificate is malformed', async () => {
+    const signer = new Signer(SECRET);
+    const rpcStub = Layer.succeed(FastRpc, {
+      getAccountInfo: (_p: unknown) => Effect.succeed({ nextNonce: 7n }) as never,
+      submitTransaction: (_envelope: unknown) => Effect.succeed({ type: 'Success', value: { envelope: { transaction: null } } }) as never,
+      getPendingMultisigTransactions: (_p: unknown) => Effect.succeed([]) as never,
+      getTokenInfo: (_p: unknown) => Effect.succeed({}) as never,
+      getTransactionCertificates: (_p: unknown) => Effect.succeed([]) as never,
+      getRpcUrl: () => Effect.succeed('http://test'),
+    } as unknown as never);
+
+    const exit = await Effect.runPromiseExit(
+      submitOperation({
+        resolved: { kind: 'single', signer, account: {} as never },
+        networkId: 'fast:testnet',
+        operation: {
+          type: 'TokenTransfer',
+          value: { tokenId: new Uint8Array(32), recipient: new Uint8Array(32), amount: 1n, userData: null },
+        },
+      }).pipe(Effect.provide(rpcStub)),
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    expect(exit.cause.error).toBeInstanceOf(TransactionSubmissionUnknownError);
+  });
+
   it('builds, signs, and submits a TokenTransfer; returns Success with hash', async () => {
     const signer = new Signer(SECRET);
 

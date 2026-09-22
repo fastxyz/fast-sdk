@@ -398,7 +398,16 @@ interface BridgeResult {
   estimatedTime?: string;
 }
 
-type FastErrorCode = 'TX_FAILED' | 'TX_INDETERMINATE' | 'INVALID_ADDRESS' | 'INVALID_PARAMS' | 'CROSS_SIGN_FAILED' | 'RELAY_FAILED';
+type FastErrorCode =
+  | 'INSUFFICIENT_BALANCE'
+  | 'NETWORK_NOT_CONFIGURED'
+  | 'TX_FAILED'
+  | 'TX_INDETERMINATE'
+  | 'INVALID_ADDRESS'
+  | 'TOKEN_NOT_FOUND'
+  | 'INVALID_PARAMS'
+  | 'UNSUPPORTED_OPERATION'
+  | 'KEYFILE_NOT_FOUND';
 
 class FastError extends Error {
   readonly code: FastErrorCode;

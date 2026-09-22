@@ -216,9 +216,10 @@ function decodeCertificate(input: unknown): { domain: DomainCertificate; restJso
     } catch (error) {
       fail("invalid_certificate", "certificate is not valid lossless JSON", error);
     }
-  } else {
-    assertBoundedObjectCertificate(input);
   }
+  // Bound the parsed graph too: a short wire string can encode excessive
+  // nesting or node counts that schema traversal would otherwise visit.
+  assertBoundedObjectCertificate(wire);
 
   if (isDomainCertificate(wire) && wire.envelope.signature.type === "MultiSig") {
     fail("multisig_not_supported", "multisig transaction envelopes are not supported");

@@ -42,3 +42,17 @@ it("rejects a certificate bound to another tx", async () => {
     },
   )).rejects.toThrow(/transaction|tx/i);
 });
+
+it("bounds parsed lossless JSON before certificate schema traversal", async () => {
+  const depth = 130;
+  const certificate = `${'{"nested":'.repeat(depth)}null${'}'.repeat(depth)}`;
+
+  await expect(validateSettlementCertificate(certificate, {
+    network: "fast:testnet",
+    senderHex: fixture.signerHex as string,
+    nonce: BigInt(fixture.nonce as string | number),
+    txId: fixture.txId as string,
+    sha256: "11".repeat(32),
+    claimDataHex: fixture.claimDataHex as string,
+  })).rejects.toMatchObject({ code: "certificate_too_large" });
+});

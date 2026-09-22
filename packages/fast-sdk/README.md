@@ -228,7 +228,7 @@ signed envelope; definitive proxy rejections remain their original typed error
 instead. Callers must reconcile an unknown identity before retrying. The workflow
 also correlates a `Success` certificate with the submitted transaction; a mismatched
 certificate is treated as an unknown outcome with the submitted recovery envelope.
-does not invent a fee estimate: no canonical public fee schedule is currently
+The workflow does not invent a fee estimate: no canonical public fee schedule is currently
 exposed.
 
 ---

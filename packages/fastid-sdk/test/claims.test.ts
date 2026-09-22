@@ -481,6 +481,27 @@ describe("paid settlement and free registration", () => {
     }
   });
 
+  it("retains recovery when a success response omits its certificate transaction", async () => {
+    let submittedEnvelope: unknown;
+    const h = await harness({
+      provider: {
+        getAccountInfo: vi.fn(async () => ({ nextNonce: 5n })),
+        submitTransaction: vi.fn(async (envelope: unknown) => {
+          submittedEnvelope = envelope;
+          return { type: "Success", value: { envelope: {} } };
+        }),
+      },
+    });
+
+    const error = await h.client.claimName("alice.smith").catch((cause) => cause);
+    expect(error).toBeInstanceOf(IndeterminateSubmissionError);
+    if (!(error instanceof IndeterminateSubmissionError)) throw new Error("expected indeterminate submission error");
+    expect(error.recoveryEnvelope).toEqual(submittedEnvelope);
+    expect(error.nonce).toBe(5n);
+    expect(error.txIdHex).toMatch(/^[0-9a-f]{64}$/);
+    expect(registrationCalls(h.calls)).toHaveLength(0);
+  });
+
   it("surfaces a definitive nonce conflict without registering", async () => {
     const h = await harness({
       provider: {

@@ -18,6 +18,7 @@ import {
   buildExternalClaimBytes,
   feeTokenFor,
   getNextNonce,
+  IndeterminateProviderSubmissionError,
   submitSignedClaim,
   toRestGateway,
 } from "../src/claim-tx.js";
@@ -26,7 +27,7 @@ const address =
   "fast13289h54tze49fhr4g7x4zee5t95ah7xpq9e727yy3lpme4dll6zshexh9v";
 const signature = "ab".repeat(64);
 
-function providerOf(submitTransaction: () => unknown): never {
+function providerOf(submitTransaction: (envelope: unknown) => unknown): never {
   return { submitTransaction: vi.fn(submitTransaction) } as never;
 }
 
@@ -119,33 +120,87 @@ describe("submitSignedClaim settlement guards", () => {
   });
 
   it("rejects a certificate for a different transaction", async () => {
-    await expect(
-      submitSignedClaim(
-        providerOf(() => ({
+    let submittedEnvelope: unknown;
+    const error = await submitSignedClaim(
+      providerOf((envelope) => {
+        submittedEnvelope = envelope;
+        return {
           type: "Success",
           value: certificate({ id: "bb".repeat(32) }),
-        })),
-        { __id: "aa".repeat(32) },
-        signature,
-        "fast:mainnet",
-        "fastUSD",
-      ),
-    ).rejects.toBeInstanceOf(SettlementMismatchError);
+        };
+      }),
+      { __id: "aa".repeat(32) },
+      signature,
+      "fast:mainnet",
+      "fastUSD",
+    ).catch((cause) => cause);
+    expect(error).toBeInstanceOf(SettlementMismatchError);
+    if (!(error instanceof SettlementMismatchError)) throw new Error("expected settlement mismatch");
+    expect(error.recovery).toMatchObject({ txIdHex: "aa".repeat(32) });
+    expect(error.recovery.recoveryEnvelope).toEqual(submittedEnvelope);
   });
 
   it("rejects a certificate for the wrong network", async () => {
-    await expect(
-      submitSignedClaim(
-        providerOf(() => ({
+    let submittedEnvelope: unknown;
+    const error = await submitSignedClaim(
+      providerOf((envelope) => {
+        submittedEnvelope = envelope;
+        return {
           type: "Success",
           value: certificate({ networkId: "fast:testnet" }),
-        })),
-        { __id: "aa".repeat(32) },
-        signature,
-        "fast:mainnet",
-        "fastUSD",
-      ),
-    ).rejects.toBeInstanceOf(WrongNetworkError);
+        };
+      }),
+      { __id: "aa".repeat(32) },
+      signature,
+      "fast:mainnet",
+      "fastUSD",
+    ).catch((cause) => cause);
+    expect(error).toBeInstanceOf(WrongNetworkError);
+    if (!(error instanceof WrongNetworkError)) throw new Error("expected wrong network");
+    expect(error.recovery).toMatchObject({ txIdHex: "aa".repeat(32) });
+    expect(error.recovery.recoveryEnvelope).toEqual(submittedEnvelope);
+  });
+
+  it.each([
+    ["missing envelope transaction", () => ({ type: "Success", value: { envelope: {} } })],
+    [
+      "unhashable certificate transaction",
+      () => ({
+        type: "Success",
+        value: {
+          envelope: {
+            transaction: {
+              get __id(): never {
+                throw new Error("cannot hash certificate");
+              },
+            },
+          },
+        },
+      }),
+    ],
+    [
+      "certificate without nonce",
+      () => ({
+        type: "Success",
+        value: { envelope: { transaction: { __id: "aa".repeat(32) } } },
+      }),
+    ],
+  ] as const)("preserves recovery for %s", async (_label, result) => {
+    let submittedEnvelope: unknown;
+    const error = await submitSignedClaim(
+      providerOf((envelope) => {
+        submittedEnvelope = envelope;
+        return result();
+      }),
+      { __id: "aa".repeat(32) },
+      signature,
+      "fast:mainnet",
+      "fastUSD",
+    ).catch((cause) => cause);
+    expect(error).toBeInstanceOf(IndeterminateProviderSubmissionError);
+    if (!(error instanceof IndeterminateProviderSubmissionError)) throw new Error("expected indeterminate provider submission");
+    expect(error.recovery).toMatchObject({ txIdHex: "aa".repeat(32) });
+    expect(error.recovery.recoveryEnvelope).toEqual(submittedEnvelope);
   });
 
   it("maps incomplete and tagged provider failures without fabricating settlement", async () => {

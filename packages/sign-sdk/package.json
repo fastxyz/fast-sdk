@@ -47,6 +47,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "0.28.2",
     "typescript": "^6.0.2",
     "vitest": "^4.1.1"
   },

@@ -79,7 +79,7 @@ describe("public claim recovery", () => {
     });
 
     const error = await client
-      .claimProperty("work", "10.1000/example")
+      .importWork("10.1000/example")
       .catch((cause) => cause);
 
     expect(error).toBeInstanceOf(IndeterminateSubmissionError);

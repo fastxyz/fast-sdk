@@ -1,0 +1,343 @@
+// Copyright (c) Pi Squared, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+import { encodeAttestationV3, RELATIONSHIPS } from "./internal/attestation.js";
+import { hasVisibleMetadataTextV1, validateMetadataTextV1 } from "./internal/metadata.js";
+import { fastAddressFromPublicKey } from "./internal/address.js";
+import { assertLowerHex, bytesToHex, hexToBytes } from "./internal/bytes.js";
+import {
+  assertFeePolicy,
+  assertFeeSnapshotUnchanged,
+  createProxyFeeSource,
+  feeTokenForState,
+  resolveClaimFee,
+  type FeePolicy,
+  type FeeSource,
+} from "./internal/fees.js";
+import { validateSettlementCertificate } from "./internal/receipts.js";
+import {
+  nonceToSafeNumber,
+  prepareExternalClaimTransaction,
+  signPreparedTransaction,
+  type FastSettlementProvider,
+} from "./internal/transactions.js";
+import { assertOperationId, type ByteSigner, type PendingRegistration, type SignInput, type SignNetwork } from "./types.js";
+import { createRecordClient, type RegistrationState } from "./record-client.js";
+import type {
+  FrozenOperation,
+  JournalSnapshot,
+  RecoveryJournal,
+  SettledJournalSnapshot,
+  SignedSubmission,
+} from "./recovery.js";
+import { asInsufficientFunds, asNonceConflict } from "./errors.js";
+
+const MAX_U64 = (1n << 64n) - 1n;
+
+export type SignResult =
+  | {
+      readonly settlement: "settled";
+      readonly registration: RegistrationState;
+      readonly receipt: PendingRegistration;
+      readonly recoveryPersisted: boolean;
+    }
+  | {
+      readonly settlement: "unknown";
+      readonly operationId: string;
+      readonly txId: string;
+      readonly recoveryPersisted: boolean;
+    };
+
+export interface SignClientOptions {
+  readonly network: SignNetwork;
+  readonly proxyUrl: string;
+  readonly indexOrigin: string;
+  readonly signer: ByteSigner;
+  readonly journal: RecoveryJournal;
+  readonly feePolicy: FeePolicy;
+  readonly provider: FastSettlementProvider;
+  readonly feeSource?: FeeSource;
+  readonly fetchImpl?: typeof globalThis.fetch;
+  readonly now?: () => number;
+  readonly randomBytes?: (length: number) => Uint8Array;
+}
+
+export interface SignClient {
+  signDigest(input: SignInput): Promise<SignResult>;
+}
+
+function normalizedHttpUrl(value: string, originOnly: boolean, field: string): string {
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error(`${field} must be an absolute HTTP(S) URL`); }
+  if (
+    !["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash ||
+    (originOnly && (url.pathname !== "/" || url.search))
+  ) throw new Error(`${field} must be an absolute public HTTP(S) ${originOnly ? "origin" : "URL"}`);
+  return originOnly ? url.origin : url.href.replace(/\/$/, "");
+}
+
+type NormalizedSignInput = Omit<SignInput, "listBySigner"> & { readonly listBySigner: boolean };
+
+function validateSignInput(input: NormalizedSignInput): void {
+  if (!(RELATIONSHIPS as readonly string[]).includes(input.relationship)) throw new Error("relationship is not supported");
+  if (typeof input.listBySigner !== "boolean") throw new Error("listBySigner must be a boolean");
+  if (input.signerName !== undefined && typeof input.signerName !== "string") throw new Error("signerName must be text");
+  validateMetadataTextV1(input.signerName ?? "");
+  if (input.listBySigner) {
+    if (input.publicTitle !== undefined && typeof input.publicTitle !== "string") throw new Error("publicTitle must be text");
+    const title = input.publicTitle ?? "";
+    validateMetadataTextV1(title);
+    if (!hasVisibleMetadataTextV1(title)) throw new Error("listed attestations require a visible publicTitle");
+  }
+}
+
+function sameInput(snapshot: JournalSnapshot, input: NormalizedSignInput): boolean {
+  const frozen = snapshot.operation.input;
+  return frozen.operationId === input.operationId && frozen.sha256 === input.sha256 &&
+    frozen.relationship === input.relationship && frozen.signerName === input.signerName &&
+    frozen.publicTitle === input.publicTitle && frozen.listBySigner === input.listBySigner;
+}
+
+function assertFrozenClientBindings(
+  snapshot: JournalSnapshot,
+  network: SignNetwork,
+  proxyUrl: string,
+  indexOrigin: string,
+): void {
+  if (
+    snapshot.operation.network !== network ||
+    snapshot.operation.proxyUrl !== proxyUrl ||
+    snapshot.operation.indexOrigin !== indexOrigin
+  ) {
+    throw new Error("operation does not match the configured network or destinations");
+  }
+}
+
+function resultFromSettled(snapshot: SettledJournalSnapshot): SignResult {
+  const registration: RegistrationState = snapshot.state === "registered" ? "registered"
+    : snapshot.state === "registration_conflict" ? "conflict"
+      : snapshot.state === "registration_rejected" ? "rejected" : "pending";
+  return { settlement: "settled", registration, receipt: snapshot.receipt, recoveryPersisted: true };
+}
+
+function certificateFromSubmit(result: unknown): unknown | null {
+  if (result && typeof result === "object" && "envelope" in result) return result;
+  if (result && typeof result === "object" && (result as { type?: unknown }).type === "Success") {
+    return (result as { value?: unknown }).value ?? null;
+  }
+  return null;
+}
+
+export function createSignClient(options: SignClientOptions): SignClient {
+  if (options.network !== "fast:testnet" && options.network !== "fast:mainnet") throw new Error("invalid network");
+  const network = options.network;
+  const proxyUrl = normalizedHttpUrl(options.proxyUrl, false, "proxyUrl");
+  const indexOrigin = normalizedHttpUrl(options.indexOrigin, true, "indexOrigin");
+  if (!options.signer || typeof options.signer.getPublicKey !== "function" || typeof options.signer.signMessage !== "function") {
+    throw new Error("signer must implement getPublicKey() and signMessage(bytes)");
+  }
+  if (!options.provider || typeof options.provider.getNextNonce !== "function" || typeof options.provider.submitTransaction !== "function") {
+    throw new Error("provider must expose nonce read and submit capabilities");
+  }
+  const signerSource = options.signer;
+  const signer: ByteSigner = {
+    getPublicKey: signerSource.getPublicKey.bind(signerSource),
+    signMessage: signerSource.signMessage.bind(signerSource),
+  };
+  const providerSource = options.provider;
+  const provider: FastSettlementProvider = {
+    getNextNonce: providerSource.getNextNonce.bind(providerSource),
+    submitTransaction: providerSource.submitTransaction.bind(providerSource),
+  };
+  const journalSource = options.journal;
+  const journal: RecoveryJournal = {
+    load: journalSource.load.bind(journalSource),
+    save: journalSource.save.bind(journalSource),
+    withLock: journalSource.withLock.bind(journalSource),
+  };
+  const feePolicy: FeePolicy = { ...options.feePolicy };
+  if (feePolicy.feeFreeNetwork !== undefined && typeof feePolicy.feeFreeNetwork !== "boolean") {
+    throw new Error("feeFreeNetwork must be a boolean");
+  }
+  const fetchImpl = options.fetchImpl;
+  const now = options.now ?? Date.now;
+  const feeSource = options.feeSource === undefined
+    ? createProxyFeeSource({ proxyUrl, ...(fetchImpl === undefined ? {} : { fetchImpl }) })
+    : {
+        networkInfo: options.feeSource.networkInfo.bind(options.feeSource),
+        tokenMeta: options.feeSource.tokenMeta.bind(options.feeSource),
+      };
+  const random = options.randomBytes ?? ((length: number) => {
+    const output = new Uint8Array(length);
+    globalThis.crypto.getRandomValues(output);
+    return output;
+  });
+  const recordClient = createRecordClient({
+    network,
+    indexOrigin,
+    journal,
+    now,
+    ...(fetchImpl === undefined ? {} : { fetchImpl }),
+  });
+
+  return {
+    async signDigest(rawInput) {
+      assertOperationId(rawInput.operationId);
+      assertLowerHex(rawInput.sha256, 32, "sha256");
+      const listBySigner = rawInput.listBySigner === undefined ? false : rawInput.listBySigner;
+      const input: NormalizedSignInput = {
+        operationId: rawInput.operationId,
+        sha256: rawInput.sha256,
+        relationship: rawInput.relationship,
+        ...(rawInput.signerName === undefined || rawInput.signerName === ""
+          ? {} : { signerName: rawInput.signerName }),
+        listBySigner,
+        ...(listBySigner && rawInput.publicTitle !== undefined
+          ? { publicTitle: rawInput.publicTitle }
+          : {}),
+      };
+      validateSignInput(input);
+      let newSettlement = false;
+      const initial = await journal.withLock(`operation:${input.operationId}`, async (): Promise<SignResult> => {
+        const existing = await journal.load(input.operationId);
+        if (existing) {
+          if (!sameInput(existing, input)) throw new Error("operationId is already bound to different immutable inputs");
+          assertFrozenClientBindings(existing, network, proxyUrl, indexOrigin);
+        }
+
+        const signerPublicKey = await signer.getPublicKey();
+        if (!(signerPublicKey instanceof Uint8Array) || signerPublicKey.byteLength !== 32) throw new Error("signer public key must be 32 bytes");
+        const publicKey = Uint8Array.from(signerPublicKey);
+        const senderHex = bytesToHex(publicKey);
+        if (existing && existing.operation.senderHex !== senderHex) {
+          throw new Error("operation does not match the configured signer");
+        }
+        if (existing?.state === "submission_unknown") {
+          return { settlement: "unknown", operationId: input.operationId, txId: existing.submission.txId, recoveryPersisted: true };
+        }
+        if (existing && existing.state !== "prepared") return resultFromSettled(existing);
+        return journal.withLock(`account:${network}:${senderHex}`, async (): Promise<SignResult> => {
+          const current = await journal.load(input.operationId);
+          if (current) {
+            if (!sameInput(current, input)) throw new Error("operationId is already bound to different immutable inputs");
+            assertFrozenClientBindings(current, network, proxyUrl, indexOrigin);
+            if (current.operation.senderHex !== senderHex) {
+              throw new Error("operation does not match the configured signer");
+            }
+          }
+          if (current && current.state !== "prepared") {
+            if (current.state === "submission_unknown") return { settlement: "unknown", operationId: input.operationId, txId: current.submission.txId, recoveryPersisted: true };
+            return resultFromSettled(current);
+          }
+          const instant = now();
+          if (!Number.isSafeInteger(instant) || instant < 0) throw new Error("clock must return non-negative integer milliseconds");
+          const timestampNanos = current
+            ? BigInt(current.operation.issuedAtNanoseconds)
+            : BigInt(instant) * 1_000_000n;
+          if (timestampNanos < 0n || timestampNanos > MAX_U64) {
+            throw new Error("clock timestamp is outside the transaction u64 range");
+          }
+          const nonce = current ? BigInt(current.operation.nonce) : await provider.getNextNonce(
+            fastAddressFromPublicKey(publicKey),
+          );
+          nonceToSafeNumber(nonce);
+          const quote = await resolveClaimFee(network, feeSource, feePolicy.feeFreeNetwork ?? false);
+          if (current?.operation.fee === null) throw new Error("an imported settled operation cannot resume signing");
+          const authorized = assertFeePolicy(network, quote, feePolicy);
+          if (current && current.operation.fee.scheduleFingerprint !== authorized.scheduleFingerprint) {
+            throw new Error("the Fast fee schedule changed since this operation was prepared");
+          }
+          const requestId = current ? hexToBytes(current.operation.requestIdHex) : random(16);
+          if (requestId.byteLength !== 16) throw new Error("randomBytes must return the requested 16 bytes");
+          const claimDataHex = bytesToHex(encodeAttestationV3({
+            digestAlgorithm: "sha256",
+            commitmentMode: "public_sha256",
+            digest: hexToBytes(input.sha256),
+            relationship: input.relationship,
+            signer: publicKey,
+            requestId,
+            issuedAt: current
+              ? BigInt(current.operation.issuedAtNanoseconds) / 1_000_000_000n
+              : BigInt(Math.floor(instant / 1000)),
+            signerName: input.signerName ?? "",
+            fileLabel: input.listBySigner ? (input.publicTitle ?? "") : "",
+            listBySigner: input.listBySigner,
+            metadataRevision: 1n,
+            fastIdAttribution: null,
+          }));
+          const operation: FrozenOperation = current?.operation ?? {
+            input,
+            network,
+            proxyUrl,
+            indexOrigin,
+            senderHex,
+            nonce: nonce.toString(),
+            requestIdHex: bytesToHex(requestId),
+            issuedAtNanoseconds: timestampNanos.toString(),
+            fee: authorized,
+          };
+          if (!current) await journal.save({ version: 1, state: "prepared", operationId: input.operationId, updatedAt: instant, operation });
+          const prepared = await prepareExternalClaimTransaction({
+            network, senderPublicKey: publicKey, nonce, claimDataHex,
+            feeToken: feeTokenForState(quote), timestampNanos,
+          });
+          const signed = await signPreparedTransaction(prepared, signer);
+          const currentQuote = await resolveClaimFee(network, feeSource, feePolicy.feeFreeNetwork ?? false);
+          if (quote.kind === "unavailable") throw new Error("fee became unavailable");
+          assertFeeSnapshotUnchanged(network, quote, currentQuote);
+          const submission: SignedSubmission = {
+            txId: signed.txId,
+            signingBytesHex: bytesToHex(signed.signingBytes),
+            transactionBytesHex: bytesToHex(signed.transactionBytes),
+            senderSignatureHex: signed.senderSignatureHex,
+            claimDataHex,
+          };
+          const unknown: JournalSnapshot = { version: 1, state: "submission_unknown", operationId: input.operationId, updatedAt: now(), operation, submission };
+          await journal.save(unknown);
+          let submitted: unknown;
+          try { submitted = await provider.submitTransaction(signed.envelope); }
+          catch (error) {
+            const nonceConflict = asNonceConflict(error);
+            if (nonceConflict) throw nonceConflict;
+            const insufficientFunds = asInsufficientFunds(error, authorized.tokenId);
+            if (insufficientFunds) throw insufficientFunds;
+            return { settlement: "unknown", operationId: input.operationId, txId: signed.txId, recoveryPersisted: true };
+          }
+          const certificate = certificateFromSubmit(submitted);
+          if (certificate === null) return { settlement: "unknown", operationId: input.operationId, txId: signed.txId, recoveryPersisted: true };
+          let validated;
+          try {
+            validated = await validateSettlementCertificate(certificate, {
+              network, senderHex, nonce, txId: signed.txId,
+              sha256: input.sha256, claimDataHex,
+            });
+            if (validated.senderSignatureHex !== signed.senderSignatureHex) {
+              throw new Error("settlement sender signature does not match the frozen submission");
+            }
+          } catch {
+            // Submit has already been attempted. A missing, malformed, or
+            // mismatched response cannot prove that settlement failed, so the
+            // durable pre-submit state remains the only honest result. Recovery
+            // must observe this same tx read-only; it must never submit again.
+            return { settlement: "unknown", operationId: input.operationId, txId: signed.txId, recoveryPersisted: true };
+          }
+          const receipt: PendingRegistration = {
+            version: 1, operationId: input.operationId, indexOrigin,
+            record: { sha256: input.sha256, tx_id: signed.txId, signer: senderHex, nonce: nonceToSafeNumber(nonce), network },
+            claimDataHex, senderSignatureHex: validated.senderSignatureHex,
+            signatureScope: "versioned_transaction", certificate: validated.certificate,
+          };
+          const settled: SettledJournalSnapshot = { ...unknown, state: "registration_pending", updatedAt: now(), receipt };
+          try { await journal.save(settled); }
+          catch { return { settlement: "settled", registration: "pending", receipt, recoveryPersisted: false }; }
+          newSettlement = true;
+          return { settlement: "settled", registration: "pending", receipt, recoveryPersisted: true };
+        });
+      });
+      if (initial.settlement === "unknown" || !initial.recoveryPersisted) return initial;
+      if (!newSettlement && initial.registration !== "pending") return initial;
+      const registered = await recordClient.retryRegistration(initial.receipt);
+      return { settlement: "settled", ...registered };
+    },
+  };
+}

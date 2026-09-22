@@ -6,6 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vitest";
+import * as publicApi from "../src/index.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -25,5 +26,26 @@ describe("public package boundary", () => {
     expect(JSON.stringify(manifest)).not.toMatch(/workspace:|file:|github:/);
     expect(manifest.bin).toBeUndefined();
     expect(manifest.scripts?.postinstall).toBeUndefined();
+  });
+
+  test("exports exactly the approved runtime capabilities", () => {
+    expect(Object.keys(publicApi).sort()).toEqual([
+      "FeePolicyError",
+      "FileChangedDuringHashError",
+      "InsufficientFundsError",
+      "InvalidSignerSignatureError",
+      "NonceConflictError",
+      "SignerMismatchError",
+      "createFastSdkProviderAdapter",
+      "createFileJournal",
+      "createRecordClient",
+      "createSignClient",
+      "hashFile",
+      "recoverSettlement",
+      "registerReceipt",
+      "verifyReceipt",
+    ]);
+    expect(publicApi).not.toHaveProperty("prepareExternalClaimTransaction");
+    expect(publicApi).not.toHaveProperty("encodeAttestationV3");
   });
 });

@@ -24,3 +24,49 @@ export class InvalidSignerSignatureError extends Error {
     this.name = "InvalidSignerSignatureError";
   }
 }
+
+export class NonceConflictError extends Error {
+  constructor(
+    public readonly expectedNonce: bigint | null,
+    options?: { cause?: unknown },
+  ) {
+    super(
+      expectedNonce === null
+        ? "nonce conflict: account nonce advanced since prepare"
+        : `nonce conflict: account expects nonce ${expectedNonce}`,
+      options,
+    );
+    this.name = "NonceConflictError";
+  }
+}
+
+/** Normalize across duplicate Effect/Fast SDK dependency instances by stable tag. */
+export function asNonceConflict(error: unknown): NonceConflictError | null {
+  if (!error || typeof error !== "object" || !("_tag" in error)) return null;
+  const tag = (error as { _tag?: unknown })._tag;
+  if (tag !== "UnexpectedNonceError" && tag !== "ProxyUnexpectedNonceError") return null;
+  const expected = (error as { expectedNonce?: unknown }).expectedNonce;
+  return new NonceConflictError(typeof expected === "bigint" ? expected : null, { cause: error });
+}
+
+export class InsufficientFundsError extends Error {
+  constructor(
+    public readonly tokenId: string | null,
+    options?: { cause?: unknown },
+  ) {
+    super("the account cannot fund the configured settlement fee", options);
+    this.name = "InsufficientFundsError";
+  }
+}
+
+export function asInsufficientFunds(
+  error: unknown,
+  tokenId: string | null,
+): InsufficientFundsError | null {
+  if (!error || typeof error !== "object") return null;
+  const details = (error as { details?: unknown }).details;
+  if (!details || typeof details !== "object" || !("InsufficientFundingForFee" in details)) {
+    return null;
+  }
+  return new InsufficientFundsError(tokenId, { cause: error });
+}

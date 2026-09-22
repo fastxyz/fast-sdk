@@ -11,6 +11,7 @@ import { resolveSigner } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
 import { HistoryStore, recordConfirmedHistory } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
+import { findRequestedTokenMetadata } from '../../services/token-metadata.js';
 import { resolveToken } from '../../services/token-resolver.js';
 import { submitOperation } from '../../services/tx-pipeline.js';
 import type { Command } from '../index.js';
@@ -111,15 +112,15 @@ export const tokenManage: Command<TokenManageArgs> = {
           ]
         >;
       };
-      const found = info.requestedTokenMetadata?.[0];
-      if (!found || !found[1]) {
+      const metadata = findRequestedTokenMetadata(info.requestedTokenMetadata, tokenId);
+      if (!metadata) {
         return yield* Effect.fail(new TokenNotFoundError({ token: args.token }));
       }
       // Validator expects the operation to carry the token's CURRENT updateId
       // (it increments after settlement). Submitting current + 1 is rejected.
       // See fastset-multisig-cli/src/main.rs (uses current_update_id verbatim)
       // and fastset validator_tests confirming sequential ops use 0, 1, 2,...
-      const currentUpdateId = found[1].updateId;
+      const currentUpdateId = metadata.updateId;
 
       const addMinters = splitAddrs(args.addMinters);
       const removeMinters = splitAddrs(args.removeMinters);
@@ -163,10 +164,10 @@ export const tokenManage: Command<TokenManageArgs> = {
       });
 
       const accountInfo = yield* accounts.resolveAccount(config.account);
-      if (toHex(found[1].admin) !== toHex(fromFastAddress(accountInfo.fastAddress))) {
+      if (toHex(metadata.admin) !== toHex(fromFastAddress(accountInfo.fastAddress))) {
         return yield* Effect.fail(
           new InvalidUsageError({
-            message: `Account ${accountInfo.fastAddress} is not the current token admin (${toFastAddress(found[1].admin)}).`,
+            message: `Account ${accountInfo.fastAddress} is not the current token admin (${toFastAddress(metadata.admin)}).`,
           }),
         );
       }

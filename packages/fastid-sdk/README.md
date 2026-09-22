@@ -35,6 +35,11 @@ DOI imports, profile updates, revocation, sealed reports and sharing URLs. Use
 `fast:mainnet` when intending to use production. Paid operations use the supplied
 signer; preserve pending or indeterminate results instead of paying again.
 `retryRegistration` retries registration only and never submits another payment.
+When a paid submission is indeterminate, `IndeterminateSubmissionError` exposes
+`nonce`, `txIdHex`, and `recoveryEnvelope` (also grouped as `recovery`) for
+reconciliation. The envelope is an in-memory structured clone of the signed
+submission, not a JSON-safe persistence record; do not create another paid
+transaction until the original has been reconciled.
 `claimName()` performs a fail-closed identity preflight: a transport failure,
 invalid HTTP status, malformed response, or wrong-account/network response stops
 before availability, fee resolution, signing, provider submission, or registration.

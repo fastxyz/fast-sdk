@@ -11,6 +11,7 @@ import { resolveSigner } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
 import { HistoryStore, recordConfirmedHistory } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
+import { findRequestedTokenMetadata } from '../../services/token-metadata.js';
 import { resolveToken } from '../../services/token-resolver.js';
 import { submitOperation } from '../../services/tx-pipeline.js';
 import type { Command } from '../index.js';
@@ -99,11 +100,11 @@ export const tokenMint: Command<TokenMintArgs> = {
           ]
         >;
       };
-      const found = info.requestedTokenMetadata?.[0];
-      if (!found || !found[1]) {
+      const metadata = findRequestedTokenMetadata(info.requestedTokenMetadata, tokenId);
+      if (!metadata) {
         return yield* Effect.fail(new TokenNotFoundError({ token: args.token }));
       }
-      decimals = found[1].decimals;
+      decimals = metadata.decimals;
 
       const amount = yield* Effect.try({
         try: () => parseAmount(args.amount, decimals),
@@ -112,7 +113,7 @@ export const tokenMint: Command<TokenMintArgs> = {
 
       const accountInfo = yield* accounts.resolveAccount(config.account);
       const accountBytes = fromFastAddress(accountInfo.fastAddress);
-      const isMinter = found[1].mints.some((minter) => toHex(minter) === toHex(accountBytes));
+      const isMinter = metadata.mints.some((minter) => toHex(minter) === toHex(accountBytes));
       if (!isMinter) {
         return yield* Effect.fail(
           new InvalidUsageError({

@@ -1,7 +1,16 @@
 import type { ClaimDataKind } from "./claim-data.js";
 
+export interface SubmissionRecovery {
+  readonly nonce?: bigint;
+  readonly txIdHex: string;
+  readonly recoveryEnvelope: unknown;
+}
+
 export class NotSettledError extends Error {
-  constructor(public readonly tag: string) {
+  constructor(
+    public readonly tag: string,
+    public readonly recovery?: SubmissionRecovery,
+  ) {
     super(`transaction was not settled: ${tag}`);
     this.name = "NotSettledError";
   }
@@ -71,6 +80,7 @@ export class SettlementMismatchError extends Error {
   constructor(
     public readonly submittedTxId: string,
     public readonly certTxId: string,
+    public readonly recovery?: SubmissionRecovery,
   ) {
     super(
       `settled certificate does not match the submitted transaction (submitted ${submittedTxId}, certificate ${certTxId})`,
@@ -83,6 +93,7 @@ export class WrongNetworkError extends Error {
   constructor(
     public readonly expected: string,
     public readonly actual: string,
+    public readonly recovery?: SubmissionRecovery,
   ) {
     super(`settled certificate is for network ${actual}, expected ${expected}`);
     this.name = "WrongNetworkError";
@@ -169,17 +180,25 @@ export class InvalidSignerError extends PreSubmitError {
 /** Provider submission may have reached settlement. Never treat this as permission to pay again. */
 export class IndeterminateSubmissionError extends Error {
   readonly mayHavePaid = true;
+  readonly recovery?: SubmissionRecovery;
+  readonly nonce?: bigint;
+  readonly txIdHex?: string;
+  readonly recoveryEnvelope?: unknown;
 
   constructor(
     public readonly network: string,
     public readonly address: string,
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; recovery?: SubmissionRecovery },
   ) {
     super(
       "claim submission outcome is indeterminate; check the address and transaction state before attempting another paid claim",
       options,
     );
     this.name = "IndeterminateSubmissionError";
+    this.recovery = options?.recovery;
+    this.nonce = options?.recovery?.nonce;
+    this.txIdHex = options?.recovery?.txIdHex;
+    this.recoveryEnvelope = options?.recovery?.recoveryEnvelope;
   }
 }
 

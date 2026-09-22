@@ -19,6 +19,7 @@ import { NetworkConfigService } from '../../src/services/storage/network.js';
 const seed = (value: number) => new Uint8Array(32).fill(value);
 const tokenId = new Uint8Array(32).fill(0xee);
 const tokenHex = `0x${'ee'.repeat(32)}`;
+const otherTokenId = new Uint8Array(32).fill(0xdd);
 const nativeTokenHex = `0xfa575e70${'00'.repeat(28)}`;
 const invalidFastAddress = bech32m.encode('fast', bech32m.toWords(new Uint8Array(31)));
 
@@ -155,6 +156,13 @@ const tokenMetadata = (admin: Uint8Array, mints: readonly Uint8Array[], updateId
   ],
 });
 
+const reorderedTokenMetadata = (admin: Uint8Array, mints: readonly Uint8Array[], updateId = 9n) => ({
+  requestedTokenMetadata: [
+    [otherTokenId, { updateId: 1n, decimals: 2, admin: seed(8), tokenName: 'OTHER', totalSupply: 0n, mints: [] }],
+    [tokenId, { updateId, decimals: 6, admin, tokenName: 'TEST', totalSupply: 0n, mints }],
+  ],
+});
+
 describe('token authority handlers', () => {
   it('token mint rejects a non-32-byte recipient before submission', async () => {
     const { layer } = await makeBaseLayer();
@@ -226,7 +234,7 @@ describe('token authority handlers', () => {
     const accountBytes = fromFastAddress(account.fastAddress);
     let submitted: unknown;
     const rpcLayer = Layer.succeed(FastRpc, {
-      getTokenInfo: () => Effect.succeed(tokenMetadata(new Uint8Array(32), [accountBytes])),
+      getTokenInfo: () => Effect.succeed(reorderedTokenMetadata(new Uint8Array(32), [accountBytes])),
       getAccountInfo: () => Effect.succeed({ nextNonce: 0n, pendingConfirmation: null }),
       getPendingMultisigTransactions: () => Effect.succeed([]),
       submitTransaction: (envelope: unknown) =>
@@ -251,6 +259,31 @@ describe('token authority handlers', () => {
     const operation = (submitted as { transaction: { value: { claims: readonly [{ type: string; value: { amount: bigint } }] } } }).transaction.value
       .claims[0];
     expect(operation.type).toBe('Mint');
+    expect(operation.value.amount).toBe(1_250_000n);
+  });
+
+  it('token burn selects decimals from the requested token, not row zero', async () => {
+    const { account, layer } = await makeBaseLayer();
+    let submitted: unknown;
+    const rpcLayer = Layer.succeed(FastRpc, {
+      getTokenInfo: () => Effect.succeed(reorderedTokenMetadata(fromFastAddress(account.fastAddress), [])),
+      getAccountInfo: () => Effect.succeed({ nextNonce: 0n, pendingConfirmation: null }),
+      submitTransaction: (envelope: unknown) =>
+        Effect.sync(() => {
+          submitted = envelope;
+          return { type: 'Success', value: { envelope } };
+        }),
+    } as never);
+
+    await Effect.runPromise(
+      tokenBurn
+        .handler({ token: tokenHex, amount: '1.25', replacePending: false } as never)
+        .pipe(Effect.provide(Layer.merge(layer, rpcLayer))),
+    );
+
+    const operation = (submitted as { transaction: { value: { claims: readonly [{ type: string; value: { amount: bigint } }] } } }).transaction
+      .value.claims[0];
+    expect(operation.type).toBe('Burn');
     expect(operation.value.amount).toBe(1_250_000n);
   });
 
@@ -339,7 +372,7 @@ describe('token authority handlers', () => {
     const accountBytes = fromFastAddress(account.fastAddress);
     let submitted: unknown;
     const rpcLayer = Layer.succeed(FastRpc, {
-      getTokenInfo: () => Effect.succeed(tokenMetadata(accountBytes, [], 42n)),
+      getTokenInfo: () => Effect.succeed(reorderedTokenMetadata(accountBytes, [], 42n)),
       getAccountInfo: () => Effect.succeed({ nextNonce: 0n, pendingConfirmation: null }),
       submitTransaction: (envelope: unknown) =>
         Effect.sync(() => {

@@ -15,6 +15,7 @@ import {
 import {
   ClaimNotHeldError,
   FeeUnavailableError,
+  NotSettledError,
   IndeterminateSubmissionError,
   InsufficientFundsError,
   InvalidClaimError,
@@ -28,8 +29,10 @@ import {
   PropertyAlreadyClaimedError,
   RegistrationPendingError,
   RegistrationTerminalError,
+  SettlementMismatchError,
   SigningError,
   type PendingRegistrationShape,
+  WrongNetworkError,
 } from "./errors.js";
 import type { IdNetworkConfig } from "./networks.js";
 import type { IdReads } from "./reads.js";
@@ -37,6 +40,7 @@ import type { Signer } from "./signer.js";
 import {
   buildExternalClaimBytes,
   getNextNonce,
+  IndeterminateProviderSubmissionError,
   submitSignedClaim,
 } from "./claim-tx.js";
 import { verifyStrict } from "./verify.js";
@@ -398,14 +402,22 @@ export class ClaimService {
     } catch (cause) {
       if (
         cause instanceof NonceConflictError ||
-        cause instanceof InsufficientFundsError
+        cause instanceof InsufficientFundsError ||
+        cause instanceof PreSubmitError
       ) {
         throw cause;
       }
+      const recovery =
+        cause instanceof IndeterminateProviderSubmissionError ||
+        cause instanceof NotSettledError ||
+        cause instanceof SettlementMismatchError ||
+        cause instanceof WrongNetworkError
+          ? cause.recovery
+          : undefined;
       throw new IndeterminateSubmissionError(
         this.#config.networkId,
         this.#signer.address,
-        { cause },
+        { cause, recovery },
       );
     }
 

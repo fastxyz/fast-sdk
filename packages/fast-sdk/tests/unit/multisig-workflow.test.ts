@@ -127,6 +127,21 @@ describe('MultiSigWorkflow', () => {
     });
   });
 
+  it('normalizes an unclonable prepared payload as a mismatch', async () => {
+    const { config, first } = await fixture();
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({}),
+      networkId: 'fast:testnet',
+      config,
+    });
+    const prepared = await workflow.prepare({ signer: first, operations: [transfer] });
+    (prepared.transaction.value as unknown as { invalid: () => void }).invalid = () => undefined;
+
+    await expect(workflow.submitPrepared({ signer: first, prepared })).rejects.toMatchObject({
+      code: 'PREPARED_PAYLOAD_MISMATCH',
+    });
+  });
+
   it('snapshots prepared bytes before awaiting so concurrent caller mutation cannot change the signature', async () => {
     const { config, first } = await fixture();
     const submitted: TransactionEnvelope[] = [];
@@ -250,6 +265,45 @@ describe('MultiSigWorkflow', () => {
     expect(pending.transaction.value.nonce).toBe(10n);
     expect(submitted[0]!.transaction.value.nonce).toBe(9n);
     expect(result.txHash).toBe(await getMultiSigTransactionHash(submitted[0]!.transaction));
+  });
+
+  it('rejects a pending envelope that changes to a non-current nonce before snapshot', async () => {
+    const { config, first, second } = await fixture();
+    const pending = await first.signTransaction({ networkId: 'fast:testnet', nonce: 9n, operations: [transfer] });
+    const mutated = structuredClone(pending);
+    (mutated.transaction.value as { nonce: bigint }).nonce = 10n;
+    const mutatedHash = await getMultiSigTransactionHash(mutated.transaction);
+    let nonceReads = 0;
+    Object.defineProperty(pending.transaction.value, 'nonce', {
+      configurable: true,
+      enumerable: true,
+      get: () => (nonceReads++ === 0 ? 9n : 10n),
+    });
+    const submitted: TransactionEnvelope[] = [];
+    let signCalls = 0;
+    const signer = {
+      config: second.config,
+      signEnvelopeFor: async (transaction: Parameters<MultiSigSigner['signEnvelopeFor']>[0]) => {
+        signCalls += 1;
+        return second.signEnvelopeFor(transaction);
+      },
+    } as MultiSigSigner;
+    const workflow = new MultiSigWorkflow({
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 9n, pendingConfirmation: null }),
+        getPendingMultisigTransactions: async () => [pending],
+        submitTransaction: async (envelope: TransactionEnvelope) => {
+          submitted.push(envelope);
+          return { type: 'Success', value: {} } as SubmitTransactionResult;
+        },
+      } as never,
+      networkId: 'fast:testnet',
+      config,
+    });
+
+    await expect(workflow.vote({ signer, txHash: mutatedHash })).rejects.toMatchObject({ code: 'STALE_NONCE' });
+    expect(signCalls).toBe(0);
+    expect(submitted).toHaveLength(0);
   });
 
   it('captures the requested vote hash before provider awaits', async () => {

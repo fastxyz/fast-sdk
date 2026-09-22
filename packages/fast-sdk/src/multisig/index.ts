@@ -314,10 +314,16 @@ export class MultiSigWorkflow {
     const prepared = params.prepared;
     const replacePending = params.replacePending;
     const privateState = preparedState.get(prepared);
-    const publicTransaction = structuredClone(prepared.transaction);
-    const publicHash = prepared.txHash;
     if (privateState == null) {
       throw new MultiSigWorkflowError('PREPARED_PAYLOAD_MISMATCH', 'Prepared transaction was not created by this workflow.');
+    }
+    let publicTransaction: VersionedTransaction;
+    let publicHash: string;
+    try {
+      publicTransaction = structuredClone(prepared.transaction);
+      publicHash = prepared.txHash;
+    } catch {
+      throw new MultiSigWorkflowError('PREPARED_PAYLOAD_MISMATCH', 'Prepared transaction does not match its private snapshot.');
     }
     const transaction = structuredClone(privateState.transaction);
     const expectedHash = privateState.txHash;
@@ -394,6 +400,12 @@ export class MultiSigWorkflow {
     const snapshotHash = await getMultiSigTransactionHash(envelopeSnapshot.transaction);
     if (normalizeTxHash(snapshotHash) !== normalized) {
       throw new MultiSigWorkflowError('TRANSACTION_NOT_FOUND', `No current proposal matches ${requestedTxHash}.`);
+    }
+    if (envelopeSnapshot.transaction.value.nonce !== state.nextNonce) {
+      throw new MultiSigWorkflowError(
+        'STALE_NONCE',
+        `Pending nonce ${envelopeSnapshot.transaction.value.nonce} no longer matches current nonce ${state.nextNonce}.`,
+      );
     }
     this.assertEnvelope(envelopeSnapshot, state.address);
     const envelope = await signer.signEnvelopeFor(envelopeSnapshot.transaction);

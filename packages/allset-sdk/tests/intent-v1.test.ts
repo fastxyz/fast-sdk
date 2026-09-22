@@ -495,7 +495,12 @@ test('the published JSON Schema accepts every accept fixture and rejects structu
   }
 
   const kinds = ['withdraw', 'execute', 'deposit_back', 'revoke', 'batch'] as const;
-  for (const [name, claim] of Object.entries(VECTORS)) {
+  for (const name of Object.keys(VECTORS)) {
+    const claim = JSON.parse(readFileSync(`${VECTOR_DIRECTORY}${name}.json`, 'utf8')) as {
+      kind: (typeof kinds)[number];
+      [key: string]: unknown;
+    };
+    assert.ok(validate(claim), `${name} wire fixture must be valid before changing kind`);
     for (const kind of kinds) {
       if (kind === claim.kind) continue;
       assert.ok(!validate({ ...claim, kind }), `${name} must reject kind ${kind}`);

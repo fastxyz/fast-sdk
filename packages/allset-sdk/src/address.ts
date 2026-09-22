@@ -10,10 +10,18 @@ export function fastAddressToBytes(address: string): Uint8Array {
 }
 
 export function fastAddressToBytes32(address: string): Hex {
-  return toHex(fastAddressToBytes(address)) as Hex;
+  const bytes = fastAddressToBytes(address);
+  if (bytes.byteLength !== 32) {
+    throw new Error(`Invalid Fast address: expected 32 bytes, got ${bytes.byteLength}`);
+  }
+  return toHex(bytes) as Hex;
 }
 
 /** Inverse of fastAddressToBytes32. */
 export function bytes32ToFastAddress(bytes32: Hex): string {
-  return toFastAddress(hexToBytes(bytes32));
+  const bytes = hexToBytes(bytes32);
+  if (bytes.byteLength !== 32) {
+    throw new Error(`Invalid bytes32 value: expected 32 bytes, got ${bytes.byteLength}`);
+  }
+  return toFastAddress(bytes);
 }

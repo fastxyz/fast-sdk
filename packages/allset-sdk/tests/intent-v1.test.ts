@@ -235,7 +235,7 @@ test('validation enforces the shared domains and derives batch for two or more i
     /fast_receiver/,
   );
   assert.equal((fastAddressToBytes32(FAST_RECEIVER).length - 2) / 2, 32);
-  assert.equal((fastAddressToBytes32(SHORT_FAST_RECEIVER).length - 2) / 2, 31);
+  assert.throws(() => fastAddressToBytes32(SHORT_FAST_RECEIVER), /32 bytes/);
   assert.doesNotThrow(() =>
     encodeIntentClaimV1({
       ...withdraw,
@@ -322,6 +322,17 @@ const PREP = { chainId: 5042, bridgeContract: BRIDGE, deadlineSeconds: 3600, now
 
 test('bytes32ToFastAddress inverts fastAddressToBytes32', () => {
   assert.equal(bytes32ToFastAddress(fastAddressToBytes32(FAST_RECEIVER)), FAST_RECEIVER);
+});
+
+test('bytes32ToFastAddress rejects non-32-byte values', () => {
+  assert.throws(
+    () => bytes32ToFastAddress(('0x' + '11'.repeat(31)) as `0x${string}`),
+    /32 bytes/,
+  );
+  assert.throws(
+    () => bytes32ToFastAddress(('0x' + '11'.repeat(33)) as `0x${string}`),
+    /32 bytes/,
+  );
 });
 
 test('intentsToV1 lifts legacy intents, preserves value, and rejects non-canonical or malformed ones', () => {

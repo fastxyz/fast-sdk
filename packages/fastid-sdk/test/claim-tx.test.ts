@@ -141,6 +141,7 @@ describe("submitSignedClaim settlement guards", () => {
     expect(error).toBeInstanceOf(SettlementMismatchError);
     if (!(error instanceof SettlementMismatchError)) throw new Error("expected settlement mismatch");
     expect(error.recovery).toMatchObject({ txIdHex: "aa".repeat(32) });
+    if (!error.recovery) throw new Error("expected settlement recovery");
     expect(error.recovery.recoveryEnvelope).toEqual(submittedEnvelope);
   });
 
@@ -162,6 +163,7 @@ describe("submitSignedClaim settlement guards", () => {
     expect(error).toBeInstanceOf(WrongNetworkError);
     if (!(error instanceof WrongNetworkError)) throw new Error("expected wrong network");
     expect(error.recovery).toMatchObject({ txIdHex: "aa".repeat(32) });
+    if (!error.recovery) throw new Error("expected network recovery");
     expect(error.recovery.recoveryEnvelope).toEqual(submittedEnvelope);
   });
 

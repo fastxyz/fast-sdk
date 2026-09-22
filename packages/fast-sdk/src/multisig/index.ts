@@ -461,6 +461,25 @@ export class MultiSigWorkflow {
       };
     }
     if (submitResult.type === 'Success') {
+      let certificateHash: string;
+      try {
+        certificateHash = await getMultiSigTransactionHash(submitResult.value.envelope.transaction);
+      } catch {
+        throw new MultiSigSubmissionUnknownError({
+          txHash,
+          nonce: recoveryEnvelope.transaction.value.nonce,
+          envelope: recoveryEnvelope,
+          cause: new MultiSigWorkflowError('UNEXPECTED_SUBMIT_RESULT', 'Success certificate transaction could not be correlated.'),
+        });
+      }
+      if (normalizeTxHash(certificateHash) !== normalizeTxHash(txHash)) {
+        throw new MultiSigSubmissionUnknownError({
+          txHash,
+          nonce: recoveryEnvelope.transaction.value.nonce,
+          envelope: recoveryEnvelope,
+          cause: new MultiSigWorkflowError('UNEXPECTED_SUBMIT_RESULT', 'Success certificate transaction does not match the submitted transaction.'),
+        });
+      }
       return {
         status: 'submitted',
         envelope: recoveryEnvelope,

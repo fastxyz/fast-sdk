@@ -45,12 +45,21 @@ const transfer = {
   },
 };
 
+const successCertificate = (envelope: TransactionEnvelope): SubmitTransactionResult =>
+  ({
+    type: 'Success',
+    value: {
+      envelope,
+      signatures: envelope.signature.type === 'MultiSig' ? envelope.signature.value.signatures : [],
+    },
+  }) as SubmitTransactionResult;
+
 const makeProvider = (state: {
   nextNonce?: bigint;
   pendingConfirmation?: unknown | null;
   pending?: TransactionEnvelope[];
   pendingSequence?: TransactionEnvelope[][];
-  submitResult?: SubmitTransactionResult;
+  submitResult?: SubmitTransactionResult | ((envelope: TransactionEnvelope) => SubmitTransactionResult);
   submitError?: unknown;
   onGetAccountInfo?: () => void;
   submitMutate?: (envelope: TransactionEnvelope) => void;
@@ -76,7 +85,8 @@ const makeProvider = (state: {
         state.submitted?.push(envelope);
         state.submitMutate?.(envelope);
         if (state.submitError !== undefined) throw state.submitError;
-        return state.submitResult ?? ({ type: 'IncompleteMultiSig', value: null } as SubmitTransactionResult);
+        const submitResult = typeof state.submitResult === 'function' ? state.submitResult(envelope) : state.submitResult;
+        return submitResult ?? ({ type: 'IncompleteMultiSig', value: null } as SubmitTransactionResult);
       },
     };
   })() as never;
@@ -109,6 +119,30 @@ describe('MultiSigWorkflow', () => {
     expect(submitted).toHaveLength(1);
     expect(submitted[0]!.transaction).not.toBe(prepared.transaction);
     expect(submitted[0]!.transaction).toEqual(prepared.transaction);
+  });
+
+  it('rejects a success certificate for a different transaction and preserves recovery identity', async () => {
+    const { config, first } = await fixture();
+    const wrongCertificate = await first.signTransaction({
+      networkId: 'fast:testnet',
+      nonce: 9n,
+      operations: [{ ...transfer, value: { ...transfer.value, amount: 8n } }],
+    });
+    const submitted: TransactionEnvelope[] = [];
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({ submitted, submitResult: () => successCertificate(wrongCertificate) }),
+      networkId: 'fast:testnet',
+      config,
+    });
+
+    const error = await workflow.initiate({ signer: first, operations: [transfer] }).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(MultiSigSubmissionUnknownError);
+    expect(submitted).toHaveLength(1);
+    const submittedHash = await getMultiSigTransactionHash(submitted[0]!.transaction);
+    expect((error as MultiSigSubmissionUnknownError).txHash).toBe(submittedHash);
+    expect((error as MultiSigSubmissionUnknownError).envelope).toEqual(submitted[0]);
+    expect((error as MultiSigSubmissionUnknownError).cause).toMatchObject({ code: 'UNEXPECTED_SUBMIT_RESULT' });
   });
 
   it('rejects a payload changed before submission with a dedicated stable code', async () => {
@@ -225,7 +259,7 @@ describe('MultiSigWorkflow', () => {
       provider: makeProvider({
         pending: [pending],
         submitted,
-        submitResult: { type: 'Success', value: {} } as SubmitTransactionResult,
+        submitResult: successCertificate,
       }),
       networkId: 'fast:testnet',
       config,
@@ -247,7 +281,7 @@ describe('MultiSigWorkflow', () => {
     const pending = await first.signTransaction({ networkId: 'fast:testnet', nonce: 9n, operations: [transfer] });
     const submitted: TransactionEnvelope[] = [];
     const workflow = new MultiSigWorkflow({
-      provider: makeProvider({ pending: [pending], submitted, submitResult: { type: 'Success', value: {} } as SubmitTransactionResult }),
+      provider: makeProvider({ pending: [pending], submitted, submitResult: successCertificate }),
       networkId: 'fast:testnet',
       config,
     });
@@ -294,7 +328,7 @@ describe('MultiSigWorkflow', () => {
         getPendingMultisigTransactions: async () => [pending],
         submitTransaction: async (envelope: TransactionEnvelope) => {
           submitted.push(envelope);
-          return { type: 'Success', value: {} } as SubmitTransactionResult;
+          return successCertificate(envelope);
         },
       } as never,
       networkId: 'fast:testnet',
@@ -322,7 +356,7 @@ describe('MultiSigWorkflow', () => {
       provider: makeProvider({
         pending: [proposalA, proposalB],
         submitted,
-        submitResult: { type: 'Success', value: {} } as SubmitTransactionResult,
+        submitResult: successCertificate,
         onGetAccountInfo: () => (params.txHash = hashB),
       }),
       networkId: 'fast:testnet',

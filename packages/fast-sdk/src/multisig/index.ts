@@ -13,6 +13,7 @@ import { Schema } from 'effect';
 import { hashHex } from '../interface/encode.js';
 import { deriveMultiSigAddressBytes, type MultiSigConfig, MultiSigSigner, validateMultiSigConfig } from '../interface/multisig-signer.js';
 import type { FastProvider } from '../interface/provider.js';
+import { InvalidRequestError, ProxyUnexpectedNonceError } from '../core/error/proxy.js';
 import { run } from '../core/run.js';
 
 export { MultiSigConfigInvalidError, MultiSigSigner, NotAuthorizedSignerError, validateMultiSigConfig } from '../interface/multisig-signer.js';
@@ -134,6 +135,8 @@ export interface VoteMultiSigTransactionParams {
 }
 
 type WorkflowProvider = Pick<FastProvider, 'getAccountInfo' | 'getPendingMultisigTransactions' | 'submitTransaction'>;
+
+const preparedReplacementAllowlist = new WeakMap<PreparedMultiSigTransaction, readonly string[]>();
 
 export interface MultiSigWorkflowOptions {
   readonly provider: WorkflowProvider;
@@ -258,12 +261,14 @@ export class MultiSigWorkflow {
       archival: params.archival,
       feeToken: params.feeToken,
     });
-    return {
+    const prepared = {
       transaction,
       txHash: await getMultiSigTransactionHash(transaction),
       nonce: state.nextNonce,
       replacedProposalHashes: state.pending.map((entry) => entry.txHash),
     };
+    preparedReplacementAllowlist.set(prepared, Object.freeze(prepared.replacedProposalHashes.map(normalizeTxHash)));
+    return prepared;
   }
 
   /** Sign and submit the exact transaction returned by {@link prepare}. */
@@ -273,7 +278,7 @@ export class MultiSigWorkflow {
     // integrity validation and signature serialization.
     const transaction = structuredClone(params.prepared.transaction);
     const expectedHash = params.prepared.txHash;
-    const replacedProposalHashes = params.prepared.replacedProposalHashes.map(normalizeTxHash);
+    const replacedProposalHashes = preparedReplacementAllowlist.get(params.prepared) ?? [];
     this.assertSigner(params.signer);
     const preparedHash = await getMultiSigTransactionHash(transaction);
     if (preparedHash !== expectedHash) {
@@ -325,9 +330,14 @@ export class MultiSigWorkflow {
       throw new MultiSigWorkflowError('AMBIGUOUS_PENDING_TRANSACTION', 'Multiple proposals exist at the current nonce; select one by txHash.');
     }
     const selected = candidates[0]!;
-    this.assertEnvelope(selected.envelope, state.address);
-    const envelope = await params.signer.signEnvelopeFor(selected.envelope.transaction);
-    return this.submit(envelope, selected.txHash);
+    const envelopeSnapshot = structuredClone(selected.envelope);
+    const snapshotHash = await getMultiSigTransactionHash(envelopeSnapshot.transaction);
+    if (normalizeTxHash(snapshotHash) !== normalized) {
+      throw new MultiSigWorkflowError('TRANSACTION_NOT_FOUND', `No current proposal matches ${params.txHash}.`);
+    }
+    this.assertEnvelope(envelopeSnapshot, state.address);
+    const envelope = await params.signer.signEnvelopeFor(envelopeSnapshot.transaction);
+    return this.submit(envelope, snapshotHash);
   }
 
   private assertTransaction(transaction: VersionedTransaction): void {
@@ -357,6 +367,9 @@ export class MultiSigWorkflow {
     try {
       submitResult = await this.provider.submitTransaction(envelope);
     } catch (cause) {
+      if (cause instanceof ProxyUnexpectedNonceError || cause instanceof InvalidRequestError) {
+        throw cause;
+      }
       throw new MultiSigSubmissionUnknownError({
         txHash,
         nonce: envelope.transaction.value.nonce,

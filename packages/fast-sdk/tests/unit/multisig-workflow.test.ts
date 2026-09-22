@@ -1,6 +1,7 @@
 import type { SubmitTransactionResult, TransactionEnvelope } from '@fastxyz/schema';
 import { getPublicKeyAsync } from '@noble/ed25519';
 import { describe, expect, it } from 'vitest';
+import { InvalidRequestError, ProxyUnexpectedNonceError } from '../../src/core/error/proxy.js';
 import { canonicalizeMultiSigSigners, type MultiSigConfig, MultiSigSigner } from '../../src/interface/multisig-signer.js';
 import {
   getMultiSigTransactionHash,
@@ -152,6 +153,28 @@ describe('MultiSigWorkflow', () => {
     expect(prepared.replacedProposalHashes).toHaveLength(1);
   });
 
+  it('does not trust a caller-mutated replacement allowlist', async () => {
+    const { config, first } = await fixture();
+    const original = await first.signTransaction({ networkId: 'fast:testnet', nonce: 9n, operations: [transfer] });
+    const replacement = await first.signTransaction({
+      networkId: 'fast:testnet',
+      nonce: 9n,
+      operations: [{ ...transfer, value: { ...transfer.value, amount: 8n } }],
+    });
+    const replacementHash = await getMultiSigTransactionHash(replacement.transaction);
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({ pendingSequence: [[original], [original, replacement]] }),
+      networkId: 'fast:testnet',
+      config,
+    });
+    const prepared = await workflow.prepare({ signer: first, operations: [transfer], replacePending: true });
+    (prepared.replacedProposalHashes as string[]).push(replacementHash);
+
+    await expect(workflow.submitPrepared({ signer: first, prepared, replacePending: true })).rejects.toMatchObject({
+      code: 'PENDING_REPLACEMENT',
+    });
+  });
+
   it('votes on a bound current-nonce proposal and supports deliberate retry', async () => {
     const { config, first, second } = await fixture();
     const pending = await first.signTransaction({ networkId: 'fast:testnet', nonce: 9n, operations: [transfer] });
@@ -175,6 +198,31 @@ describe('MultiSigWorkflow', () => {
     expect(submitted).toHaveLength(2);
     expect(submitted[0]!.transaction).toEqual(pending.transaction);
     expect(submitted[1]!.transaction).toEqual(pending.transaction);
+  });
+
+  it('votes over a private envelope snapshot when the provider object changes during signing', async () => {
+    const { config, first, second } = await fixture();
+    const pending = await first.signTransaction({ networkId: 'fast:testnet', nonce: 9n, operations: [transfer] });
+    const submitted: TransactionEnvelope[] = [];
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({ pending: [pending], submitted, submitResult: { type: 'Success', value: {} } as SubmitTransactionResult }),
+      networkId: 'fast:testnet',
+      config,
+    });
+    const txHash = await getMultiSigTransactionHash(pending.transaction);
+    const mutatingSigner = {
+      config: second.config,
+      signEnvelopeFor: async (transaction: Parameters<MultiSigSigner['signEnvelopeFor']>[0]) => {
+        (pending.transaction.value as { nonce: bigint }).nonce = 10n;
+        return second.signEnvelopeFor(transaction);
+      },
+    } as MultiSigSigner;
+
+    const result = await workflow.vote({ signer: mutatingSigner, txHash });
+
+    expect(pending.transaction.value.nonce).toBe(10n);
+    expect(submitted[0]!.transaction.value.nonce).toBe(9n);
+    expect(result.txHash).toBe(await getMultiSigTransactionHash(submitted[0]!.transaction));
   });
 
   it('requires an explicit non-empty transaction hash before voting', async () => {
@@ -242,6 +290,21 @@ describe('MultiSigWorkflow', () => {
       expect((error as MultiSigSubmissionUnknownError).cause).toBe(submitError);
       return true;
     });
+  });
+
+  it.each([
+    ['proxy nonce rejection', () => new ProxyUnexpectedNonceError({ message: 'nonce rejected', txNonce: 9n, expectedNonce: 10n })],
+    ['invalid request rejection', () => new InvalidRequestError({ message: 'request rejected' })],
+  ])('preserves a definitive %s from submission', async (_label, makeError) => {
+    const { config, first } = await fixture();
+    const definitive = makeError();
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({ submitError: definitive }),
+      networkId: 'fast:testnet',
+      config,
+    });
+
+    await expect(workflow.initiate({ signer: first, operations: [transfer] })).rejects.toBe(definitive);
   });
 
   it('rejects a proposal from another sender before signing', async () => {

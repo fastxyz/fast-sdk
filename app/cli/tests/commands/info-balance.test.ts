@@ -13,7 +13,13 @@ import { NetworkConfigService } from '../../src/services/storage/network.js';
 const tokenA = new Uint8Array(32).fill(0x11);
 const tokenB = new Uint8Array(32).fill(0x22);
 
-const runBalanceScenario = async (metadataFailure: boolean) => {
+const runBalanceScenario = async (
+  metadataFailure: boolean,
+  metadataRows = [
+    [tokenB, { tokenName: 'TOKEN_B', decimals: 0 }],
+    [tokenA, { tokenName: 'TOKEN_A', decimals: 6 }],
+  ] as const,
+) => {
   const fastAddress = await new Signer(new Uint8Array(32).fill(1)).getFastAddress();
   const account: AccountInfo = {
     kind: 'multisig',
@@ -68,8 +74,7 @@ const runBalanceScenario = async (metadataFailure: boolean) => {
           ? Effect.fail(new FastSdkError({ message: 'metadata unavailable' }))
           : Effect.succeed({
               requestedTokenMetadata: [
-                [tokenB, { tokenName: 'TOKEN_B', decimals: 0 }],
-                [tokenA, { tokenName: 'TOKEN_A', decimals: 6 }],
+                ...metadataRows,
               ],
             });
       },
@@ -102,6 +107,21 @@ describe('info balance metadata', () => {
       expect.arrayContaining([
         { token: '0x111111111111…', networks: [{ network: 'Fast', balance: '1250000' }] },
         { token: '0x222222222222…', networks: [{ network: 'Fast', balance: '42' }] },
+      ]),
+    );
+  });
+
+  it('preserves raw Fast balances when metadata is duplicated', async () => {
+    const { result } = await runBalanceScenario(false, [
+      [tokenA, { tokenName: 'TOKEN_A', decimals: 6 }],
+      [tokenA, { tokenName: 'TOKEN_A_WRONG', decimals: 18 }],
+      [tokenB, { tokenName: 'TOKEN_B', decimals: 0 }],
+    ]);
+
+    expect(result.balances).toEqual(
+      expect.arrayContaining([
+        { token: '0x111111111111…', networks: [{ network: 'Fast', balance: '1250000' }] },
+        { token: 'TOKEN_B', networks: [{ network: 'Fast', balance: '42' }] },
       ]),
     );
   });

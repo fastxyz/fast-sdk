@@ -10,6 +10,7 @@ import { Output } from '../../services/output.js';
 import { ensureMultisigNetwork } from '../../services/signer-resolver.js';
 import { AccountStore } from '../../services/storage/account.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
+import { findRequestedTokenMetadata } from '../../services/token-metadata.js';
 
 const fromFastAddress = (address: string): Uint8Array => {
   const { prefix, words } = bech32m.decode(address);
@@ -136,7 +137,9 @@ export const infoBalance: Command<InfoBalanceArgs> = {
           .pipe(Effect.catchAll(() => Effect.succeed(null)))) as {
           requestedTokenMetadata?: ReadonlyArray<readonly [Uint8Array, { tokenName: string; decimals: number } | null]>;
         } | null;
-        for (const [tokenId, metadata] of tokenInfo?.requestedTokenMetadata ?? []) {
+        for (const tokenIdHex of unconfiguredIds) {
+          const tokenId = fromHex(tokenIdHex);
+          const metadata = findRequestedTokenMetadata(tokenInfo?.requestedTokenMetadata, tokenId);
           if (metadata) metadataById.set(bytesToHex(tokenId), metadata);
         }
       }

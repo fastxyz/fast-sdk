@@ -95,6 +95,35 @@ export interface SubmissionRecovery {
   readonly recoveryEnvelope: unknown;
 }
 
+const normalizeTxHash = (hash: string): string => {
+  const lower = hash.toLowerCase();
+  return lower.startsWith('0x') ? lower.slice(2) : lower;
+};
+
+/** Confirm that a Success certificate is for the exact submitted transaction and network. */
+export const successCertificateMatches = async (
+  submitResult: unknown,
+  expectedTxHash: string,
+  expectedNetwork: NetworkId,
+): Promise<boolean> => {
+  const result = submitResult as {
+    readonly type?: unknown;
+    readonly value?: { readonly envelope?: { readonly transaction?: unknown } };
+  } | null;
+  if (result?.type !== 'Success') return false;
+  const transaction = result.value?.envelope?.transaction;
+  if (!transaction || typeof transaction !== 'object') return false;
+  const networkId = (transaction as { readonly value?: { readonly networkId?: unknown } }).value?.networkId;
+  if (networkId !== expectedNetwork) return false;
+  try {
+    const certificateBytes = Schema.encodeSync(VersionedTransactionFromBcs)(transaction as never);
+    const certificateHash = await hashHex(bcsSchema.VersionedTransaction, certificateBytes);
+    return normalizeTxHash(certificateHash) === normalizeTxHash(expectedTxHash);
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Compute the immutable transaction identity and a JSON-safe representation of
  * the exact signed envelope before the mutable submit request begins.
@@ -323,6 +352,21 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
       return yield* Effect.fail(
         new TransactionFailedError({
           message: `Unexpected submit result: ${submitObj?.type ?? 'missing type'}`,
+        }),
+      );
+    }
+
+    const certificateMatches = yield* Effect.promise(() => successCertificateMatches(submitResult, recovery.txHash, params.networkId));
+    if (!certificateMatches) {
+      return yield* Effect.fail(
+        new TransactionSubmissionUnknownError({
+          txHash: recovery.txHash,
+          nonce,
+          envelope,
+          recoveryEnvelope: recovery.recoveryEnvelope,
+          cause: new TransactionFailedError({
+            message: 'Success certificate does not match the submitted transaction or network.',
+          }),
         }),
       );
     }

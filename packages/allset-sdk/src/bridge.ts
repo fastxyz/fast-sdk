@@ -1,11 +1,19 @@
-import { TransactionCertificateFromRpc } from "@fastxyz/schema";
-import { TransactionBuilder } from "@fastxyz/sdk";
+import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs, type TransactionEnvelope } from "@fastxyz/schema";
+import {
+  hashHex,
+  InvalidRequestError,
+  IpRateLimitedError,
+  ProxyUnexpectedNonceError,
+  ServiceUnavailableError,
+  TransactionBuilder,
+  VerifierSigsInvalidError,
+} from "@fastxyz/sdk";
 import { Schema } from "effect";
 import { decodeAbiParameters } from "viem";
 import { fastAddressToBytes } from "./address.js";
 import { encodeIntentClaim, extractClaimId } from "./claims.js";
 import { buildDepositTransaction } from "./deposit.js";
-import { FastError } from "./errors.js";
+import { FastError, IndeterminateTransactionError } from "./errors.js";
 import { ERC20_ABI, type EvmClients, estimateGasReserve, gasTokenErc20, weiToTokenUnits } from "./evm.js";
 import { InsufficientBalanceError } from "./eip7702.js";
 import { finishIntentClaimV1, prepareIntentClaimV1, type IntentV1 } from "./intent-v1.js";
@@ -87,6 +95,90 @@ function resolveV1ExternalAddress(
     if (intent.action === "execute") return intent.target as `0x${string}`;
   }
   return null;
+}
+
+function normalizeTransactionHash(hash: string): string {
+  const lower = hash.toLowerCase();
+  return lower.startsWith("0x") ? lower.slice(2) : lower;
+}
+
+type SubmissionIdentity = {
+  readonly txHash: string;
+  readonly networkId: string;
+  readonly envelope: TransactionEnvelope;
+};
+
+async function prepareSubmissionIdentity(
+  envelope: TransactionEnvelope,
+  networkId: string,
+): Promise<SubmissionIdentity> {
+  const snapshot = structuredClone(envelope);
+  const snapshotNetwork = snapshot.transaction.value.networkId;
+  if (snapshotNetwork !== networkId) {
+    throw new FastError("TX_FAILED", "Signed transaction network does not match the requested network.");
+  }
+  const bytes = Schema.encodeSync(VersionedTransactionFromBcs)(snapshot.transaction);
+  const txHash = await hashHex(bcsSchema.VersionedTransaction, bytes);
+  return { txHash, networkId, envelope: snapshot };
+}
+
+function isDefinitiveSubmissionRejection(cause: unknown): boolean {
+  return (
+    cause instanceof InvalidRequestError ||
+    cause instanceof IpRateLimitedError ||
+    cause instanceof ProxyUnexpectedNonceError ||
+    cause instanceof ServiceUnavailableError ||
+    cause instanceof VerifierSigsInvalidError
+  );
+}
+
+async function submitWithRecovery(
+  provider: Pick<ExecuteIntentParams["provider"], "submitTransaction">,
+  identity: SubmissionIdentity,
+  stage: "transfer" | "intent",
+  relatedTxHash?: string,
+) {
+  try {
+    return await provider.submitTransaction(structuredClone(identity.envelope));
+  } catch (cause) {
+    if (isDefinitiveSubmissionRejection(cause)) throw cause;
+    throw new IndeterminateTransactionError({
+      stage,
+      txHash: identity.txHash,
+      relatedTxHash,
+      recoveryEnvelope: identity.envelope,
+      cause,
+    });
+  }
+}
+
+async function successCertificateMatchesIdentity(
+  submitResult: unknown,
+  identity: Pick<SubmissionIdentity, "txHash" | "networkId">,
+): Promise<boolean> {
+  const result = submitResult as {
+    readonly type?: unknown;
+    readonly value?: { readonly envelope?: { readonly transaction?: unknown } };
+  } | null;
+  if (result?.type !== "Success") return false;
+
+  const certificateTransaction = result.value?.envelope?.transaction;
+  if (!certificateTransaction || typeof certificateTransaction !== "object") {
+    return false;
+  }
+
+  const certificateNetwork = (certificateTransaction as { readonly value?: { readonly networkId?: unknown } }).value?.networkId;
+  if (certificateNetwork !== identity.networkId) return false;
+
+  try {
+    const certificateHash = await hashHex(
+      bcsSchema.VersionedTransaction,
+      Schema.encodeSync(VersionedTransactionFromBcs)(certificateTransaction as never),
+    );
+    return normalizeTransactionHash(identity.txHash) === normalizeTransactionHash(certificateHash);
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -510,7 +602,8 @@ export async function executeIntent(
     })
     .sign();
 
-  const transferResult = await provider.submitTransaction(transferEnvelope);
+  const transferIdentity = await prepareSubmissionIdentity(transferEnvelope, networkId);
+  const transferResult = await submitWithRecovery(provider, transferIdentity, "transfer");
   if (transferResult.type !== "Success") {
     throw new FastError(
       "TX_FAILED",
@@ -520,6 +613,13 @@ export async function executeIntent(
       },
     );
   }
+  if (!(await successCertificateMatchesIdentity(transferResult, transferIdentity))) {
+    throw new IndeterminateTransactionError({
+      stage: 'transfer',
+      txHash: transferIdentity.txHash,
+      recoveryEnvelope: transferIdentity.envelope,
+    });
+  }
 
   // Step 2: Cross-sign the transfer certificate
   const transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
@@ -528,7 +628,9 @@ export async function executeIntent(
   const transferFastTxId = extractClaimId(transferCrossSign.transaction);
 
   // Step 3: Build and encode the intent claim
-  const deadline = prepared ? prepared.deadline : BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
+  const deadline = prepared
+    ? prepared.deadline
+    : BigInt(Math.floor(Date.now() / 1000)) + BigInt(deadlineSeconds);
   const intentBytes = prepared
     ? finishIntentClaimV1(prepared, transferFastTxId)
     : hexToUint8Array(
@@ -562,7 +664,8 @@ export async function executeIntent(
     })
     .sign();
 
-  const intentResult = await provider.submitTransaction(intentEnvelope);
+  const intentIdentity = await prepareSubmissionIdentity(intentEnvelope, networkId);
+  const intentResult = await submitWithRecovery(provider, intentIdentity, "intent", transferIdentity.txHash);
   if (intentResult.type !== "Success") {
     throw new FastError(
       "TX_FAILED",
@@ -571,6 +674,14 @@ export async function executeIntent(
         note: "The intent claim transaction was not fully confirmed. Try again.",
       },
     );
+  }
+  if (!(await successCertificateMatchesIdentity(intentResult, intentIdentity))) {
+    throw new IndeterminateTransactionError({
+      stage: 'intent',
+      txHash: intentIdentity.txHash,
+      relatedTxHash: transferIdentity.txHash,
+      recoveryEnvelope: intentIdentity.envelope,
+    });
   }
 
   // Step 5: Cross-sign the intent certificate

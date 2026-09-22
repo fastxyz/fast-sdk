@@ -74,10 +74,10 @@ describe('send handler history', () => {
       } as never),
       Layer.succeed(FastRpc, {
         getAccountInfo: () => Effect.succeed({ nextNonce: 0n, pendingConfirmation: null }),
-        submitTransaction: () =>
+        submitTransaction: (envelope: unknown) =>
           Effect.sync(() => {
             submissions++;
-            return { type: 'Success' };
+            return { type: 'Success', value: { envelope } };
           }),
       } as never),
     );

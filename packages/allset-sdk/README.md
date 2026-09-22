@@ -306,15 +306,18 @@ fastAddressToBytes(address: string): Uint8Array   // bech32m → Uint8Array
 ### Error Handling
 
 ```ts
-import { FastError, type FastErrorCode } from '@fastxyz/allset-sdk';
+import { FastError, IndeterminateTransactionError, type FastErrorCode } from '@fastxyz/allset-sdk';
 
 try {
   await executeWithdraw({ ... });
 } catch (err) {
   if (err instanceof FastError) {
-    console.error(err.code);     // 'TX_FAILED' | 'INVALID_ADDRESS' | 'INVALID_PARAMS'
+    console.error(err.code);     // includes 'TX_INDETERMINATE' for an uncorrelatable submit result
     console.error(err.message);
-    console.error(err.context);
+    console.error(err.note);
+    if (err instanceof IndeterminateTransactionError) {
+      // Inspect err.txHash and err.recoveryEnvelope; do not retry blindly.
+    }
   }
 }
 ```
@@ -395,11 +398,20 @@ interface BridgeResult {
   estimatedTime?: string;
 }
 
-type FastErrorCode = 'TX_FAILED' | 'INVALID_ADDRESS' | 'INVALID_PARAMS' | 'CROSS_SIGN_FAILED' | 'RELAY_FAILED';
+type FastErrorCode =
+  | 'INSUFFICIENT_BALANCE'
+  | 'NETWORK_NOT_CONFIGURED'
+  | 'TX_FAILED'
+  | 'TX_INDETERMINATE'
+  | 'INVALID_ADDRESS'
+  | 'TOKEN_NOT_FOUND'
+  | 'INVALID_PARAMS'
+  | 'UNSUPPORTED_OPERATION'
+  | 'KEYFILE_NOT_FOUND';
 
 class FastError extends Error {
   readonly code: FastErrorCode;
-  readonly context?: Record<string, unknown>;
+  readonly note: string;
 }
 
 interface TransferClaimParams {

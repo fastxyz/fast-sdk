@@ -199,10 +199,10 @@ describe('token authority handlers', () => {
     let submissions = 0;
     const rpcLayer = Layer.succeed(FastRpc, {
       getTokenInfo: () => Effect.succeed(tokenMetadata(new Uint8Array(32), [seed(9)])),
-      submitTransaction: () =>
+      submitTransaction: (envelope: unknown) =>
         Effect.sync(() => {
           submissions++;
-          return { type: 'Success' };
+          return { type: 'Success', value: { envelope } };
         }),
     } as never);
 
@@ -283,10 +283,10 @@ describe('token authority handlers', () => {
     let submissions = 0;
     const rpcLayer = Layer.succeed(FastRpc, {
       getTokenInfo: () => Effect.succeed(tokenMetadata(seed(9), [])),
-      submitTransaction: () =>
+      submitTransaction: (envelope: unknown) =>
         Effect.sync(() => {
           submissions++;
-          return { type: 'Success' };
+          return { type: 'Success', value: { envelope } };
         }),
     } as never);
 
@@ -312,10 +312,10 @@ describe('token authority handlers', () => {
     let submissions = 0;
     const rpcLayer = Layer.succeed(FastRpc, {
       getTokenInfo: () => Effect.succeed(tokenMetadata(accountBytes, [])),
-      submitTransaction: () =>
+      submitTransaction: (envelope: unknown) =>
         Effect.sync(() => {
           submissions++;
-          return { type: 'Success' };
+          return { type: 'Success', value: { envelope } };
         }),
     } as never);
 
@@ -344,7 +344,7 @@ describe('token authority handlers', () => {
       submitTransaction: (envelope: unknown) =>
         Effect.sync(() => {
           submitted = envelope;
-          return { type: 'Success' };
+          return { type: 'Success', value: { envelope } };
         }),
     } as never);
 
@@ -371,10 +371,10 @@ describe('token authority handlers', () => {
     const rpcLayer = Layer.succeed(FastRpc, {
       getAccountInfo: () => Effect.succeed({ nextNonce: 0n, pendingConfirmation: null }),
       getTokenInfo: () => Effect.succeed(tokenMetadata(accountBytes, [accountBytes], 42n)),
-      submitTransaction: () =>
+      submitTransaction: (envelope: unknown) =>
         Effect.sync(() => {
           submissions++;
-          return { type: 'Success' };
+          return { type: 'Success', value: { envelope } };
         }),
     } as never);
     const handler =

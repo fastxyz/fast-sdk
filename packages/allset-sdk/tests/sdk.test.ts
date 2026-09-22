@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test, onTestFinished } from 'vitest';
-import { FastError } from '../src/errors.ts';
-import { encodeFunctionData, type Hex } from 'viem';
-import { Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
+import { FastError, IndeterminateTransactionError } from '../src/errors.ts';
+import { encodeFunctionData, hexToBytes, type Hex } from 'viem';
+import { hashHex, InvalidRequestError, Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
 import { Schema } from 'effect';
-import { TransactionCertificateFromRpc } from '@fastxyz/schema';
+import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs } from '@fastxyz/schema';
 
 import {
   // address
@@ -39,6 +39,7 @@ import {
   weiToTokenUnits,
 
 } from '../src/index.ts';
+import { encodeIntentClaim } from '../src/claims.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
 const EVM_ADDRESS = '0x1234567890123456789012345678901234567890';
@@ -51,6 +52,12 @@ const CROSS_SIGN_URL = 'https://testnet.cross-sign.allset.fast.xyz';
 const TOKEN_FAST_ID = 'd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46';
 
 const MOCK_CROSS_SIGN_TX = [...Array(32).fill(0), ...Array(32).fill(0x11)];
+
+const hashRecoveryEnvelope = async (envelope: any): Promise<string> =>
+  hashHex(
+    bcsSchema.VersionedTransaction,
+    Schema.encodeSync(VersionedTransactionFromBcs)(envelope.transaction),
+  );
 
 // Decoded TypeScript-form certificate (decoded from real testnet wire data)
 const MOCK_CERTIFICATE = Schema.decodeUnknownSync(TransactionCertificateFromRpc)({
@@ -118,6 +125,33 @@ test('single entrypoint exposes all public API', () => {
   assert.equal(typeof executeIntent, 'function');
   assert.equal(typeof executeWithdraw, 'function');
   assert.equal(typeof evmSign, 'function');
+});
+
+test('IndeterminateTransactionError preserves recovery details in JSON', () => {
+  const error = new IndeterminateTransactionError({
+    stage: 'intent',
+    txHash: `0x${'aa'.repeat(32)}`,
+    relatedTxHash: `0x${'bb'.repeat(32)}`,
+    recoveryEnvelope: {
+      transaction: {
+        value: {
+          nonce: 7n,
+          sender: new Uint8Array([1, 2, 3]),
+        },
+      },
+    },
+  });
+
+  const json = JSON.parse(JSON.stringify(error));
+  assert.equal(json.code, 'TX_INDETERMINATE');
+  assert.equal(json.stage, 'intent');
+  assert.equal(json.txHash, `0x${'aa'.repeat(32)}`);
+  assert.equal(json.relatedTxHash, `0x${'bb'.repeat(32)}`);
+  assert.equal(json.mayHaveSettled, true);
+  assert.deepEqual(json.recoveryEnvelope.transaction.value, {
+    nonce: '7',
+    sender: [1, 2, 3],
+  });
 });
 
 test('removed APIs are no longer exported', async () => {
@@ -698,6 +732,308 @@ test('executeIntent performs 2 Fast submits + 2 cross-signs + 1 relayer call', a
   assert.equal(result.orderId, TX_HASH);
 });
 
+test('executeIntent rejects a transfer success certificate for another transaction before cross-signing', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayerCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) relayerCalls++;
+    else crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async (envelope: unknown) => {
+          (envelope as any).transaction.value.nonce = 2n;
+          const certificateEnvelope = structuredClone(envelope as object) as any;
+          return { type: 'Success', value: { envelope: certificateEnvelope, signatures: [] } };
+        },
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'transfer';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(typeof failure.txHash, 'string');
+  const transferRecovery = failure.recoveryEnvelope as any;
+  assert.equal(transferRecovery.transaction.value.nonce, 1n);
+  assert.equal(transferRecovery.transaction.value.networkId, 'fast:testnet');
+  assert.equal(await hashRecoveryEnvelope(transferRecovery), failure.txHash);
+  assert.equal(crossSignCalls, 0);
+  assert.equal(relayerCalls, 0);
+});
+
+test('executeIntent rejects a transfer success certificate from another network', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  globalThis.fetch = async () => {
+    crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async (envelope: unknown) => {
+          const certificateEnvelope = structuredClone(envelope as object) as any;
+          certificateEnvelope.transaction.value.networkId = 'fast:mainnet';
+          return { type: 'Success', value: { envelope: certificateEnvelope, signatures: [] } };
+        },
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'transfer';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(crossSignCalls, 0);
+});
+
+test('executeIntent rejects a malformed transfer success certificate before cross-signing', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  globalThis.fetch = async () => {
+    crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async () => ({ type: 'Success', value: { envelope: { transaction: null }, signatures: [] } }),
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'transfer';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(crossSignCalls, 0);
+});
+
+test('executeIntent preserves transfer recovery when FastProvider decodes malformed 2xx', async () => {
+  const originalFetch = globalThis.fetch;
+  let submitCalls = 0;
+  let crossSignCalls = 0;
+  let relayerCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/v1/submit-transaction')) submitCalls++;
+    else if (String(url).includes('/relay')) relayerCalls++;
+    else crossSignCalls++;
+    return Response.json({ data: { malformed: true }, meta: { timestamp: new Date().toISOString() } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const realProvider = new FastProvider({ url: 'https://proxy.invalid', networkId: 'fast:testnet' });
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: realProvider.submitTransaction.bind(realProvider),
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'transfer';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(typeof failure.txHash, 'string');
+  assert.equal(await hashRecoveryEnvelope(failure.recoveryEnvelope), failure.txHash);
+  assert.equal(submitCalls, 1);
+  assert.equal(crossSignCalls, 0);
+  assert.equal(relayerCalls, 0);
+});
+
+test('executeIntent rejects an intent success certificate for another transaction before relaying', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayerCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) relayerCalls++;
+    else crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let submitCalls = 0;
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async (envelope: unknown) => {
+          submitCalls++;
+          const certificateEnvelope = structuredClone(envelope as object) as any;
+          if (submitCalls === 2) {
+            (envelope as any).transaction.value.nonce = 2n;
+            certificateEnvelope.transaction.value.nonce = 2n;
+          }
+          return { type: 'Success', value: { envelope: certificateEnvelope, signatures: [] } };
+        },
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'intent';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(typeof failure.relatedTxHash, 'string');
+  const intentRecovery = failure.recoveryEnvelope as any;
+  assert.equal(intentRecovery.transaction.value.nonce, 1n);
+  assert.equal(intentRecovery.transaction.value.networkId, 'fast:testnet');
+  assert.equal(await hashRecoveryEnvelope(intentRecovery), failure.txHash);
+  assert.equal(submitCalls, 2);
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayerCalls, 0);
+});
+
+test('executeIntent preserves intent recovery when FastProvider decodes malformed 2xx', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayerCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/v1/submit-transaction')) {
+      return Response.json({ data: { malformed: true }, meta: { timestamp: new Date().toISOString() } });
+    }
+    if (String(url).includes('/relay')) {
+      relayerCalls++;
+      return Response.json({ ok: true });
+    }
+    crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const realProvider = new FastProvider({ url: 'https://proxy.invalid', networkId: 'fast:testnet' });
+  let submitCalls = 0;
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async (envelope: unknown) => {
+          submitCalls++;
+          if (submitCalls === 1) return { type: 'Success', value: { envelope, signatures: [] } };
+          return realProvider.submitTransaction(envelope as any);
+        },
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'intent';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(typeof failure.txHash, 'string');
+  assert.equal(typeof failure.relatedTxHash, 'string');
+  assert.equal(await hashRecoveryEnvelope(failure.recoveryEnvelope), failure.txHash);
+  assert.equal(submitCalls, 2);
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayerCalls, 0);
+});
+
+test('legacy deadlines are added exactly without number rounding', async () => {
+  const originalNow = Date.now;
+  Date.now = () => 1700000000000;
+  onTestFinished(() => {
+    Date.now = originalNow;
+  });
+  const submitted: unknown[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) =>
+    String(url).includes('/relay')
+      ? Response.json({ ok: true })
+      : Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const deadlineSeconds = Number.MAX_SAFE_INTEGER;
+  await executeIntent({
+    ...BASE_INTENT_PARAMS,
+    intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+    deadlineSeconds,
+    signer: testSigner,
+    provider: {
+      getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+      submitTransaction: async (envelope: unknown) => {
+        submitted.push(envelope);
+        return { type: 'Success', value: { envelope, signatures: [] } };
+      },
+    } as unknown as FastProvider,
+  });
+
+  const claimData = (((submitted[1] as any).transaction.value.claims?.[0] ?? (submitted[1] as any).transaction.value.claim).value.claim.claimData) as Uint8Array;
+  const expected = hexToBytes(
+    encodeIntentClaim({
+      transferFastTxId: TX_HASH,
+      deadline: BigInt(Math.floor(1700000000000 / 1000)) + BigInt(deadlineSeconds),
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+    }),
+  );
+  assert.deepEqual(Array.from(claimData), Array.from(expected));
+});
+
 test('executeIntent uses fastBridgeAddress as recipient in TokenTransfer', async () => {
   const originalFetch = globalThis.fetch;
   const submitCalls: unknown[] = [];
@@ -829,8 +1165,8 @@ test('executeIntent throws FastError when intents array is empty', async () => {
   );
 });
 
-test('executeIntent preserves upstream error from provider', async () => {
-  const upstreamError = new FastError('TX_FAILED', 'upstream failure', { note: 'keep identity' });
+test('executeIntent preserves definitive provider rejection', async () => {
+  const upstreamError = new InvalidRequestError({ message: 'request rejected before submission' });
 
   await assert.rejects(
     () =>

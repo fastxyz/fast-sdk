@@ -31,9 +31,12 @@
     "node": ">=20.19.0"
   },
   "scripts": {
+    "prebuild": "node scripts/package-artifact.mjs",
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "audit:licenses": "node scripts/license-provenance.mjs",
+    "smoke:package": "node scripts/package-consumer.mjs",
     "prepack": "pnpm build"
   },
   "dependencies": {

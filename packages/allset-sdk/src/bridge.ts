@@ -1,5 +1,13 @@
 import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs, type TransactionEnvelope } from "@fastxyz/schema";
-import { hashHex, TransactionBuilder } from "@fastxyz/sdk";
+import {
+  hashHex,
+  InvalidRequestError,
+  IpRateLimitedError,
+  ProxyUnexpectedNonceError,
+  ServiceUnavailableError,
+  TransactionBuilder,
+  VerifierSigsInvalidError,
+} from "@fastxyz/sdk";
 import { Schema } from "effect";
 import { decodeAbiParameters } from "viem";
 import { fastAddressToBytes } from "./address.js";
@@ -112,6 +120,36 @@ async function prepareSubmissionIdentity(
   const bytes = Schema.encodeSync(VersionedTransactionFromBcs)(snapshot.transaction);
   const txHash = await hashHex(bcsSchema.VersionedTransaction, bytes);
   return { txHash, networkId, envelope: snapshot };
+}
+
+function isDefinitiveSubmissionRejection(cause: unknown): boolean {
+  return (
+    cause instanceof InvalidRequestError ||
+    cause instanceof IpRateLimitedError ||
+    cause instanceof ProxyUnexpectedNonceError ||
+    cause instanceof ServiceUnavailableError ||
+    cause instanceof VerifierSigsInvalidError
+  );
+}
+
+async function submitWithRecovery(
+  provider: Pick<ExecuteIntentParams["provider"], "submitTransaction">,
+  identity: SubmissionIdentity,
+  stage: "transfer" | "intent",
+  relatedTxHash?: string,
+) {
+  try {
+    return await provider.submitTransaction(structuredClone(identity.envelope));
+  } catch (cause) {
+    if (isDefinitiveSubmissionRejection(cause)) throw cause;
+    throw new IndeterminateTransactionError({
+      stage,
+      txHash: identity.txHash,
+      relatedTxHash,
+      recoveryEnvelope: identity.envelope,
+      cause,
+    });
+  }
 }
 
 async function successCertificateMatchesIdentity(
@@ -565,7 +603,7 @@ export async function executeIntent(
     .sign();
 
   const transferIdentity = await prepareSubmissionIdentity(transferEnvelope, networkId);
-  const transferResult = await provider.submitTransaction(structuredClone(transferIdentity.envelope));
+  const transferResult = await submitWithRecovery(provider, transferIdentity, "transfer");
   if (transferResult.type !== "Success") {
     throw new FastError(
       "TX_FAILED",
@@ -627,7 +665,7 @@ export async function executeIntent(
     .sign();
 
   const intentIdentity = await prepareSubmissionIdentity(intentEnvelope, networkId);
-  const intentResult = await provider.submitTransaction(structuredClone(intentIdentity.envelope));
+  const intentResult = await submitWithRecovery(provider, intentIdentity, "intent", transferIdentity.txHash);
   if (intentResult.type !== "Success") {
     throw new FastError(
       "TX_FAILED",

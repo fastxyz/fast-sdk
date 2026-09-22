@@ -17,7 +17,11 @@ try {
   const tarball = join(scratch, `fastxyz-sign-sdk-${manifest.version}.tgz`);
   assertPackageInventory(execFileSync("tar", ["-tzf", tarball], { encoding: "utf8" }).trim().split("\n"));
   writeFileSync(join(scratch, "package.json"), JSON.stringify({ name: "sign-sdk-consumer", private: true, type: "module" }));
-  execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], { cwd: scratch, stdio: "inherit" });
+  execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], {
+    cwd: scratch,
+    stdio: "inherit",
+    env: { ...process.env, npm_config_cache: join(scratch, "npm-cache") },
+  });
   writeFileSync(join(scratch, "smoke.mjs"), `
 import * as sdk from "@fastxyz/sign-sdk";
 const expected = ${JSON.stringify([

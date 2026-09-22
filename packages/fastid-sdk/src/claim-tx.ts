@@ -186,7 +186,12 @@ export async function submitSignedClaim(
     throw new NotSettledError(result.type, recovery);
   }
 
-  const certificateTransaction = result.value.envelope.transaction;
+  let certificateTransaction: unknown;
+  try {
+    certificateTransaction = result.value.envelope.transaction;
+  } catch (cause) {
+    throw new IndeterminateProviderSubmissionError(recovery, { cause });
+  }
   let certificateTxId: string;
   try {
     certificateTxId = await txIdFromDomainTransaction(certificateTransaction as never);

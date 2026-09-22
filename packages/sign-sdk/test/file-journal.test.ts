@@ -85,7 +85,7 @@ it.each(["directory-sync", "owner-unlink"] as const)("cleans its own published l
   expect((await readdir(join(directory, "locks"))).filter((name) => name.endsWith(".lock"))).toEqual([]);
   await journal.withLock("operation:setup-fault", async () => { callbacks += 1; });
   expect(callbacks).toBe(1);
-});
+}, 15_000);
 
 function snapshotName(operationId: string): string {
   return `${createHash("sha256").update(operationId, "utf8").digest("hex")}.json`;

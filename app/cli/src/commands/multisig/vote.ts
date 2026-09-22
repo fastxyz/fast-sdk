@@ -433,6 +433,20 @@ export const multisigVote: Command<MultisigVoteArgs> = {
         }
       }
 
+      if (submitResultType(submitResult) === 'IncompleteVerifierSigs') {
+        return yield* Effect.fail(
+          new TransactionSubmissionUnknownError({
+            txHash: recovery.txHash,
+            nonce: target.envelope.transaction.value.nonce,
+            envelope: myEnvelope,
+            recoveryEnvelope: recovery.recoveryEnvelope,
+            cause: new TransactionFailedError({
+              message: 'Transaction is pending verifier signatures and cannot be treated as finalized.',
+            }),
+          }),
+        );
+      }
+
       const reachedQuorum = yield* voteReachedQuorum(submitResult);
 
       if (reachedQuorum) {

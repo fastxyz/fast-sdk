@@ -343,8 +343,14 @@ export const submitOperation = (params: SubmitOperationParams): Effect.Effect<Tx
     }
     if (submitObj?.type === 'IncompleteVerifierSigs') {
       return yield* Effect.fail(
-        new TransactionFailedError({
-          message: 'Transaction is pending verifier signatures and cannot be treated as finalized.',
+        new TransactionSubmissionUnknownError({
+          txHash: recovery.txHash,
+          nonce,
+          envelope,
+          recoveryEnvelope: recovery.recoveryEnvelope,
+          cause: new TransactionFailedError({
+            message: 'Transaction is pending verifier signatures and cannot be treated as finalized.',
+          }),
         }),
       );
     }

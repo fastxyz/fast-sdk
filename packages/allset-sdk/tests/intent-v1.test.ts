@@ -418,6 +418,17 @@ test('prepareIntentClaimV1 validates every input, including the deadline, before
   assert.equal(bytes.length, prepared.byteLength);
 });
 
+test('prepareIntentClaimV1 rejects malformed display metadata instead of coercing it', () => {
+  const intents = [buildTransferIntent(USDC, RECEIVER)];
+  const malformedSymbol = { amount: 1n, tokenSymbol: undefined, tokenDecimals: 6 } as unknown as IntentClaimV1['display'];
+
+  assert.throws(() => prepareIntentClaimV1({ intents, ...PREP, display: malformedSymbol }), /token_symbol/);
+  assert.throws(
+    () => prepareIntentClaimV1({ intents, ...PREP, display: { amount: 1n, tokenSymbol: 'USDC', tokenDecimals: null } as never }),
+    /token_decimals/,
+  );
+});
+
 test('prepare size check is exact and rejects the next byte beyond the cap', () => {
   const prepWith = (n: number) => prepareIntentClaimV1({ intents: [buildExecuteIntent(USDC, `0x${'00'.repeat(n)}`)], ...PREP });
   let n = 1700;

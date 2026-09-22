@@ -689,18 +689,27 @@ export async function executeIntent(
   }
 
   // Step 3: Build and encode the intent claim
-  const deadline = prepared
-    ? prepared.deadline
-    : BigInt(Math.floor(Date.now() / 1000)) + BigInt(deadlineSeconds);
-  const intentBytes = prepared
-    ? finishIntentClaimV1(prepared, transferFastTxId)
-    : hexToUint8Array(
-        encodeIntentClaim({
-          transferFastTxId,
-          deadline,
-          intents: legacyIntentsSnapshot,
-        }),
-      );
+  let intentBytes: Uint8Array;
+  try {
+    const deadline = prepared
+      ? prepared.deadline
+      : BigInt(Math.floor(Date.now() / 1000)) + BigInt(deadlineSeconds);
+    intentBytes = prepared
+      ? finishIntentClaimV1(prepared, transferFastTxId)
+      : hexToUint8Array(
+          encodeIntentClaim({
+            transferFastTxId,
+            deadline,
+            intents: legacyIntentsSnapshot,
+          }),
+        );
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "intent-prepare",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
 
   // Step 4: Submit intent claim on Fast network
   let accountInfo2: Awaited<ReturnType<typeof provider.getAccountInfo>>;
@@ -719,23 +728,43 @@ export async function executeIntent(
     });
   }
 
-  const intentEnvelope = await new TransactionBuilder({
-    networkId: networkId as any,
-    signer,
-    nonce: accountInfo2.nextNonce,
-  })
-    .addExternalClaim({
-      claim: {
-        verifierCommittee: [],
-        verifierQuorum: 0,
-        claimData: intentBytes,
-      },
-      signatures: [],
+  let intentIdentity: SubmissionIdentity;
+  try {
+    const intentEnvelope = await new TransactionBuilder({
+      networkId: networkId as any,
+      signer,
+      nonce: accountInfo2.nextNonce,
     })
-    .sign();
+      .addExternalClaim({
+        claim: {
+          verifierCommittee: [],
+          verifierQuorum: 0,
+          claimData: intentBytes,
+        },
+        signatures: [],
+      })
+      .sign();
 
-  const intentIdentity = await prepareSubmissionIdentity(intentEnvelope, networkId);
-  const intentResult = await submitWithRecovery(provider, intentIdentity, "intent", transferIdentity.txHash);
+    intentIdentity = await prepareSubmissionIdentity(intentEnvelope, networkId);
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "intent-prepare",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
+
+  let intentResult: Awaited<ReturnType<typeof submitWithRecovery>>;
+  try {
+    intentResult = await submitWithRecovery(provider, intentIdentity, "intent", transferIdentity.txHash);
+  } catch (cause) {
+    if (cause instanceof IndeterminateTransactionError) throw cause;
+    throw new PostPaymentRecoveryError({
+      stage: "intent-submit",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
   if (intentResult.type !== "Success") {
     if (intentResult.type === "IncompleteVerifierSigs" || intentResult.type === "IncompleteMultiSig") {
       throw new IndeterminateTransactionError({
@@ -747,13 +776,16 @@ export async function executeIntent(
       });
     }
     const resultType = String((intentResult as { readonly type: unknown }).type);
-    throw new FastError(
+    const cause = new FastError(
       "TX_FAILED",
       `Intent claim submission returned an unsupported result: ${resultType}`,
-      {
-        note: "The intent claim transaction was not accepted with a success certificate.",
-      },
+      { note: "The intent claim transaction was not accepted with a success certificate." },
     );
+    throw new PostPaymentRecoveryError({
+      stage: "intent-submit",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
   }
   if (!(await successCertificateMatchesIdentity(intentResult, intentIdentity))) {
     throw new IndeterminateTransactionError({

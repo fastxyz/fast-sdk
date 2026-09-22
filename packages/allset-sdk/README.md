@@ -326,7 +326,8 @@ try {
     if (err instanceof PostPaymentRecoveryError) {
       // Fast transactions already succeeded. Reconcile these identities before continuing.
       console.error(err.stage, err.transfer.txHash, err.intent?.txHash, err.relayOutcome);
-      // stage may be 'transfer-cross-sign', 'intent-cross-sign', 'intent-account-info', or 'relay'.
+      // stage may be 'transfer-cross-sign', 'intent-prepare', 'intent-account-info', 'intent-submit', 'intent-cross-sign', or 'relay'.
+      // cause retains the original intent preparation/submission error and its classification.
       // recoveryEnvelope is an in-memory structured clone, not a JSON persistence format.
     }
   }

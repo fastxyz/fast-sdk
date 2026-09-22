@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test, onTestFinished } from 'vitest';
 import { FastError, IndeterminateTransactionError, PostPaymentRecoveryError } from '../src/errors.ts';
 import { encodeFunctionData, hexToBytes, type Hex } from 'viem';
-import { hashHex, InvalidRequestError, Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
+import { hashHex, InvalidRequestError, ProxyUnexpectedNonceError, Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
 import { Schema } from 'effect';
 import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs } from '@fastxyz/schema';
 
@@ -1343,6 +1343,120 @@ test('executeIntent preserves definitive provider rejection', async () => {
       return true;
     },
   );
+});
+
+test('executeIntent preserves transfer recovery when the intent submission is definitively rejected', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) relayCalls++;
+    else crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const rejection = new ProxyUnexpectedNonceError({
+    message: 'intent nonce was rejected before forwarding',
+    txNonce: 2n,
+    expectedNonce: 3n,
+  });
+  const submissions: unknown[] = [];
+  const provider = {
+    getAccountInfo: async () => ({ nextNonce: BigInt(submissions.length + 1) }),
+    submitTransaction: async (envelope: unknown) => {
+      submissions.push(structuredClone(envelope));
+      if (submissions.length === 2) throw rejection;
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+
+  let failure: unknown;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider,
+    }),
+    (error: unknown) => {
+      failure = error;
+      return error instanceof PostPaymentRecoveryError;
+    },
+  );
+
+  assert.ok(failure instanceof PostPaymentRecoveryError);
+  assert.equal(failure.stage, 'intent-submit');
+  assert.equal(failure.cause, rejection);
+  assert.equal((failure.cause as ProxyUnexpectedNonceError)._tag, 'ProxyUnexpectedNonceError');
+  assert.equal(failure.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+  assert.deepEqual(failure.transfer.recoveryEnvelope, submissions[0]);
+  assert.equal(submissions.length, 2);
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayCalls, 0);
+});
+
+test('executeIntent preserves transfer recovery when signing the intent fails', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) relayCalls++;
+    else crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const signingError = new Error('intent signing failed');
+  let privateKeyReads = 0;
+  const signer = new Proxy(testSigner, {
+    get(target, key) {
+      if (key === 'getPrivateKey') {
+        return async () => {
+          privateKeyReads++;
+          if (privateKeyReads === 2) throw signingError;
+          return target.getPrivateKey();
+        };
+      }
+      const value = Reflect.get(target, key, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const submissions: unknown[] = [];
+  const provider = {
+    getAccountInfo: async () => ({ nextNonce: BigInt(submissions.length + 1) }),
+    submitTransaction: async (envelope: unknown) => {
+      submissions.push(structuredClone(envelope));
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+
+  let failure: unknown;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer,
+      provider,
+    }),
+    (error: unknown) => {
+      failure = error;
+      return error instanceof PostPaymentRecoveryError;
+    },
+  );
+
+  assert.ok(failure instanceof PostPaymentRecoveryError);
+  assert.equal(failure.stage, 'intent-prepare');
+  assert.equal(failure.cause, signingError);
+  assert.equal(failure.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+  assert.deepEqual(failure.transfer.recoveryEnvelope, submissions[0]);
+  assert.equal(submissions.length, 1);
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayCalls, 0);
 });
 
 test('executeIntent preserves recovery identity on relayer failure', async () => {

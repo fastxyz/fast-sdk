@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { test, onTestFinished } from 'vitest';
 import { FastError, IndeterminateTransactionError } from '../src/errors.ts';
 import { encodeFunctionData, hexToBytes, type Hex } from 'viem';
-import { Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
+import { hashHex, Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
 import { Schema } from 'effect';
-import { TransactionCertificateFromRpc } from '@fastxyz/schema';
+import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs } from '@fastxyz/schema';
 
 import {
   // address
@@ -52,6 +52,12 @@ const CROSS_SIGN_URL = 'https://testnet.cross-sign.allset.fast.xyz';
 const TOKEN_FAST_ID = 'd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46';
 
 const MOCK_CROSS_SIGN_TX = [...Array(32).fill(0), ...Array(32).fill(0x11)];
+
+const hashRecoveryEnvelope = async (envelope: any): Promise<string> =>
+  hashHex(
+    bcsSchema.VersionedTransaction,
+    Schema.encodeSync(VersionedTransactionFromBcs)(envelope.transaction),
+  );
 
 // Decoded TypeScript-form certificate (decoded from real testnet wire data)
 const MOCK_CERTIFICATE = Schema.decodeUnknownSync(TransactionCertificateFromRpc)({
@@ -763,7 +769,10 @@ test('executeIntent rejects a transfer success certificate for another transacti
   assert.ok(failure);
   assert.equal(failure.mayHaveSettled, true);
   assert.equal(typeof failure.txHash, 'string');
-  assert.ok(failure.recoveryEnvelope);
+  const transferRecovery = failure.recoveryEnvelope as any;
+  assert.equal(transferRecovery.transaction.value.nonce, 1n);
+  assert.equal(transferRecovery.transaction.value.networkId, 'fast:testnet');
+  assert.equal(await hashRecoveryEnvelope(transferRecovery), failure.txHash);
   assert.equal(crossSignCalls, 0);
   assert.equal(relayerCalls, 0);
 });
@@ -880,7 +889,10 @@ test('executeIntent rejects an intent success certificate for another transactio
   assert.ok(failure);
   assert.equal(failure.mayHaveSettled, true);
   assert.equal(typeof failure.relatedTxHash, 'string');
-  assert.ok(failure.recoveryEnvelope);
+  const intentRecovery = failure.recoveryEnvelope as any;
+  assert.equal(intentRecovery.transaction.value.nonce, 1n);
+  assert.equal(intentRecovery.transaction.value.networkId, 'fast:testnet');
+  assert.equal(await hashRecoveryEnvelope(intentRecovery), failure.txHash);
   assert.equal(submitCalls, 2);
   assert.equal(crossSignCalls, 1);
   assert.equal(relayerCalls, 0);

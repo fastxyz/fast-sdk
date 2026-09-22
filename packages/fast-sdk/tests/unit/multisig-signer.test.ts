@@ -15,6 +15,7 @@ import {
   MultiSigConfigInvalidError,
   MultiSigSigner,
   NotAuthorizedSignerError,
+  validateMultiSigConfig,
 } from '../../src/interface/multisig-signer';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -155,6 +156,17 @@ describe('assertAuthorizedSigner', () => {
     };
     await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(/must be 32 bytes/);
   });
+
+  it.each([-1n, 1n << 64n])('rejects a config nonce outside u64: %s', async (nonce) => {
+    const config = {
+      authorized_signers: canonicalizeMultiSigSigners([await getPublicKeyAsync(SECRET_A), await getPublicKeyAsync(SECRET_B)]),
+      quorum: 2n,
+      nonce,
+    };
+
+    expect(() => validateMultiSigConfig(config)).toThrow(/nonce must be a u64/);
+    await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(MultiSigConfigInvalidError);
+  });
 });
 
 describe('MultiSigSigner construction', () => {
@@ -276,10 +288,7 @@ describe('MultiSigSigner.signEnvelopeFor', () => {
     const SECRET_A = new Uint8Array(32).fill(0xaa);
     const SECRET_B = new Uint8Array(32).fill(0xbb);
     const config = {
-      authorized_signers: canonicalizeMultiSigSigners([
-        await getPublicKeyAsync(SECRET_A),
-        await getPublicKeyAsync(SECRET_B),
-      ]),
+      authorized_signers: canonicalizeMultiSigSigners([await getPublicKeyAsync(SECRET_A), await getPublicKeyAsync(SECRET_B)]),
       quorum: 2n,
       nonce: 0n,
     };
@@ -292,9 +301,7 @@ describe('MultiSigSigner.signEnvelopeFor', () => {
       .addBurn({ tokenId: new Uint8Array(32), amount: 1n })
       .sign();
 
-    await expect(signer.signEnvelopeFor(wrong.transaction)).rejects.toThrow(
-      /sender does not match the derived multisig address/,
-    );
+    await expect(signer.signEnvelopeFor(wrong.transaction)).rejects.toThrow(/sender does not match the derived multisig address/);
   });
 });
 

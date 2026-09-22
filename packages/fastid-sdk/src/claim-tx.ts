@@ -162,7 +162,7 @@ export async function submitSignedClaim(
   let result: {
     type: string;
     value?: { envelope: { transaction: unknown } };
-  };
+  } | null | undefined;
   try {
     result = (await provider.submitTransaction(
       structuredClone(recovery.recoveryEnvelope) as Parameters<
@@ -181,6 +181,11 @@ export async function submitSignedClaim(
     );
     if (funds) throw funds;
     throw new IndeterminateProviderSubmissionError(recovery, { cause: error });
+  }
+  if (!result) {
+    throw new IndeterminateProviderSubmissionError(recovery, {
+      cause: new Error("provider returned no submission result"),
+    });
   }
   if (result.type !== "Success" || !result.value) {
     throw new NotSettledError(result.type, recovery);

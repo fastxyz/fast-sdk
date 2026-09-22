@@ -168,6 +168,7 @@ describe("submitSignedClaim settlement guards", () => {
   });
 
   it.each([
+    ["missing provider result", () => undefined],
     ["missing envelope transaction", () => ({ type: "Success", value: { envelope: {} } })],
     [
       "unhashable certificate transaction",

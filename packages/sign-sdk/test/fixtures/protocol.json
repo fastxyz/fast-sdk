@@ -32,10 +32,54 @@
       {
         "path": "fastset-sign-web/src/lib/signer.ts",
         "sha256": "92a9b254a42d415f0ea6b621636d3da4fc6cdd6c2b4e8530ebd18d543048bc1d"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/attestation.ts",
+        "sha256": "15a2f0b9db9c2b8b5689bed37212e36a32cd750a35326fd0a8161ac3508d6893"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/config.ts",
+        "sha256": "93c16a5fd6bf9c0dd18bf9c0fac5ec2c65eefc41f0daea85db095f7ec3c5199d"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/fast-app-config.ts",
+        "sha256": "17b808782533530cd79b2391324986bdaff2c9bf1c5a4a641d2a5d2948a62e8d"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/format.ts",
+        "sha256": "cb05e379130e2e6238a3c4ddc6fb77150a52a23946f926e9fd0686cc7e4ce6ad"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/meta.ts",
+        "sha256": "b500be7f77cf6c22f7b60ab1e95ee69ab9780eab021e204e713bf258906e44a1"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/pdf.ts",
+        "sha256": "260d231445bf38e8d662f495f805b8f3c79c9582e009507a6474d8d633371621"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/pdf-objstm.ts",
+        "sha256": "7313f0048717d2de30e5760dbb78bd5a9e9700dea2cedc55a85cc8afb5d059ce"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/random-id.ts",
+        "sha256": "6453c5664c381a3dadda3f76d0ed7777b3fe16398f1a16cf787032a8f6bc8eac"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/signing/provider.ts",
+        "sha256": "2795df3f548c07f87d8b695ae29aba53d0397ee7a92508f5f2602f45b46c3d56"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/signing/session.ts",
+        "sha256": "3161c83966fbe0df612bb671a3598aa914eabfcad73ebeb091aeb29919e5a742"
+      },
+      {
+        "path": "fastset-sign-web/src/lib/types.ts",
+        "sha256": "6ee33a8c75361ddb75138d4148222c12117d1715abb6dc851d2fc256e3564eea"
       }
     ],
     "generator": "fastset-sign-web/scripts/generate-sign-sdk-fixtures.ts",
-    "algorithm": "Rust corpus copied byte-for-byte; V3 claim encoded by the pre-extraction website; Release20260407 signing bytes built by the website over fixed inputs and signed by @fastxyz/sdk Signer."
+    "algorithm": "Rust corpus copied byte-for-byte; V3 claim encoded by the pinned private website; Release20260407 signing bytes built over fixed synthetic inputs and signed by @fastxyz/sdk Signer."
   },
   "protocol": {
     "frozen": "2026-08-16",
@@ -610,14 +654,18 @@
     },
     "controls": [
       {
+        "name": "sender-mismatch",
+        "expected": "signer_mismatch",
+        "mutatedValue": "fast1zwv0vtrdrfzhc5d6df9470da9a5le2fjzcscmjye0eqkh5taj09qgrq3y3"
+      },
+      {
         "name": "sender-signature-byte-flip",
         "expected": "invalid_sender_signature",
         "mutatedValue": "d31a41b0776b8b402500f95b48f7bbbc68b440b65c373374fe20d36c5106b8248c5c50a7e3a2bc6b4b5c260f2601f0ef8d1fb7c66f4f75e9091c96b1170fa30a"
       },
       {
         "name": "tx-id-byte-flip",
-        "expected": "tx_id_mismatch",
-        "mutatedValue": "fca4c63ffa4c332dddb93e437ecf41c8403e8f41562848a1e8ce076bc8d92b92"
+        "expected": "tx_id_mismatch"
       },
       {
         "name": "network-mainnet",
@@ -633,6 +681,48 @@
         "name": "claim-byte-flip",
         "expected": "claim_data_mismatch",
         "mutatedValue": "7a0a202022736368656d61223a2022666173747365742d7369676e2f61727469666163742d6174746573746174696f6e2f7633222c0a2020226469676573745f616c676f726974686d223a2022736861323536222c0a202022636f6d6d69746d656e745f6d6f6465223a20227075626c69635f736861323536222c0a202022646967657374223a202231313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131222c0a20202272656c6174696f6e73686970223a2022617574686f726564222c0a2020227369676e6572223a202265613461366336336532396335323061626566353530376231333265633566393935343737366165626562653762393234323165656136393134343664323263222c0a202022726571756573745f6964223a20223333333333333333333333333333333333333333333333333333333333333333222c0a2020226973737565645f6174223a202231373231353230303030222c0a2020227369676e65725f6e616d65223a202246697874757265204167656e74222c0a20202266696c655f6c6162656c223a2022222c0a2020226c6973745f62795f7369676e6572223a2066616c73652c0a2020226d657461646174615f7265766973696f6e223a202231220a7d"
+      },
+      {
+        "name": "claim-data-arbitrary",
+        "expected": "invalid_claim_data",
+        "mutatedValue": "deadbeef"
+      },
+      {
+        "name": "claim-data-legacy",
+        "expected": "invalid_claim_data",
+        "mutatedValue": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ],
+    "recordControls": [
+      {
+        "name": "record-sha256-mismatch",
+        "field": "sha256",
+        "expected": "record_mismatch",
+        "mutatedValue": "1011111111111111111111111111111111111111111111111111111111111111"
+      },
+      {
+        "name": "record-tx-id-mismatch",
+        "field": "tx_id",
+        "expected": "record_mismatch",
+        "mutatedValue": "fca4c63ffa4c332dddb93e437ecf41c8403e8f41562848a1e8ce076bc8d92b92"
+      },
+      {
+        "name": "record-signer-mismatch",
+        "field": "signer",
+        "expected": "record_mismatch",
+        "mutatedValue": "eb4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c"
+      },
+      {
+        "name": "record-nonce-mismatch",
+        "field": "nonce",
+        "expected": "record_mismatch",
+        "mutatedValue": "8"
+      },
+      {
+        "name": "record-network-mismatch",
+        "field": "network",
+        "expected": "record_mismatch",
+        "mutatedValue": "fast:mainnet"
       }
     ]
   }

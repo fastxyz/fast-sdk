@@ -585,6 +585,27 @@ export async function executeIntent(
   // Keep this before the first await so caller mutation cannot split those values.
   const legacyIntentsSnapshot: Intent[] = prepared === null ? structuredClone(intents) : [];
 
+  // Legacy claims are encoded after the transfer because the real transfer ID
+  // is not known yet. Validate the caller-controlled intent graph now with
+  // fixed-width placeholders so ABI errors cannot escape after payment.
+  if (prepared === null) {
+    try {
+      encodeIntentClaim({
+        transferFastTxId: `0x${'00'.repeat(32)}`,
+        deadline: 1n,
+        intents: legacyIntentsSnapshot,
+      });
+    } catch {
+      throw new FastError(
+        'INVALID_PARAMS',
+        'executeIntent legacy intents cannot be ABI-encoded',
+        {
+          note: 'Legacy intents must be ABI-encodable before any Fast transaction is submitted.',
+        },
+      );
+    }
+  }
+
   // Resolve all request-only routing data before either paid Fast transaction is submitted.
   const externalAddress = prepared
     ? resolveV1ExternalAddress(prepared.claim.intents, externalAddressOverride)

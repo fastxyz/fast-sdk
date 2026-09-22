@@ -1882,6 +1882,28 @@ test('executeIntent with claimEncoding v1 validates before touching the signer o
   assert.equal(submitted.length, 0);
 });
 
+test('executeIntent rejects an unencodable legacy claim before submitting the transfer', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = crossSignFetch;
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const touched: string[] = [];
+  const submitted: unknown[] = [];
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildExecuteIntent(TOKEN_ADDRESS, '0xdeadbeef', -1n)],
+      signer: spyOnSigner(touched),
+      provider: spyOnProvider(touched, submitted),
+    }),
+  );
+
+  assert.equal(submitted.length, 0, 'an invalid legacy claim must be rejected before any paid Fast transaction');
+  assert.deepEqual(touched, [], 'legacy claim validation must happen before touching the signer or provider');
+});
+
 test('executeIntent rejects a malformed externalAddress before touching the signer or provider', async () => {
   const touched: string[] = [];
   const submitted: unknown[] = [];

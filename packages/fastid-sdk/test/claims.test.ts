@@ -450,21 +450,33 @@ describe("paid settlement and free registration", () => {
   });
 
   it("surfaces a provider timeout and non-success result as indeterminate and never registers", async () => {
-    for (const submitTransaction of [
-      vi.fn(async () => {
-        throw new Error("timeout after dispatch");
-      }),
-      vi.fn(async () => ({ type: "IncompleteVerifierSigs" })),
-    ]) {
+    for (const outcome of ["timeout", "incomplete"] as const) {
+      let submittedEnvelope: unknown;
+      const submitTransaction =
+        outcome === "timeout"
+          ? vi.fn(async (envelope: unknown) => {
+              submittedEnvelope = envelope;
+              throw new Error("timeout after dispatch");
+            })
+          : vi.fn(async (envelope: unknown) => {
+              submittedEnvelope = envelope;
+              return { type: "IncompleteVerifierSigs" };
+            });
       const h = await harness({
         provider: {
           getAccountInfo: vi.fn(async () => ({ nextNonce: 5n })),
           submitTransaction,
         },
       });
-      await expect(h.client.claimName("alice.smith")).rejects.toBeInstanceOf(
-        IndeterminateSubmissionError,
-      );
+      const error = await h.client.claimName("alice.smith").catch((cause) => cause);
+      expect(error).toBeInstanceOf(IndeterminateSubmissionError);
+      if (!(error instanceof IndeterminateSubmissionError)) throw new Error("expected indeterminate submission error");
+      expect(error).toMatchObject({
+        nonce: 5n,
+        txIdHex: expect.stringMatching(/^[0-9a-f]{64}$/),
+        recoveryEnvelope: expect.objectContaining({ transaction: expect.anything() }),
+      });
+      expect(error.recoveryEnvelope).toEqual(submittedEnvelope);
       expect(registrationCalls(h.calls)).toHaveLength(0);
     }
   });

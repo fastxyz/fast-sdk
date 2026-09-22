@@ -14,6 +14,7 @@ import {
   WrongNetworkError,
   asInsufficientFunds,
   asNonceConflict,
+  type SubmissionRecovery,
 } from "./errors.js";
 import { txIdFromDomainTransaction } from "./fasttx.js";
 
@@ -125,6 +126,19 @@ export interface SettledClaim {
   nonce: string;
 }
 
+export class IndeterminateProviderSubmissionError extends Error {
+  constructor(
+    public readonly recovery: SubmissionRecovery,
+    options?: { cause?: unknown },
+  ) {
+    super(
+      "provider submission outcome is indeterminate; the signed transaction may have settled",
+      options,
+    );
+    this.name = "IndeterminateProviderSubmissionError";
+  }
+}
+
 export async function submitSignedClaim(
   provider: FastProvider,
   versioned: unknown,
@@ -139,13 +153,19 @@ export async function submitSignedClaim(
     transaction: versioned,
     signature: { type: "Signature", value: signature },
   };
+  const submittedTxId = await txIdFromDomainTransaction(versioned as never);
+  const recovery: SubmissionRecovery = {
+    nonce: (versioned as { value?: { nonce?: bigint } }).value?.nonce,
+    txIdHex: submittedTxId,
+    recoveryEnvelope: structuredClone(envelope),
+  };
   let result: {
     type: string;
     value?: { envelope: { transaction: unknown } };
   };
   try {
     result = (await provider.submitTransaction(
-      envelope as unknown as Parameters<
+      structuredClone(recovery.recoveryEnvelope) as Parameters<
         typeof provider.submitTransaction
       >[0],
     )) as {
@@ -160,19 +180,21 @@ export async function submitSignedClaim(
       feeSymbol ?? "fee token",
     );
     if (funds) throw funds;
-    throw error;
+    throw new IndeterminateProviderSubmissionError(recovery, { cause: error });
   }
   if (result.type !== "Success" || !result.value) {
-    throw new NotSettledError(result.type);
+    throw new NotSettledError(result.type, recovery);
   }
 
   const certificateTransaction = result.value.envelope.transaction;
-  const [submittedTxId, certificateTxId] = await Promise.all([
-    txIdFromDomainTransaction(versioned as never),
-    txIdFromDomainTransaction(certificateTransaction as never),
-  ]);
+  let certificateTxId: string;
+  try {
+    certificateTxId = await txIdFromDomainTransaction(certificateTransaction as never);
+  } catch (cause) {
+    throw new IndeterminateProviderSubmissionError(recovery, { cause });
+  }
   if (submittedTxId !== certificateTxId) {
-    throw new SettlementMismatchError(submittedTxId, certificateTxId);
+    throw new SettlementMismatchError(submittedTxId, certificateTxId, recovery);
   }
 
   const value = (
@@ -181,13 +203,13 @@ export async function submitSignedClaim(
     }
   ).value;
   if (!value || value.nonce === undefined) {
-    throw new Error(
-      "Settled certificate is missing a nonce; unrecognized transaction shape.",
-    );
+    throw new IndeterminateProviderSubmissionError(recovery, {
+      cause: new Error("Settled certificate is missing a nonce; unrecognized transaction shape."),
+    });
   }
   const certificateNetwork = value.networkId ?? value.network ?? "";
   if (certificateNetwork !== expectedNetworkId) {
-    throw new WrongNetworkError(expectedNetworkId, certificateNetwork);
+    throw new WrongNetworkError(expectedNetworkId, certificateNetwork, recovery);
   }
   return { txIdHex: certificateTxId, nonce: value.nonce.toString() };
 }

@@ -39,17 +39,25 @@ function snapshotReceipt(value: PendingRegistration): PendingRegistration {
   assertBoundedObjectCertificate(value);
   const receipt = structuredClone(value);
   if (receipt.version !== 1 || typeof receipt.operationId !== "string") throw new Error("receipt identity is invalid");
-  validateRecordRequest(receipt.record);
+  const record = validateRecordRequest(receipt.record);
   if (!/^(?:[0-9a-f]{2})+$/.test(receipt.claimDataHex)) throw new Error("receipt claimDataHex is invalid");
   if (!/^[0-9a-f]{128}$/.test(receipt.senderSignatureHex)) throw new Error("receipt sender signature is invalid");
   if (receipt.signatureScope !== "versioned_transaction") throw new Error("receipt signature scope is invalid");
-  return receipt;
+  return { ...receipt, record };
+}
+
+function sameRecord(left: PendingRegistration["record"], right: PendingRegistration["record"]): boolean {
+  const leftRecord = validateRecordRequest(left);
+  const rightRecord = validateRecordRequest(right);
+  return leftRecord.sha256 === rightRecord.sha256 && leftRecord.tx_id === rightRecord.tx_id &&
+    leftRecord.signer === rightRecord.signer && leftRecord.nonce === rightRecord.nonce &&
+    leftRecord.network === rightRecord.network;
 }
 
 function sameReceipt(left: PendingRegistration, right: PendingRegistration): boolean {
   return left.version === right.version && left.operationId === right.operationId &&
     left.indexOrigin === right.indexOrigin &&
-    JSON.stringify(left.record) === JSON.stringify(right.record) &&
+    sameRecord(left.record, right.record) &&
     left.claimDataHex === right.claimDataHex && left.senderSignatureHex === right.senderSignatureHex &&
     left.signatureScope === right.signatureScope &&
     (typeof left.certificate === "string" && typeof right.certificate === "string"
@@ -108,9 +116,10 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
       if (!loaded || loaded.state === "prepared" || loaded.state === "submission_unknown") {
         throw new Error("receipt is not bound to a settled journal operation");
       }
-      if (!sameReceipt(loaded.receipt, receipt)) throw new Error("receipt does not match the durable settlement candidate");
-      if (loaded.state === "registered") return { registration: "registered", receipt: loaded.receipt, recoveryPersisted: true };
-      const outcome = await operation(loaded.receipt, loaded);
+      const durableReceipt = snapshotReceipt(loaded.receipt);
+      if (!sameReceipt(durableReceipt, receipt)) throw new Error("receipt does not match the durable settlement candidate");
+      if (loaded.state === "registered") return { registration: "registered", receipt: durableReceipt, recoveryPersisted: true };
+      const outcome = await operation(durableReceipt, loaded);
       const next: SettledJournalSnapshot = {
         ...loaded,
         state: journalState(outcome.state),
@@ -119,9 +128,9 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
       };
       try {
         await journal.save(next);
-        return { registration: outcome.state, receipt: loaded.receipt, recoveryPersisted: true, ...(outcome.error === undefined ? {} : { error: outcome.error }) };
+        return { registration: outcome.state, receipt: durableReceipt, recoveryPersisted: true, ...(outcome.error === undefined ? {} : { error: outcome.error }) };
       } catch {
-        return { registration: outcome.state, receipt: loaded.receipt, recoveryPersisted: false, ...(outcome.error === undefined ? {} : { error: outcome.error }) };
+        return { registration: outcome.state, receipt: durableReceipt, recoveryPersisted: false, ...(outcome.error === undefined ? {} : { error: outcome.error }) };
       }
     });
   }

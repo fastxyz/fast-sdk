@@ -73,6 +73,31 @@ it("checkRegistration performs exact GET only", async () => {
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
 
+it("matches durable records independently of object key insertion order", async () => {
+  const initial = settled();
+  const journal = memoryJournal({
+    ...initial,
+    receipt: {
+      ...initial.receipt,
+      record: {
+        network: initial.receipt.record.network,
+        nonce: initial.receipt.record.nonce,
+        signer: initial.receipt.record.signer,
+        tx_id: initial.receipt.record.tx_id,
+        sha256: initial.receipt.record.sha256,
+      },
+    },
+  });
+  const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ sha256: receipt.record.sha256, settlements: [] })));
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl });
+
+  await expect(client.checkRegistration(receipt)).resolves.toMatchObject({
+    registration: "pending",
+    receipt: { record: receipt.record },
+  });
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
 it("retryRegistration performs one explicit POST and persists acknowledgement", async () => {
   const journal = memoryJournal(settled());
   const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {

@@ -5,10 +5,13 @@ export type SignNetwork = "fast:testnet" | "fast:mainnet";
 
 export type Relationship =
   | "authored"
+  | "co_authored"
   | "approved"
+  | "published"
   | "reviewed"
   | "witnessed"
-  | "received";
+  | "received"
+  | "official_release";
 
 export interface ByteSigner {
   getPublicKey(): Promise<Uint8Array>;

@@ -735,6 +735,22 @@ describe("browser-bound OAuth proofs", () => {
     expect(h.provider.submitTransaction).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["extra fields", { available: true, error: "stale" }],
+    ["arrays", [{ available: true }]],
+  ])("requires an exact OAuth acknowledgement (%s)", async (_label, body) => {
+    const h = await harness({
+      route: (url) =>
+        url.includes("/api/oauth/proof-available?") ? json(body) : undefined,
+    });
+    await expect(h.client.settleOAuthClaim("github", "octocat")).rejects.toBeInstanceOf(
+      OAuthProofUnavailableError,
+    );
+    expect(h.sign).not.toHaveBeenCalled();
+    expect(h.provider.getAccountInfo).not.toHaveBeenCalled();
+    expect(h.provider.submitTransaction).not.toHaveBeenCalled();
+  });
+
 });
 
 describe("website proof", () => {

@@ -53,5 +53,11 @@ jobs:
       - name: Fast Sign SDK typecheck and license audit
         run: pnpm --filter @fastxyz/sign-sdk typecheck && pnpm --filter @fastxyz/sign-sdk audit:licenses
 
+      - name: Fast Sign SDK build
+        run: pnpm --filter @fastxyz/sign-sdk build
+
+      - name: Fast Sign SDK tests
+        run: pnpm --filter @fastxyz/sign-sdk test
+
       - name: Fast Sign SDK tarball consumer
         run: pnpm --filter @fastxyz/sign-sdk smoke:package

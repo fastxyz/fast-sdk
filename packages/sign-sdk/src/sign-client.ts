@@ -30,6 +30,7 @@ import type {
   SettledJournalSnapshot,
   SignedSubmission,
 } from "./recovery.js";
+import { snapshotFrozenOperation, snapshotRecoveryJournal } from "./recovery.js";
 import { asInsufficientFunds, asNonceConflict } from "./errors.js";
 
 const MAX_U64 = (1n << 64n) - 1n;
@@ -150,11 +151,7 @@ export function createSignClient(options: SignClientOptions): SignClient {
     submitTransaction: providerSource.submitTransaction.bind(providerSource),
   };
   const journalSource = options.journal;
-  const journal: RecoveryJournal = {
-    load: journalSource.load.bind(journalSource),
-    save: journalSource.save.bind(journalSource),
-    withLock: journalSource.withLock.bind(journalSource),
-  };
+  const journal: RecoveryJournal = snapshotRecoveryJournal(journalSource);
   const feePolicy: FeePolicy = { ...options.feePolicy };
   if (feePolicy.feeFreeNetwork !== undefined && typeof feePolicy.feeFreeNetwork !== "boolean") {
     throw new Error("feeFreeNetwork must be a boolean");
@@ -265,7 +262,7 @@ export function createSignClient(options: SignClientOptions): SignClient {
             metadataRevision: 1n,
             fastIdAttribution: null,
           }));
-          const operation: FrozenOperation = current?.operation ?? {
+          const operation: FrozenOperation = current?.operation ?? snapshotFrozenOperation({
             input,
             network,
             proxyUrl,
@@ -275,7 +272,7 @@ export function createSignClient(options: SignClientOptions): SignClient {
             requestIdHex: bytesToHex(requestId),
             issuedAtNanoseconds: timestampNanos.toString(),
             fee: authorized,
-          };
+          });
           if (!current) await journal.save({ version: 1, state: "prepared", operationId: input.operationId, updatedAt: instant, operation });
           const prepared = await prepareExternalClaimTransaction({
             network, senderPublicKey: publicKey, nonce, claimDataHex,

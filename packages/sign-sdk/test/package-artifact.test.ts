@@ -7,7 +7,7 @@ import {
   assertPackageInventory,
   expectedPackageInventory,
 } from "../scripts/package-artifact.mjs";
-import { assertLicenseProvenance } from "../scripts/license-provenance.mjs";
+import { assertLicenseProvenance, reviewedDependencies } from "../scripts/license-provenance.mjs";
 
 it("accepts only the exact public tarball inventory", () => {
   expect(() => assertPackageInventory(expectedPackageInventory)).not.toThrow();
@@ -20,4 +20,9 @@ it("rejects dependencies without reviewed license provenance", () => {
   expect(() => assertLicenseProvenance()).not.toThrow();
   expect(() => assertLicenseProvenance([{ name: "unknown", version: "1.0.0", license: null }]))
     .toThrow(/license/i);
+});
+
+it("requires transitive production dependencies in the reviewed inventory", () => {
+  const withoutTransitive = reviewedDependencies.filter((record) => record.name !== "@hpke/core");
+  expect(() => assertLicenseProvenance(withoutTransitive)).toThrow(/inventory/i);
 });

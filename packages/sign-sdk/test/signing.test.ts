@@ -392,6 +392,66 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(poison).not.toHaveBeenCalled();
   });
 
+  it("owns a journal snapshot before later awaits can mutate the journal result", async () => {
+    const actual = new Signer(seed);
+    const originalTxId = fixture.certificate.txId;
+    const snapshot: JournalSnapshot = {
+      version: 1,
+      state: "submission_unknown",
+      operationId: "journal-snapshot-ownership",
+      updatedAt: 1,
+      operation: {
+        input: {
+          operationId: "journal-snapshot-ownership",
+          sha256: "11".repeat(32),
+          relationship: "authored",
+          listBySigner: false,
+        },
+        network: "fast:testnet",
+        proxyUrl: "https://proxy.example/proxy",
+        indexOrigin: "https://index.example",
+        senderHex: fixture.certificate.signerHex,
+        nonce: "7",
+        requestIdHex: "33".repeat(16),
+        issuedAtNanoseconds: fixture.certificate.timestampNanos,
+        fee: { tokenId: null, amountAtomic: "0", scheduleFingerprint: "fast:testnet|none" },
+      },
+      submission: {
+        txId: originalTxId,
+        signingBytesHex: fixture.certificate.signingBytesHex,
+        transactionBytesHex: "01",
+        senderSignatureHex: fixture.certificate.senderSignatureHex,
+        claimDataHex: fixture.certificate.claimDataHex,
+      },
+    };
+    const getPublicKey = vi.fn(async () => {
+      // A valid but hostile journal can retain and mutate the object it returned.
+      // The client must have detached its own snapshot before this await resumes.
+      (snapshot.submission as unknown as { txId: string }).txId = "11".repeat(32);
+      return actual.getPublicKey();
+    });
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example/proxy",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey, signMessage: (bytes) => actual.signMessage(bytes) },
+      journal: {
+        async load() { return snapshot; },
+        async save() { undefined; },
+        async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+      },
+      provider: { getNextNonce: vi.fn(async () => 7n), submitTransaction: vi.fn(async () => null) },
+      feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+      feeSource: feeSource({ amount: "0" }),
+    });
+
+    await expect(client.signDigest({
+      operationId: snapshot.operationId,
+      sha256: snapshot.operation.input.sha256,
+      relationship: "authored",
+    })).resolves.toEqual({ settlement: "unknown", operationId: snapshot.operationId, txId: originalTxId, recoveryPersisted: true });
+  });
+
   it.each([
     ["nonce", { _tag: "ProxyUnexpectedNonceError", expectedNonce: 8n }, NonceConflictError],
     ["funding", { details: { InsufficientFundingForFee: {} } }, InsufficientFundsError],

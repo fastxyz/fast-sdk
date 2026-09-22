@@ -55,24 +55,24 @@ function tokenMetaFor(
       ? metadata.data.requested_token_metadata
       : undefined;
   if (!Array.isArray(list)) return null;
-  for (const row of list) {
-    if (!Array.isArray(row) || row[0] !== tokenId || !isObject(row[1])) {
-      continue;
-    }
-    const { token_name, decimals, update_id } = row[1];
-    if (typeof token_name !== "string" || token_name.length === 0 || !isU8(decimals)) {
+  const matches = list.filter(
+    (row) => Array.isArray(row) && row[0] === tokenId,
+  );
+  if (matches.length !== 1) return null;
+  const row = matches[0];
+  if (!Array.isArray(row) || !isObject(row[1])) return null;
+  const { token_name, decimals, update_id } = row[1];
+  if (typeof token_name !== "string" || token_name.length === 0 || !isU8(decimals)) {
+    return null;
+  }
+  let updateId: number | null = null;
+  if (update_id !== undefined) {
+    if (!Number.isSafeInteger(update_id) || (update_id as number) < 0) {
       return null;
     }
-    let updateId: number | null = null;
-    if (update_id !== undefined) {
-      if (!Number.isSafeInteger(update_id) || (update_id as number) < 0) {
-        return null;
-      }
-      updateId = update_id as number;
-    }
-    return { symbol: token_name, decimals, updateId };
+    updateId = update_id as number;
   }
-  return null;
+  return { symbol: token_name, decimals, updateId };
 }
 
 /** Resolve the active fee from authoritative proxy data. Any ambiguity fails closed. */

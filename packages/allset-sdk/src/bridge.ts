@@ -563,10 +563,14 @@ export async function executeIntent(
     }
   }
 
+  // The legacy claim and its relayer metadata must derive from one owned snapshot.
+  // Keep this before the first await so caller mutation cannot split those values.
+  const legacyIntentsSnapshot: Intent[] = prepared === null ? structuredClone(intents) : [];
+
   // Resolve all request-only routing data before either paid Fast transaction is submitted.
   const externalAddress = prepared
     ? resolveV1ExternalAddress(prepared.claim.intents, externalAddressOverride)
-    : resolveExternalAddress(intents, externalAddressOverride);
+    : resolveExternalAddress(legacyIntentsSnapshot, externalAddressOverride);
   if (!externalAddress) {
     throw new FastError(
       "INVALID_PARAMS",
@@ -637,6 +641,11 @@ export async function executeIntent(
     transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
     // Derive the Fast tx ID from cross-sign bytes[32:64] — this is the canonical transaction hash
     transferFastTxId = extractClaimId(transferCrossSign.transaction);
+    if (!/^0x[0-9a-f]{64}$/.test(transferFastTxId)) {
+      throw new FastError("TX_FAILED", "Cross-sign returned an invalid transfer transaction ID", {
+        note: "The Fast transfer was submitted, but its cross-sign result cannot identify it safely.",
+      });
+    }
   } catch (cause) {
     throw new PostPaymentRecoveryError({
       stage: "transfer-cross-sign",
@@ -655,7 +664,7 @@ export async function executeIntent(
         encodeIntentClaim({
           transferFastTxId,
           deadline,
-          intents,
+          intents: legacyIntentsSnapshot,
         }),
       );
 

@@ -1545,6 +1545,57 @@ test('executeIntent preserves the settled transfer identity when cross-sign fail
   assert.equal(relayCalls, 0);
 });
 
+test('executeIntent preserves transfer recovery when cross-sign returns a malformed transaction ID', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) {
+      relayCalls++;
+      return Response.json(RELAY_ACCEPTED);
+    }
+    crossSignCalls++;
+    return Response.json({ result: { transaction: [], signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const submissions: unknown[] = [];
+  const provider = {
+    getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+    submitTransaction: async (envelope: unknown) => {
+      submissions.push(structuredClone(envelope));
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+
+  let failure: unknown;
+  try {
+    await executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider,
+      claimEncoding: 'v1',
+      chainId: 5042,
+      bridgeContract: BRIDGE_CONTRACT,
+    });
+  } catch (error) {
+    failure = error;
+  }
+
+  assert.ok(failure instanceof PostPaymentRecoveryError);
+  const recovery = failure as PostPaymentRecoveryError;
+  assert.equal(recovery.stage, 'transfer-cross-sign');
+  assert.equal(recovery.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+  assert.deepEqual(recovery.transfer.recoveryEnvelope, submissions[0]);
+  assert.equal(recovery.intent, undefined);
+  assert.equal(submissions.length, 1, 'no intent transaction may be submitted');
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayCalls, 0);
+});
+
 test('executeIntent preserves both settled identities when intent cross-sign fails', async () => {
   const originalFetch = globalThis.fetch;
   let crossSignCalls = 0;
@@ -1934,6 +1985,61 @@ test('executeIntent with claimEncoding v1 is immune to caller mutation during th
     assert.equal(decoded.intents[0].receiver, EVM_ADDRESS);
   }
   assert.equal(relayerBody?.external_address, EVM_ADDRESS);
+});
+
+test('executeIntent legacy claim and relayer metadata use the same pre-await intent snapshot', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let relayerBody: Record<string, unknown> | undefined;
+  Date.now = () => 1700000000000;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/relay')) {
+      relayerBody = JSON.parse(String(init?.body));
+      return Response.json(RELAY_ACCEPTED);
+    }
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+    Date.now = originalNow;
+  });
+
+  const originalIntent = buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS);
+  const mutatedIntent = buildTransferIntent(TOKEN_ADDRESS, '0x2222222222222222222222222222222222222222');
+  const intents = [originalIntent];
+  const submitted: unknown[] = [];
+  let accountInfoCalls = 0;
+  const provider = {
+    getAccountInfo: async () => {
+      if (accountInfoCalls++ === 0) intents[0] = mutatedIntent;
+      return { nextNonce: 1n } as any;
+    },
+    submitTransaction: async (envelope: unknown) => {
+      submitted.push(structuredClone(envelope));
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+
+  await executeIntent({
+    ...BASE_INTENT_PARAMS,
+    intents,
+    signer: testSigner,
+    provider,
+  });
+
+  assert.equal(submitted.length, 2);
+  const claimData = ((submitted[1] as any).transaction.value.claims?.[0] ?? (submitted[1] as any).transaction.value.claim).value.claim
+    .claimData as Uint8Array;
+  const expected = hexToBytes(
+    encodeIntentClaim({
+      transferFastTxId: TX_HASH,
+      deadline: BigInt(Math.floor(1700000000000 / 1000)) + 3600n,
+      intents: [originalIntent],
+    }),
+  );
+  assert.deepEqual(Array.from(claimData), Array.from(expected));
+  assert.equal(relayerBody?.external_address, EVM_ADDRESS);
+  assert.equal(accountInfoCalls, 2);
 });
 
 // ---------------------------------------------------------------------------

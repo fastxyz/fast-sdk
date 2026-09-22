@@ -1,7 +1,7 @@
 // Copyright (c) Pi Squared, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -62,7 +62,7 @@ export function collectProductionDependencies(packageRoot = root) {
   const seen = new Map();
   while (queue.length > 0) {
     const { name, from } = queue.shift();
-    const manifestPath = resolveManifest(name, from);
+    const manifestPath = realpathSync(resolveManifest(name, from));
     const manifest = readManifest(manifestPath);
     const key = `${manifest.name}@${manifest.version}`;
     if (seen.has(key)) continue;

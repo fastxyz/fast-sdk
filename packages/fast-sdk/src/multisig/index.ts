@@ -13,7 +13,13 @@ import { Schema } from 'effect';
 import { hashHex } from '../interface/encode.js';
 import { deriveMultiSigAddressBytes, type MultiSigConfig, MultiSigSigner, validateMultiSigConfig } from '../interface/multisig-signer.js';
 import type { FastProvider } from '../interface/provider.js';
-import { InvalidRequestError, ProxyUnexpectedNonceError } from '../core/error/proxy.js';
+import {
+  InvalidRequestError,
+  IpRateLimitedError,
+  ProxyUnexpectedNonceError,
+  ServiceUnavailableError,
+  VerifierSigsInvalidError,
+} from '../core/error/proxy.js';
 import { run } from '../core/run.js';
 
 export { MultiSigConfigInvalidError, MultiSigSigner, NotAuthorizedSignerError, validateMultiSigConfig } from '../interface/multisig-signer.js';
@@ -136,7 +142,22 @@ export interface VoteMultiSigTransactionParams {
 
 type WorkflowProvider = Pick<FastProvider, 'getAccountInfo' | 'getPendingMultisigTransactions' | 'submitTransaction'>;
 
-const preparedReplacementAllowlist = new WeakMap<PreparedMultiSigTransaction, readonly string[]>();
+interface PreparedMultiSigState {
+  readonly transaction: VersionedTransaction;
+  readonly txHash: string;
+  readonly replacedProposalHashes: readonly string[];
+}
+
+const preparedState = new WeakMap<PreparedMultiSigTransaction, PreparedMultiSigState>();
+
+const isDefinitiveSubmissionRejection = (
+  cause: unknown,
+): cause is InvalidRequestError | IpRateLimitedError | ProxyUnexpectedNonceError | ServiceUnavailableError | VerifierSigsInvalidError =>
+  cause instanceof InvalidRequestError ||
+  cause instanceof IpRateLimitedError ||
+  cause instanceof ProxyUnexpectedNonceError ||
+  cause instanceof ServiceUnavailableError ||
+  cause instanceof VerifierSigsInvalidError;
 
 export interface MultiSigWorkflowOptions {
   readonly provider: WorkflowProvider;
@@ -239,7 +260,13 @@ export class MultiSigWorkflow {
 
   /** Build, but do not sign, the exact transaction payload. */
   async prepare(params: PrepareMultiSigTransactionParams): Promise<PreparedMultiSigTransaction> {
-    this.assertSigner(params.signer);
+    const signer = params.signer;
+    const operations = structuredClone([...params.operations]);
+    const version = params.version;
+    const archival = params.archival;
+    const feeToken = params.feeToken == null ? params.feeToken : structuredClone(params.feeToken);
+    const replacePending = params.replacePending;
+    this.assertSigner(signer);
     const state = await this.fetchState();
     if (state.pendingConfirmation != null) {
       throw new MultiSigWorkflowError(
@@ -247,27 +274,34 @@ export class MultiSigWorkflow {
         'A transaction is awaiting validator confirmation; refusing to prepare another transaction at this nonce.',
       );
     }
-    if (state.pending.length > 0 && !params.replacePending) {
+    if (state.pending.length > 0 && !replacePending) {
       throw new MultiSigWorkflowError(
         'PENDING_REPLACEMENT',
         `${state.pending.length} proposal(s) already exist at nonce ${state.nextNonce}; set replacePending only after inspecting them.`,
       );
     }
-    const transaction = await params.signer.buildTransaction({
+    const transaction = await signer.buildTransaction({
       networkId: this.networkId,
       nonce: state.nextNonce,
-      operations: [...params.operations],
-      version: params.version,
-      archival: params.archival,
-      feeToken: params.feeToken,
+      operations,
+      version,
+      archival,
+      feeToken,
     });
+    const transactionSnapshot = structuredClone(transaction);
+    const txHash = await getMultiSigTransactionHash(transactionSnapshot);
+    const replacedProposalHashes = state.pending.map((entry) => entry.txHash);
     const prepared = {
       transaction,
-      txHash: await getMultiSigTransactionHash(transaction),
+      txHash,
       nonce: state.nextNonce,
-      replacedProposalHashes: state.pending.map((entry) => entry.txHash),
+      replacedProposalHashes,
     };
-    preparedReplacementAllowlist.set(prepared, Object.freeze(prepared.replacedProposalHashes.map(normalizeTxHash)));
+    preparedState.set(prepared, {
+      transaction: transactionSnapshot,
+      txHash,
+      replacedProposalHashes: Object.freeze(replacedProposalHashes.map(normalizeTxHash)),
+    });
     return prepared;
   }
 
@@ -276,14 +310,29 @@ export class MultiSigWorkflow {
     // Snapshot caller-owned input before the first await. Hashing and signing
     // then operate only on this private graph, closing mutation races between
     // integrity validation and signature serialization.
-    const transaction = structuredClone(params.prepared.transaction);
-    const expectedHash = params.prepared.txHash;
-    const replacedProposalHashes = preparedReplacementAllowlist.get(params.prepared) ?? [];
-    this.assertSigner(params.signer);
-    const preparedHash = await getMultiSigTransactionHash(transaction);
-    if (preparedHash !== expectedHash) {
-      throw new MultiSigWorkflowError('PREPARED_PAYLOAD_MISMATCH', 'Prepared transaction hash does not match its payload.');
+    const signer = params.signer;
+    const prepared = params.prepared;
+    const replacePending = params.replacePending;
+    const privateState = preparedState.get(prepared);
+    const publicTransaction = structuredClone(prepared.transaction);
+    const publicHash = prepared.txHash;
+    if (privateState == null) {
+      throw new MultiSigWorkflowError('PREPARED_PAYLOAD_MISMATCH', 'Prepared transaction was not created by this workflow.');
     }
+    const transaction = structuredClone(privateState.transaction);
+    const expectedHash = privateState.txHash;
+    const replacedProposalHashes = privateState.replacedProposalHashes;
+    this.assertSigner(signer);
+    let publicPayloadHash: string;
+    try {
+      publicPayloadHash = await getMultiSigTransactionHash(publicTransaction);
+    } catch {
+      throw new MultiSigWorkflowError('PREPARED_PAYLOAD_MISMATCH', 'Prepared transaction does not match its private snapshot.');
+    }
+    if (publicHash !== expectedHash || publicPayloadHash !== expectedHash) {
+      throw new MultiSigWorkflowError('PREPARED_PAYLOAD_MISMATCH', 'Prepared transaction hash does not match its private snapshot.');
+    }
+    const preparedHash = expectedHash;
     const state = await this.fetchState();
     if (state.pendingConfirmation != null) {
       throw new MultiSigWorkflowError('PENDING_CONFIRMATION', 'A transaction is awaiting validator confirmation.');
@@ -293,7 +342,7 @@ export class MultiSigWorkflow {
     }
     const competing = state.pending.filter((entry) => entry.txHash !== preparedHash);
     const unapprovedCompeting = competing.filter((entry) => !replacedProposalHashes.includes(normalizeTxHash(entry.txHash)));
-    if (competing.length > 0 && (!params.replacePending || unapprovedCompeting.length > 0)) {
+    if (competing.length > 0 && (!replacePending || unapprovedCompeting.length > 0)) {
       throw new MultiSigWorkflowError(
         'PENDING_REPLACEMENT',
         `${unapprovedCompeting.length || competing.length} competing proposal(s) were not approved for replacement at nonce ${state.nextNonce}.`,
@@ -307,13 +356,24 @@ export class MultiSigWorkflow {
 
   /** Convenience path for automation that has already inspected its inputs. */
   async initiate(params: PrepareMultiSigTransactionParams): Promise<MultiSigSubmission> {
-    const prepared = await this.prepare(params);
-    return this.submitPrepared({ signer: params.signer, prepared, replacePending: params.replacePending });
+    const signer = params.signer;
+    const prepareParams: PrepareMultiSigTransactionParams = {
+      signer,
+      operations: structuredClone([...params.operations]),
+      version: params.version,
+      archival: params.archival,
+      feeToken: params.feeToken == null ? params.feeToken : structuredClone(params.feeToken),
+      replacePending: params.replacePending,
+    };
+    const prepared = await this.prepare(prepareParams);
+    return this.submitPrepared({ signer, prepared, replacePending: prepareParams.replacePending });
   }
 
   /** Validate, sign, and submit an existing current-nonce proposal. */
   async vote(params: VoteMultiSigTransactionParams): Promise<MultiSigSubmission> {
-    this.assertSigner(params.signer);
+    const signer = params.signer;
+    const requestedTxHash = params.txHash;
+    this.assertSigner(signer);
     const state = await this.fetchState();
     if (state.pendingConfirmation != null) {
       throw new MultiSigWorkflowError('PENDING_CONFIRMATION', 'A transaction is already awaiting validator confirmation.');
@@ -321,10 +381,10 @@ export class MultiSigWorkflow {
     if (state.pending.length === 0) {
       throw new MultiSigWorkflowError('NO_PENDING_TRANSACTION', `No proposal exists at nonce ${state.nextNonce}.`);
     }
-    const normalized = normalizeTxHash(params.txHash);
+    const normalized = normalizeTxHash(requestedTxHash);
     const candidates = normalized ? state.pending.filter((entry) => normalizeTxHash(entry.txHash) === normalized) : [];
     if (candidates.length === 0) {
-      throw new MultiSigWorkflowError('TRANSACTION_NOT_FOUND', `No current proposal matches ${params.txHash}.`);
+      throw new MultiSigWorkflowError('TRANSACTION_NOT_FOUND', `No current proposal matches ${requestedTxHash}.`);
     }
     if (candidates.length > 1) {
       throw new MultiSigWorkflowError('AMBIGUOUS_PENDING_TRANSACTION', 'Multiple proposals exist at the current nonce; select one by txHash.');
@@ -333,10 +393,10 @@ export class MultiSigWorkflow {
     const envelopeSnapshot = structuredClone(selected.envelope);
     const snapshotHash = await getMultiSigTransactionHash(envelopeSnapshot.transaction);
     if (normalizeTxHash(snapshotHash) !== normalized) {
-      throw new MultiSigWorkflowError('TRANSACTION_NOT_FOUND', `No current proposal matches ${params.txHash}.`);
+      throw new MultiSigWorkflowError('TRANSACTION_NOT_FOUND', `No current proposal matches ${requestedTxHash}.`);
     }
     this.assertEnvelope(envelopeSnapshot, state.address);
-    const envelope = await params.signer.signEnvelopeFor(envelopeSnapshot.transaction);
+    const envelope = await signer.signEnvelopeFor(envelopeSnapshot.transaction);
     return this.submit(envelope, snapshotHash);
   }
 
@@ -363,44 +423,46 @@ export class MultiSigWorkflow {
   }
 
   private async submit(envelope: TransactionEnvelope, txHash: string): Promise<MultiSigSubmission> {
+    const recoveryEnvelope = structuredClone(envelope);
+    const providerEnvelope = structuredClone(recoveryEnvelope);
     let submitResult: SubmitTransactionResult;
     try {
-      submitResult = await this.provider.submitTransaction(envelope);
+      submitResult = await this.provider.submitTransaction(providerEnvelope);
     } catch (cause) {
-      if (cause instanceof ProxyUnexpectedNonceError || cause instanceof InvalidRequestError) {
+      if (isDefinitiveSubmissionRejection(cause)) {
         throw cause;
       }
       throw new MultiSigSubmissionUnknownError({
         txHash,
-        nonce: envelope.transaction.value.nonce,
-        envelope,
+        nonce: recoveryEnvelope.transaction.value.nonce,
+        envelope: recoveryEnvelope,
         cause,
       });
     }
     if (submitResult.type === 'IncompleteMultiSig') {
       return {
         status: 'pending-signatures',
-        envelope,
+        envelope: recoveryEnvelope,
         txHash,
-        nonce: envelope.transaction.value.nonce,
+        nonce: recoveryEnvelope.transaction.value.nonce,
         submitResult,
       };
     }
     if (submitResult.type === 'Success') {
       return {
         status: 'submitted',
-        envelope,
+        envelope: recoveryEnvelope,
         txHash,
-        nonce: envelope.transaction.value.nonce,
+        nonce: recoveryEnvelope.transaction.value.nonce,
         submitResult,
       };
     }
     if (submitResult.type === 'IncompleteVerifierSigs') {
       return {
         status: 'pending-verifier-signatures',
-        envelope,
+        envelope: recoveryEnvelope,
         txHash,
-        nonce: envelope.transaction.value.nonce,
+        nonce: recoveryEnvelope.transaction.value.nonce,
         submitResult,
       };
     }

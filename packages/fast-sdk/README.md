@@ -220,8 +220,10 @@ Cosigners call `workflow.getState()` to inspect current-nonce proposals and
 `workflow.vote({ signer, txHash })` to approve one. Sender, network, nonce, and
 the complete multisig config are checked before signing. Competing proposals
 fail closed unless `replacePending: true` is explicit and the competing hashes
-were already present in the prepared snapshot. An ambiguous transport failure
-raises `MultiSigSubmissionUnknownError` with the transaction hash, nonce, and
+were already present in the prepared snapshot. Replacement authorization is
+bound to the in-process prepared object; a serialized or rehydrated prepared
+value cannot authorize replacement proposals and fails closed. An ambiguous
+transport failure raises `MultiSigSubmissionUnknownError` with the transaction hash, nonce, and
 signed envelope; definitive proxy rejections remain their original typed error
 instead. Callers must reconcile an unknown identity before retrying. The workflow
 does not invent a fee estimate: no canonical public fee schedule is currently

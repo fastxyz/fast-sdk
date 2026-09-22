@@ -27,7 +27,7 @@ const seed = (value: number) => new Uint8Array(32).fill(value);
 
 type VoteScenario = {
   readonly asMember: 'alice' | 'bob';
-  readonly submitType: 'Success' | 'IncompleteMultiSig';
+  readonly submitType: 'Success' | 'IncompleteMultiSig' | 'IncompleteVerifierSigs';
   readonly historyFailure?: boolean;
   readonly metadataFailure?: boolean;
   readonly submitFailure?: boolean;
@@ -219,6 +219,23 @@ describe('multisig vote handler', () => {
     expect(result.confirmations).toEqual(['Sign and submit?']);
     expect(result.submissions).toBe(1);
     expect(result.metadataCalls).toBe(0);
+  });
+
+  it('preserves recovery when the vote is retained pending verifier signatures', async () => {
+    const result = await runVoteScenario({ asMember: 'bob', submitType: 'IncompleteVerifierSigs' });
+
+    expect(result.submissions).toBe(1);
+    expect(result.exit._tag).toBe('Failure');
+    if (result.exit._tag !== 'Failure' || result.exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    const error = result.exit.cause.error;
+    expect(error).toBeInstanceOf(TransactionSubmissionUnknownError);
+    if (!(error instanceof TransactionSubmissionUnknownError)) throw new Error('expected unknown-submission error');
+    expect(error.txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(error.nonce).toBe(0n);
+    expect(error.details).toMatchObject({ txHash: error.txHash, nonce: '0' });
+    expect(error.details.recoveryEnvelope).toHaveProperty('transaction');
+    expect(error.message).toContain('Do not rebuild or retry this operation');
+    expect(result.history).toHaveLength(0);
   });
 
   it('resubmits an already-recorded signature after explicit confirmation', async () => {

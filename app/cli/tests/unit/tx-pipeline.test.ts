@@ -180,12 +180,16 @@ describe('submitOperation (single-signer)', () => {
     });
   });
 
-  it('fails instead of finalizing when proxy says IncompleteVerifierSigs', async () => {
+  it('preserves recovery when proxy retains a transaction for verifier signatures', async () => {
     const signer = new Signer(SECRET);
+    let submittedEnvelope: unknown;
 
     const rpcStub = Layer.succeed(FastRpc, {
       getAccountInfo: (_p: unknown) => Effect.succeed({ nextNonce: 0n }) as never,
-      submitTransaction: (_envelope: unknown) => Effect.succeed({ type: 'IncompleteVerifierSigs' }) as never,
+      submitTransaction: (envelope: unknown) => {
+        submittedEnvelope = envelope;
+        return Effect.succeed({ type: 'IncompleteVerifierSigs' }) as never;
+      },
       getPendingMultisigTransactions: (_p: unknown) => Effect.succeed([]) as never,
       getTokenInfo: (_p: unknown) => Effect.succeed({}) as never,
       getTransactionCertificates: (_p: unknown) => Effect.succeed([]) as never,
@@ -209,6 +213,16 @@ describe('submitOperation (single-signer)', () => {
     );
 
     expect(exit._tag).toBe('Failure');
+    if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected typed failure');
+    const error = exit.cause.error;
+    expect(error).toBeInstanceOf(TransactionSubmissionUnknownError);
+    if (!(error instanceof TransactionSubmissionUnknownError)) throw new Error('expected unknown-submission error');
+    expect(error.txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(error.nonce).toBe(0n);
+    expect(error.details).toMatchObject({ txHash: error.txHash, nonce: '0' });
+    expect(error.details.recoveryEnvelope).toHaveProperty('transaction');
+    expect(Schema.decodeUnknownSync(TransactionEnvelopeFromRest)(error.details.recoveryEnvelope)).toEqual(submittedEnvelope);
+    expect(error.message).toContain('Do not rebuild or retry this operation');
   });
 
   it('surfaces a recovery identity instead of an ordinary failure when the response is lost', async () => {

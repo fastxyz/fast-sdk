@@ -209,7 +209,7 @@ function validateClaim(claim: IntentClaimV1): void {
     if (!Number.isInteger(claim.display.tokenDecimals) || claim.display.tokenDecimals < 0 || claim.display.tokenDecimals > 99) {
       throw new Error('allset/intent/v1: display.token_decimals must be between 0 and 99');
     }
-    if (claim.display.tokenSymbol.length === 0 || utf8Length(claim.display.tokenSymbol) > 16) {
+    if (typeof claim.display.tokenSymbol !== 'string' || claim.display.tokenSymbol.length === 0 || utf8Length(claim.display.tokenSymbol) > 16) {
       throw new Error('allset/intent/v1: display.token_symbol must be 1..16 UTF-8 bytes');
     }
   }
@@ -481,8 +481,8 @@ function snapshotDisplay(display: IntentClaimV1['display']): IntentClaimV1['disp
   return display
     ? {
         amount: BigInt(display.amount),
-        tokenSymbol: String(display.tokenSymbol),
-        tokenDecimals: Number(display.tokenDecimals),
+        tokenSymbol: display.tokenSymbol,
+        tokenDecimals: display.tokenDecimals,
       }
     : undefined;
 }

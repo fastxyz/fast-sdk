@@ -15,7 +15,7 @@ import { deriveMultiSigAddressBytes, type MultiSigConfig, MultiSigSigner, valida
 import type { FastProvider } from '../interface/provider.js';
 import { run } from '../core/run.js';
 
-export { MultiSigSigner, validateMultiSigConfig } from '../interface/multisig-signer.js';
+export { MultiSigConfigInvalidError, MultiSigSigner, NotAuthorizedSignerError, validateMultiSigConfig } from '../interface/multisig-signer.js';
 export type { MultiSigConfig } from '../interface/multisig-signer.js';
 
 export type MultiSigWorkflowErrorCode =
@@ -39,6 +39,30 @@ export class MultiSigWorkflowError extends Error {
     super(message);
     this.name = 'MultiSigWorkflowError';
     this.code = code;
+  }
+}
+
+/**
+ * The provider call started but did not produce a conclusive response.
+ * Callers must retain this identity and reconcile before attempting another
+ * transaction at the same account nonce.
+ */
+export class MultiSigSubmissionUnknownError extends Error {
+  readonly txHash: string;
+  readonly nonce: bigint;
+  readonly envelope: TransactionEnvelope;
+  readonly cause: unknown;
+
+  constructor(params: { txHash: string; nonce: bigint; envelope: TransactionEnvelope; cause: unknown }) {
+    super(
+      `Submission outcome is unknown for transaction ${params.txHash} at nonce ${params.nonce}. ` +
+        'Retain this envelope and reconcile the account before retrying.',
+    );
+    this.name = 'MultiSigSubmissionUnknownError';
+    this.txHash = params.txHash;
+    this.nonce = params.nonce;
+    this.envelope = params.envelope;
+    this.cause = params.cause;
   }
 }
 
@@ -94,12 +118,19 @@ export type MultiSigSubmission =
       readonly txHash: string;
       readonly nonce: bigint;
       readonly submitResult: SubmitTransactionResult;
+    }
+  | {
+      readonly status: 'pending-verifier-signatures';
+      readonly envelope: TransactionEnvelope;
+      readonly txHash: string;
+      readonly nonce: bigint;
+      readonly submitResult: SubmitTransactionResult;
     };
 
 export interface VoteMultiSigTransactionParams {
   readonly signer: MultiSigSigner;
-  /** Required when more than one proposal exists at the current nonce. */
-  readonly txHash?: string;
+  /** The exact current-nonce proposal to approve. */
+  readonly txHash: string;
 }
 
 type WorkflowProvider = Pick<FastProvider, 'getAccountInfo' | 'getPendingMultisigTransactions' | 'submitTransaction'>;
@@ -111,6 +142,7 @@ export interface MultiSigWorkflowOptions {
 }
 
 const bytesEqual = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((byte, index) => byte === b[index]);
+const normalizeTxHash = (hash: string): string => hash.toLowerCase().replace(/^0x/, '');
 
 const configsEqual = (a: MultiSigConfig, b: MultiSigConfig): boolean =>
   a.quorum === b.quorum &&
@@ -241,7 +273,12 @@ export class MultiSigWorkflow {
     // integrity validation and signature serialization.
     const transaction = structuredClone(params.prepared.transaction);
     const expectedHash = params.prepared.txHash;
+    const replacedProposalHashes = params.prepared.replacedProposalHashes.map(normalizeTxHash);
     this.assertSigner(params.signer);
+    const preparedHash = await getMultiSigTransactionHash(transaction);
+    if (preparedHash !== expectedHash) {
+      throw new MultiSigWorkflowError('PREPARED_PAYLOAD_MISMATCH', 'Prepared transaction hash does not match its payload.');
+    }
     const state = await this.fetchState();
     if (state.pendingConfirmation != null) {
       throw new MultiSigWorkflowError('PENDING_CONFIRMATION', 'A transaction is awaiting validator confirmation.');
@@ -249,18 +286,16 @@ export class MultiSigWorkflow {
     if (transaction.value.nonce !== state.nextNonce) {
       throw new MultiSigWorkflowError('STALE_NONCE', `Prepared nonce ${transaction.value.nonce} no longer matches current nonce ${state.nextNonce}.`);
     }
-    const preparedHash = await getMultiSigTransactionHash(transaction);
-    if (preparedHash !== expectedHash) {
-      throw new MultiSigWorkflowError('PREPARED_PAYLOAD_MISMATCH', 'Prepared transaction hash does not match its payload.');
-    }
     const competing = state.pending.filter((entry) => entry.txHash !== preparedHash);
-    if (competing.length > 0 && !params.replacePending) {
+    const unapprovedCompeting = competing.filter((entry) => !replacedProposalHashes.includes(normalizeTxHash(entry.txHash)));
+    if (competing.length > 0 && (!params.replacePending || unapprovedCompeting.length > 0)) {
       throw new MultiSigWorkflowError(
         'PENDING_REPLACEMENT',
-        `${competing.length} competing proposal(s) exist at nonce ${state.nextNonce}; refusing implicit replacement.`,
+        `${unapprovedCompeting.length || competing.length} competing proposal(s) were not approved for replacement at nonce ${state.nextNonce}.`,
       );
     }
     this.assertTransaction(transaction);
+    this.assertSender(transaction, state.address);
     const envelope = await params.signer.signEnvelopeFor(transaction);
     return this.submit(envelope, preparedHash);
   }
@@ -281,8 +316,8 @@ export class MultiSigWorkflow {
     if (state.pending.length === 0) {
       throw new MultiSigWorkflowError('NO_PENDING_TRANSACTION', `No proposal exists at nonce ${state.nextNonce}.`);
     }
-    const normalized = params.txHash?.toLowerCase().replace(/^0x/, '');
-    const candidates = normalized ? state.pending.filter((entry) => entry.txHash.toLowerCase().replace(/^0x/, '') === normalized) : state.pending;
+    const normalized = normalizeTxHash(params.txHash);
+    const candidates = normalized ? state.pending.filter((entry) => normalizeTxHash(entry.txHash) === normalized) : [];
     if (candidates.length === 0) {
       throw new MultiSigWorkflowError('TRANSACTION_NOT_FOUND', `No current proposal matches ${params.txHash}.`);
     }
@@ -301,6 +336,12 @@ export class MultiSigWorkflow {
     }
   }
 
+  private assertSender(transaction: VersionedTransaction, expectedAddress: Uint8Array): void {
+    if (!bytesEqual(transaction.value.sender, expectedAddress)) {
+      throw new MultiSigWorkflowError('SENDER_MISMATCH', 'Transaction sender does not match this multisig address.');
+    }
+  }
+
   private assertEnvelope(envelope: TransactionEnvelope, expectedAddress: Uint8Array): void {
     if (!bytesEqual(envelope.transaction.value.sender, expectedAddress)) {
       throw new MultiSigWorkflowError('SENDER_MISMATCH', 'Pending transaction sender does not match this multisig address.');
@@ -312,7 +353,17 @@ export class MultiSigWorkflow {
   }
 
   private async submit(envelope: TransactionEnvelope, txHash: string): Promise<MultiSigSubmission> {
-    const submitResult = await this.provider.submitTransaction(envelope);
+    let submitResult: SubmitTransactionResult;
+    try {
+      submitResult = await this.provider.submitTransaction(envelope);
+    } catch (cause) {
+      throw new MultiSigSubmissionUnknownError({
+        txHash,
+        nonce: envelope.transaction.value.nonce,
+        envelope,
+        cause,
+      });
+    }
     if (submitResult.type === 'IncompleteMultiSig') {
       return {
         status: 'pending-signatures',
@@ -331,6 +382,16 @@ export class MultiSigWorkflow {
         submitResult,
       };
     }
-    throw new MultiSigWorkflowError('UNEXPECTED_SUBMIT_RESULT', `Submit returned ${submitResult.type}; the workflow will not report it as success.`);
+    if (submitResult.type === 'IncompleteVerifierSigs') {
+      return {
+        status: 'pending-verifier-signatures',
+        envelope,
+        txHash,
+        nonce: envelope.transaction.value.nonce,
+        submitResult,
+      };
+    }
+    const unexpectedType = (submitResult as { type?: string }).type ?? 'unknown';
+    throw new MultiSigWorkflowError('UNEXPECTED_SUBMIT_RESULT', `Submit returned ${unexpectedType}; the workflow will not report it as success.`);
   }
 }

@@ -3,7 +3,9 @@ import { getPublicKeyAsync } from '@noble/ed25519';
 import { describe, expect, it } from 'vitest';
 import { canonicalizeMultiSigSigners, type MultiSigConfig, MultiSigSigner } from '../../src/interface/multisig-signer.js';
 import {
+  getMultiSigTransactionHash,
   MultiSigSigner as SubpathMultiSigSigner,
+  MultiSigSubmissionUnknownError,
   MultiSigWorkflow,
   MultiSigWorkflowError,
   validateMultiSigConfig as subpathValidateMultiSigConfig,
@@ -40,20 +42,31 @@ const makeProvider = (state: {
   nextNonce?: bigint;
   pendingConfirmation?: unknown | null;
   pending?: TransactionEnvelope[];
+  pendingSequence?: TransactionEnvelope[][];
   submitResult?: SubmitTransactionResult;
+  submitError?: unknown;
   submitted?: TransactionEnvelope[];
 }) =>
-  ({
-    getAccountInfo: async () => ({
-      nextNonce: state.nextNonce ?? 9n,
-      pendingConfirmation: state.pendingConfirmation ?? null,
-    }),
-    getPendingMultisigTransactions: async () => state.pending ?? [],
-    submitTransaction: async (envelope: TransactionEnvelope) => {
-      state.submitted?.push(envelope);
-      return state.submitResult ?? ({ type: 'IncompleteMultiSig', value: null } as SubmitTransactionResult);
-    },
-  }) as never;
+  (() => {
+    let pendingCall = 0;
+    return {
+      getAccountInfo: async () => ({
+        nextNonce: state.nextNonce ?? 9n,
+        pendingConfirmation: state.pendingConfirmation ?? null,
+      }),
+      getPendingMultisigTransactions: async () => {
+        if (state.pendingSequence) {
+          return state.pendingSequence[Math.min(pendingCall++, state.pendingSequence.length - 1)] ?? [];
+        }
+        return state.pending ?? [];
+      },
+      submitTransaction: async (envelope: TransactionEnvelope) => {
+        state.submitted?.push(envelope);
+        if (state.submitError !== undefined) throw state.submitError;
+        return state.submitResult ?? ({ type: 'IncompleteMultiSig', value: null } as SubmitTransactionResult);
+      },
+    };
+  })() as never;
 
 describe('MultiSigWorkflow', () => {
   it('exports signer construction and validation from the multisig entry point', () => {
@@ -153,14 +166,82 @@ describe('MultiSigWorkflow', () => {
       config,
     });
 
-    const firstVote = await workflow.vote({ signer: second });
+    const txHash = await getMultiSigTransactionHash(pending.transaction);
+    const firstVote = await workflow.vote({ signer: second, txHash });
     const retry = await workflow.vote({ signer: second, txHash: firstVote.txHash });
 
     expect(firstVote.status).toBe('submitted');
     expect(retry.status).toBe('submitted');
     expect(submitted).toHaveLength(2);
-    expect(submitted[0]!.transaction).toBe(pending.transaction);
-    expect(submitted[1]!.transaction).toBe(pending.transaction);
+    expect(submitted[0]!.transaction).toEqual(pending.transaction);
+    expect(submitted[1]!.transaction).toEqual(pending.transaction);
+  });
+
+  it('requires an explicit non-empty transaction hash before voting', async () => {
+    const { config, first, second } = await fixture();
+    const pending = await first.signTransaction({ networkId: 'fast:testnet', nonce: 9n, operations: [transfer] });
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({ pending: [pending] }),
+      networkId: 'fast:testnet',
+      config,
+    });
+
+    await expect(workflow.vote({ signer: second, txHash: '' })).rejects.toMatchObject({ code: 'TRANSACTION_NOT_FOUND' });
+    await expect(workflow.vote({ signer: second, txHash: '0x' })).rejects.toMatchObject({ code: 'TRANSACTION_NOT_FOUND' });
+  });
+
+  it('rejects a newly competing proposal that was not present at prepare time', async () => {
+    const { config, first } = await fixture();
+    const original = await first.signTransaction({ networkId: 'fast:testnet', nonce: 9n, operations: [transfer] });
+    const replacement = await first.signTransaction({
+      networkId: 'fast:testnet',
+      nonce: 9n,
+      operations: [{ ...transfer, value: { ...transfer.value, amount: 8n } }],
+    });
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({ pendingSequence: [[original], [original, replacement]] }),
+      networkId: 'fast:testnet',
+      config,
+    });
+    const prepared = await workflow.prepare({ signer: first, operations: [transfer], replacePending: true });
+
+    await expect(workflow.submitPrepared({ signer: first, prepared, replacePending: true })).rejects.toMatchObject({
+      code: 'PENDING_REPLACEMENT',
+    });
+  });
+
+  it('reports a mutated nonce as prepared payload corruption', async () => {
+    const { config, first } = await fixture();
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({}),
+      networkId: 'fast:testnet',
+      config,
+    });
+    const prepared = await workflow.prepare({ signer: first, operations: [transfer] });
+    (prepared.transaction.value as { nonce: bigint }).nonce = 10n;
+
+    await expect(workflow.submitPrepared({ signer: first, prepared })).rejects.toMatchObject({
+      code: 'PREPARED_PAYLOAD_MISMATCH',
+    });
+  });
+
+  it('preserves recovery identity when submission transport is uncertain', async () => {
+    const { config, first } = await fixture();
+    const submitError = new Error('socket closed after request');
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({ submitError }),
+      networkId: 'fast:testnet',
+      config,
+    });
+
+    await expect(workflow.initiate({ signer: first, operations: [transfer] })).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(MultiSigSubmissionUnknownError);
+      expect((error as MultiSigSubmissionUnknownError).txHash).toMatch(/^0x[0-9a-f]{64}$/);
+      expect((error as MultiSigSubmissionUnknownError).nonce).toBe(9n);
+      expect((error as MultiSigSubmissionUnknownError).envelope.transaction.value.nonce).toBe(9n);
+      expect((error as MultiSigSubmissionUnknownError).cause).toBe(submitError);
+      return true;
+    });
   });
 
   it('rejects a proposal from another sender before signing', async () => {
@@ -178,7 +259,8 @@ describe('MultiSigWorkflow', () => {
       config,
     });
 
-    await expect(workflow.vote({ signer: second })).rejects.toMatchObject({ code: 'SENDER_MISMATCH' });
+    const txHash = await getMultiSigTransactionHash(pending.transaction);
+    await expect(workflow.vote({ signer: second, txHash })).rejects.toMatchObject({ code: 'SENDER_MISMATCH' });
   });
 
   it('never reports verifier-pending as success', async () => {
@@ -189,6 +271,8 @@ describe('MultiSigWorkflow', () => {
       config,
     });
 
-    await expect(workflow.initiate({ signer: first, operations: [transfer] })).rejects.toBeInstanceOf(MultiSigWorkflowError);
+    const result = await workflow.initiate({ signer: first, operations: [transfer] });
+    expect(result.status).toBe('pending-verifier-signatures');
+    expect(result.txHash).toMatch(/^0x[0-9a-f]{64}$/);
   });
 });

@@ -48,6 +48,7 @@ export {
   type MultiSigSubmission,
   MultiSigWorkflow,
   MultiSigWorkflowError,
+  MultiSigSubmissionUnknownError,
   type MultiSigWorkflowErrorCode,
   type MultiSigWorkflowOptions,
   type PrepareMultiSigTransactionParams,

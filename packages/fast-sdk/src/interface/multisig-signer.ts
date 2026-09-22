@@ -92,7 +92,7 @@ export function validateMultiSigConfig(config: MultiSigConfig): void {
   const signers = config.authorized_signers;
   if (config.nonce < 0n || config.nonce > (1n << 64n) - 1n) {
     throw new MultiSigConfigInvalidError({
-      reason: `nonce must fit u64 (got ${config.nonce})`,
+      reason: `nonce must be a u64 (got ${config.nonce})`,
     });
   }
   if (signers.length < 2) {

@@ -155,7 +155,7 @@ describe('assertAuthorizedSigner', () => {
       nonce,
     };
 
-    expect(() => validateMultiSigConfig(config)).toThrow(/nonce must fit u64/);
+    expect(() => validateMultiSigConfig(config)).toThrow(/nonce must be a u64/);
     await expect(assertAuthorizedSigner(config, SECRET_A)).rejects.toThrow(MultiSigConfigInvalidError);
   });
 });

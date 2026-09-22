@@ -52,7 +52,8 @@
     "@types/node": "^22.0.0",
     "esbuild": "0.28.2",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.1"
+    "vitest": "^4.1.1",
+    "yaml": "2.8.3"
   },
   "packageManager": "pnpm@10.1.0"
 }

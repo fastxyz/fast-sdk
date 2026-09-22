@@ -26,3 +26,17 @@ it("requires transitive production dependencies in the reviewed inventory", () =
   const withoutTransitive = reviewedDependencies.filter((record) => record.name !== "@hpke/core");
   expect(() => assertLicenseProvenance(withoutTransitive)).toThrow(/inventory/i);
 });
+
+it.each(["registryUrl", "integrity"] as const)("binds dependency %s to the exact lockfile resolution", (field) => {
+  const changed = reviewedDependencies.map((record, index) => index === 0
+    ? { ...record, [field]: field === "integrity" ? "sha512-AAAA" : "https://registry.example/" }
+    : record);
+  expect(() => assertLicenseProvenance(changed)).toThrow(/lockfile resolution/i);
+});
+
+it("requires an explicit reviewed dependency disposition", () => {
+  const unresolved = reviewedDependencies.map((record, index) => index === 0
+    ? { ...record, disposition: undefined }
+    : record);
+  expect(() => assertLicenseProvenance(unresolved)).toThrow(/disposition/i);
+});

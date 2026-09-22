@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test, onTestFinished } from 'vitest';
 import { FastError } from '../src/errors.ts';
-import { encodeFunctionData, type Hex } from 'viem';
+import { encodeFunctionData, hexToBytes, type Hex } from 'viem';
 import { Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
 import { Schema } from 'effect';
 import { TransactionCertificateFromRpc } from '@fastxyz/schema';
@@ -39,6 +39,7 @@ import {
   weiToTokenUnits,
 
 } from '../src/index.ts';
+import { encodeIntentClaim } from '../src/claims.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
 const EVM_ADDRESS = '0x1234567890123456789012345678901234567890';
@@ -696,6 +697,119 @@ test('executeIntent performs 2 Fast submits + 2 cross-signs + 1 relayer call', a
   // txHash is derived from cross-sign bytes[32:64] = MOCK_CROSS_SIGN_TX[32:64] = TX_HASH
   assert.equal(result.txHash, TX_HASH);
   assert.equal(result.orderId, TX_HASH);
+});
+
+test('executeIntent rejects a transfer success certificate for another transaction before cross-signing', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayerCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) relayerCalls++;
+    else crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async (envelope: unknown) => {
+          const certificateEnvelope = structuredClone(envelope as object) as any;
+          certificateEnvelope.transaction.value.nonce = 2n;
+          return { type: 'Success', value: { envelope: certificateEnvelope, signatures: [] } };
+        },
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => candidate instanceof FastError && candidate.code === 'TX_FAILED',
+  );
+
+  assert.equal(crossSignCalls, 0);
+  assert.equal(relayerCalls, 0);
+});
+
+test('executeIntent rejects an intent success certificate for another transaction before relaying', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayerCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) relayerCalls++;
+    else crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let submitCalls = 0;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async (envelope: unknown) => {
+          submitCalls++;
+          const certificateEnvelope = structuredClone(envelope as object) as any;
+          if (submitCalls === 2) certificateEnvelope.transaction.value.nonce = 2n;
+          return { type: 'Success', value: { envelope: certificateEnvelope, signatures: [] } };
+        },
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => candidate instanceof FastError && candidate.code === 'TX_FAILED',
+  );
+
+  assert.equal(submitCalls, 2);
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayerCalls, 0);
+});
+
+test('legacy deadlines are added exactly without number rounding', async () => {
+  const originalNow = Date.now;
+  Date.now = () => 1700000000000;
+  onTestFinished(() => {
+    Date.now = originalNow;
+  });
+  const submitted: unknown[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) =>
+    String(url).includes('/relay')
+      ? Response.json({ ok: true })
+      : Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const deadlineSeconds = Number.MAX_SAFE_INTEGER;
+  await executeIntent({
+    ...BASE_INTENT_PARAMS,
+    intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+    deadlineSeconds,
+    signer: testSigner,
+    provider: {
+      getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+      submitTransaction: async (envelope: unknown) => {
+        submitted.push(envelope);
+        return { type: 'Success', value: { envelope, signatures: [] } };
+      },
+    } as unknown as FastProvider,
+  });
+
+  const claimData = (((submitted[1] as any).transaction.value.claims?.[0] ?? (submitted[1] as any).transaction.value.claim).value.claim.claimData) as Uint8Array;
+  const expected = hexToBytes(
+    encodeIntentClaim({
+      transferFastTxId: TX_HASH,
+      deadline: BigInt(Math.floor(1700000000000 / 1000)) + BigInt(deadlineSeconds),
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+    }),
+  );
+  assert.deepEqual(Array.from(claimData), Array.from(expected));
 });
 
 test('executeIntent uses fastBridgeAddress as recipient in TokenTransfer', async () => {

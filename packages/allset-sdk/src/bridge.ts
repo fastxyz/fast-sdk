@@ -1,5 +1,5 @@
-import { TransactionCertificateFromRpc } from "@fastxyz/schema";
-import { TransactionBuilder } from "@fastxyz/sdk";
+import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs } from "@fastxyz/schema";
+import { hashHex, TransactionBuilder } from "@fastxyz/sdk";
 import { Schema } from "effect";
 import { decodeAbiParameters } from "viem";
 import { fastAddressToBytes } from "./address.js";
@@ -87,6 +87,43 @@ function resolveV1ExternalAddress(
     if (intent.action === "execute") return intent.target as `0x${string}`;
   }
   return null;
+}
+
+function normalizeTransactionHash(hash: string): string {
+  const lower = hash.toLowerCase();
+  return lower.startsWith("0x") ? lower.slice(2) : lower;
+}
+
+async function successCertificateMatchesEnvelope(
+  submitResult: unknown,
+  submittedEnvelope: unknown,
+  networkId: string,
+): Promise<boolean> {
+  const result = submitResult as {
+    readonly type?: unknown;
+    readonly value?: { readonly envelope?: { readonly transaction?: unknown } };
+  } | null;
+  if (result?.type !== "Success") return false;
+
+  const submittedTransaction = (submittedEnvelope as { readonly transaction?: unknown } | null)?.transaction;
+  const certificateTransaction = result.value?.envelope?.transaction;
+  if (!submittedTransaction || typeof submittedTransaction !== "object" || !certificateTransaction || typeof certificateTransaction !== "object") {
+    return false;
+  }
+
+  const submittedNetwork = (submittedTransaction as { readonly value?: { readonly networkId?: unknown } }).value?.networkId;
+  const certificateNetwork = (certificateTransaction as { readonly value?: { readonly networkId?: unknown } }).value?.networkId;
+  if (submittedNetwork !== networkId || certificateNetwork !== networkId) return false;
+
+  try {
+    const [submittedHash, certificateHash] = await Promise.all([
+      hashHex(bcsSchema.VersionedTransaction, Schema.encodeSync(VersionedTransactionFromBcs)(submittedTransaction as never)),
+      hashHex(bcsSchema.VersionedTransaction, Schema.encodeSync(VersionedTransactionFromBcs)(certificateTransaction as never)),
+    ]);
+    return normalizeTransactionHash(submittedHash) === normalizeTransactionHash(certificateHash);
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -520,6 +557,15 @@ export async function executeIntent(
       },
     );
   }
+  if (!(await successCertificateMatchesEnvelope(transferResult, transferEnvelope, networkId))) {
+    throw new FastError(
+      "TX_FAILED",
+      "Transfer success certificate does not match the submitted transaction.",
+      {
+        note: "The transfer certificate could not be correlated safely; no claim or relayer call was started.",
+      },
+    );
+  }
 
   // Step 2: Cross-sign the transfer certificate
   const transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
@@ -528,7 +574,9 @@ export async function executeIntent(
   const transferFastTxId = extractClaimId(transferCrossSign.transaction);
 
   // Step 3: Build and encode the intent claim
-  const deadline = prepared ? prepared.deadline : BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
+  const deadline = prepared
+    ? prepared.deadline
+    : BigInt(Math.floor(Date.now() / 1000)) + BigInt(deadlineSeconds);
   const intentBytes = prepared
     ? finishIntentClaimV1(prepared, transferFastTxId)
     : hexToUint8Array(
@@ -569,6 +617,15 @@ export async function executeIntent(
       `Intent claim submission incomplete: ${intentResult.type}`,
       {
         note: "The intent claim transaction was not fully confirmed. Try again.",
+      },
+    );
+  }
+  if (!(await successCertificateMatchesEnvelope(intentResult, intentEnvelope, networkId))) {
+    throw new FastError(
+      "TX_FAILED",
+      "Intent success certificate does not match the submitted transaction.",
+      {
+        note: "The intent certificate could not be correlated safely; no relayer call was started.",
       },
     );
   }

@@ -52,3 +52,17 @@ it("keeps an unobserved submission indeterminate without signing or submitting",
   expect(getCertificate).toHaveBeenCalledTimes(1);
   expect(save).not.toHaveBeenCalled();
 });
+
+it("reports a stable validation error for a malformed reader origin", async () => {
+  const journal: RecoveryJournal = {
+    load: vi.fn(async () => null),
+    save: vi.fn(async () => undefined),
+    withLock: vi.fn(async <T>(_key: string, operation: () => Promise<T>) => operation()) as RecoveryJournal["withLock"],
+  };
+
+  await expect(recoverSettlement({
+    operationId: "recover-op",
+    journal,
+    reader: { origin: "not an absolute URL", getCertificate: vi.fn(async () => null) },
+  })).rejects.toThrow("reader.origin must be a configured public HTTP(S) proxy URL");
+});

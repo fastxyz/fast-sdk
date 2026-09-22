@@ -1,95 +1,34 @@
 // Copyright (c) Pi Squared, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Relationship } from "./internal/attestation.js";
-import type { AuthorizedFee } from "./internal/fees.js";
-import { assertOperationId, type PendingRegistration, type SignNetwork } from "./types.js";
+import {
+  assertOperationId,
+  type FrozenOperation,
+  type JournalSnapshot,
+  type PendingRegistration,
+  type RecoveryJournal,
+  type SettledJournalSnapshot,
+  type SignNetwork,
+  type SignedSubmission,
+} from "./types.js";
+export type {
+  FrozenOperation,
+  FrozenSignInput,
+  JournalSnapshot,
+  PendingRegistration,
+  PreparedJournalSnapshot,
+  RecoveryDiagnostic,
+  RecoveryJournal,
+  SettledJournalSnapshot,
+  SignedSubmission,
+  SubmissionUnknownJournalSnapshot,
+} from "./types.js";
 import { SETTLEMENT_TRUST, assertBoundedObjectCertificate, certificatesEqual, validateSettlementCertificate } from "./internal/receipts.js";
 import { validateRecordRequest } from "./internal/record-wire.js";
 import { nonceToSafeNumber } from "./internal/transactions.js";
 import { bytesToHex } from "./internal/bytes.js";
 import { createIndexHttpClient } from "./internal/index-http.js";
 import { createRecordClient, type RegistrationState } from "./record-client.js";
-
-export interface FrozenSignInput {
-  readonly operationId: string;
-  readonly sha256: string;
-  readonly relationship: Relationship;
-  readonly signerName?: string;
-  readonly publicTitle?: string;
-  readonly listBySigner: boolean;
-}
-
-export interface FrozenOperation {
-  readonly input: FrozenSignInput;
-  readonly network: SignNetwork;
-  readonly proxyUrl: string;
-  readonly indexOrigin: string;
-  readonly senderHex: string;
-  /** Unsigned integer encoded losslessly as canonical decimal text. */
-  readonly nonce: string;
-  readonly requestIdHex: string;
-  /** Unsigned nanoseconds encoded losslessly as canonical decimal text. */
-  readonly issuedAtNanoseconds: string;
-  /** Null only for an already-settled externally imported receipt. */
-  readonly fee: AuthorizedFee | null;
-}
-
-export interface SignedSubmission {
-  readonly txId: string;
-  readonly signingBytesHex: string;
-  readonly transactionBytesHex: string;
-  readonly senderSignatureHex: string;
-  readonly claimDataHex: string;
-}
-
-export interface RecoveryDiagnostic {
-  readonly code: string;
-  readonly message: string;
-  readonly at: number;
-  readonly status?: number;
-}
-
-interface JournalSnapshotBase {
-  readonly version: 1;
-  readonly operationId: string;
-  readonly updatedAt: number;
-  readonly operation: FrozenOperation;
-  readonly diagnostic?: RecoveryDiagnostic;
-  readonly nextRegistrationAttemptAt?: number;
-}
-
-export interface PreparedJournalSnapshot extends JournalSnapshotBase {
-  readonly state: "prepared";
-}
-
-export interface SubmissionUnknownJournalSnapshot extends JournalSnapshotBase {
-  readonly state: "submission_unknown";
-  readonly submission: SignedSubmission;
-}
-
-export interface SettledJournalSnapshot extends JournalSnapshotBase {
-  readonly registrationAttempts?: number;
-  readonly state:
-    | "settled"
-    | "registration_pending"
-    | "registration_conflict"
-    | "registration_rejected"
-    | "registered";
-  readonly submission: SignedSubmission;
-  readonly receipt: PendingRegistration;
-}
-
-export type JournalSnapshot =
-  | PreparedJournalSnapshot
-  | SubmissionUnknownJournalSnapshot
-  | SettledJournalSnapshot;
-
-export interface RecoveryJournal {
-  load(operationId: string): Promise<JournalSnapshot | null>;
-  save(snapshot: JournalSnapshot): Promise<void>;
-  withLock<T>(lockKey: string, operation: () => Promise<T>): Promise<T>;
-}
 
 export interface SettlementReader {
   /** Configured public proxy URL, used to bind read-only recovery to its frozen destination. */
@@ -237,7 +176,12 @@ export async function verifyReceipt(options: {
 
 function normalizeProxyOrigin(value: string | undefined): string {
   if (!value) throw new Error("reader.origin is required to import a receipt into an empty journal");
-  const url = new URL(value);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("reader.origin must be a configured public HTTP(S) proxy URL");
+  }
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
     throw new Error("reader.origin must be a configured public HTTP(S) proxy URL");
   }

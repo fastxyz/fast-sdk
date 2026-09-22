@@ -142,5 +142,21 @@
     "copyright": "Copyright (c) Pi Squared, Inc.",
     "license": "Apache-2.0",
     "disposition": "approved"
+  },
+  {
+    "destination": "src/recovery.ts",
+    "classification": "derived",
+    "origin": { "repository": "fastxyz/fast-sign", "commit": "5448840abe71ce5eef3d1540c4c7477092cc2379", "path": "fastset-sign-sdk/src/client/recovery.ts", "blob": "8796c4280223ebb469f62150597a35c174dbc20a" },
+    "copyright": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0",
+    "disposition": "approved"
+  },
+  {
+    "destination": "src/record-client.ts",
+    "classification": "derived",
+    "origin": { "repository": "fastxyz/fast-sign", "commit": "5448840abe71ce5eef3d1540c4c7477092cc2379", "path": "fastset-sign-sdk/src/client/record-client.ts", "blob": "efbae2892148ca2d45926cd35dff69654d9e757e" },
+    "copyright": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0",
+    "disposition": "approved"
   }
 ]

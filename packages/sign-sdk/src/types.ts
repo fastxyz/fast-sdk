@@ -3,6 +3,14 @@
 
 export type SignNetwork = "fast:testnet" | "fast:mainnet";
 
+/** Shared runtime grammar for durable operation identifiers. */
+export function assertOperationId(value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.length < 1 || value.length > 128 ||
+    !/^[A-Za-z0-9]/.test(value) || /[^A-Za-z0-9._-]/.test(value)) {
+    throw new Error("operationId must be 1-128 safe ASCII characters and start with an alphanumeric character");
+  }
+}
+
 export type Relationship =
   | "authored"
   | "co_authored"

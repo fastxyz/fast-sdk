@@ -605,11 +605,20 @@ export async function executeIntent(
   const transferIdentity = await prepareSubmissionIdentity(transferEnvelope, networkId);
   const transferResult = await submitWithRecovery(provider, transferIdentity, "transfer");
   if (transferResult.type !== "Success") {
+    if (transferResult.type === "IncompleteVerifierSigs" || transferResult.type === "IncompleteMultiSig") {
+      throw new IndeterminateTransactionError({
+        stage: 'transfer',
+        txHash: transferIdentity.txHash,
+        recoveryEnvelope: transferIdentity.envelope,
+        cause: transferResult.type,
+      });
+    }
+    const resultType = String((transferResult as { readonly type: unknown }).type);
     throw new FastError(
       "TX_FAILED",
-      `Token transfer submission incomplete: ${transferResult.type}`,
+      `Token transfer submission returned an unsupported result: ${resultType}`,
       {
-        note: "The transfer transaction was not fully confirmed. Try again.",
+        note: "The transfer transaction was not accepted with a success certificate.",
       },
     );
   }
@@ -667,11 +676,21 @@ export async function executeIntent(
   const intentIdentity = await prepareSubmissionIdentity(intentEnvelope, networkId);
   const intentResult = await submitWithRecovery(provider, intentIdentity, "intent", transferIdentity.txHash);
   if (intentResult.type !== "Success") {
+    if (intentResult.type === "IncompleteVerifierSigs" || intentResult.type === "IncompleteMultiSig") {
+      throw new IndeterminateTransactionError({
+        stage: 'intent',
+        txHash: intentIdentity.txHash,
+        relatedTxHash: transferIdentity.txHash,
+        recoveryEnvelope: intentIdentity.envelope,
+        cause: intentResult.type,
+      });
+    }
+    const resultType = String((intentResult as { readonly type: unknown }).type);
     throw new FastError(
       "TX_FAILED",
-      `Intent claim submission incomplete: ${intentResult.type}`,
+      `Intent claim submission returned an unsupported result: ${resultType}`,
       {
-        note: "The intent claim transaction was not fully confirmed. Try again.",
+        note: "The intent claim transaction was not accepted with a success certificate.",
       },
     );
   }

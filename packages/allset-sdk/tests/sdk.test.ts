@@ -889,6 +889,45 @@ test('executeIntent preserves transfer recovery when FastProvider decodes malfor
   assert.equal(relayerCalls, 0);
 });
 
+test('executeIntent preserves transfer recovery for incomplete verifier signatures', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayerCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) relayerCalls++;
+    else crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async () => ({ type: 'IncompleteVerifierSigs', value: null }) as any,
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'transfer';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(typeof failure.txHash, 'string');
+  assert.equal(await hashRecoveryEnvelope(failure.recoveryEnvelope), failure.txHash);
+  assert.doesNotMatch(failure.message, /Try again/);
+  assert.equal(crossSignCalls, 0);
+  assert.equal(relayerCalls, 0);
+});
+
 test('executeIntent rejects an intent success certificate for another transaction before relaying', async () => {
   const originalFetch = globalThis.fetch;
   let crossSignCalls = 0;
@@ -987,6 +1026,55 @@ test('executeIntent preserves intent recovery when FastProvider decodes malforme
   assert.equal(typeof failure.txHash, 'string');
   assert.equal(typeof failure.relatedTxHash, 'string');
   assert.equal(await hashRecoveryEnvelope(failure.recoveryEnvelope), failure.txHash);
+  assert.equal(submitCalls, 2);
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayerCalls, 0);
+});
+
+test('executeIntent preserves intent recovery for incomplete multisig', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayerCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) {
+      relayerCalls++;
+      return Response.json({ ok: true });
+    }
+    crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let submitCalls = 0;
+  let failure: IndeterminateTransactionError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider: {
+        getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+        submitTransaction: async (envelope: unknown) => {
+          submitCalls++;
+          if (submitCalls === 1) return { type: 'Success', value: { envelope, signatures: [] } };
+          return { type: 'IncompleteMultiSig', value: null } as any;
+        },
+      } as unknown as FastProvider,
+    }),
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'intent';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(typeof failure.txHash, 'string');
+  assert.equal(typeof failure.relatedTxHash, 'string');
+  assert.equal(await hashRecoveryEnvelope(failure.recoveryEnvelope), failure.txHash);
+  assert.doesNotMatch(failure.message, /Try again/);
   assert.equal(submitCalls, 2);
   assert.equal(crossSignCalls, 1);
   assert.equal(relayerCalls, 0);

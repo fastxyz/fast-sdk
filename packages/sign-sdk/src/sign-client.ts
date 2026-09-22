@@ -83,6 +83,28 @@ function normalizedHttpUrl(value: string, originOnly: boolean, field: string): s
 
 type NormalizedSignInput = Omit<SignInput, "listBySigner"> & { readonly listBySigner: boolean };
 
+function snapshotSignInput(rawInput: SignInput): NormalizedSignInput {
+  // Read each caller-owned property exactly once before validation. Accessors
+  // may change their return value between reads, so only this snapshot may be
+  // validated or used by the signing and journal paths.
+  const operationId = rawInput.operationId;
+  const sha256 = rawInput.sha256;
+  const relationship = rawInput.relationship;
+  const signerName = rawInput.signerName;
+  const publicTitle = rawInput.publicTitle;
+  const rawListBySigner = rawInput.listBySigner;
+  const listBySigner = rawListBySigner === undefined ? false : rawListBySigner;
+
+  return {
+    operationId,
+    sha256,
+    relationship,
+    ...(signerName === undefined || signerName === "" ? {} : { signerName }),
+    listBySigner,
+    ...(listBySigner && publicTitle !== undefined ? { publicTitle } : {}),
+  };
+}
+
 function validateSignInput(input: NormalizedSignInput): void {
   if (!(RELATIONSHIPS as readonly string[]).includes(input.relationship)) throw new Error("relationship is not supported");
   if (typeof input.listBySigner !== "boolean") throw new Error("listBySigner must be a boolean");
@@ -183,20 +205,9 @@ export function createSignClient(options: SignClientOptions): SignClient {
 
   return {
     async signDigest(rawInput) {
-      assertOperationId(rawInput.operationId);
-      assertLowerHex(rawInput.sha256, 32, "sha256");
-      const listBySigner = rawInput.listBySigner === undefined ? false : rawInput.listBySigner;
-      const input: NormalizedSignInput = {
-        operationId: rawInput.operationId,
-        sha256: rawInput.sha256,
-        relationship: rawInput.relationship,
-        ...(rawInput.signerName === undefined || rawInput.signerName === ""
-          ? {} : { signerName: rawInput.signerName }),
-        listBySigner,
-        ...(listBySigner && rawInput.publicTitle !== undefined
-          ? { publicTitle: rawInput.publicTitle }
-          : {}),
-      };
+      const input = snapshotSignInput(rawInput);
+      assertOperationId(input.operationId);
+      assertLowerHex(input.sha256, 32, "sha256");
       validateSignInput(input);
       let newSettlement = false;
       const initial = await journal.withLock(`operation:${input.operationId}`, async (): Promise<SignResult> => {

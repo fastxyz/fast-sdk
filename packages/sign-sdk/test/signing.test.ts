@@ -274,6 +274,102 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(poison).not.toHaveBeenCalled();
   });
 
+  it("snapshots every raw SignInput property once before validation or durable effects", async () => {
+    const original = {
+      operationId: "accessor-snapshot",
+      sha256: "11".repeat(32),
+      relationship: "authored" as const,
+      signerName: "Original signer",
+      publicTitle: "Original title",
+      listBySigner: true,
+    };
+    const changed = {
+      operationId: "changed-operation",
+      sha256: "22".repeat(32),
+      relationship: "approved" as const,
+      signerName: "Changed signer",
+      publicTitle: "Changed title",
+      listBySigner: false,
+    };
+    const reads: Record<keyof typeof original, number> = {
+      operationId: 0,
+      sha256: 0,
+      relationship: 0,
+      signerName: 0,
+      publicTitle: 0,
+      listBySigner: 0,
+    };
+    const rawInput: Record<string, unknown> = {};
+    for (const key of Object.keys(original) as (keyof typeof original)[]) {
+      Object.defineProperty(rawInput, key, {
+        enumerable: true,
+        get() {
+          reads[key] += 1;
+          return reads[key] === 1 ? original[key] : changed[key];
+        },
+      });
+    }
+
+    const actual = new Signer(seed);
+    const snapshots: JournalSnapshot[] = [];
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example/proxy",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes) => actual.signMessage(bytes) },
+      journal: {
+        async load(operationId) {
+          const snapshot = snapshots.at(-1);
+          return snapshot?.operationId === operationId ? structuredClone(snapshot) : null;
+        },
+        async save(value) { snapshots.push(structuredClone(value)); },
+        async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+      },
+      provider: { getNextNonce: async () => 7n, submitTransaction: async () => null },
+      feeSource: {
+        async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
+        async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+      now: () => 1_700_000_000_000,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+
+    await expect(client.signDigest(rawInput as unknown as Parameters<typeof client.signDigest>[0]))
+      .resolves.toMatchObject({ settlement: "unknown" });
+
+    expect(reads).toEqual({
+      operationId: 1,
+      sha256: 1,
+      relationship: 1,
+      signerName: 1,
+      publicTitle: 1,
+      listBySigner: 1,
+    });
+    const snapshot = snapshots.at(-1);
+    expect(snapshot).toMatchObject({
+      state: "submission_unknown",
+      operationId: original.operationId,
+      operation: {
+        input: {
+          operationId: original.operationId,
+          sha256: original.sha256,
+          relationship: original.relationship,
+          signerName: original.signerName,
+          publicTitle: original.publicTitle,
+          listBySigner: original.listBySigner,
+        },
+      },
+    });
+    if (snapshot?.state !== "submission_unknown") throw new Error("expected an unknown-submission snapshot");
+    const attestation = decodeAttestationV3(hexToBytes(snapshot.submission.claimDataHex));
+    expect(bytesToHex(attestation.digest)).toBe(original.sha256);
+    expect(attestation.relationship).toBe(original.relationship);
+    expect(attestation.signerName).toBe(original.signerName);
+    expect(attestation.fileLabel).toBe(original.publicTitle);
+    expect(attestation.listBySigner).toBe(original.listBySigner);
+  });
+
   it.each([undefined, null, 7, {}, "", "../escape", "x".repeat(129), "valid\n"])("rejects runtime operationId %j before any capability", async (operationId) => {
     const poison = vi.fn(async () => { throw new Error("capability reached"); });
     const journal = { load: poison, save: poison, withLock: poison };

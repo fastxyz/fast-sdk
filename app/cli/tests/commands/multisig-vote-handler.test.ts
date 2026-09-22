@@ -2,11 +2,20 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { canonicalizeMultiSigSigners, deriveMultiSigAddress, fromFastAddress, ProxyUnexpectedNonceError, Signer, toFastAddress } from '@fastxyz/sdk';
+import { TransactionEnvelopeFromRest, type TransactionEnvelope, VersionedTransactionFromBcs, bcsSchema } from '@fastxyz/schema';
+import {
+  canonicalizeMultiSigSigners,
+  deriveMultiSigAddress,
+  fromFastAddress,
+  hashHex,
+  ProxyUnexpectedNonceError,
+  Signer,
+  toFastAddress,
+} from '@fastxyz/sdk';
 import Db from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { Effect, Layer, Option } from 'effect';
+import { Effect, Layer, Option, Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 import { multisigVote } from '../../src/commands/multisig/vote.js';
 import { bundledNetworks } from '../../src/config/networks.js';
@@ -59,6 +68,7 @@ const runVoteScenario = async ({
     const results: unknown[] = [];
     let submissions = 0;
     let metadataCalls = 0;
+    let submittedEnvelope: unknown;
 
     const baseLayers = Layer.mergeAll(
       dbLayer,
@@ -162,8 +172,9 @@ const runVoteScenario = async ({
                   requestedTokenMetadata: [[new Uint8Array(32).fill(0xd7), { tokenName: 'TEST', decimals: 6 }]],
                 });
           },
-          submitTransaction: (submittedEnvelope: unknown) => {
+          submitTransaction: (submittedEnvelopeParam: unknown) => {
             submissions++;
+            submittedEnvelope = submittedEnvelopeParam;
             return deterministicSubmitFailure
               ? Effect.fail(
                   new FastSdkError({
@@ -184,11 +195,11 @@ const runVoteScenario = async ({
                           value: {
                             envelope: mismatchedSuccessCertificate
                               ? (() => {
-                                  const certificateEnvelope = structuredClone(submittedEnvelope as object) as any;
+                                  const certificateEnvelope = structuredClone(submittedEnvelopeParam as object) as any;
                                   certificateEnvelope.transaction.value.nonce = 1n;
                                   return certificateEnvelope;
                                 })()
-                              : submittedEnvelope,
+                              : submittedEnvelopeParam,
                           },
                         }
                       : {}),
@@ -200,7 +211,7 @@ const runVoteScenario = async ({
       }).pipe(Effect.provide(baseLayers)),
     );
 
-    return { confirmations, debugLines, exit, history, lines, metadataCalls, results, submissions };
+    return { confirmations, debugLines, exit, history, lines, metadataCalls, results, submittedEnvelope, submissions };
   } finally {
     sqlite.close();
   }
@@ -234,6 +245,14 @@ describe('multisig vote handler', () => {
     expect(error.nonce).toBe(0n);
     expect(error.details).toMatchObject({ txHash: error.txHash, nonce: '0' });
     expect(error.details.recoveryEnvelope).toHaveProperty('transaction');
+    expect(result.submittedEnvelope).toBeDefined();
+    const submittedEnvelope = result.submittedEnvelope as TransactionEnvelope;
+    const submittedHash = await hashHex(
+      bcsSchema.VersionedTransaction,
+      Schema.encodeSync(VersionedTransactionFromBcs)(submittedEnvelope.transaction),
+    );
+    expect(error.txHash).toBe(submittedHash);
+    expect(Schema.decodeUnknownSync(TransactionEnvelopeFromRest)(error.details.recoveryEnvelope)).toEqual(submittedEnvelope);
     expect(error.message).toContain('Do not rebuild or retry this operation');
     expect(result.history).toHaveLength(0);
   });

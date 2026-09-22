@@ -13,6 +13,7 @@ import {
   IdClient,
   IndeterminateSubmissionError,
   KeySigner,
+  PreSubmitError,
   SettlementMismatchError,
   WrongNetworkError,
 } from "../src/index.js";
@@ -27,8 +28,8 @@ function json(body: unknown, status = 200): Response {
 }
 
 describe("public claim recovery", () => {
-  it.each(["wrong-network", "settlement-mismatch"])(
-    "preserves %s recovery through the public claim API",
+  it.each(["wrong-network", "settlement-mismatch", "pre-submit"])(
+    "classifies %s through the public claim API",
     async (outcome) => {
       const signer = await KeySigner.fromPrivateKey("01".repeat(32));
       const recovery = {
@@ -40,13 +41,15 @@ describe("public claim recovery", () => {
         },
       };
       const submissionError =
-        outcome === "wrong-network"
-          ? new WrongNetworkError("fast:testnet", "fast:mainnet", recovery)
-          : new SettlementMismatchError(
-              "aa".repeat(32),
-              "bb".repeat(32),
-              recovery,
-            );
+        outcome === "pre-submit"
+          ? new PreSubmitError("transaction identity could not be prepared")
+          : outcome === "wrong-network"
+            ? new WrongNetworkError("fast:testnet", "fast:mainnet", recovery)
+            : new SettlementMismatchError(
+                "aa".repeat(32),
+                "bb".repeat(32),
+                recovery,
+              );
       claimTx.submitSignedClaim.mockReset();
       claimTx.submitSignedClaim.mockRejectedValueOnce(submissionError);
 
@@ -92,6 +95,12 @@ describe("public claim recovery", () => {
         .importWork("10.1000/example")
         .catch((cause) => cause);
 
+      if (outcome === "pre-submit") {
+        expect(error).toBeInstanceOf(PreSubmitError);
+        expect(error).not.toBeInstanceOf(IndeterminateSubmissionError);
+        expect(provider.submitTransaction).not.toHaveBeenCalled();
+        return;
+      }
       expect(error).toBeInstanceOf(IndeterminateSubmissionError);
       if (!(error instanceof IndeterminateSubmissionError)) {
         throw new Error("expected indeterminate submission error");

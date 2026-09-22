@@ -10,6 +10,7 @@ import { Schema } from "effect";
 
 import {
   NotSettledError,
+  PreSubmitError,
   SettlementMismatchError,
   WrongNetworkError,
   asInsufficientFunds,
@@ -153,7 +154,15 @@ export async function submitSignedClaim(
     transaction: versioned,
     signature: { type: "Signature", value: signature },
   };
-  const submittedTxId = await txIdFromDomainTransaction(versioned as never);
+  let submittedTxId: string;
+  try {
+    submittedTxId = await txIdFromDomainTransaction(versioned as never);
+  } catch (cause) {
+    throw new PreSubmitError(
+      "could not derive the transaction ID before submission",
+      { cause },
+    );
+  }
   const recovery: SubmissionRecovery = {
     nonce: (versioned as { value?: { nonce?: bigint } }).value?.nonce,
     txIdHex: submittedTxId,

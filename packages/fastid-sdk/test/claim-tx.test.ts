@@ -15,6 +15,7 @@ import {
   InsufficientFundsError,
   NonceConflictError,
   NotSettledError,
+  PreSubmitError,
   SettlementMismatchError,
   WrongNetworkError,
 } from "../src/errors.js";
@@ -105,6 +106,22 @@ describe("claim transaction construction", () => {
 });
 
 describe("submitSignedClaim settlement guards", () => {
+  it("classifies a pre-submit transaction hash failure as definitive", async () => {
+    const provider = providerOf(() => {
+      throw new Error("provider must not be called");
+    });
+    const error = await submitSignedClaim(
+      provider,
+      undefined,
+      signature,
+      "fast:mainnet",
+      "fastUSD",
+    ).catch((cause) => cause);
+
+    expect(error).toBeInstanceOf(PreSubmitError);
+    expect(error).not.toBeInstanceOf(IndeterminateProviderSubmissionError);
+  });
+
   it("returns a settled success with full-precision decimal nonce", async () => {
     const submitted = { __id: "aa".repeat(32) };
     const result = await submitSignedClaim(

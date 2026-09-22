@@ -402,7 +402,8 @@ export class ClaimService {
     } catch (cause) {
       if (
         cause instanceof NonceConflictError ||
-        cause instanceof InsufficientFundsError
+        cause instanceof InsufficientFundsError ||
+        cause instanceof PreSubmitError
       ) {
         throw cause;
       }

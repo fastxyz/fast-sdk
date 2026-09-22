@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test, onTestFinished } from 'vitest';
 import { FastError } from '../src/errors.ts';
-import { encodeFunctionData } from 'viem';
-import { Signer, FastProvider } from '@fastxyz/sdk';
+import { encodeFunctionData, type Hex } from 'viem';
+import { Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
 import { Schema } from 'effect';
 import { TransactionCertificateFromRpc } from '@fastxyz/schema';
 
@@ -10,6 +10,7 @@ import {
   // address
   fastAddressToBytes32,
   fastAddressToBytes,
+  bytes32ToFastAddress,
   // deposit
   buildDepositTransaction,
   encodeDepositCalldata,
@@ -141,6 +142,25 @@ test('fastAddressToBytes32 converts a Fast address to bytes32', () => {
 
 test('fastAddressToBytes32 rejects invalid Fast addresses', () => {
   assert.throws(() => fastAddressToBytes32('fast1invalid'), /Invalid Fast address "fast1invalid"/);
+});
+
+test('address byte conversions reject non-32-byte values', () => {
+  assert.throws(
+    () => fastAddressToBytes32(toFastAddress(new Uint8Array(31))),
+    /expected 32 bytes/i,
+  );
+  assert.throws(
+    () => bytes32ToFastAddress(('0x' + '11'.repeat(31)) as Hex),
+    /expected 32 bytes/i,
+  );
+  assert.throws(
+    () => bytes32ToFastAddress(('0x' + '11'.repeat(33)) as Hex),
+    /expected 32 bytes/i,
+  );
+  assert.equal(
+    bytes32ToFastAddress(('0x' + '11'.repeat(32)) as Hex),
+    toFastAddress(new Uint8Array(32).fill(0x11)),
+  );
 });
 
 test('fastAddressToBytes returns a 32-byte Uint8Array', () => {

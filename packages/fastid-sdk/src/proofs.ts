@@ -371,6 +371,9 @@ function exactAvailable(body: unknown): boolean {
   return (
     typeof body === "object" &&
     body !== null &&
+    !Array.isArray(body) &&
+    Object.keys(body).length === 1 &&
+    Object.prototype.hasOwnProperty.call(body, "available") &&
     (body as { available?: unknown }).available === true
   );
 }

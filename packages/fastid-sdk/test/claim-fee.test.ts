@@ -120,6 +120,31 @@ describe("authoritative claim fee", () => {
     ).resolves.toEqual({ kind: "unavailable" });
   });
 
+  it.each([
+    [
+      "identical duplicates",
+      [
+        [TOKEN_ID, { token_name: "testUSDC", decimals: 6, update_id: 3 }],
+        [TOKEN_ID, { token_name: "testUSDC", decimals: 6, update_id: 3 }],
+      ],
+    ],
+    [
+      "conflicting duplicates",
+      [
+        [TOKEN_ID, { token_name: "testUSDC", decimals: 6, update_id: 3 }],
+        [TOKEN_ID, { token_name: "other", decimals: 18, update_id: 4 }],
+      ],
+    ],
+  ])("fails closed for %s token metadata", async (_label, rows) => {
+    const tokenMetadata = { data: { requested_token_metadata: rows } };
+    await expect(
+      resolveClaimFee(
+        "fast:testnet",
+        source(info([{ token_id: TOKEN_ID, fixed_amount: "7" }]), tokenMetadata),
+      ),
+    ).resolves.toEqual({ kind: "unavailable" });
+  });
+
   it("builds both fee reads from the configured REST gateway", async () => {
     const calls: string[] = [];
     const fetchImpl = vi.fn(async (input: string | URL | Request) => {

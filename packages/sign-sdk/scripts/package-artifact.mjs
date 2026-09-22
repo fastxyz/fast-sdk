@@ -9,7 +9,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const modules = [
   "errors", "file-hash", "file-journal", "index", "record-client", "recovery", "sign-client", "types",
   "internal/address", "internal/attestation", "internal/bytes", "internal/canonical", "internal/fast-id",
-  "internal/fees", "internal/index-http", "internal/metadata", "internal/receipts",
+  "internal/fees", "internal/index-http", "internal/journal-snapshot", "internal/metadata", "internal/receipts",
   "internal/record-wire", "internal/transactions",
 ];
 

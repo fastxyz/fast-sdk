@@ -15,6 +15,7 @@ import {
   type FeeSource,
 } from "./internal/fees.js";
 import { validateSettlementCertificate } from "./internal/receipts.js";
+import { snapshotFrozenOperation, snapshotRecoveryJournal } from "./internal/journal-snapshot.js";
 import {
   nonceToSafeNumber,
   prepareExternalClaimTransaction,
@@ -34,7 +35,6 @@ import {
   type SignedSubmission,
 } from "./types.js";
 import { createRecordClient, type RegistrationState } from "./record-client.js";
-import { snapshotFrozenOperation, snapshotRecoveryJournal } from "./recovery.js";
 import { asInsufficientFunds, asNonceConflict } from "./errors.js";
 
 const MAX_U64 = (1n << 64n) - 1n;
@@ -248,8 +248,11 @@ export function createSignClient(options: SignClientOptions): SignClient {
           if (current && current.operation.fee.scheduleFingerprint !== authorized.scheduleFingerprint) {
             throw new Error("the Fast fee schedule changed since this operation was prepared");
           }
-          const requestId = current ? hexToBytes(current.operation.requestIdHex) : random(16);
-          if (requestId.byteLength !== 16) throw new Error("randomBytes must return the requested 16 bytes");
+          const randomRequestId = current ? hexToBytes(current.operation.requestIdHex) : random(16);
+          if (!(randomRequestId instanceof Uint8Array) || randomRequestId.byteLength !== 16) {
+            throw new Error("randomBytes must return the requested 16 bytes");
+          }
+          const requestId = Uint8Array.from(randomRequestId);
           const claimDataHex = bytesToHex(encodeAttestationV3({
             digestAlgorithm: "sha256",
             commitmentMode: "public_sha256",

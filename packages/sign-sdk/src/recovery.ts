@@ -28,7 +28,10 @@ import { validateRecordRequest } from "./internal/record-wire.js";
 import { nonceToSafeNumber } from "./internal/transactions.js";
 import { bytesToHex } from "./internal/bytes.js";
 import { createIndexHttpClient } from "./internal/index-http.js";
+import { snapshotRecoveryJournal } from "./internal/journal-snapshot.js";
 import { createRecordClient, type RegistrationState } from "./record-client.js";
+
+export { snapshotFrozenOperation, snapshotJournalSnapshot, snapshotRecoveryJournal } from "./internal/journal-snapshot.js";
 
 export interface SettlementReader {
   /** Configured public proxy URL, used to bind read-only recovery to its frozen destination. */
@@ -80,50 +83,6 @@ function snapshotSettlementReader(reader: SettlementReader): SettlementReader {
   const origin = normalizeProxyOrigin(reader.origin);
   const getCertificate = reader.getCertificate.bind(reader);
   return { origin, getCertificate };
-}
-
-function freezeGraph<T>(value: T, seen = new WeakSet<object>()): T {
-  if (value === null || typeof value !== "object") return value;
-  const object = value as object;
-  if (seen.has(object) || ArrayBuffer.isView(object) || object instanceof ArrayBuffer) return value;
-  seen.add(object);
-  for (const key of Reflect.ownKeys(object)) {
-    freezeGraph((object as Record<PropertyKey, unknown>)[key], seen);
-  }
-  return Object.freeze(value);
-}
-
-/**
- * Detach a journal value from a caller-owned implementation and freeze every
- * plain object in the recovery graph before the value is validated or reused.
- */
-export function snapshotJournalSnapshot(snapshot: JournalSnapshot): JournalSnapshot {
-  return freezeGraph(structuredClone(snapshot));
-}
-
-export function snapshotFrozenOperation(operation: FrozenOperation): FrozenOperation {
-  return freezeGraph(structuredClone(operation));
-}
-
-export function snapshotRecoveryJournal(journal: RecoveryJournal): RecoveryJournal {
-  if (
-    !journal ||
-    typeof journal.load !== "function" ||
-    typeof journal.save !== "function" ||
-    typeof journal.withLock !== "function"
-  ) {
-    throw new Error("journal must provide load, save, and withLock capabilities");
-  }
-  return {
-    async load(operationId) {
-      const snapshot = await journal.load(operationId);
-      return snapshot === null ? null : snapshotJournalSnapshot(snapshot);
-    },
-    async save(snapshot) {
-      await journal.save(snapshotJournalSnapshot(snapshot));
-    },
-    withLock: journal.withLock.bind(journal),
-  };
 }
 
 function receiptExpectation(receipt: PendingRegistration, network: SignNetwork) {

@@ -7,6 +7,8 @@ import { FastProvider, Signer } from "@fastxyz/sdk";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ByteSigner } from "../src/types.js";
+import { decodeAttestationV3 } from "../src/internal/attestation.js";
+import { bytesToHex, hexToBytes } from "../src/internal/bytes.js";
 import {
   FeePolicyError,
   InsufficientFundsError,
@@ -450,6 +452,51 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
       sha256: snapshot.operation.input.sha256,
       relationship: "authored",
     })).resolves.toEqual({ settlement: "unknown", operationId: snapshot.operationId, txId: originalTxId, recoveryPersisted: true });
+  });
+
+  it("uses one owned request ID for both the attestation and journal identity", async () => {
+    const actual = new Signer(seed);
+    const journalState: { snapshot: JournalSnapshot | null } = { snapshot: null };
+    const requestId = new Uint8Array(16).fill(0x33);
+    const originalIterator = requestId[Symbol.iterator].bind(requestId);
+    let iteratorCalls = 0;
+    Object.defineProperty(requestId, Symbol.iterator, {
+      value() {
+        if (iteratorCalls++ === 1) requestId.fill(0x44);
+        return originalIterator();
+      },
+    });
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example/proxy",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes) => actual.signMessage(bytes) },
+      journal: {
+        async load(operationId) {
+          const snapshot = journalState.snapshot;
+          return snapshot?.operationId === operationId ? structuredClone(snapshot) : null;
+        },
+        async save(value) { journalState.snapshot = structuredClone(value); },
+        async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+      },
+      provider: { getNextNonce: async () => 7n, submitTransaction: async () => null },
+      feePolicy: { tokenId, maxAtomicAmount: "7" },
+      feeSource: feeSource(),
+      now: () => 1_700_000_000_000,
+      randomBytes: () => requestId,
+    });
+
+    await expect(client.signDigest({
+      operationId: "owned-request-id",
+      sha256: "11".repeat(32),
+      relationship: "authored",
+    })).resolves.toMatchObject({ settlement: "unknown" });
+    const snapshot = journalState.snapshot;
+    if (snapshot?.state !== "submission_unknown") throw new Error("expected an unknown-submission journal snapshot");
+
+    const attestation = decodeAttestationV3(hexToBytes(snapshot.submission.claimDataHex));
+    expect(snapshot.operation.requestIdHex).toBe("33".repeat(16));
+    expect(bytesToHex(attestation.requestId)).toBe(snapshot.operation.requestIdHex);
   });
 
   it.each([

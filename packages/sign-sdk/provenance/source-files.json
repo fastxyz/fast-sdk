@@ -112,6 +112,14 @@
     "disposition": "approved"
   },
   {
+    "destination": "src/internal/journal-snapshot.ts",
+    "classification": "derived",
+    "origin": { "repository": "fastxyz/fast-sdk", "commit": "7586d1cc114bccb9fb3e06c6eed189c01819445f", "path": "packages/sign-sdk/src/recovery.ts", "blob": "6d5c8c13c493b1ce8dd9b0b5f3e7b922f86d7b53" },
+    "copyright": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0",
+    "disposition": "approved"
+  },
+  {
     "destination": "src/internal/receipts.ts",
     "classification": "derived",
     "origin": { "repository": "fastxyz/fast-sign", "commit": "5448840abe71ce5eef3d1540c4c7477092cc2379", "path": "fastset-sign-sdk/src/core/receipts.ts", "blob": "13076942bf3a8216ff4d7338bb8dd6ed5f779c21" },

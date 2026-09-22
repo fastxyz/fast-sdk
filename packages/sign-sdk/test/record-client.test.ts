@@ -124,3 +124,37 @@ it("rejects a receipt whose indexOrigin is not the exact configured origin", asy
     indexOrigin: "https://index.example/hidden-path?same-origin=1",
   })).rejects.toThrow(/index.?origin/i);
 });
+
+it("persists the detached journal identity when the source mutates its loaded value during I/O", async () => {
+  const source = structuredClone(settled());
+  const saved: JournalSnapshot[] = [];
+  let startFetch!: () => void;
+  const fetchStarted = new Promise<void>((resolve) => { startFetch = resolve; });
+  let finishFetch!: (response: Response) => void;
+  const fetchResponse = new Promise<Response>((resolve) => { finishFetch = resolve; });
+  const journal: RecoveryJournal = {
+    load: vi.fn(async () => source),
+    save: vi.fn(async (snapshot) => { saved.push(structuredClone(snapshot)); }),
+    withLock: vi.fn(async <T>(_key: string, operation: () => Promise<T>) => operation()) as RecoveryJournal["withLock"],
+  };
+  const fetchImpl = vi.fn(async () => {
+    startFetch();
+    return fetchResponse;
+  });
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl });
+  const check = client.checkRegistration(receipt);
+
+  await fetchStarted;
+  (source.operation as { nonce: string }).nonce = "99";
+  (source.submission as { txId: string }).txId = "aa".repeat(32);
+  (source.receipt.record as { tx_id: string }).tx_id = "bb".repeat(32);
+  finishFetch(new Response(JSON.stringify({ sha256: receipt.record.sha256, settlements: [] })));
+
+  await expect(check).resolves.toMatchObject({ registration: "pending" });
+  expect(saved).toHaveLength(1);
+  expect(saved[0]).toMatchObject({
+    operation: { nonce: "7" },
+    submission: { txId: receipt.record.tx_id },
+    receipt: { record: { tx_id: receipt.record.tx_id } },
+  });
+});

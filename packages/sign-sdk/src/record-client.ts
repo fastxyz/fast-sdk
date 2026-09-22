@@ -10,6 +10,7 @@ import {
   type IndexSettlement,
 } from "./internal/index-http.js";
 import { validateRecordRequest } from "./internal/record-wire.js";
+import { snapshotRecoveryJournal } from "./internal/journal-snapshot.js";
 import type { PendingRegistration, RecoveryJournal, SettledJournalSnapshot, SignNetwork } from "./types.js";
 
 export type RegistrationState = "registered" | "pending" | "conflict" | "rejected";
@@ -86,14 +87,7 @@ function journalState(state: RegistrationState): SettledJournalSnapshot["state"]
 }
 
 export function createRecordClient(options: RecordClientOptions): RecordClient {
-  if (!options.journal || typeof options.journal.load !== "function" ||
-    typeof options.journal.save !== "function" || typeof options.journal.withLock !== "function") {
-    throw new Error("journal must provide load, save, and withLock capabilities");
-  }
-  const source = options.journal;
-  const journal: RecoveryJournal = {
-    load: source.load.bind(source), save: source.save.bind(source), withLock: source.withLock.bind(source),
-  };
+  const journal = snapshotRecoveryJournal(options.journal);
   const http = createIndexHttpClient({
     network: options.network,
     indexOrigin: options.indexOrigin,

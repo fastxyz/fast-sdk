@@ -1,6 +1,13 @@
 // Copyright (c) Pi Squared, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+export class FeePolicyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FeePolicyError";
+  }
+}
+
 export class SignerMismatchError extends Error {
   constructor(
     public readonly expectedPublicKeyHex: string,

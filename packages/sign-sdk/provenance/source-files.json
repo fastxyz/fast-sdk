@@ -94,5 +94,37 @@
     "copyright": "Copyright (c) Pi Squared, Inc.",
     "license": "Apache-2.0",
     "disposition": "approved"
+  },
+  {
+    "destination": "src/internal/fees.ts",
+    "classification": "derived",
+    "origin": { "repository": "fastxyz/fast-sign", "commit": "5448840abe71ce5eef3d1540c4c7477092cc2379", "path": "fastset-sign-sdk/src/core/fees.ts", "blob": "c77c1fa44a56f66ebb8a0048892ef54417764647" },
+    "copyright": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0",
+    "disposition": "approved"
+  },
+  {
+    "destination": "src/internal/receipts.ts",
+    "classification": "derived",
+    "origin": { "repository": "fastxyz/fast-sign", "commit": "5448840abe71ce5eef3d1540c4c7477092cc2379", "path": "fastset-sign-sdk/src/core/receipts.ts", "blob": "13076942bf3a8216ff4d7338bb8dd6ed5f779c21" },
+    "copyright": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0",
+    "disposition": "approved"
+  },
+  {
+    "destination": "src/internal/record-wire.ts",
+    "classification": "derived",
+    "origin": { "repository": "fastxyz/fast-sign", "commit": "5448840abe71ce5eef3d1540c4c7477092cc2379", "path": "fastset-sign-sdk/src/core/record-wire.ts", "blob": "06e737c8cbf4f90b6f889a639034fbc7c0e1c232" },
+    "copyright": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0",
+    "disposition": "approved"
+  },
+  {
+    "destination": "src/internal/index-http.ts",
+    "classification": "derived",
+    "origin": { "repository": "fastxyz/fast-sign", "commit": "5448840abe71ce5eef3d1540c4c7477092cc2379", "path": "fastset-sign-sdk/src/indexing/http.ts", "blob": "9a5929b4a07cdda16c92b99c12daa6c0c03fb500" },
+    "copyright": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0",
+    "disposition": "approved"
   }
 ]

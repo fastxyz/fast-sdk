@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "@fastxyz/sign-sdk release evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "package",
+    "version",
+    "implementationCommit",
+    "releaseCommit",
+    "workflowRun",
+    "tarball",
+    "integrity",
+    "attestationUrl",
+    "predicateType",
+    "sourceRepository",
+    "sourceCommit",
+    "contentManifestSha256",
+    "lockfileResolved",
+    "lockfileIntegrity"
+  ],
+  "properties": {
+    "package": { "const": "@fastxyz/sign-sdk" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$" },
+    "implementationCommit": { "$ref": "#/$defs/sha" },
+    "releaseCommit": { "$ref": "#/$defs/sha" },
+    "workflowRun": { "type": "string", "format": "uri" },
+    "tarball": { "type": "string", "format": "uri" },
+    "integrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" },
+    "attestationUrl": { "type": "string", "format": "uri" },
+    "predicateType": { "const": "https://slsa.dev/provenance/v1" },
+    "sourceRepository": { "const": "https://github.com/fastxyz/fast-sdk" },
+    "sourceCommit": { "$ref": "#/$defs/sha" },
+    "contentManifestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "lockfileResolved": { "type": "string", "format": "uri" },
+    "lockfileIntegrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+  }
+}

@@ -49,6 +49,77 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": { "kind": { "const": "withdraw" } }
+      },
+      "then": {
+        "properties": {
+          "intents": {
+            "type": "array",
+            "maxItems": 1,
+            "items": { "type": "object", "properties": { "action": { "const": "transfer" } } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": { "kind": { "const": "execute" } }
+      },
+      "then": {
+        "properties": {
+          "intents": {
+            "type": "array",
+            "maxItems": 1,
+            "items": { "type": "object", "properties": { "action": { "const": "execute" } } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": { "kind": { "const": "deposit_back" } }
+      },
+      "then": {
+        "properties": {
+          "intents": {
+            "type": "array",
+            "maxItems": 1,
+            "items": { "type": "object", "properties": { "action": { "const": "deposit_back" } } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": { "kind": { "const": "revoke" } }
+      },
+      "then": {
+        "properties": {
+          "intents": {
+            "type": "array",
+            "maxItems": 1,
+            "items": { "type": "object", "properties": { "action": { "const": "revoke" } } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": { "kind": { "const": "batch" } }
+      },
+      "then": {
+        "properties": { "intents": { "type": "array", "minItems": 2 } }
+      }
+    }
+  ],
   "$defs": {
     "uint": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
     "hex20": { "type": "string", "pattern": "^0x[0-9a-f]{40}$" },

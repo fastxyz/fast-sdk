@@ -9,6 +9,7 @@ import {
   ReportBodyTooLargeError,
   ReportCiphertextTooLargeError,
   ReportConfigError,
+  ReportRejectedError,
   REPORT_BODY_LIMIT,
 } from "../src/index.js";
 import { toHex } from "../src/address.js";
@@ -176,6 +177,44 @@ describe("sealed reports", () => {
         attribution: "anonymous",
       }),
     ).rejects.toBeInstanceOf(IndeterminateReportSubmissionError);
+    expect(reportPosts(h.calls)).toHaveLength(1);
+  });
+
+  it.each([500, 502, 503, 599])("treats report HTTP %s as indeterminate without retry", async (status) => {
+    const h = await harness(json({ error: "upstream failure" }, status));
+
+    await expect(
+      h.client.submitReport({
+        area: "claim",
+        whatHappened: "report response was ambiguous",
+        whatExpected: "stored acknowledgement",
+        severity: "blocked",
+        page: "/report",
+        attribution: "anonymous",
+      }),
+    ).rejects.toMatchObject({
+      name: "IndeterminateReportSubmissionError",
+      mayHaveStored: true,
+    });
+    expect(reportPosts(h.calls)).toHaveLength(1);
+  });
+
+  it("keeps an explicit report HTTP 4xx rejection definitive", async () => {
+    const h = await harness(json({ error: "invalid report" }, 422));
+
+    await expect(
+      h.client.submitReport({
+        area: "claim",
+        whatHappened: "report was explicitly rejected",
+        whatExpected: "rejected acknowledgement",
+        severity: "blocked",
+        page: "/report",
+        attribution: "anonymous",
+      }),
+    ).rejects.toMatchObject({
+      name: "ReportRejectedError",
+      status: 422,
+    } satisfies Partial<ReportRejectedError>);
     expect(reportPosts(h.calls)).toHaveLength(1);
   });
 

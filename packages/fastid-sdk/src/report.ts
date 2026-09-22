@@ -323,6 +323,11 @@ export class ReportService {
     }
     if (!response.ok) {
       const reason = (await response.text().catch(() => "")) || undefined;
+      if (response.status >= 500 && response.status < 600) {
+        throw new IndeterminateReportSubmissionError({
+          cause: new Error(`report intake returned HTTP ${response.status}${reason ? `: ${reason}` : ""}`),
+        });
+      }
       throw new ReportRejectedError(response.status, reason);
     }
     let acknowledgement: unknown;

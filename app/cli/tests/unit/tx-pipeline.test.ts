@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { TransactionEnvelopeFromRest } from '@fastxyz/schema';
+import { TransactionEnvelopeFromRest, VersionedTransactionFromBcs, bcsSchema, type TransactionEnvelope } from '@fastxyz/schema';
 import { Effect, Layer, Schema } from 'effect';
-import { canonicalizeMultiSigSigners, MultiSigSigner, ProxyUnexpectedNonceError, RestError, Signer } from '@fastxyz/sdk';
+import { canonicalizeMultiSigSigners, hashHex, MultiSigSigner, ProxyUnexpectedNonceError, RestError, Signer } from '@fastxyz/sdk';
 import { FastSdkError, TransactionFailedError, TransactionSubmissionUnknownError } from '../../src/errors/index';
 import { submitOperation } from '../../src/services/tx-pipeline';
 import { FastRpc } from '../../src/services/api/fast';
@@ -221,6 +221,13 @@ describe('submitOperation (single-signer)', () => {
     expect(error.nonce).toBe(0n);
     expect(error.details).toMatchObject({ txHash: error.txHash, nonce: '0' });
     expect(error.details.recoveryEnvelope).toHaveProperty('transaction');
+    expect(submittedEnvelope).toBeDefined();
+    const submitted = submittedEnvelope as TransactionEnvelope;
+    const submittedHash = await hashHex(
+      bcsSchema.VersionedTransaction,
+      Schema.encodeSync(VersionedTransactionFromBcs)(submitted.transaction),
+    );
+    expect(error.txHash).toBe(submittedHash);
     expect(Schema.decodeUnknownSync(TransactionEnvelopeFromRest)(error.details.recoveryEnvelope)).toEqual(submittedEnvelope);
     expect(error.message).toContain('Do not rebuild or retry this operation');
   });

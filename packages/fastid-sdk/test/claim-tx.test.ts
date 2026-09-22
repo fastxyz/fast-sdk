@@ -168,11 +168,14 @@ describe("submitSignedClaim settlement guards", () => {
   });
 
   it.each([
-    ["missing provider result", () => undefined],
-    ["missing envelope transaction", () => ({ type: "Success", value: { envelope: {} } })],
+    ["missing provider result", (): unknown => undefined],
+    [
+      "missing envelope transaction",
+      (): unknown => ({ type: "Success", value: { envelope: {} } }),
+    ],
     [
       "unhashable certificate transaction",
-      () => ({
+      (): unknown => ({
         type: "Success",
         value: {
           envelope: {
@@ -187,7 +190,7 @@ describe("submitSignedClaim settlement guards", () => {
     ],
     [
       "certificate without nonce",
-      () => ({
+      (): unknown => ({
         type: "Success",
         value: { envelope: { transaction: { __id: "aa".repeat(32) } } },
       }),

@@ -930,6 +930,7 @@ for (const { label, result } of INCOMPLETE_SUBMISSION_RESULTS) {
     assert.equal(typeof failure.txHash, 'string');
     assert.equal(await hashRecoveryEnvelope(failure.recoveryEnvelope), failure.txHash);
     assert.doesNotMatch(failure.message, /Try again/);
+    assert.doesNotMatch(failure.note, /try again/i);
     assert.equal(crossSignCalls, 0);
     assert.equal(relayerCalls, 0);
   });
@@ -1089,6 +1090,7 @@ for (const { label, result } of INCOMPLETE_SUBMISSION_RESULTS) {
     assert.equal(failure.relatedTxHash, transferHash);
     assert.equal(await hashRecoveryEnvelope(failure.recoveryEnvelope), failure.txHash);
     assert.doesNotMatch(failure.message, /Try again/);
+    assert.doesNotMatch(failure.note, /try again/i);
     assert.equal(submitCalls, 2);
     assert.equal(crossSignCalls, 1);
     assert.equal(relayerCalls, 0);

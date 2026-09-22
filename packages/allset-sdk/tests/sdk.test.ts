@@ -31,6 +31,7 @@ import {
   executeIntent,
   executeWithdraw,
   relayExecute,
+  type RelayResult,
   // eip7702
   smartDeposit,
   InsufficientBalanceError,
@@ -1255,18 +1256,46 @@ test('executeIntent infers external_address from Execute intent target', async (
 
 test('executeIntent throws FastError when no external address can be resolved', async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  let fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
   });
+
+  let signerCalls = 0;
+  let accountInfoCalls = 0;
+  let submitCalls = 0;
+  const signer = {
+    getPublicKey: async () => {
+      signerCalls++;
+      throw new Error('signer touched before externalAddress preflight');
+    },
+    getFastAddress: async () => {
+      signerCalls++;
+      throw new Error('signer touched before externalAddress preflight');
+    },
+  } as any;
+  const provider = {
+    getAccountInfo: async () => {
+      accountInfoCalls++;
+      return { nextNonce: 1n };
+    },
+    submitTransaction: async () => {
+      submitCalls++;
+      return { type: 'Success', value: { envelope: {}, signatures: [] } };
+    },
+  } as unknown as FastProvider;
 
   await assert.rejects(
     () =>
       executeIntent({
         ...BASE_INTENT_PARAMS,
         intents: [buildRevokeIntent()],
-        signer: testSigner,
-        provider: makeMockProvider(),
+        signer,
+        provider,
       }),
     (error: unknown) => {
       assert.ok(error instanceof FastError);
@@ -1274,6 +1303,11 @@ test('executeIntent throws FastError when no external address can be resolved', 
       return true;
     },
   );
+
+  assert.equal(signerCalls, 0);
+  assert.equal(accountInfoCalls, 0);
+  assert.equal(submitCalls, 0);
+  assert.equal(fetchCalls, 0);
 });
 
 test('executeIntent throws FastError when intents array is empty', async () => {
@@ -1390,7 +1424,7 @@ test('relayExecute does not treat a malformed HTTP 200 body as accepted', async 
     globalThis.fetch = originalFetch;
   });
 
-  const result = await relayExecute({
+  const result: RelayResult = await relayExecute({
     relayerUrl: RELAY_URL,
     encodedTransferClaim: [1],
     transferProof: '0xsig',
@@ -1399,6 +1433,62 @@ test('relayExecute does not treat a malformed HTTP 200 body as accepted', async 
     externalAddress: EVM_ADDRESS,
   });
   assert.deepEqual(result, { success: false, outcome: 'unknown' });
+});
+
+test('executeIntent preserves transfer recovery when the second account read fails', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) {
+      relayCalls++;
+      return Response.json(RELAY_ACCEPTED);
+    }
+    crossSignCalls++;
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const accountReadError = new Error('second account read failed');
+  let accountInfoCalls = 0;
+  const submissions: unknown[] = [];
+  const provider = {
+    getAccountInfo: async () => {
+      accountInfoCalls++;
+      if (accountInfoCalls === 2) throw accountReadError;
+      return { nextNonce: 1n };
+    },
+    submitTransaction: async (envelope: unknown) => {
+      submissions.push(structuredClone(envelope));
+      return { type: 'Success', value: { envelope, signatures: [] } };
+    },
+  } as unknown as FastProvider;
+
+  let failure: unknown;
+  try {
+    await executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider,
+    });
+  } catch (error) {
+    failure = error;
+  }
+
+  assert.ok(failure instanceof PostPaymentRecoveryError);
+  const recovery = failure as PostPaymentRecoveryError;
+  assert.equal(recovery.stage, 'intent-account-info');
+  assert.equal(recovery.cause, accountReadError);
+  assert.equal(recovery.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+  assert.deepEqual(recovery.transfer.recoveryEnvelope, submissions[0]);
+  assert.equal(recovery.intent, undefined);
+  assert.equal(accountInfoCalls, 2);
+  assert.equal(submissions.length, 1);
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayCalls, 0);
 });
 
 test('executeIntent preserves the settled transfer identity when cross-sign fails', async () => {

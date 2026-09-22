@@ -326,6 +326,7 @@ try {
     if (err instanceof PostPaymentRecoveryError) {
       // Fast transactions already succeeded. Reconcile these identities before continuing.
       console.error(err.stage, err.transfer.txHash, err.intent?.txHash, err.relayOutcome);
+      // stage may be 'transfer-cross-sign', 'intent-cross-sign', 'intent-account-info', or 'relay'.
       // recoveryEnvelope is an in-memory structured clone, not a JSON persistence format.
     }
   }
@@ -461,7 +462,7 @@ interface RelayParams {
   intentClaimId: string;
 }
 
-interface RelayResult {
+interface RelayAcceptedResult {
   success: true;
 }
 
@@ -475,7 +476,8 @@ interface RelayUnknownResult {
   outcome: 'unknown';
 }
 
-type RelayExecutionResult = RelayResult | RelayRejectedResult | RelayUnknownResult;
+type RelayResult = RelayAcceptedResult | RelayRejectedResult | RelayUnknownResult;
+type RelayExecutionResult = RelayResult; // deprecated alias
 ```
 
 ---

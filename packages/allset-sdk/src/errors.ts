@@ -90,7 +90,7 @@ export class IndeterminateTransactionError extends FastError {
   }
 }
 
-export type PostPaymentExecutionStage = 'transfer-cross-sign' | 'intent-cross-sign' | 'relay';
+export type PostPaymentExecutionStage = 'transfer-cross-sign' | 'intent-cross-sign' | 'intent-account-info' | 'relay';
 export type RelayOutcome = 'rejected' | 'unknown';
 
 export interface RecoveryTransaction {
@@ -100,7 +100,7 @@ export interface RecoveryTransaction {
 
 /**
  * One or more Fast transactions have verified success certificates, but a
- * later cross-sign or relay step did not complete. Reconcile the listed
+ * later cross-sign, intent account read, or relay step did not complete. Reconcile the listed
  * transactions before continuing; rerunning executeIntent can submit a new
  * transfer and duplicate the operation.
  */

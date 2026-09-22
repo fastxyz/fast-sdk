@@ -547,7 +547,6 @@ export async function executeIntent(
     );
   }
   let prepared = null;
-  let v1ExternalAddress: `0x${string}` | null = null;
   if (encoding === "v1") {
     try {
       prepared = prepareIntentClaimV1({
@@ -562,19 +561,20 @@ export async function executeIntent(
         note: 'claimEncoding "v1" needs chainId, bridgeContract, a valid deadline and canonical intents (AllSet#576)',
       });
     }
-    v1ExternalAddress = resolveV1ExternalAddress(
-      prepared.claim.intents,
-      externalAddressOverride,
+  }
+
+  // Resolve all request-only routing data before either paid Fast transaction is submitted.
+  const externalAddress = prepared
+    ? resolveV1ExternalAddress(prepared.claim.intents, externalAddressOverride)
+    : resolveExternalAddress(intents, externalAddressOverride);
+  if (!externalAddress) {
+    throw new FastError(
+      "INVALID_PARAMS",
+      "executeIntent requires externalAddress when intents do not include a transfer recipient or execute target",
+      {
+        note: "Pass externalAddress for flows like buildDepositBackIntent() or buildRevokeIntent().",
+      },
     );
-    if (!v1ExternalAddress) {
-      throw new FastError(
-        "INVALID_PARAMS",
-        "executeIntent requires externalAddress when intents do not include a transfer recipient or execute target",
-        {
-          note: "Pass externalAddress for flows like buildDepositBackIntent() or buildRevokeIntent().",
-        },
-      );
-    }
   }
 
   const tokenId = hexToUint8Array(tokenFastTokenId);
@@ -660,12 +660,21 @@ export async function executeIntent(
       );
 
   // Step 4: Submit intent claim on Fast network
-  const accountInfo2 = await provider.getAccountInfo({
-    address: publicKey,
-    tokenBalancesFilter: null,
-    stateKeyFilter: null,
-    certificateByNonce: null,
-  });
+  let accountInfo2: Awaited<ReturnType<typeof provider.getAccountInfo>>;
+  try {
+    accountInfo2 = await provider.getAccountInfo({
+      address: publicKey,
+      tokenBalancesFilter: null,
+      stateKeyFilter: null,
+      certificateByNonce: null,
+    });
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "intent-account-info",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
 
   const intentEnvelope = await new TransactionBuilder({
     networkId: networkId as any,
@@ -727,20 +736,7 @@ export async function executeIntent(
     });
   }
 
-  // Step 6: Resolve external address and submit to relayer
-  const externalAddress = prepared
-    ? v1ExternalAddress
-    : resolveExternalAddress(intents, externalAddressOverride);
-  if (!externalAddress) {
-    throw new FastError(
-      "INVALID_PARAMS",
-      "executeIntent requires externalAddress when intents do not include a transfer recipient or execute target",
-      {
-        note: "Pass externalAddress for flows like buildDepositBackIntent() or buildRevokeIntent().",
-      },
-    );
-  }
-
+  // Step 6: Submit to relayer
   let relayResult: Awaited<ReturnType<typeof relayExecute>>;
   try {
     relayResult = await relayExecute({

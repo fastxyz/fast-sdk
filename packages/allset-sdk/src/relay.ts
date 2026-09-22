@@ -42,7 +42,7 @@ export interface RelayParams {
 /**
  * Result from a successful relay submission.
  */
-export interface RelayResult {
+export interface RelayAcceptedResult {
   /** Whether the relayer accepted the request */
   success: true;
 }
@@ -59,7 +59,11 @@ export interface RelayUnknownResult {
   outcome: 'unknown';
 }
 
-export type RelayExecutionResult = RelayResult | RelayRejectedResult | RelayUnknownResult;
+/** Full result union returned by relayExecute. Retained under the original public name. */
+export type RelayResult = RelayAcceptedResult | RelayRejectedResult | RelayUnknownResult;
+
+/** @deprecated Use RelayResult. */
+export type RelayExecutionResult = RelayResult;
 
 // ---------------------------------------------------------------------------
 // relayExecute
@@ -87,7 +91,7 @@ export type RelayExecutionResult = RelayResult | RelayRejectedResult | RelayUnkn
  * });
  * ```
  */
-export async function relayExecute(params: RelayParams): Promise<RelayExecutionResult> {
+export async function relayExecute(params: RelayParams): Promise<RelayResult> {
   const {
     relayerUrl,
     encodedTransferClaim,

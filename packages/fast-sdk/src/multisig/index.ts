@@ -350,7 +350,7 @@ export class MultiSigWorkflow {
     }
     this.assertTransaction(transaction);
     this.assertSender(transaction, state.address);
-    const envelope = await params.signer.signEnvelopeFor(transaction);
+    const envelope = await signer.signEnvelopeFor(transaction);
     return this.submit(envelope, preparedHash);
   }
 

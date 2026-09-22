@@ -308,6 +308,32 @@ describe('MultiSigWorkflow', () => {
     await expect(guardedWorkflow.submitPrepared(params)).resolves.toMatchObject({ status: 'pending-signatures' });
   });
 
+  it('captures the submitPrepared signer before provider awaits', async () => {
+    const { config, first, second } = await fixture();
+    const preparingWorkflow = new MultiSigWorkflow({
+      provider: makeProvider({}),
+      networkId: 'fast:testnet',
+      config,
+    });
+    const prepared = await preparingWorkflow.prepare({ signer: first, operations: [transfer] });
+    const submitted: TransactionEnvelope[] = [];
+    const params = { signer: first, prepared };
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({
+        submitted,
+        onGetAccountInfo: () => (params.signer = second),
+      }),
+      networkId: 'fast:testnet',
+      config,
+    });
+
+    await workflow.submitPrepared(params);
+
+    const signerPublicKey = submitted[0]!.signature.value.signatures[0]![0];
+    expect(signerPublicKey).toEqual(await first.getSignerPublicKey());
+    expect(signerPublicKey).not.toEqual(await second.getSignerPublicKey());
+  });
+
   it('captures initiate signer before provider awaits', async () => {
     const { config, first } = await fixture();
     const differentSigner = new MultiSigSigner({ config: { ...config, nonce: 1n }, secretKey: seed(0x11) });

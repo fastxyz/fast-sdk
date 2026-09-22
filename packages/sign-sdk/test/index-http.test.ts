@@ -57,7 +57,7 @@ function exactBody(value: SettlementRecord = record()): string {
 describe("index HTTP client", () => {
   it.each(["record", "fetchExact"] as const)("freezes constructed network binding for %s", async (method) => {
     const fetchImpl = vi.fn(async () => method === "record"
-      ? new Response(null, { status: 204 }) : new Response(exactBody()));
+      ? new Response(null, { status: 200 }) : new Response(exactBody()));
     const options = { network: "fast:testnet" as "fast:testnet" | "fast:mainnet", indexOrigin: "https://index.example", fetchImpl };
     const client = createIndexHttpClient(options);
     options.network = "fast:mainnet";
@@ -86,8 +86,8 @@ describe("index HTTP client", () => {
       kind: "terminal", message: "index /by-hash returned a malformed settlement row",
     });
   });
-  it("POSTs exactly the five current fields and accepts any 2xx without parsing a body", async () => {
-    const fetchImpl = vi.fn<FetchLike>(async () => new Response("not-json", { status: 202 }));
+  it("POSTs exactly the five current fields and accepts exact 200 without parsing a body", async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () => new Response("not-json", { status: 200 }));
     const client = createIndexHttpClient({
       network: "fast:testnet",
       indexOrigin: "https://index.example/",
@@ -109,11 +109,24 @@ describe("index HTTP client", () => {
     });
   });
 
+  it.each([201, 202, 204])("rejects non-200 record acknowledgements: %i", async (status) => {
+    const client = createIndexHttpClient({
+      network: "fast:testnet",
+      indexOrigin: "https://index.example",
+      fetchImpl: async () => new Response(null, { status }),
+    });
+
+    await expect(client.record(record())).rejects.toMatchObject({
+      kind: "terminal",
+      status,
+    });
+  });
+
   it("rejects redirect following for both record delivery and exact lookup", async () => {
     const fetchImpl = vi.fn<FetchLike>(async (_url, init) => {
       if (init?.redirect !== "error") throw new Error("redirect policy was not fail-closed");
       return init.method === "POST"
-        ? new Response(null, { status: 204 })
+        ? new Response(null, { status: 200 })
         : new Response(JSON.stringify({ sha256: record().sha256, settlements: [] }));
     });
     const client = createIndexHttpClient({

@@ -124,7 +124,7 @@ export interface IndexHttpClient {
   fetchExact(value: ExactLookupInput): Promise<IndexSettlement | null>;
 }
 
-function normalizeIndexOrigin(value: string): string {
+export function normalizeIndexOrigin(value: string): string {
   let url: URL;
   try {
     url = new URL(value);
@@ -248,7 +248,7 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
           if (error instanceof IndexHttpError) throw error;
           throw new IndexHttpError("transport", error instanceof Error ? error.message : String(error));
         }
-        if (!response.ok) throw await responseError(response, "index /record failed", signal, now);
+        if (response.status !== 200) throw await responseError(response, "index /record failed", signal, now);
       });
     },
     async fetchExact(value) {

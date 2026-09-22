@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { assertBoundedObjectCertificate, certificatesEqual } from "./internal/receipts.js";
-import { createIndexHttpClient, IndexHttpError, type FetchLike, type IndexSettlement } from "./internal/index-http.js";
+import {
+  createIndexHttpClient,
+  IndexHttpError,
+  normalizeIndexOrigin,
+  type FetchLike,
+  type IndexSettlement,
+} from "./internal/index-http.js";
 import { validateRecordRequest } from "./internal/record-wire.js";
 import type { PendingRegistration, RecoveryJournal, SettledJournalSnapshot, SignNetwork } from "./types.js";
 
@@ -94,7 +100,7 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
     operation: (receipt: PendingRegistration, snapshot: SettledJournalSnapshot) => Promise<{ state: RegistrationState; error?: string }>,
   ): Promise<RegistrationResult> {
     const receipt = snapshotReceipt(rawReceipt);
-    if (receipt.record.network !== options.network || new URL(receipt.indexOrigin).origin !== http.indexOrigin) {
+    if (receipt.record.network !== options.network || normalizeIndexOrigin(receipt.indexOrigin) !== http.indexOrigin) {
       throw new Error("receipt does not match the configured network or index origin");
     }
     return journal.withLock(`operation:${receipt.operationId}`, async () => {

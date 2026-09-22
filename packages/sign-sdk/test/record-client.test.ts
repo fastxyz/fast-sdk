@@ -77,10 +77,25 @@ it("retryRegistration performs one explicit POST and persists acknowledgement", 
   const journal = memoryJournal(settled());
   const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
     expect(init?.method).toBe("POST");
-    return new Response(null, { status: 204 });
+    return new Response(null, { status: 200 });
   });
   const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl });
   await expect(client.retryRegistration(receipt)).resolves.toMatchObject({ registration: "registered" });
   expect(fetchImpl).toHaveBeenCalledTimes(1);
   expect(journal.saves.at(-1)).toMatchObject({ state: "registered" });
+});
+
+it("rejects a receipt whose indexOrigin is not the exact configured origin", async () => {
+  const journal = memoryJournal(settled());
+  const client = createRecordClient({
+    network: "fast:testnet",
+    indexOrigin: receipt.indexOrigin,
+    journal,
+    fetchImpl: vi.fn(),
+  });
+
+  await expect(client.checkRegistration({
+    ...receipt,
+    indexOrigin: "https://index.example/hidden-path?same-origin=1",
+  })).rejects.toThrow(/index.?origin/i);
 });

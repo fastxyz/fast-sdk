@@ -1,11 +1,11 @@
 # `@fastxyz/sign-sdk` in `fast-sdk` — public agent SDK specification
 
-**Status:** Draft for owner approval  
-**Destination repository:** `fastxyz/fast-sdk`  
-**Target branch:** `develop`  
-**Package:** `packages/sign-sdk` / `@fastxyz/sign-sdk`  
-**License:** Apache-2.0  
-**Normative authority:** this specification  
+**Status:** Draft for owner approval
+**Destination repository:** `fastxyz/fast-sdk`
+**Target branch:** `develop`
+**Package:** `packages/sign-sdk` / `@fastxyz/sign-sdk`
+**License:** Apache-2.0
+**Normative authority:** this specification
 **Non-normative implementation context:** `fastxyz/fast-sign#60` at exact commit `5448840abe71ce5eef3d1540c4c7477092cc2379`, without merging that PR
 
 ## 1. Motivation

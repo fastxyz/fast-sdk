@@ -98,7 +98,7 @@ Create `packages/sign-sdk/test/license-provenance.test.ts` that loads `provenanc
 
 - [ ] **Step 3: Run RED**
 
-Run: `pnpm exec vitest run packages/sign-sdk/test/license-provenance.test.ts`  
+Run: `pnpm exec vitest run packages/sign-sdk/test/license-provenance.test.ts`
 Expected: FAIL because the package/provenance inventory does not yet exist.
 
 - [ ] **Step 4: Create the initial inventory schema and reviewed entries for the scaffold only**
@@ -148,7 +148,7 @@ Also compile negative consumers importing `@fastxyz/sign-sdk/core`, `/browser`, 
 
 - [ ] **Step 2: Run RED**
 
-Run: `pnpm exec vitest run packages/sign-sdk/test/package-boundary.test.ts`  
+Run: `pnpm exec vitest run packages/sign-sdk/test/package-boundary.test.ts`
 Expected: FAIL because the package does not exist.
 
 - [ ] **Step 3: Add the minimal package scaffold**
@@ -168,7 +168,7 @@ Use exact production dependencies `@fastxyz/sdk@2.3.1`, `@fastxyz/schema@2.0.0`,
 
 - [ ] **Step 4: Run GREEN and typecheck**
 
-Run: `pnpm --filter @fastxyz/sign-sdk test -- package-boundary.test.ts && pnpm --filter @fastxyz/sign-sdk typecheck`  
+Run: `pnpm --filter @fastxyz/sign-sdk test -- package-boundary.test.ts && pnpm --filter @fastxyz/sign-sdk typecheck`
 Expected: package metadata assertions pass; negative consumers fail for the expected missing exports.
 
 - [ ] **Step 5: Commit**
@@ -188,7 +188,7 @@ Read committed fixtures only. Test exact bytes for each accepted relationship/me
 
 - [ ] **Step 2: Run RED**
 
-Run: `pnpm --filter @fastxyz/sign-sdk test -- protocol.test.ts`  
+Run: `pnpm --filter @fastxyz/sign-sdk test -- protocol.test.ts`
 Expected: FAIL because the internal codec modules are missing.
 
 - [ ] **Step 3: Port only the allowlisted pinned codec behavior**
@@ -226,7 +226,7 @@ Negative consumers must be unable to pass `claimDataHex`, arbitrary operations, 
 
 - [ ] **Step 2: Run RED**
 
-Run: `pnpm --filter @fastxyz/sign-sdk test -- transaction-boundary.test.ts`  
+Run: `pnpm --filter @fastxyz/sign-sdk test -- transaction-boundary.test.ts`
 Expected: FAIL because transaction preparation is absent.
 
 - [ ] **Step 3: Implement the internal transaction builder**

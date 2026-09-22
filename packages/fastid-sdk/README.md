@@ -16,7 +16,7 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm --filter @fastxyz/fastid-sdk... build
 corepack pnpm --filter @fastxyz/fastid-sdk pack --pack-destination /tmp/fastid-sdk-pack
 # From your consumer project (use the emitted tarball filename):
-npm install /tmp/fastid-sdk-pack/fastxyz-fastid-sdk-0.1.0.tgz
+npm install /tmp/fastid-sdk-pack/fastxyz-fastid-sdk-*.tgz
 ```
 
 After npm publication, the package name is `@fastxyz/fastid-sdk`. Building and

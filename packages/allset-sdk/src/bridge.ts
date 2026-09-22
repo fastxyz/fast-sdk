@@ -1,11 +1,11 @@
-import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs } from "@fastxyz/schema";
+import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs, type TransactionEnvelope } from "@fastxyz/schema";
 import { hashHex, TransactionBuilder } from "@fastxyz/sdk";
 import { Schema } from "effect";
 import { decodeAbiParameters } from "viem";
 import { fastAddressToBytes } from "./address.js";
 import { encodeIntentClaim, extractClaimId } from "./claims.js";
 import { buildDepositTransaction } from "./deposit.js";
-import { FastError } from "./errors.js";
+import { FastError, IndeterminateTransactionError } from "./errors.js";
 import { ERC20_ABI, type EvmClients, estimateGasReserve, gasTokenErc20, weiToTokenUnits } from "./evm.js";
 import { InsufficientBalanceError } from "./eip7702.js";
 import { finishIntentClaimV1, prepareIntentClaimV1, type IntentV1 } from "./intent-v1.js";
@@ -94,10 +94,29 @@ function normalizeTransactionHash(hash: string): string {
   return lower.startsWith("0x") ? lower.slice(2) : lower;
 }
 
-async function successCertificateMatchesEnvelope(
-  submitResult: unknown,
-  submittedEnvelope: unknown,
+type SubmissionIdentity = {
+  readonly txHash: string;
+  readonly networkId: string;
+  readonly envelope: TransactionEnvelope;
+};
+
+async function prepareSubmissionIdentity(
+  envelope: TransactionEnvelope,
   networkId: string,
+): Promise<SubmissionIdentity> {
+  const snapshot = structuredClone(envelope);
+  const snapshotNetwork = snapshot.transaction.value.networkId;
+  if (snapshotNetwork !== networkId) {
+    throw new FastError("TX_FAILED", "Signed transaction network does not match the requested network.");
+  }
+  const bytes = Schema.encodeSync(VersionedTransactionFromBcs)(snapshot.transaction);
+  const txHash = await hashHex(bcsSchema.VersionedTransaction, bytes);
+  return { txHash, networkId, envelope: snapshot };
+}
+
+async function successCertificateMatchesIdentity(
+  submitResult: unknown,
+  identity: Pick<SubmissionIdentity, "txHash" | "networkId">,
 ): Promise<boolean> {
   const result = submitResult as {
     readonly type?: unknown;
@@ -105,22 +124,20 @@ async function successCertificateMatchesEnvelope(
   } | null;
   if (result?.type !== "Success") return false;
 
-  const submittedTransaction = (submittedEnvelope as { readonly transaction?: unknown } | null)?.transaction;
   const certificateTransaction = result.value?.envelope?.transaction;
-  if (!submittedTransaction || typeof submittedTransaction !== "object" || !certificateTransaction || typeof certificateTransaction !== "object") {
+  if (!certificateTransaction || typeof certificateTransaction !== "object") {
     return false;
   }
 
-  const submittedNetwork = (submittedTransaction as { readonly value?: { readonly networkId?: unknown } }).value?.networkId;
   const certificateNetwork = (certificateTransaction as { readonly value?: { readonly networkId?: unknown } }).value?.networkId;
-  if (submittedNetwork !== networkId || certificateNetwork !== networkId) return false;
+  if (certificateNetwork !== identity.networkId) return false;
 
   try {
-    const [submittedHash, certificateHash] = await Promise.all([
-      hashHex(bcsSchema.VersionedTransaction, Schema.encodeSync(VersionedTransactionFromBcs)(submittedTransaction as never)),
-      hashHex(bcsSchema.VersionedTransaction, Schema.encodeSync(VersionedTransactionFromBcs)(certificateTransaction as never)),
-    ]);
-    return normalizeTransactionHash(submittedHash) === normalizeTransactionHash(certificateHash);
+    const certificateHash = await hashHex(
+      bcsSchema.VersionedTransaction,
+      Schema.encodeSync(VersionedTransactionFromBcs)(certificateTransaction as never),
+    );
+    return normalizeTransactionHash(identity.txHash) === normalizeTransactionHash(certificateHash);
   } catch {
     return false;
   }
@@ -547,7 +564,8 @@ export async function executeIntent(
     })
     .sign();
 
-  const transferResult = await provider.submitTransaction(transferEnvelope);
+  const transferIdentity = await prepareSubmissionIdentity(transferEnvelope, networkId);
+  const transferResult = await provider.submitTransaction(structuredClone(transferIdentity.envelope));
   if (transferResult.type !== "Success") {
     throw new FastError(
       "TX_FAILED",
@@ -557,14 +575,12 @@ export async function executeIntent(
       },
     );
   }
-  if (!(await successCertificateMatchesEnvelope(transferResult, transferEnvelope, networkId))) {
-    throw new FastError(
-      "TX_FAILED",
-      "Transfer success certificate does not match the submitted transaction.",
-      {
-        note: "The transfer certificate could not be correlated safely; no claim or relayer call was started.",
-      },
-    );
+  if (!(await successCertificateMatchesIdentity(transferResult, transferIdentity))) {
+    throw new IndeterminateTransactionError({
+      stage: 'transfer',
+      txHash: transferIdentity.txHash,
+      recoveryEnvelope: transferIdentity.envelope,
+    });
   }
 
   // Step 2: Cross-sign the transfer certificate
@@ -610,7 +626,8 @@ export async function executeIntent(
     })
     .sign();
 
-  const intentResult = await provider.submitTransaction(intentEnvelope);
+  const intentIdentity = await prepareSubmissionIdentity(intentEnvelope, networkId);
+  const intentResult = await provider.submitTransaction(structuredClone(intentIdentity.envelope));
   if (intentResult.type !== "Success") {
     throw new FastError(
       "TX_FAILED",
@@ -620,14 +637,13 @@ export async function executeIntent(
       },
     );
   }
-  if (!(await successCertificateMatchesEnvelope(intentResult, intentEnvelope, networkId))) {
-    throw new FastError(
-      "TX_FAILED",
-      "Intent success certificate does not match the submitted transaction.",
-      {
-        note: "The intent certificate could not be correlated safely; no relayer call was started.",
-      },
-    );
+  if (!(await successCertificateMatchesIdentity(intentResult, intentIdentity))) {
+    throw new IndeterminateTransactionError({
+      stage: 'intent',
+      txHash: intentIdentity.txHash,
+      relatedTxHash: transferIdentity.txHash,
+      recoveryEnvelope: intentIdentity.envelope,
+    });
   }
 
   // Step 5: Cross-sign the intent certificate

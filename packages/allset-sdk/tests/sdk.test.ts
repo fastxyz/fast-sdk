@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, onTestFinished } from 'vitest';
-import { FastError } from '../src/errors.ts';
+import { FastError, IndeterminateTransactionError } from '../src/errors.ts';
 import { encodeFunctionData, hexToBytes, type Hex } from 'viem';
 import { Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
 import { Schema } from 'effect';
@@ -712,6 +712,7 @@ test('executeIntent rejects a transfer success certificate for another transacti
     globalThis.fetch = originalFetch;
   });
 
+  let failure: IndeterminateTransactionError | undefined;
   await assert.rejects(
     executeIntent({
       ...BASE_INTENT_PARAMS,
@@ -720,15 +721,22 @@ test('executeIntent rejects a transfer success certificate for another transacti
       provider: {
         getAccountInfo: async () => ({ nextNonce: 1n }) as any,
         submitTransaction: async (envelope: unknown) => {
+          (envelope as any).transaction.value.nonce = 2n;
           const certificateEnvelope = structuredClone(envelope as object) as any;
-          certificateEnvelope.transaction.value.nonce = 2n;
           return { type: 'Success', value: { envelope: certificateEnvelope, signatures: [] } };
         },
       } as unknown as FastProvider,
     }),
-    (candidate: unknown) => candidate instanceof FastError && candidate.code === 'TX_FAILED',
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'transfer';
+    },
   );
 
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(typeof failure.txHash, 'string');
+  assert.ok(failure.recoveryEnvelope);
   assert.equal(crossSignCalls, 0);
   assert.equal(relayerCalls, 0);
 });
@@ -747,6 +755,7 @@ test('executeIntent rejects an intent success certificate for another transactio
   });
 
   let submitCalls = 0;
+  let failure: IndeterminateTransactionError | undefined;
   await assert.rejects(
     executeIntent({
       ...BASE_INTENT_PARAMS,
@@ -757,14 +766,24 @@ test('executeIntent rejects an intent success certificate for another transactio
         submitTransaction: async (envelope: unknown) => {
           submitCalls++;
           const certificateEnvelope = structuredClone(envelope as object) as any;
-          if (submitCalls === 2) certificateEnvelope.transaction.value.nonce = 2n;
+          if (submitCalls === 2) {
+            (envelope as any).transaction.value.nonce = 2n;
+            certificateEnvelope.transaction.value.nonce = 2n;
+          }
           return { type: 'Success', value: { envelope: certificateEnvelope, signatures: [] } };
         },
       } as unknown as FastProvider,
     }),
-    (candidate: unknown) => candidate instanceof FastError && candidate.code === 'TX_FAILED',
+    (candidate: unknown) => {
+      failure = candidate instanceof IndeterminateTransactionError ? candidate : undefined;
+      return failure?.stage === 'intent';
+    },
   );
 
+  assert.ok(failure);
+  assert.equal(failure.mayHaveSettled, true);
+  assert.equal(typeof failure.relatedTxHash, 'string');
+  assert.ok(failure.recoveryEnvelope);
   assert.equal(submitCalls, 2);
   assert.equal(crossSignCalls, 1);
   assert.equal(relayerCalls, 0);

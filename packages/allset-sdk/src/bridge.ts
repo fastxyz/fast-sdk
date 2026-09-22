@@ -9,11 +9,11 @@ import {
   VerifierSigsInvalidError,
 } from "@fastxyz/sdk";
 import { Schema } from "effect";
-import { decodeAbiParameters } from "viem";
+import { decodeAbiParameters, type Hex } from "viem";
 import { fastAddressToBytes } from "./address.js";
 import { encodeIntentClaim, extractClaimId } from "./claims.js";
 import { buildDepositTransaction } from "./deposit.js";
-import { FastError, IndeterminateTransactionError } from "./errors.js";
+import { FastError, IndeterminateTransactionError, PostPaymentRecoveryError } from "./errors.js";
 import { ERC20_ABI, type EvmClients, estimateGasReserve, gasTokenErc20, weiToTokenUnits } from "./evm.js";
 import { InsufficientBalanceError } from "./eip7702.js";
 import { finishIntentClaimV1, prepareIntentClaimV1, type IntentV1 } from "./intent-v1.js";
@@ -631,10 +631,19 @@ export async function executeIntent(
   }
 
   // Step 2: Cross-sign the transfer certificate
-  const transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
-
-  // Derive the Fast tx ID from cross-sign bytes[32:64] — this is the canonical transaction hash
-  const transferFastTxId = extractClaimId(transferCrossSign.transaction);
+  let transferCrossSign: Awaited<ReturnType<typeof evmSign>>;
+  let transferFastTxId: Hex;
+  try {
+    transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
+    // Derive the Fast tx ID from cross-sign bytes[32:64] — this is the canonical transaction hash
+    transferFastTxId = extractClaimId(transferCrossSign.transaction);
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "transfer-cross-sign",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
 
   // Step 3: Build and encode the intent claim
   const deadline = prepared
@@ -704,8 +713,19 @@ export async function executeIntent(
   }
 
   // Step 5: Cross-sign the intent certificate
-  const intentCrossSign = await evmSign(intentResult.value, crossSignUrl);
-  const intentFastTxId = extractClaimId(intentCrossSign.transaction);
+  let intentCrossSign: Awaited<ReturnType<typeof evmSign>>;
+  let intentFastTxId: Hex;
+  try {
+    intentCrossSign = await evmSign(intentResult.value, crossSignUrl);
+    intentFastTxId = extractClaimId(intentCrossSign.transaction);
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "intent-cross-sign",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      intent: { txHash: intentIdentity.txHash, recoveryEnvelope: intentIdentity.envelope },
+      cause,
+    });
+  }
 
   // Step 6: Resolve external address and submit to relayer
   const externalAddress = prepared
@@ -721,23 +741,42 @@ export async function executeIntent(
     );
   }
 
-  await relayExecute({
-    relayerUrl,
-    encodedTransferClaim: Array.from(
-      new Uint8Array(transferCrossSign.transaction.map(Number)),
-    ),
-    transferProof: transferCrossSign.signature,
-    transferFastTxId,
-    fastsetAddress: fastAddress,
-    externalAddress,
-    encodedIntentClaim: Array.from(
-      new Uint8Array(intentCrossSign.transaction.map(Number)),
-    ),
-    intentProof: intentCrossSign.signature,
-    intentFastTxId,
-    intentClaimId: intentFastTxId,
-    externalTokenAddress: tokenEvmAddress,
-  });
+  let relayResult: Awaited<ReturnType<typeof relayExecute>>;
+  try {
+    relayResult = await relayExecute({
+      relayerUrl,
+      encodedTransferClaim: Array.from(
+        new Uint8Array(transferCrossSign.transaction.map(Number)),
+      ),
+      transferProof: transferCrossSign.signature,
+      transferFastTxId,
+      fastsetAddress: fastAddress,
+      externalAddress,
+      encodedIntentClaim: Array.from(
+        new Uint8Array(intentCrossSign.transaction.map(Number)),
+      ),
+      intentProof: intentCrossSign.signature,
+      intentFastTxId,
+      intentClaimId: intentFastTxId,
+      externalTokenAddress: tokenEvmAddress,
+    });
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "relay",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      intent: { txHash: intentIdentity.txHash, recoveryEnvelope: intentIdentity.envelope },
+      relayOutcome: "unknown",
+      cause,
+    });
+  }
+  if (!relayResult.success) {
+    throw new PostPaymentRecoveryError({
+      stage: "relay",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      intent: { txHash: intentIdentity.txHash, recoveryEnvelope: intentIdentity.envelope },
+      relayOutcome: relayResult.outcome,
+    });
+  }
 
   return {
     txHash: transferFastTxId,

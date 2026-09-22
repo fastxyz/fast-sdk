@@ -42,6 +42,7 @@ type VoteScenario = {
   readonly submitFailure?: boolean;
   readonly deterministicSubmitFailure?: boolean;
   readonly mismatchedSuccessCertificate?: boolean;
+  readonly metadataRows?: ReadonlyArray<readonly [Uint8Array, { tokenName: string; decimals: number } | null]>;
 };
 
 const runVoteScenario = async ({
@@ -52,6 +53,7 @@ const runVoteScenario = async ({
   submitFailure = false,
   deterministicSubmitFailure = false,
   mismatchedSuccessCertificate = false,
+  metadataRows = [[new Uint8Array(32).fill(0xd7), { tokenName: 'TEST', decimals: 6 }]],
 }: VoteScenario) => {
   const sqlite = new Db(join(mkdtempSync(join(tmpdir(), 'fast-vote-handler-')), 'fast.db'));
   try {
@@ -169,7 +171,7 @@ const runVoteScenario = async ({
             return metadataFailure
               ? Effect.fail(new FastSdkError({ message: 'metadata unavailable' }))
               : Effect.succeed({
-                  requestedTokenMetadata: [[new Uint8Array(32).fill(0xd7), { tokenName: 'TEST', decimals: 6 }]],
+                  requestedTokenMetadata: metadataRows,
                 });
           },
           submitTransaction: (submittedEnvelopeParam: unknown) => {
@@ -276,6 +278,22 @@ describe('multisig vote handler', () => {
     expect(result.history).toHaveLength(1);
     expect(result.history[0]!.tokenName).toMatch(/^0x/);
     expect(result.history[0]!.formatted).toBe('100000');
+  });
+
+  it('correlates vote history metadata by token ID', async () => {
+    const result = await runVoteScenario({
+      asMember: 'bob',
+      submitType: 'Success',
+      metadataRows: [
+        [new Uint8Array(32).fill(0xee), { tokenName: 'WRONG', decimals: 18 }],
+        [new Uint8Array(32).fill(0xd7), { tokenName: 'TEST', decimals: 6 }],
+      ],
+    });
+
+    expect(result.exit._tag).toBe('Success');
+    expect(result.history).toHaveLength(1);
+    expect(result.history[0]!.tokenName).toBe('TEST');
+    expect(result.history[0]!.formatted).toBe('0.1');
   });
 
   it('does not confirm quorum from a certificate for another transaction', async () => {

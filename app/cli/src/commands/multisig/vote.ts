@@ -14,6 +14,7 @@ import { HistoryStore, recordConfirmedHistory } from '../../services/storage/his
 import { NetworkConfigService } from '../../services/storage/network.js';
 import { summarizeTransaction, transactionOperations } from '../../services/transaction-summary.js';
 import { classifySubmissionError, prepareSubmissionRecovery, successCertificateMatches } from '../../services/tx-pipeline.js';
+import { findRequestedTokenMetadata } from '../../services/token-metadata.js';
 import type { Command } from '../index.js';
 
 /** Truncate a bech32 fast address for compact display. */
@@ -461,7 +462,9 @@ export const multisigVote: Command<MultisigVoteArgs> = {
             .pipe(Effect.catchAll(() => Effect.succeed(null)))) as {
             readonly requestedTokenMetadata?: ReadonlyArray<readonly [Uint8Array, VoteTokenMetadata | null]>;
           } | null;
-          historyTokenMetadata = tokenInfo?.requestedTokenMetadata?.[0]?.[1] ?? undefined;
+          historyTokenMetadata =
+            findRequestedTokenMetadata(tokenInfo?.requestedTokenMetadata, firstValue.tokenId) ??
+            undefined;
         }
         const historyEntry = makeVoteHistoryEntry({
           envelope: target.envelope,

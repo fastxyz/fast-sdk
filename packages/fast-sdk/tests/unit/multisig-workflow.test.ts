@@ -145,6 +145,29 @@ describe('MultiSigWorkflow', () => {
     expect((error as MultiSigSubmissionUnknownError).cause).toMatchObject({ code: 'UNEXPECTED_SUBMIT_RESULT' });
   });
 
+  it('preserves recovery identity for an unexpected submit result', async () => {
+    const { config, first } = await fixture();
+    const submitted: TransactionEnvelope[] = [];
+    const workflow = new MultiSigWorkflow({
+      provider: makeProvider({
+        submitted,
+        submitResult: (() => ({ type: 'FutureSubmitResult' })) as never,
+      }),
+      networkId: 'fast:testnet',
+      config,
+    });
+
+    const error = await workflow.initiate({ signer: first, operations: [transfer] }).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(MultiSigSubmissionUnknownError);
+    if (!(error instanceof MultiSigSubmissionUnknownError)) throw new Error('expected unknown submission error');
+    expect(submitted).toHaveLength(1);
+    expect(error.txHash).toBe(await getMultiSigTransactionHash(submitted[0]!.transaction));
+    expect(error.nonce).toBe(submitted[0]!.transaction.value.nonce);
+    expect(error.envelope).toEqual(submitted[0]);
+    expect(error.cause).toMatchObject({ code: 'UNEXPECTED_SUBMIT_RESULT' });
+  });
+
   it('rejects a payload changed before submission with a dedicated stable code', async () => {
     const { config, first } = await fixture();
     const workflow = new MultiSigWorkflow({

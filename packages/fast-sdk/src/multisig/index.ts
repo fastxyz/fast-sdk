@@ -498,6 +498,14 @@ export class MultiSigWorkflow {
       };
     }
     const unexpectedType = (submitResult as { type?: string }).type ?? 'unknown';
-    throw new MultiSigWorkflowError('UNEXPECTED_SUBMIT_RESULT', `Submit returned ${unexpectedType}; the workflow will not report it as success.`);
+    throw new MultiSigSubmissionUnknownError({
+      txHash,
+      nonce: recoveryEnvelope.transaction.value.nonce,
+      envelope: recoveryEnvelope,
+      cause: new MultiSigWorkflowError(
+        'UNEXPECTED_SUBMIT_RESULT',
+        `Submit returned ${unexpectedType}; reconcile this submission before retrying.`,
+      ),
+    });
   }
 }

@@ -60,7 +60,7 @@ const makeRpcLayer = (state: Ref.Ref<RpcState>, multisigQuorum = 1) =>
           yield* Ref.update(state, (s) => ({
             submittedSuccess: s.submittedSuccess + 1,
           }));
-          return { type: 'Success', certificate: { stub: true } } as never;
+          return { type: 'Success', value: { envelope } } as never;
         }
         // MultiSig
         if (multisigQuorum > 1) {
@@ -69,7 +69,7 @@ const makeRpcLayer = (state: Ref.Ref<RpcState>, multisigQuorum = 1) =>
         yield* Ref.update(state, (s) => ({
           submittedSuccess: s.submittedSuccess + 1,
         }));
-        return { type: 'Success', certificate: { stub: true } } as never;
+        return { type: 'Success', value: { envelope } } as never;
       }) as never,
     getPendingMultisigTransactions: (_p: unknown) => Effect.succeed([]) as never,
     getTransactionCertificates: (_p: unknown) => Effect.succeed([]) as never,

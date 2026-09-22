@@ -32,6 +32,7 @@ type VoteScenario = {
   readonly metadataFailure?: boolean;
   readonly submitFailure?: boolean;
   readonly deterministicSubmitFailure?: boolean;
+  readonly mismatchedSuccessCertificate?: boolean;
 };
 
 const runVoteScenario = async ({
@@ -41,6 +42,7 @@ const runVoteScenario = async ({
   metadataFailure = false,
   submitFailure = false,
   deterministicSubmitFailure = false,
+  mismatchedSuccessCertificate = false,
 }: VoteScenario) => {
   const sqlite = new Db(join(mkdtempSync(join(tmpdir(), 'fast-vote-handler-')), 'fast.db'));
   try {
@@ -160,7 +162,7 @@ const runVoteScenario = async ({
                   requestedTokenMetadata: [[new Uint8Array(32).fill(0xd7), { tokenName: 'TEST', decimals: 6 }]],
                 });
           },
-          submitTransaction: () => {
+          submitTransaction: (submittedEnvelope: unknown) => {
             submissions++;
             return deterministicSubmitFailure
               ? Effect.fail(
@@ -175,7 +177,22 @@ const runVoteScenario = async ({
                 )
               : submitFailure
                 ? Effect.fail(new FastSdkError({ message: 'connection closed after request body' }))
-                : Effect.succeed({ type: submitType });
+                : Effect.succeed({
+                    type: submitType,
+                    ...(submitType === 'Success'
+                      ? {
+                          value: {
+                            envelope: mismatchedSuccessCertificate
+                              ? (() => {
+                                  const certificateEnvelope = structuredClone(submittedEnvelope as object) as any;
+                                  certificateEnvelope.transaction.value.nonce = 1n;
+                                  return certificateEnvelope;
+                                })()
+                              : submittedEnvelope,
+                          },
+                        }
+                      : {}),
+                  });
           },
         } as never);
 
@@ -223,6 +240,13 @@ describe('multisig vote handler', () => {
     expect(result.history).toHaveLength(1);
     expect(result.history[0]!.tokenName).toMatch(/^0x/);
     expect(result.history[0]!.formatted).toBe('100000');
+  });
+
+  it('does not confirm quorum from a certificate for another transaction', async () => {
+    const result = await runVoteScenario({ asMember: 'bob', submitType: 'Success', mismatchedSuccessCertificate: true });
+
+    expect(result.exit._tag).toBe('Failure');
+    expect(result.history).toHaveLength(0);
   });
 
   it('does not let a post-submit history failure hide successful quorum', async () => {

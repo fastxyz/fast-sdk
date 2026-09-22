@@ -13,7 +13,7 @@ import { AccountStore } from '../../services/storage/account.js';
 import { HistoryStore, recordConfirmedHistory } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
 import { summarizeTransaction, transactionOperations } from '../../services/transaction-summary.js';
-import { classifySubmissionError, prepareSubmissionRecovery } from '../../services/tx-pipeline.js';
+import { classifySubmissionError, prepareSubmissionRecovery, successCertificateMatches } from '../../services/tx-pipeline.js';
 import type { Command } from '../index.js';
 
 /** Truncate a bech32 fast address for compact display. */
@@ -415,6 +415,23 @@ export const multisigVote: Command<MultisigVoteArgs> = {
           }),
         ),
       );
+
+      if (submitResultType(submitResult) === 'Success') {
+        const certificateMatches = yield* Effect.promise(() => successCertificateMatches(submitResult, recovery.txHash, network.networkId));
+        if (!certificateMatches) {
+          return yield* Effect.fail(
+            new TransactionSubmissionUnknownError({
+              txHash: recovery.txHash,
+              nonce: target.envelope.transaction.value.nonce,
+              envelope: myEnvelope,
+              recoveryEnvelope: recovery.recoveryEnvelope,
+              cause: new TransactionFailedError({
+                message: 'Success certificate does not match the submitted transaction or network.',
+              }),
+            }),
+          );
+        }
+      }
 
       const reachedQuorum = yield* voteReachedQuorum(submitResult);
 

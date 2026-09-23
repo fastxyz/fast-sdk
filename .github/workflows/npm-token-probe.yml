@@ -1,0 +1,30 @@
+name: npm token probe (read only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/npm-token-probe.yml]
+
+permissions: {}
+
+jobs:
+  whoami:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'codex/npm-token-readonly-probe'
+    runs-on: ubuntu-latest
+    environment: npm-publishing
+    steps:
+      - name: Check npm identity without publishing
+        env:
+          NPM_TOKEN_PROBE: ${{ secrets.NPM_TOKEN_PROBE }}
+        run: |
+          set -euo pipefail
+          set +x
+          if [ -z "${NPM_TOKEN_PROBE:-}" ]; then
+            echo 'NPM_TOKEN_PROBE is not configured in the npm-publishing environment'
+            exit 1
+          fi
+          umask 077
+          config="$(mktemp)"
+          trap 'rm -f "$config"' EXIT
+          printf '%s\n' '//registry.npmjs.org/:_authToken=${NPM_TOKEN_PROBE}' > "$config"
+          NPM_CONFIG_USERCONFIG="$config" npm whoami --registry=https://registry.npmjs.org/

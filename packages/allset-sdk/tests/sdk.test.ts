@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test, onTestFinished } from 'vitest';
 import { FastError, IndeterminateTransactionError, PostPaymentRecoveryError } from '../src/errors.ts';
-import { encodeFunctionData, hexToBytes, type Hex } from 'viem';
+import { encodeAbiParameters, encodeFunctionData, hexToBytes, type Hex } from 'viem';
 import { hashHex, InvalidRequestError, ProxyUnexpectedNonceError, Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
 import { Schema } from 'effect';
 import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs } from '@fastxyz/schema';
@@ -57,6 +57,20 @@ const RELAY_ACCEPTED = {
   block_number: null,
   job_id: 'test-job',
 };
+const MOCK_CROSS_SIGN_TRANSACTION_ABI = [
+  {
+    type: 'tuple',
+    components: [
+      { name: 'id', type: 'bytes32' },
+      { name: 'sender', type: 'bytes32' },
+      { name: 'recipient', type: 'bytes32' },
+      { name: 'nonce', type: 'uint64' },
+      { name: 'timestampNanos', type: 'uint128' },
+      { name: 'claim_type', type: 'uint8' },
+      { name: 'operation', type: 'bytes' },
+    ],
+  },
+] as const;
 
 const MOCK_CROSS_SIGN_TX = [...Array(32).fill(0), ...Array(32).fill(0x11)];
 
@@ -85,7 +99,7 @@ function matchingMockCrossSignResponse(): Response {
 function matchingMockCrossSignTransaction(): number[] {
   const txHash = submittedCrossSignHashes[nextCrossSignHashIndex++];
   if (!txHash) throw new Error('No confirmed transaction hash is queued for cross-sign mock');
-  return [...Array(32).fill(0), ...Array.from(hexToBytes(txHash as Hex))];
+  return Array.from(hexToBytes(mockCrossSignTransactionForHash(txHash)));
 }
 
 const restoreJsonSafeBytes = (value: any): any => {
@@ -794,7 +808,7 @@ test('executeIntent rejects a well-formed transfer cross-sign ID that differs fr
   globalThis.fetch = async (url) => {
     if (String(url).includes('/relay')) relayCalls++;
     else crossSignCalls++;
-    return Response.json({ result: { transaction: [...Array(32).fill(0), ...Array(32).fill(0x22)], signature: '0xsig' } });
+    return crossSignResponseForHash(`0x${'22'.repeat(32)}`);
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -803,6 +817,53 @@ test('executeIntent rejects a well-formed transfer cross-sign ID that differs fr
   const submissions: unknown[] = [];
   const provider = {
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+    submitTransaction: async (envelope: unknown) => {
+      submissions.push(structuredClone(envelope));
+      return mockProviderSuccess(envelope);
+    },
+  } as unknown as FastProvider;
+
+  let failure: PostPaymentRecoveryError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider,
+    }),
+    (error: unknown) => {
+      failure = error instanceof PostPaymentRecoveryError ? error : undefined;
+      return failure?.stage === 'transfer-cross-sign';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+  assert.deepEqual(failure.transfer.recoveryEnvelope, submissions[0]);
+  assert.equal(submissions.length, 1);
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayCalls, 0);
+});
+
+test('executeIntent rejects a truncated transfer cross-sign ABI even when its ID matches', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) {
+      relayCalls++;
+      return Response.json(RELAY_ACCEPTED);
+    }
+    crossSignCalls++;
+    return truncatedCrossSignResponseForHash(submittedCrossSignHashes[0]!);
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const submissions: unknown[] = [];
+  const provider = {
+    getAccountInfo: async () => ({ nextNonce: BigInt(submissions.length + 1) }),
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
       return mockProviderSuccess(envelope);
@@ -842,7 +903,7 @@ test('executeIntent rejects a well-formed intent cross-sign ID that differs from
     }
     crossSignCalls++;
     if (crossSignCalls === 1) return crossSignResponseForHash(submittedHashes[0]);
-    return Response.json({ result: { transaction: [...Array(32).fill(0), ...Array(32).fill(0x22)], signature: '0xsig' } });
+    return crossSignResponseForHash(`0x${'22'.repeat(32)}`);
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -2086,6 +2147,29 @@ function spyOnProvider(touched: string[], submitted: unknown[]): FastProvider {
 }
 
 function crossSignResponseForHash(txHash: string): Response {
+  return Response.json({
+    result: {
+      transaction: Array.from(hexToBytes(mockCrossSignTransactionForHash(txHash))),
+      signature: '0xsig',
+    },
+  });
+}
+
+function mockCrossSignTransactionForHash(txHash: string): Hex {
+  return encodeAbiParameters(MOCK_CROSS_SIGN_TRANSACTION_ABI, [
+    {
+      id: txHash as Hex,
+      sender: `0x${'00'.repeat(32)}`,
+      recipient: `0x${'00'.repeat(32)}`,
+      nonce: 1n,
+      timestampNanos: 1n,
+      claim_type: 0,
+      operation: '0x',
+    },
+  ]);
+}
+
+function truncatedCrossSignResponseForHash(txHash: string): Response {
   return Response.json({
     result: {
       transaction: [...Array(32).fill(0), ...Array.from(hexToBytes(txHash as Hex))],

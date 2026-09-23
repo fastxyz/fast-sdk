@@ -10,9 +10,9 @@ import {
 } from "@fastxyz/sdk";
 import { Schema } from "effect";
 import { JSONStringify } from "json-with-bigint";
-import { decodeAbiParameters, type Hex } from "viem";
+import { bytesToHex, decodeAbiParameters, type Hex } from "viem";
 import { fastAddressToBytes } from "./address.js";
-import { encodeIntentClaim, extractClaimId } from "./claims.js";
+import { encodeIntentClaim } from "./claims.js";
 import { buildDepositTransaction } from "./deposit.js";
 import { FastError, IndeterminateTransactionError, PostPaymentRecoveryError } from "./errors.js";
 import { ERC20_ABI, type EvmClients, estimateGasReserve, gasTokenErc20, weiToTokenUnits } from "./evm.js";
@@ -21,6 +21,21 @@ import { finishIntentClaimV1, prepareIntentClaimV1, type IntentV1 } from "./inte
 import { buildTransferIntent, type Intent, IntentAction } from "./intents.js";
 import { relayExecute } from "./relay.js";
 import type { BridgeResult, ExecuteDepositParams, ExecuteIntentParams, ExecuteWithdrawParams } from "./types.js";
+
+const CROSS_SIGN_TRANSACTION_ABI = [
+  {
+    type: "tuple",
+    components: [
+      { name: "id", type: "bytes32" },
+      { name: "sender", type: "bytes32" },
+      { name: "recipient", type: "bytes32" },
+      { name: "nonce", type: "uint64" },
+      { name: "timestampNanos", type: "uint128" },
+      { name: "claim_type", type: "uint8" },
+      { name: "operation", type: "bytes" },
+    ],
+  },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,7 +101,7 @@ function normalizeTransactionHash(hash: string): string {
 }
 
 function extractCrossSignClaimId(transaction: unknown, expectedTxHash: string): Hex {
-  if (!Array.isArray(transaction) || transaction.length < 64) {
+  if (!Array.isArray(transaction)) {
     throw new FastError("TX_FAILED", "Cross-sign returned invalid transaction bytes");
   }
   for (let index = 0; index < transaction.length; index++) {
@@ -96,7 +111,13 @@ function extractCrossSignClaimId(transaction: unknown, expectedTxHash: string): 
     }
   }
 
-  const claimId = extractClaimId(transaction);
+  let decoded: ReturnType<typeof decodeAbiParameters<typeof CROSS_SIGN_TRANSACTION_ABI>>;
+  try {
+    decoded = decodeAbiParameters(CROSS_SIGN_TRANSACTION_ABI, bytesToHex(Uint8Array.from(transaction)));
+  } catch {
+    throw new FastError("TX_FAILED", "Cross-sign returned invalid Transaction ABI bytes");
+  }
+  const claimId = decoded[0].id;
   if (!/^0x[0-9a-f]{64}$/.test(claimId)) {
     throw new FastError("TX_FAILED", "Cross-sign returned an invalid transaction ID");
   }

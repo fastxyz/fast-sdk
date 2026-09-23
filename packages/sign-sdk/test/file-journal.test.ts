@@ -10,6 +10,7 @@ import {
   mkdtemp,
   open,
   readdir,
+  realpath,
   readFile,
   rm,
   symlink,
@@ -34,7 +35,7 @@ afterEach(async () => {
 });
 
 async function temporaryRoot(prefix = "sign-sdk-journal-"): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), prefix));
+  const root = await mkdtemp(join(await realpath(tmpdir()), prefix));
   roots.push(root);
   return root;
 }
@@ -272,6 +273,22 @@ describe("file recovery journal", () => {
 
     await chmod(directory, 0o755);
     await expect(journal.load("missing")).rejects.toThrow(/permissions/i);
+  });
+
+  it("rejects symlink ancestors before creating journal state outside the configured path", async () => {
+    const parent = await temporaryRoot();
+    const outside = join(parent, "outside");
+    const redirect = join(parent, "redirect");
+    await mkdir(outside, { mode: 0o700 });
+    await writeFile(join(outside, "sentinel"), "untouched", { mode: 0o600 });
+    await symlink(outside, redirect, "dir");
+
+    const journal = createFileJournal({ directory: join(redirect, "state") });
+    await expect(journal.save(prepared("symlink-ancestor"))).rejects.toThrow(/symbolic link/i);
+
+    expect(await readdir(outside)).toEqual(["sentinel"]);
+    await expect(lstat(join(outside, "state"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(join(outside, "sentinel"), "utf8")).resolves.toBe("untouched");
   });
 
   it("rejects a frozen proxy URL that the read-only recovery API cannot represent", async () => {

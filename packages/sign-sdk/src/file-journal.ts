@@ -12,7 +12,7 @@ import {
   unlink,
 } from "node:fs/promises";
 import { hostname } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
 import { platform } from "node:process";
 
 import type {
@@ -326,9 +326,31 @@ async function ensureDirectoryEntry(path: string): Promise<void> {
   }
 }
 
+async function assertNoSymlinkPathComponents(path: string): Promise<void> {
+  const absolute = resolve(path);
+  const { root } = parse(absolute);
+  let current = root;
+  for (const component of absolute.slice(root.length).split(sep).filter(Boolean)) {
+    current = join(current, component);
+    try {
+      const stat = await lstat(current);
+      if (stat.isSymbolicLink()) throw new Error(`journal path contains a symbolic link: ${current}`);
+    } catch (error) {
+      if (errno(error, "ENOENT")) return;
+      if (errno(error, "ELOOP")) throw new Error(`journal path contains a symbolic link: ${current}`);
+      throw error;
+    }
+  }
+}
+
 async function ensurePrivateDirectory(path: string): Promise<void> {
   try {
+    // Reject pre-existing symlink components before mkdir can follow them.
+    await assertNoSymlinkPathComponents(path);
     await ensureDirectoryEntry(path);
+    // Recheck at each layout use. This is not an atomic defense against a
+    // concurrent replacement of a checked path component.
+    await assertNoSymlinkPathComponents(path);
     const stat = await lstat(path);
     if (stat.isSymbolicLink()) throw new Error(`journal directory is a symbolic link: ${path}`);
     if (!stat.isDirectory()) throw new Error(`journal path is not a directory: ${path}`);

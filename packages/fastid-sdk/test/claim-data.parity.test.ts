@@ -29,7 +29,7 @@ const fixture = JSON.parse(
 describe("claim-data parity with the web writer", () => {
   it("keeps valid A-labels and non-IDNA double hyphens", () => {
     expect(isCanonicalClaimValue("website", "xn--nxasmq6b.com")).toBe(true);
-    expect(isCanonicalClaimValue("website", "x--x.com")).toBe(true);
+    expect(isCanonicalClaimValue("website", "ab--cd.com")).toBe(true);
   });
 
   it("covers every runtime kind", () => {

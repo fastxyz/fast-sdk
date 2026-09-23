@@ -19,6 +19,7 @@ All `@fastxyz/*` packages in this monorepo are published to npm except `@fastxyz
 | `@fastxyz/schema` | `packages/fast-schema/` |
 | `@fastxyz/sdk` | `packages/fast-sdk/` |
 | `@fastxyz/allset-sdk` | `packages/allset-sdk/` |
+| `@fastxyz/fastid-sdk` | `packages/fastid-sdk/` |
 | `@fastxyz/x402-types` | `packages/x402-types/` |
 | `@fastxyz/x402-client` | `packages/x402-client/` |
 | `@fastxyz/x402-server` | `packages/x402-server/` |

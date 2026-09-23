@@ -43,3 +43,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Fast ID SDK typecheck
+        run: pnpm --filter @fastxyz/fastid-sdk typecheck
+
+      - name: Fast ID SDK tarball consumer
+        run: pnpm --filter @fastxyz/fastid-sdk smoke:package

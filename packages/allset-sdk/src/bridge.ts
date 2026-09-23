@@ -1,21 +1,96 @@
-import { TransactionCertificateFromRpc } from "@fastxyz/schema";
-import { TransactionBuilder } from "@fastxyz/sdk";
+import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs, type TransactionEnvelope } from "@fastxyz/schema";
+import {
+  hashHex,
+  InvalidRequestError,
+  IpRateLimitedError,
+  ProxyUnexpectedNonceError,
+  ServiceUnavailableError,
+  TransactionBuilder,
+  VerifierSigsInvalidError,
+} from "@fastxyz/sdk";
 import { Schema } from "effect";
-import { decodeAbiParameters } from "viem";
+import { JSONStringify } from "json-with-bigint";
+import { bytesToHex, decodeAbiParameters, type Hex } from "viem";
 import { fastAddressToBytes } from "./address.js";
-import { encodeIntentClaim, extractClaimId } from "./claims.js";
+import { encodeIntentClaim } from "./claims.js";
 import { buildDepositTransaction } from "./deposit.js";
-import { FastError } from "./errors.js";
+import { FastError, IndeterminateTransactionError, PostPaymentRecoveryError } from "./errors.js";
 import { ERC20_ABI, type EvmClients, estimateGasReserve, gasTokenErc20, weiToTokenUnits } from "./evm.js";
 import { InsufficientBalanceError } from "./eip7702.js";
+import { finishIntentClaimV1, prepareIntentClaimV1, type IntentV1 } from "./intent-v1.js";
 import { buildTransferIntent, type Intent, IntentAction } from "./intents.js";
 import { relayExecute } from "./relay.js";
-import type {
-  BridgeResult,
-  ExecuteDepositParams,
-  ExecuteIntentParams,
-  ExecuteWithdrawParams,
-} from "./types.js";
+import type { BridgeResult, ExecuteDepositParams, ExecuteIntentParams, ExecuteWithdrawParams } from "./types.js";
+
+const CROSS_SIGN_TRANSACTION_ABI = [
+  {
+    type: "tuple",
+    components: [
+      { name: "id", type: "bytes32" },
+      { name: "sender", type: "bytes32" },
+      { name: "recipient", type: "bytes32" },
+      { name: "nonce", type: "uint64" },
+      { name: "timestampNanos", type: "uint128" },
+      { name: "claim_type", type: "uint8" },
+      { name: "operation", type: "bytes" },
+    ],
+  },
+] as const;
+
+const TOKEN_TRANSFER_OPERATION_ABI = [
+  {
+    type: "tuple",
+    components: [
+      { name: "tokenId", type: "bytes32" },
+      { name: "amount", type: "uint256" },
+      { name: "userData", type: "bytes32" },
+    ],
+  },
+] as const;
+
+const EXTERNAL_CLAIM_OPERATION_ABI = [
+  {
+    type: "tuple",
+    components: [
+      {
+        name: "claim",
+        type: "tuple",
+        components: [
+          { name: "claimData", type: "bytes" },
+          { name: "verifierCommittee", type: "bytes32[]" },
+          { name: "verifierQuorum", type: "uint64" },
+        ],
+      },
+      {
+        name: "signatures",
+        type: "tuple[]",
+        components: [
+          { name: "signerAddress", type: "bytes32" },
+          { name: "signature", type: "bytes" },
+        ],
+      },
+    ],
+  },
+] as const;
+
+const INTENT_CLAIM_ABI = [
+  {
+    type: "tuple",
+    components: [
+      { name: "transferFastTxId", type: "bytes32" },
+      { name: "deadline", type: "uint256" },
+      {
+        name: "intents",
+        type: "tuple[]",
+        components: [
+          { name: "action", type: "uint8" },
+          { name: "payload", type: "bytes" },
+          { name: "value", type: "uint256" },
+        ],
+      },
+    ],
+  },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,33 +105,26 @@ function hexToUint8Array(hex: string): Uint8Array {
   return bytes;
 }
 
-function bigIntToNumber(obj: unknown): unknown {
-  if (typeof obj === "bigint") return Number(obj);
+function toCrossSignWireValue(obj: unknown): unknown {
   if (obj instanceof Uint8Array) return Array.from(obj);
-  if (Array.isArray(obj)) return obj.map(bigIntToNumber);
+  if (Array.isArray(obj)) return obj.map(toCrossSignWireValue);
   if (obj !== null && typeof obj === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      result[key] = bigIntToNumber(value);
+      result[key] = toCrossSignWireValue(value);
     }
     return result;
   }
   return obj;
 }
 
-function resolveExternalAddress(
-  intents: Intent[],
-  externalAddressOverride?: string,
-): `0x${string}` | null {
+function resolveExternalAddress(intents: Intent[], externalAddressOverride?: string): `0x${string}` | null {
   if (externalAddressOverride) return externalAddressOverride as `0x${string}`;
 
   for (const intent of intents) {
     if (intent.action === IntentAction.DynamicTransfer) {
       try {
-        const [, receiver] = decodeAbiParameters(
-          [{ type: "address" }, { type: "address" }],
-          intent.payload,
-        );
+        const [, receiver] = decodeAbiParameters([{ type: "address" }, { type: "address" }], intent.payload);
         return receiver;
       } catch {
         continue;
@@ -64,15 +132,148 @@ function resolveExternalAddress(
     }
     if (intent.action === IntentAction.Execute) {
       try {
-        const [target] = decodeAbiParameters(
-          [{ type: "address" }, { type: "bytes" }],
-          intent.payload,
-        );
+        const [target] = decodeAbiParameters([{ type: "address" }, { type: "bytes" }], intent.payload);
         return target;
       } catch {}
     }
   }
   return null;
+}
+
+function resolveV1ExternalAddress(intents: readonly IntentV1[], externalAddressOverride?: string): `0x${string}` | null {
+  if (externalAddressOverride) return externalAddressOverride as `0x${string}`;
+
+  for (const intent of intents) {
+    if (intent.action === "transfer") return intent.receiver as `0x${string}`;
+    if (intent.action === "execute") return intent.target as `0x${string}`;
+  }
+  return null;
+}
+
+function normalizeTransactionHash(hash: string): string {
+  const lower = hash.toLowerCase();
+  return lower.startsWith("0x") ? lower.slice(2) : lower;
+}
+
+function extractCrossSignClaimId(
+  transaction: unknown,
+  expectedTxHash: string,
+  stage: "transfer" | "intent",
+): Hex {
+  if (!Array.isArray(transaction)) {
+    throw new FastError("TX_FAILED", "Cross-sign returned invalid transaction bytes");
+  }
+  for (let index = 0; index < transaction.length; index++) {
+    const byte: unknown = transaction[index];
+    if (typeof byte !== "number" || !Number.isInteger(byte) || byte < 0 || byte > 255) {
+      throw new FastError("TX_FAILED", "Cross-sign returned invalid transaction bytes");
+    }
+  }
+
+  let decoded: ReturnType<typeof decodeAbiParameters<typeof CROSS_SIGN_TRANSACTION_ABI>>;
+  try {
+    decoded = decodeAbiParameters(CROSS_SIGN_TRANSACTION_ABI, bytesToHex(Uint8Array.from(transaction)));
+  } catch {
+    throw new FastError("TX_FAILED", "Cross-sign returned invalid Transaction ABI bytes");
+  }
+  const expectedClaimType = stage === "transfer" ? 0 : 5;
+  if (decoded[0].claim_type !== expectedClaimType) {
+    throw new FastError("TX_FAILED", `Cross-sign returned the wrong claim type for the ${stage} stage`);
+  }
+  try {
+    if (stage === "transfer") {
+      decodeAbiParameters(TOKEN_TRANSFER_OPERATION_ABI, decoded[0].operation);
+    } else {
+      const [externalClaim] = decodeAbiParameters(EXTERNAL_CLAIM_OPERATION_ABI, decoded[0].operation);
+      decodeAbiParameters(INTENT_CLAIM_ABI, externalClaim.claim.claimData);
+    }
+  } catch {
+    throw new FastError("TX_FAILED", `Cross-sign returned an invalid ${stage} claim operation`);
+  }
+  const claimId = decoded[0].id;
+  if (!/^0x[0-9a-f]{64}$/.test(claimId)) {
+    throw new FastError("TX_FAILED", "Cross-sign returned an invalid transaction ID");
+  }
+  if (normalizeTransactionHash(claimId) !== normalizeTransactionHash(expectedTxHash)) {
+    throw new FastError("TX_FAILED", "Cross-sign transaction ID does not match the confirmed transaction hash");
+  }
+  return claimId;
+}
+
+type SubmissionIdentity = {
+  readonly txHash: string;
+  readonly networkId: string;
+  readonly envelope: TransactionEnvelope;
+};
+
+async function prepareSubmissionIdentity(envelope: TransactionEnvelope, networkId: string): Promise<SubmissionIdentity> {
+  const snapshot = structuredClone(envelope);
+  const snapshotNetwork = snapshot.transaction.value.networkId;
+  if (snapshotNetwork !== networkId) {
+    throw new FastError("TX_FAILED", "Signed transaction network does not match the requested network.");
+  }
+  const bytes = Schema.encodeSync(VersionedTransactionFromBcs)(snapshot.transaction);
+  const txHash = await hashHex(bcsSchema.VersionedTransaction, bytes);
+  return { txHash, networkId, envelope: snapshot };
+}
+
+function isDefinitiveSubmissionRejection(cause: unknown): boolean {
+  return (
+    cause instanceof InvalidRequestError ||
+    cause instanceof IpRateLimitedError ||
+    cause instanceof ProxyUnexpectedNonceError ||
+    cause instanceof ServiceUnavailableError ||
+    cause instanceof VerifierSigsInvalidError
+  );
+}
+
+async function submitWithRecovery(
+  provider: Pick<ExecuteIntentParams["provider"], "submitTransaction">,
+  identity: SubmissionIdentity,
+  stage: "transfer" | "intent",
+  relatedTxHash?: string,
+) {
+  try {
+    return await provider.submitTransaction(structuredClone(identity.envelope));
+  } catch (cause) {
+    if (isDefinitiveSubmissionRejection(cause)) throw cause;
+    throw new IndeterminateTransactionError({
+      stage,
+      txHash: identity.txHash,
+      relatedTxHash,
+      recoveryEnvelope: identity.envelope,
+      cause,
+    });
+  }
+}
+
+async function successCertificateMatchesIdentity(
+  submitResult: unknown,
+  identity: Pick<SubmissionIdentity, "txHash" | "networkId">,
+): Promise<boolean> {
+  const result = submitResult as {
+    readonly type?: unknown;
+    readonly value?: { readonly envelope?: { readonly transaction?: unknown } };
+  } | null;
+  if (result?.type !== "Success") return false;
+
+  const certificateTransaction = result.value?.envelope?.transaction;
+  if (!certificateTransaction || typeof certificateTransaction !== "object") {
+    return false;
+  }
+
+  const certificateNetwork = (certificateTransaction as { readonly value?: { readonly networkId?: unknown } }).value?.networkId;
+  if (certificateNetwork !== identity.networkId) return false;
+
+  try {
+    const certificateHash = await hashHex(
+      bcsSchema.VersionedTransaction,
+      Schema.encodeSync(VersionedTransactionFromBcs)(certificateTransaction as never),
+    );
+    return normalizeTransactionHash(identity.txHash) === normalizeTransactionHash(certificateHash);
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -100,12 +301,7 @@ async function sendTx(
   };
 }
 
-async function checkAllowance(
-  clients: EvmClients,
-  token: string,
-  spender: string,
-  owner: string,
-): Promise<bigint> {
+async function checkAllowance(clients: EvmClients, token: string, spender: string, owner: string): Promise<bigint> {
   return clients.publicClient.readContract({
     address: token as `0x${string}`,
     abi: ERC20_ABI,
@@ -120,11 +316,7 @@ async function checkAllowance(
  * balance >= amount + fee budget for approve+deposit, otherwise the approve
  * succeeds and the deposit fails with an opaque revert.
  */
-async function ensureGasReserveIfGasToken(
-  clients: EvmClients,
-  token: string,
-  amount: bigint,
-): Promise<void> {
+async function ensureGasReserveIfGasToken(clients: EvmClients, token: string, amount: bigint): Promise<void> {
   const gasErc20 = gasTokenErc20(clients.publicClient.chain);
   if (!gasErc20 || gasErc20.toLowerCase() !== token.toLowerCase()) return;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -146,12 +338,7 @@ function gasSymbol(clients: EvmClients): string {
   return clients.publicClient.chain?.nativeCurrency?.symbol ?? "ETH";
 }
 
-async function approveErc20(
-  clients: EvmClients,
-  token: string,
-  spender: string,
-  amount: string,
-): Promise<void> {
+async function approveErc20(clients: EvmClients, token: string, spender: string, amount: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const walletClient = clients.walletClient as any;
   const hash = await walletClient.writeContract({
@@ -162,13 +349,9 @@ async function approveErc20(
   });
   const receipt = await clients.publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status === "reverted") {
-    throw new FastError(
-      "TX_FAILED",
-      `ERC-20 approve transaction reverted: ${hash}`,
-      {
-        note: `Check that you have sufficient ${gasSymbol(clients)} for gas fees.`,
-      },
-    );
+    throw new FastError("TX_FAILED", `ERC-20 approve transaction reverted: ${hash}`, {
+      note: `Check that you have sufficient ${gasSymbol(clients)} for gas fees.`,
+    });
   }
 
   // Wait until the RPC reflects the updated allowance before proceeding.
@@ -198,18 +381,13 @@ export interface EvmSignResult {
  * @param certificate - Certificate from fastWallet.submit()
  * @param crossSignUrl - AllSet cross-sign service URL (required)
  */
-export async function evmSign(
-  certificate: unknown,
-  crossSignUrl: string,
-): Promise<EvmSignResult> {
-  const wireFormat = Schema.encodeSync(TransactionCertificateFromRpc)(
-    certificate as never,
-  );
-  const serialized = bigIntToNumber(wireFormat);
+export async function evmSign(certificate: unknown, crossSignUrl: string): Promise<EvmSignResult> {
+  const wireFormat = Schema.encodeSync(TransactionCertificateFromRpc)(certificate as never);
+  const serialized = toCrossSignWireValue(wireFormat);
   const res = await fetch(crossSignUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    body: JSONStringify({
       jsonrpc: "2.0",
       id: 1,
       method: "crossSign_evmSignCertificate",
@@ -218,13 +396,9 @@ export async function evmSign(
   });
 
   if (!res.ok) {
-    throw new FastError(
-      "TX_FAILED",
-      `Cross-sign request failed: ${res.status}`,
-      {
-        note: "The AllSet cross-sign service rejected the request.",
-      },
-    );
+    throw new FastError("TX_FAILED", `Cross-sign request failed: ${res.status}`, {
+      note: "The AllSet cross-sign service rejected the request.",
+    });
   }
 
   const json = (await res.json()) as {
@@ -233,13 +407,9 @@ export async function evmSign(
   };
 
   if (json.error) {
-    throw new FastError(
-      "TX_FAILED",
-      `Cross-sign error: ${json.error.message}`,
-      {
-        note: "The certificate could not be cross-signed.",
-      },
-    );
+    throw new FastError("TX_FAILED", `Cross-sign error: ${json.error.message}`, {
+      note: "The certificate could not be cross-signed.",
+    });
   }
 
   if (!json.result?.transaction || !json.result?.signature) {
@@ -272,18 +442,8 @@ export async function evmSign(
  * });
  * ```
  */
-export async function executeDeposit(
-  params: ExecuteDepositParams,
-): Promise<BridgeResult> {
-  const {
-    chainId,
-    bridgeContract,
-    tokenAddress,
-    isNative = false,
-    amount,
-    receiverAddress,
-    evmClients,
-  } = params;
+export async function executeDeposit(params: ExecuteDepositParams): Promise<BridgeResult> {
+  const { chainId, bridgeContract, tokenAddress, isNative = false, amount, receiverAddress, evmClients } = params;
 
   let depositPlan;
   try {
@@ -297,13 +457,9 @@ export async function executeDeposit(
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new FastError(
-      "INVALID_ADDRESS",
-      `Failed to decode Fast receiver address "${receiverAddress}": ${msg}`,
-      {
-        note: "The receiver address must be a valid Fast network bech32m address (fast1...).",
-      },
-    );
+    throw new FastError("INVALID_ADDRESS", `Failed to decode Fast receiver address "${receiverAddress}": ${msg}`, {
+      note: "The receiver address must be a valid Fast network bech32m address (fast1...).",
+    });
   }
 
   let txHash: string;
@@ -315,13 +471,9 @@ export async function executeDeposit(
       value: depositPlan.value.toString(),
     });
     if (receipt.status === "reverted") {
-      throw new FastError(
-        "TX_FAILED",
-        `Deposit transaction reverted: ${receipt.txHash}`,
-        {
-          note: `Check that you have sufficient ${gasSymbol(evmClients)} balance.`,
-        },
-      );
+      throw new FastError("TX_FAILED", `Deposit transaction reverted: ${receipt.txHash}`, {
+        note: `Check that you have sufficient ${gasSymbol(evmClients)} balance.`,
+      });
     }
     txHash = receipt.txHash;
   } else {
@@ -333,13 +485,9 @@ export async function executeDeposit(
       value: depositPlan.value.toString(),
     });
     if (receipt.status === "reverted") {
-      throw new FastError(
-        "TX_FAILED",
-        `Deposit transaction reverted: ${receipt.txHash}`,
-        {
-          note: "Check that you have sufficient token balance and the approval succeeded.",
-        },
-      );
+      throw new FastError("TX_FAILED", `Deposit transaction reverted: ${receipt.txHash}`, {
+        note: "Check that you have sufficient token balance and the approval succeeded.",
+      });
     }
     txHash = receipt.txHash;
   }
@@ -383,9 +531,7 @@ export async function executeDeposit(
  * });
  * ```
  */
-export async function executeIntent(
-  params: ExecuteIntentParams,
-): Promise<BridgeResult> {
+export async function executeIntent(params: ExecuteIntentParams): Promise<BridgeResult> {
   const {
     fastBridgeAddress,
     relayerUrl,
@@ -402,21 +548,80 @@ export async function executeIntent(
   } = params;
 
   if (!intents || intents.length === 0) {
-    throw new FastError(
-      "INVALID_PARAMS",
-      "executeIntent requires at least one intent",
-      {
-        note: "Use intent builders like buildTransferIntent(), buildExecuteIntent(), etc.",
-      },
-    );
+    throw new FastError("INVALID_PARAMS", "executeIntent requires at least one intent", {
+      note: "Use intent builders like buildTransferIntent(), buildExecuteIntent(), etc.",
+    });
   }
 
-  if (externalAddressOverride && !externalAddressOverride.startsWith("0x")) {
+  if (
+    externalAddressOverride !== undefined &&
+    (typeof externalAddressOverride !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(externalAddressOverride))
+  ) {
+    throw new FastError("INVALID_PARAMS", "executeIntent externalAddress must be a 20-byte EVM address", {
+      note: "Pass a 0x-prefixed 20-byte hexadecimal address for the relayer metadata.",
+    });
+  }
+
+  if (!Number.isSafeInteger(deadlineSeconds) || deadlineSeconds <= 0) {
+    throw new FastError("INVALID_PARAMS", "executeIntent deadlineSeconds must be a positive integer", {
+      note: "Fractional, zero, negative or non-finite deadlines cannot be encoded.",
+    });
+  }
+
+  const encoding = params.claimEncoding === undefined ? "legacy" : params.claimEncoding;
+  if (encoding !== "legacy" && encoding !== "v1") {
+    throw new FastError("INVALID_PARAMS", 'executeIntent claimEncoding must be "legacy" or "v1"', {
+      note: "Omit claimEncoding to keep the legacy default.",
+    });
+  }
+  let prepared = null;
+  if (encoding === "v1") {
+    try {
+      prepared = prepareIntentClaimV1({
+        intents,
+        chainId: params.chainId,
+        bridgeContract: params.bridgeContract,
+        deadlineSeconds,
+        display: params.display,
+      });
+    } catch (error) {
+      throw new FastError("INVALID_PARAMS", (error as Error).message, {
+        note: 'claimEncoding "v1" needs chainId, bridgeContract, a valid deadline and canonical intents (AllSet#576)',
+      });
+    }
+  }
+
+  // The legacy claim and its relayer metadata must derive from one owned snapshot.
+  // Keep this before the first await so caller mutation cannot split those values.
+  const legacyIntentsSnapshot: Intent[] = prepared === null ? structuredClone(intents) : [];
+
+  // Legacy claims are encoded after the transfer because the real transfer ID
+  // is not known yet. Validate the caller-controlled intent graph now with
+  // fixed-width placeholders so ABI errors cannot escape after payment.
+  if (prepared === null) {
+    try {
+      encodeIntentClaim({
+        transferFastTxId: `0x${"00".repeat(32)}`,
+        deadline: 1n,
+        intents: legacyIntentsSnapshot,
+      });
+    } catch {
+      throw new FastError("INVALID_PARAMS", "executeIntent legacy intents cannot be ABI-encoded", {
+        note: "Legacy intents must be ABI-encodable before any Fast transaction is submitted.",
+      });
+    }
+  }
+
+  // Resolve all request-only routing data before either paid Fast transaction is submitted.
+  const externalAddress = prepared
+    ? resolveV1ExternalAddress(prepared.claim.intents, externalAddressOverride)
+    : resolveExternalAddress(legacyIntentsSnapshot, externalAddressOverride);
+  if (!externalAddress) {
     throw new FastError(
       "INVALID_PARAMS",
-      "executeIntent externalAddress must be an EVM address",
+      "executeIntent requires externalAddress when intents do not include a transfer recipient or execute target",
       {
-        note: "Pass a 0x-prefixed address for the relayer target.",
+        note: "Pass externalAddress for flows like buildDepositBackIntent() or buildRevokeIntent().",
       },
     );
   }
@@ -442,106 +647,201 @@ export async function executeIntent(
       tokenId,
       recipient: fastAddressToBytes(fastBridgeAddress),
       amount: BigInt(amount),
-      userData: null,
+      userData: prepared ? prepared.userData : null,
     })
     .sign();
 
-  const transferResult = await provider.submitTransaction(transferEnvelope);
+  const transferIdentity = await prepareSubmissionIdentity(transferEnvelope, networkId);
+  const transferResult = await submitWithRecovery(provider, transferIdentity, "transfer");
   if (transferResult.type !== "Success") {
-    throw new FastError(
-      "TX_FAILED",
-      `Token transfer submission incomplete: ${transferResult.type}`,
-      {
-        note: "The transfer transaction was not fully confirmed. Try again.",
-      },
-    );
+    if (transferResult.type === "IncompleteVerifierSigs" || transferResult.type === "IncompleteMultiSig") {
+      throw new IndeterminateTransactionError({
+        stage: "transfer",
+        txHash: transferIdentity.txHash,
+        recoveryEnvelope: transferIdentity.envelope,
+        cause: transferResult.type,
+      });
+    }
+    const resultType = String((transferResult as { readonly type: unknown }).type);
+    throw new FastError("TX_FAILED", `Token transfer submission returned an unsupported result: ${resultType}`, {
+      note: "The transfer transaction was not accepted with a success certificate.",
+    });
+  }
+  if (!(await successCertificateMatchesIdentity(transferResult, transferIdentity))) {
+    throw new IndeterminateTransactionError({
+      stage: "transfer",
+      txHash: transferIdentity.txHash,
+      recoveryEnvelope: transferIdentity.envelope,
+    });
   }
 
   // Step 2: Cross-sign the transfer certificate
-  const transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
-
-  // Derive the Fast tx ID from cross-sign bytes[32:64] — this is the canonical transaction hash
-  const transferFastTxId = extractClaimId(transferCrossSign.transaction);
+  let transferCrossSign: Awaited<ReturnType<typeof evmSign>>;
+  let transferFastTxId: Hex;
+  try {
+    transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
+    // Derive the Fast tx ID from cross-sign bytes[32:64] — this is the canonical transaction hash
+    transferFastTxId = extractCrossSignClaimId(transferCrossSign.transaction, transferIdentity.txHash, "transfer");
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "transfer-cross-sign",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
 
   // Step 3: Build and encode the intent claim
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
-  const intentClaimEncoded = encodeIntentClaim({
-    transferFastTxId,
-    deadline,
-    intents,
-  });
-  const intentBytes = hexToUint8Array(intentClaimEncoded);
+  let intentBytes: Uint8Array;
+  try {
+    const deadline = prepared ? prepared.deadline : BigInt(Math.floor(Date.now() / 1000)) + BigInt(deadlineSeconds);
+    intentBytes = prepared
+      ? finishIntentClaimV1(prepared, transferFastTxId)
+      : hexToUint8Array(
+          encodeIntentClaim({
+            transferFastTxId,
+            deadline,
+            intents: legacyIntentsSnapshot,
+          }),
+        );
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "intent-prepare",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
 
   // Step 4: Submit intent claim on Fast network
-  const accountInfo2 = await provider.getAccountInfo({
-    address: publicKey,
-    tokenBalancesFilter: null,
-    stateKeyFilter: null,
-    certificateByNonce: null,
-  });
+  let accountInfo2: Awaited<ReturnType<typeof provider.getAccountInfo>>;
+  try {
+    accountInfo2 = await provider.getAccountInfo({
+      address: publicKey,
+      tokenBalancesFilter: null,
+      stateKeyFilter: null,
+      certificateByNonce: null,
+    });
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "intent-account-info",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
 
-  const intentEnvelope = await new TransactionBuilder({
-    networkId: networkId as any,
-    signer,
-    nonce: accountInfo2.nextNonce,
-  })
-    .addExternalClaim({
-      claim: {
-        verifierCommittee: [],
-        verifierQuorum: 0,
-        claimData: intentBytes,
-      },
-      signatures: [],
+  let intentIdentity: SubmissionIdentity;
+  try {
+    const intentEnvelope = await new TransactionBuilder({
+      networkId: networkId as any,
+      signer,
+      nonce: accountInfo2.nextNonce,
     })
-    .sign();
+      .addExternalClaim({
+        claim: {
+          verifierCommittee: [],
+          verifierQuorum: 0,
+          claimData: intentBytes,
+        },
+        signatures: [],
+      })
+      .sign();
 
-  const intentResult = await provider.submitTransaction(intentEnvelope);
+    intentIdentity = await prepareSubmissionIdentity(intentEnvelope, networkId);
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "intent-prepare",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
+
+  let intentResult: Awaited<ReturnType<typeof submitWithRecovery>>;
+  try {
+    intentResult = await submitWithRecovery(provider, intentIdentity, "intent", transferIdentity.txHash);
+  } catch (cause) {
+    if (cause instanceof IndeterminateTransactionError) throw cause;
+    throw new PostPaymentRecoveryError({
+      stage: "intent-submit",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
   if (intentResult.type !== "Success") {
-    throw new FastError(
-      "TX_FAILED",
-      `Intent claim submission incomplete: ${intentResult.type}`,
-      {
-        note: "The intent claim transaction was not fully confirmed. Try again.",
-      },
-    );
+    if (intentResult.type === "IncompleteVerifierSigs" || intentResult.type === "IncompleteMultiSig") {
+      throw new IndeterminateTransactionError({
+        stage: "intent",
+        txHash: intentIdentity.txHash,
+        relatedTxHash: transferIdentity.txHash,
+        recoveryEnvelope: intentIdentity.envelope,
+        cause: intentResult.type,
+      });
+    }
+    const resultType = String((intentResult as { readonly type: unknown }).type);
+    const cause = new FastError("TX_FAILED", `Intent claim submission returned an unsupported result: ${resultType}`, {
+      note: "The intent claim transaction was not accepted with a success certificate.",
+    });
+    throw new PostPaymentRecoveryError({
+      stage: "intent-submit",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      cause,
+    });
+  }
+  if (!(await successCertificateMatchesIdentity(intentResult, intentIdentity))) {
+    throw new IndeterminateTransactionError({
+      stage: "intent",
+      txHash: intentIdentity.txHash,
+      relatedTxHash: transferIdentity.txHash,
+      recoveryEnvelope: intentIdentity.envelope,
+    });
   }
 
   // Step 5: Cross-sign the intent certificate
-  const intentCrossSign = await evmSign(intentResult.value, crossSignUrl);
-  const intentFastTxId = extractClaimId(intentCrossSign.transaction);
-
-  // Step 6: Resolve external address and submit to relayer
-  const externalAddress = resolveExternalAddress(
-    intents,
-    externalAddressOverride,
-  );
-  if (!externalAddress) {
-    throw new FastError(
-      "INVALID_PARAMS",
-      "executeIntent requires externalAddress when intents do not include a transfer recipient or execute target",
-      {
-        note: "Pass externalAddress for flows like buildDepositBackIntent() or buildRevokeIntent().",
-      },
-    );
+  let intentCrossSign: Awaited<ReturnType<typeof evmSign>>;
+  let intentFastTxId: Hex;
+  try {
+    intentCrossSign = await evmSign(intentResult.value, crossSignUrl);
+    intentFastTxId = extractCrossSignClaimId(intentCrossSign.transaction, intentIdentity.txHash, "intent");
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "intent-cross-sign",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      intent: { txHash: intentIdentity.txHash, recoveryEnvelope: intentIdentity.envelope },
+      cause,
+    });
   }
 
-  await relayExecute({
-    relayerUrl,
-    encodedTransferClaim: Array.from(
-      new Uint8Array(transferCrossSign.transaction.map(Number)),
-    ),
-    transferProof: transferCrossSign.signature,
-    transferFastTxId,
-    fastsetAddress: fastAddress,
-    externalAddress,
-    encodedIntentClaim: Array.from(
-      new Uint8Array(intentCrossSign.transaction.map(Number)),
-    ),
-    intentProof: intentCrossSign.signature,
-    intentFastTxId,
-    intentClaimId: intentFastTxId,
-    externalTokenAddress: tokenEvmAddress,
-  });
+  // Step 6: Submit to relayer
+  let relayResult: Awaited<ReturnType<typeof relayExecute>>;
+  try {
+    relayResult = await relayExecute({
+      relayerUrl,
+      encodedTransferClaim: Array.from(new Uint8Array(transferCrossSign.transaction.map(Number))),
+      transferProof: transferCrossSign.signature,
+      transferFastTxId,
+      fastsetAddress: fastAddress,
+      externalAddress,
+      encodedIntentClaim: Array.from(new Uint8Array(intentCrossSign.transaction.map(Number))),
+      intentProof: intentCrossSign.signature,
+      intentFastTxId,
+      intentClaimId: intentFastTxId,
+      externalTokenAddress: tokenEvmAddress,
+    });
+  } catch (cause) {
+    throw new PostPaymentRecoveryError({
+      stage: "relay",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      intent: { txHash: intentIdentity.txHash, recoveryEnvelope: intentIdentity.envelope },
+      relayOutcome: "unknown",
+      cause,
+    });
+  }
+  if (!relayResult.success) {
+    throw new PostPaymentRecoveryError({
+      stage: "relay",
+      transfer: { txHash: transferIdentity.txHash, recoveryEnvelope: transferIdentity.envelope },
+      intent: { txHash: intentIdentity.txHash, recoveryEnvelope: intentIdentity.envelope },
+      relayOutcome: relayResult.outcome,
+    });
+  }
 
   return {
     txHash: transferFastTxId,
@@ -581,9 +881,7 @@ export async function executeIntent(
  * });
  * ```
  */
-export async function executeWithdraw(
-  params: ExecuteWithdrawParams,
-): Promise<BridgeResult> {
+export async function executeWithdraw(params: ExecuteWithdrawParams): Promise<BridgeResult> {
   const { receiverEvmAddress, tokenEvmAddress, ...rest } = params;
   const intent = buildTransferIntent(tokenEvmAddress, receiverEvmAddress);
   return executeIntent({ ...rest, tokenEvmAddress, intents: [intent] });

@@ -145,6 +145,18 @@ const result = await executeIntent({
 });
 ```
 
+### Claim encoding (`allset/intent/v1`)
+
+`executeWithdraw` / `executeIntent` can sign a self-describing canonical-JSON `claim_data` instead of the bare ABI struct: pass `claimEncoding: 'v1'` together with `chainId` and `bridgeContract` (and optionally `display: { amount, tokenSymbol, tokenDecimals }`). The transfer leg then carries a 32-byte `allset/transfer/v1:<chainId>` tag in `user_data`, so the Fast App signing pop-up and the explorer can read what is being authorized. The bytes the bridge contract sees are unchanged: cross-sign derives them. All v1 inputs are validated before the Fast transfer is signed.
+
+The default is still `'legacy'`; it flips to `'v1'` only after cross-sign and the Fast App decoder are deployed (AllSet#576). Only an omitted/`undefined` `claimEncoding` selects that default; supplied runtime values other than `'legacy'` or `'v1'`, including `null`, are rejected. Legacy claims stay accepted for as long as untagged intents remain valid on the contracts.
+
+A `revoke` action must be the claim's sole intent. Multi-intent batches may combine the other supported actions but cannot contain `revoke`.
+
+The v1 claim `deadline` and intent `value` fields must be `bigint` at runtime. `display.amount` is advisory and is first normalized with `BigInt(...)` into the owned snapshot, then range-validated; inputs accepted by that conversion therefore become a valid `bigint` value.
+
+Schema package subpath: `@fastxyz/allset-sdk/schemas/allset-intent-v1.json`. Encoders: `encodeIntentClaimV1`, `decodeIntentClaimV1`, `intentClaimV1ToAbi`, `transferUserDataTag`, `readTransferUserDataTag`.
+
 ---
 
 ## API Reference
@@ -234,7 +246,7 @@ interface ExecuteIntentParams {
   tokenFastTokenId: string; // hex, no 0x prefix
   amount: string;
   intents: Intent[];
-  externalAddress?: string; // override EVM target (required for depositBack/revoke flows)
+  externalAddress?: string; // 0x-prefixed 20-byte relayer metadata (required for depositBack/revoke flows)
   deadlineSeconds?: number; // default: 3600
   networkId: string; // 'fast:testnet' | 'fast:mainnet' | ...
   signer: Signer; // from @fastxyz/sdk
@@ -294,15 +306,30 @@ fastAddressToBytes(address: string): Uint8Array   // bech32m → Uint8Array
 ### Error Handling
 
 ```ts
-import { FastError, type FastErrorCode } from '@fastxyz/allset-sdk';
+import {
+  FastError,
+  IndeterminateTransactionError,
+  PostPaymentRecoveryError,
+  type FastErrorCode,
+} from '@fastxyz/allset-sdk';
 
 try {
   await executeWithdraw({ ... });
 } catch (err) {
   if (err instanceof FastError) {
-    console.error(err.code);     // 'TX_FAILED' | 'INVALID_ADDRESS' | 'INVALID_PARAMS'
+    console.error(err.code);     // includes 'TX_INDETERMINATE' for an uncorrelatable submit result
     console.error(err.message);
-    console.error(err.context);
+    console.error(err.note);
+    if (err instanceof IndeterminateTransactionError) {
+      // Inspect err.txHash and err.recoveryEnvelope; do not retry blindly.
+    }
+    if (err instanceof PostPaymentRecoveryError) {
+      // Fast transactions already succeeded. Reconcile these identities before continuing.
+      console.error(err.stage, err.transfer.txHash, err.intent?.txHash, err.relayOutcome);
+      // stage may be 'transfer-cross-sign', 'intent-prepare', 'intent-account-info', 'intent-submit', 'intent-cross-sign', or 'relay'.
+      // cause retains the original intent preparation/submission error and its classification.
+      // recoveryEnvelope is an in-memory structured clone, not a JSON persistence format.
+    }
   }
 }
 ```
@@ -352,7 +379,7 @@ const claimId = extractClaimId(crossSignTransaction); // Uint8Array
 
 ### Relay Submission (Low-Level)
 
-`relay.ts` provides a standalone function for submitting to the AllSet relayer. Use this for step-by-step flows, retry logic, or when you want to separate relay submission from the rest of the bridge flow:
+`relay.ts` provides a standalone function for submitting to the AllSet relayer. Use this for step-by-step flows or when you want to separate relay submission from the rest of the bridge flow. Reconcile the submitted Fast transactions before retrying after a non-success result:
 
 ```ts
 import { relayExecute, type RelayParams } from '@fastxyz/allset-sdk';
@@ -369,7 +396,12 @@ const result = await relayExecute({
   intentClaimId: '0xabc...',
 });
 
-console.log(result.relayTxHash); // EVM transaction hash from the relayer
+if (!result.success) {
+  // 'rejected' is an explicit negative acknowledgement; 'unknown' is not proof of rejection.
+  console.error('Relay did not confirm acceptance:', result.outcome);
+} else {
+  console.log('Relay accepted the request');
+}
 ```
 
 ---
@@ -383,11 +415,21 @@ interface BridgeResult {
   estimatedTime?: string;
 }
 
-type FastErrorCode = 'TX_FAILED' | 'INVALID_ADDRESS' | 'INVALID_PARAMS' | 'CROSS_SIGN_FAILED' | 'RELAY_FAILED';
+type FastErrorCode =
+  | 'INSUFFICIENT_BALANCE'
+  | 'NETWORK_NOT_CONFIGURED'
+  | 'TX_FAILED'
+  | 'TX_INDETERMINATE'
+  | 'POST_PAYMENT_INCOMPLETE'
+  | 'INVALID_ADDRESS'
+  | 'TOKEN_NOT_FOUND'
+  | 'INVALID_PARAMS'
+  | 'UNSUPPORTED_OPERATION'
+  | 'KEYFILE_NOT_FOUND';
 
 class FastError extends Error {
   readonly code: FastErrorCode;
-  readonly context?: Record<string, unknown>;
+  readonly note: string;
 }
 
 interface TransferClaimParams {
@@ -421,9 +463,22 @@ interface RelayParams {
   intentClaimId: string;
 }
 
-interface RelayResult {
-  relayTxHash: string;
+interface RelayAcceptedResult {
+  success: true;
 }
+
+interface RelayRejectedResult {
+  success: false;
+  outcome: 'rejected';
+}
+
+interface RelayUnknownResult {
+  success: false;
+  outcome: 'unknown';
+}
+
+type RelayResult = RelayAcceptedResult | RelayRejectedResult | RelayUnknownResult;
+type RelayExecutionResult = RelayResult; // deprecated alias
 ```
 
 ---

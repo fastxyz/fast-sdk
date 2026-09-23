@@ -1,0 +1,21 @@
+{
+  "schema": "allset/intent/v1",
+  "kind": "withdraw",
+  "chain": "eip155:5042",
+  "bridge": "0x8677edaa374b7a47ff0093947aabe4acbb2d4538",
+  "transfer_tx": "0x1111111111111111111111111111111111111111111111111111111111111111",
+  "deadline": "1789071600",
+  "intents": [
+    {
+      "action": "transfer",
+      "token": "0x3600000000000000000000000000000000000000",
+      "receiver": "0xa5f5e16d993478809abbd82cb0cd80e88c992560",
+      "value": "0"
+    }
+  ],
+  "display": {
+    "amount": "1000000",
+    "token_symbol": "USDC",
+    "token_decimals": "6"
+  }
+}

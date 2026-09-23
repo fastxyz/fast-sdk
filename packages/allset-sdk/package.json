@@ -21,10 +21,12 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    }
+    },
+    "./schemas/allset-intent-v1.json": "./schemas/allset-intent-v1.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "schemas"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --out-dir dist",
@@ -49,9 +51,11 @@
     "@noble/hashes": "^2.0.1",
     "bech32": "^2.0.0",
     "effect": "^3.21.0",
+    "json-with-bigint": "^3.5.8",
     "viem": "^2.46.2"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0"
+    "@types/node": "^25.5.0",
+    "ajv": "^8.20.0"
   }
 }

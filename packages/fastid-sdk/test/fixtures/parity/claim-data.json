@@ -1,0 +1,169 @@
+{
+  "generatedFrom": {
+    "generator": "fastset-id-web/scripts/gen-id-sdk-fixtures.mjs",
+    "sourceCommit": "31c28000396ae4f2b6afac57718bf172411aadbe"
+  },
+  "kinds": [
+    "name",
+    "website",
+    "github",
+    "work",
+    "revoke",
+    "orcid",
+    "x"
+  ],
+  "cases": [
+    {
+      "id": "name-valid",
+      "kind": "name",
+      "value": "agent.sdk",
+      "valid": true,
+      "hex": "7b0a202022736368656d61223a20226661737469642f636c61696d2f7632222c0a2020226b696e64223a20226e616d65222c0a20202276616c7565223a20226167656e742e73646b220a7d"
+    },
+    {
+      "id": "name-uppercase",
+      "kind": "name",
+      "value": "Agent.sdk",
+      "valid": false
+    },
+    {
+      "id": "name-reserved",
+      "kind": "name",
+      "value": "admin.sdk",
+      "valid": false
+    },
+    {
+      "id": "website-valid",
+      "kind": "website",
+      "value": "example.com",
+      "valid": true,
+      "hex": "7b0a202022736368656d61223a20226661737469642f636c61696d2f7632222c0a2020226b696e64223a202277656273697465222c0a20202276616c7565223a20226578616d706c652e636f6d220a7d"
+    },
+    {
+      "id": "website-scheme",
+      "kind": "website",
+      "value": "https://example.com",
+      "valid": false
+    },
+    {
+      "id": "website-uppercase",
+      "kind": "website",
+      "value": "Example.com",
+      "valid": false
+    },
+    {
+      "id": "website-invalid-punycode",
+      "kind": "website",
+      "value": "xn--a.com",
+      "valid": false
+    },
+    {
+      "id": "github-valid",
+      "kind": "github",
+      "value": "agent-user",
+      "valid": true,
+      "hex": "7b0a202022736368656d61223a20226661737469642f636c61696d2f7632222c0a2020226b696e64223a2022676974687562222c0a20202276616c7565223a20226167656e742d75736572220a7d"
+    },
+    {
+      "id": "github-uppercase",
+      "kind": "github",
+      "value": "Agent-User",
+      "valid": false
+    },
+    {
+      "id": "github-double-hyphen",
+      "kind": "github",
+      "value": "agent--user",
+      "valid": false
+    },
+    {
+      "id": "work-valid",
+      "kind": "work",
+      "value": "10.1145/example",
+      "valid": true,
+      "hex": "7b0a202022736368656d61223a20226661737469642f636c61696d2f7632222c0a2020226b696e64223a2022776f726b222c0a20202276616c7565223a202231302e313134352f6578616d706c65220a7d"
+    },
+    {
+      "id": "work-prefixed",
+      "kind": "work",
+      "value": "doi:10.1145/example",
+      "valid": false
+    },
+    {
+      "id": "work-uppercase",
+      "kind": "work",
+      "value": "10.1145/EXAMPLE",
+      "valid": false
+    },
+    {
+      "id": "revoke-valid",
+      "kind": "revoke",
+      "value": "abababababababababababababababababababababababababababababababab",
+      "valid": true,
+      "hex": "7b0a202022736368656d61223a20226661737469642f636c61696d2f7632222c0a2020226b696e64223a20227265766f6b65222c0a20202276616c7565223a202261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162220a7d"
+    },
+    {
+      "id": "revoke-uppercase",
+      "kind": "revoke",
+      "value": "ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB",
+      "valid": false
+    },
+    {
+      "id": "revoke-short",
+      "kind": "revoke",
+      "value": "ababababababababababababababababababababababababababababababab",
+      "valid": false
+    },
+    {
+      "id": "orcid-valid",
+      "kind": "orcid",
+      "value": "0000-0002-1825-0097",
+      "valid": true,
+      "hex": "7b0a202022736368656d61223a20226661737469642f636c61696d2f7632222c0a2020226b696e64223a20226f72636964222c0a20202276616c7565223a2022303030302d303030322d313832352d30303937220a7d"
+    },
+    {
+      "id": "orcid-x-valid",
+      "kind": "orcid",
+      "value": "0000-0002-1694-233X",
+      "valid": true,
+      "hex": "7b0a202022736368656d61223a20226661737469642f636c61696d2f7632222c0a2020226b696e64223a20226f72636964222c0a20202276616c7565223a2022303030302d303030322d313639342d32333358220a7d"
+    },
+    {
+      "id": "orcid-bad-checksum",
+      "kind": "orcid",
+      "value": "0000-0002-1825-0098",
+      "valid": false
+    },
+    {
+      "id": "orcid-lowercase-x",
+      "kind": "orcid",
+      "value": "0000-0002-1694-233x",
+      "valid": false
+    },
+    {
+      "id": "x-valid",
+      "kind": "x",
+      "value": "agent_handle",
+      "valid": true,
+      "hex": "7b0a202022736368656d61223a20226661737469642f636c61696d2f7632222c0a2020226b696e64223a202278222c0a20202276616c7565223a20226167656e745f68616e646c65220a7d"
+    },
+    {
+      "id": "x-leading-at",
+      "kind": "x",
+      "value": "@agent_handle",
+      "valid": false
+    },
+    {
+      "id": "x-uppercase",
+      "kind": "x",
+      "value": "Agent_Handle",
+      "valid": false
+    },
+    {
+      "id": "x-too-long",
+      "kind": "x",
+      "value": "a234567890_12345",
+      "valid": false
+    }
+  ]
+}

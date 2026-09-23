@@ -7,7 +7,7 @@ import {
   type HpkeKeyPair,
   hpkeOpen,
 } from "./crypto/hpke";
-import { ERROR } from "./errors";
+import { ERROR, type ErrorCode } from "./errors";
 import {
   decodeHandoverCode,
   extractSingleQuotedCandidate,
@@ -35,7 +35,7 @@ export interface KeyHandoverAgentOptions {
 
 export type DecryptResult =
   | { status: "success"; private_key: string }
-  | { status: "error"; error: { code: string; message: string } };
+  | { status: "error"; error: { code: ErrorCode; message: string } };
 
 export class KeyHandoverAgent {
   private readonly walletBaseUrl: string;
@@ -196,7 +196,7 @@ function toIsoSeconds(date: Date): string {
   return `${date.toISOString().slice(0, 19)}Z`;
 }
 
-function error(code: string, cause: unknown): DecryptResult {
+function error(code: ErrorCode, cause: unknown): DecryptResult {
   return {
     status: "error",
     error: { code, message: messageOf(cause) },
@@ -205,11 +205,16 @@ function error(code: string, cause: unknown): DecryptResult {
 
 function errorFromMessage(
   cause: unknown,
-  fallback: string = ERROR.MISSING_PENDING_REQUEST,
+  fallback: ErrorCode = ERROR.MISSING_PENDING_REQUEST,
 ): DecryptResult {
   const message = messageOf(cause);
-  const code = message.split(":")[0]?.trim() || fallback;
+  const candidate = message.split(":")[0]?.trim();
+  const code = isErrorCode(candidate) ? candidate : fallback;
   return { status: "error", error: { code, message } };
+}
+
+function isErrorCode(value: string | undefined): value is ErrorCode {
+  return Object.values(ERROR).some((code) => code === value);
 }
 
 function messageOf(cause: unknown): string {

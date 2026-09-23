@@ -16,8 +16,12 @@ export const writeOk = (data: unknown, json: boolean): void => {
 };
 
 export const writeFail = (err: ClientError, json: boolean): void => {
+  const details = "details" in err ? err.details : undefined;
   if (!json) {
     process.stderr.write(`Error: ${err.message}\n`);
+    if (details !== undefined) {
+      process.stderr.write(`Recovery details:\n${JSON.stringify(details, null, 2)}\n`);
+    }
     return;
   }
 
@@ -26,6 +30,7 @@ export const writeFail = (err: ClientError, json: boolean): void => {
     error: {
       code: err.errorCode,
       message: err.message,
+      ...(details === undefined ? {} : { details }),
     },
   };
 

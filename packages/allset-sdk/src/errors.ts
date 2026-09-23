@@ -9,6 +9,7 @@ export type FastErrorCode =
   | 'NETWORK_NOT_CONFIGURED'
   | 'TX_FAILED'
   | 'TX_INDETERMINATE'
+  | 'POST_PAYMENT_INCOMPLETE'
   | 'INVALID_ADDRESS'
   | 'TOKEN_NOT_FOUND'
   | 'INVALID_PARAMS'
@@ -85,6 +86,67 @@ export class IndeterminateTransactionError extends FastError {
       mayHaveSettled: this.mayHaveSettled,
       ...(this.relatedTxHash ? { relatedTxHash: this.relatedTxHash } : {}),
       recoveryEnvelope: toJsonSafe(this.recoveryEnvelope),
+    };
+  }
+}
+
+export type PostPaymentExecutionStage =
+  | 'transfer-cross-sign'
+  | 'intent-prepare'
+  | 'intent-account-info'
+  | 'intent-submit'
+  | 'intent-cross-sign'
+  | 'relay';
+export type RelayOutcome = 'rejected' | 'unknown';
+
+export interface RecoveryTransaction {
+  readonly txHash: string;
+  readonly recoveryEnvelope: unknown;
+}
+
+/**
+ * One or more Fast transactions have verified success certificates, but a
+ * later intent preparation, submission, cross-sign, account read, or relay
+ * step did not complete. Reconcile the listed transactions and inspect `cause`
+ * for the original failure classification before continuing; rerunning
+ * executeIntent can submit a new transfer and duplicate the operation.
+ */
+export class PostPaymentRecoveryError extends FastError {
+  readonly stage: PostPaymentExecutionStage;
+  readonly transfer: RecoveryTransaction;
+  readonly intent?: RecoveryTransaction;
+  readonly relayOutcome?: RelayOutcome;
+  readonly cause?: unknown;
+
+  constructor(params: {
+    readonly stage: PostPaymentExecutionStage;
+    readonly transfer: RecoveryTransaction;
+    readonly intent?: RecoveryTransaction;
+    readonly relayOutcome?: RelayOutcome;
+    readonly cause?: unknown;
+  }) {
+    super(
+      'POST_PAYMENT_INCOMPLETE',
+      `Fast transaction submission succeeded, but ${params.stage} did not complete. Do not retry executeIntent blindly.`,
+      {
+        note: 'Reconcile the Fast transaction identities and recovery envelopes attached to this error before continuing.',
+      },
+    );
+    this.name = 'PostPaymentRecoveryError';
+    this.stage = params.stage;
+    this.transfer = structuredClone(params.transfer);
+    this.intent = params.intent ? structuredClone(params.intent) : undefined;
+    this.relayOutcome = params.relayOutcome;
+    this.cause = params.cause;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stage: this.stage,
+      transfer: toJsonSafe(this.transfer),
+      ...(this.intent ? { intent: toJsonSafe(this.intent) } : {}),
+      ...(this.relayOutcome ? { relayOutcome: this.relayOutcome } : {}),
     };
   }
 }

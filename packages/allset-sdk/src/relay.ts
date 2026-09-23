@@ -42,10 +42,28 @@ export interface RelayParams {
 /**
  * Result from a successful relay submission.
  */
-export interface RelayResult {
+export interface RelayAcceptedResult {
   /** Whether the relayer accepted the request */
-  success: boolean;
+  success: true;
 }
+
+export interface RelayRejectedResult {
+  success: false;
+  /** A false acknowledgement explicitly reports that task persistence failed. */
+  outcome: 'rejected';
+}
+
+export interface RelayUnknownResult {
+  success: false;
+  /** The HTTP response did not contain a usable positive or negative acknowledgement. */
+  outcome: 'unknown';
+}
+
+/** Full result union returned by relayExecute. Retained under the original public name. */
+export type RelayResult = RelayAcceptedResult | RelayRejectedResult | RelayUnknownResult;
+
+/** @deprecated Use RelayResult. */
+export type RelayExecutionResult = RelayResult;
 
 // ---------------------------------------------------------------------------
 // relayExecute
@@ -123,9 +141,22 @@ export async function relayExecute(params: RelayParams): Promise<RelayResult> {
   if (!relayRes.ok) {
     const text = await relayRes.text();
     throw new FastError('TX_FAILED', `Relayer request failed (${relayRes.status}): ${text}`, {
-      note: 'The intent was submitted to Fast network but the relayer rejected it. Try again.',
+      note: 'The Fast submissions have already completed, but the relay outcome may be unknown. Reconcile them before retrying the full intent flow.',
     });
   }
 
-  return { success: true };
+  let acknowledgement: unknown;
+  try {
+    acknowledgement = await relayRes.json();
+  } catch {
+    return { success: false, outcome: 'unknown' };
+  }
+  if (acknowledgement === null || typeof acknowledgement !== 'object' || Array.isArray(acknowledgement)) {
+    return { success: false, outcome: 'unknown' };
+  }
+
+  const success = (acknowledgement as { readonly success?: unknown }).success;
+  if (success === true) return { success: true };
+  if (success === false) return { success: false, outcome: 'rejected' };
+  return { success: false, outcome: 'unknown' };
 }

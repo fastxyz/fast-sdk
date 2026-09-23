@@ -306,7 +306,12 @@ fastAddressToBytes(address: string): Uint8Array   // bech32m → Uint8Array
 ### Error Handling
 
 ```ts
-import { FastError, IndeterminateTransactionError, type FastErrorCode } from '@fastxyz/allset-sdk';
+import {
+  FastError,
+  IndeterminateTransactionError,
+  PostPaymentRecoveryError,
+  type FastErrorCode,
+} from '@fastxyz/allset-sdk';
 
 try {
   await executeWithdraw({ ... });
@@ -317,6 +322,13 @@ try {
     console.error(err.note);
     if (err instanceof IndeterminateTransactionError) {
       // Inspect err.txHash and err.recoveryEnvelope; do not retry blindly.
+    }
+    if (err instanceof PostPaymentRecoveryError) {
+      // Fast transactions already succeeded. Reconcile these identities before continuing.
+      console.error(err.stage, err.transfer.txHash, err.intent?.txHash, err.relayOutcome);
+      // stage may be 'transfer-cross-sign', 'intent-prepare', 'intent-account-info', 'intent-submit', 'intent-cross-sign', or 'relay'.
+      // cause retains the original intent preparation/submission error and its classification.
+      // recoveryEnvelope is an in-memory structured clone, not a JSON persistence format.
     }
   }
 }
@@ -367,7 +379,7 @@ const claimId = extractClaimId(crossSignTransaction); // Uint8Array
 
 ### Relay Submission (Low-Level)
 
-`relay.ts` provides a standalone function for submitting to the AllSet relayer. Use this for step-by-step flows, retry logic, or when you want to separate relay submission from the rest of the bridge flow:
+`relay.ts` provides a standalone function for submitting to the AllSet relayer. Use this for step-by-step flows or when you want to separate relay submission from the rest of the bridge flow. Reconcile the submitted Fast transactions before retrying after a non-success result:
 
 ```ts
 import { relayExecute, type RelayParams } from '@fastxyz/allset-sdk';
@@ -384,7 +396,12 @@ const result = await relayExecute({
   intentClaimId: '0xabc...',
 });
 
-console.log(result.relayTxHash); // EVM transaction hash from the relayer
+if (!result.success) {
+  // 'rejected' is an explicit negative acknowledgement; 'unknown' is not proof of rejection.
+  console.error('Relay did not confirm acceptance:', result.outcome);
+} else {
+  console.log('Relay accepted the request');
+}
 ```
 
 ---
@@ -403,6 +420,7 @@ type FastErrorCode =
   | 'NETWORK_NOT_CONFIGURED'
   | 'TX_FAILED'
   | 'TX_INDETERMINATE'
+  | 'POST_PAYMENT_INCOMPLETE'
   | 'INVALID_ADDRESS'
   | 'TOKEN_NOT_FOUND'
   | 'INVALID_PARAMS'
@@ -445,9 +463,22 @@ interface RelayParams {
   intentClaimId: string;
 }
 
-interface RelayResult {
-  relayTxHash: string;
+interface RelayAcceptedResult {
+  success: true;
 }
+
+interface RelayRejectedResult {
+  success: false;
+  outcome: 'rejected';
+}
+
+interface RelayUnknownResult {
+  success: false;
+  outcome: 'unknown';
+}
+
+type RelayResult = RelayAcceptedResult | RelayRejectedResult | RelayUnknownResult;
+type RelayExecutionResult = RelayResult; // deprecated alias
 ```
 
 ---

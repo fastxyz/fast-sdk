@@ -1,5 +1,18 @@
 # @fastxyz/allset-sdk
 
+## 1.2.0
+
+### Minor Changes
+
+- d632ef2: Opt-in `allset/intent/v1` claim encoding. With `claimEncoding: 'v1'`, `chainId` and `bridgeContract`, `executeWithdraw` / `executeIntent` sign a self-describing canonical-JSON `claim_data` and tag the transfer's `user_data` with `allset/transfer/v1:<chainId>`, so the Fast App signing pop-up and the explorer can read what is authorized (AllSet#576). All v1 inputs are validated before the Fast transfer is signed. The default stays `'legacy'` until cross-sign and the Fast App decoder ship. New exports: `encodeIntentClaimV1`, `decodeIntentClaimV1`, `intentClaimV1ToAbi`, `intentV1ToLegacy`, `intentsToV1`, `prepareIntentClaimV1`, `finishIntentClaimV1`, `buildClaimBytes`, `transferUserDataTag`, `readTransferUserDataTag`, `bytes32ToFastAddress`, and the JSON Schema at `schemas/allset-intent-v1.json`. The CLI now passes `chainId`, `bridgeContract` and `display` from its network config (no behavior change yet).
+- ba36fb7: Expose `PostPaymentRecoveryError` for failures after a Fast transaction has succeeded, preserving transaction identities and recovery envelopes. Require an explicit positive relayer acknowledgement before reporting `executeIntent` success.
+
+### Patch Changes
+
+- Updated dependencies [0333729]
+- Updated dependencies [f95e12a]
+  - @fastxyz/sdk@2.4.0
+
 ## 1.1.0
 
 ### Minor Changes

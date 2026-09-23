@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test, onTestFinished } from 'vitest';
+import { beforeEach, test, onTestFinished } from 'vitest';
 import { FastError, IndeterminateTransactionError, PostPaymentRecoveryError } from '../src/errors.ts';
 import { encodeFunctionData, hexToBytes, type Hex } from 'viem';
 import { hashHex, InvalidRequestError, ProxyUnexpectedNonceError, Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
@@ -39,7 +39,6 @@ import {
   arc,
   gasTokenErc20,
   weiToTokenUnits,
-
 } from '../src/index.ts';
 import { encodeIntentClaim } from '../src/claims.ts';
 
@@ -62,10 +61,32 @@ const RELAY_ACCEPTED = {
 const MOCK_CROSS_SIGN_TX = [...Array(32).fill(0), ...Array(32).fill(0x11)];
 
 const hashRecoveryEnvelope = async (envelope: any): Promise<string> =>
-  hashHex(
-    bcsSchema.VersionedTransaction,
-    Schema.encodeSync(VersionedTransactionFromBcs)(envelope.transaction),
-  );
+  hashHex(bcsSchema.VersionedTransaction, Schema.encodeSync(VersionedTransactionFromBcs)(envelope.transaction));
+
+let submittedCrossSignHashes: string[] = [];
+let nextCrossSignHashIndex = 0;
+
+beforeEach(() => {
+  submittedCrossSignHashes = [];
+  nextCrossSignHashIndex = 0;
+});
+
+async function mockProviderSuccess(envelope: unknown) {
+  submittedCrossSignHashes.push(await hashRecoveryEnvelope(envelope));
+  return { type: 'Success', value: { envelope, signatures: [] } } as const;
+}
+
+function matchingMockCrossSignResponse(): Response {
+  const txHash = submittedCrossSignHashes[nextCrossSignHashIndex++];
+  if (!txHash) throw new Error('No confirmed transaction hash is queued for cross-sign mock');
+  return crossSignResponseForHash(txHash);
+}
+
+function matchingMockCrossSignTransaction(): number[] {
+  const txHash = submittedCrossSignHashes[nextCrossSignHashIndex++];
+  if (!txHash) throw new Error('No confirmed transaction hash is queued for cross-sign mock');
+  return [...Array(32).fill(0), ...Array.from(hexToBytes(txHash as Hex))];
+}
 
 const restoreJsonSafeBytes = (value: any): any => {
   if (Array.isArray(value)) {
@@ -203,22 +224,10 @@ test('fastAddressToBytes32 rejects invalid Fast addresses', () => {
 });
 
 test('address byte conversions reject non-32-byte values', () => {
-  assert.throws(
-    () => fastAddressToBytes32(toFastAddress(new Uint8Array(31))),
-    /expected 32 bytes/i,
-  );
-  assert.throws(
-    () => bytes32ToFastAddress(('0x' + '11'.repeat(31)) as Hex),
-    /expected 32 bytes/i,
-  );
-  assert.throws(
-    () => bytes32ToFastAddress(('0x' + '11'.repeat(33)) as Hex),
-    /expected 32 bytes/i,
-  );
-  assert.equal(
-    bytes32ToFastAddress(('0x' + '11'.repeat(32)) as Hex),
-    toFastAddress(new Uint8Array(32).fill(0x11)),
-  );
+  assert.throws(() => fastAddressToBytes32(toFastAddress(new Uint8Array(31))), /expected 32 bytes/i);
+  assert.throws(() => bytes32ToFastAddress(('0x' + '11'.repeat(31)) as Hex), /expected 32 bytes/i);
+  assert.throws(() => bytes32ToFastAddress(('0x' + '11'.repeat(33)) as Hex), /expected 32 bytes/i);
+  assert.equal(bytes32ToFastAddress(('0x' + '11'.repeat(32)) as Hex), toFastAddress(new Uint8Array(32).fill(0x11)));
 });
 
 test('fastAddressToBytes returns a 32-byte Uint8Array', () => {
@@ -704,7 +713,7 @@ function makeMockProvider(opts: { submitError?: Error } = {}): FastProvider {
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
       if (opts.submitError) throw opts.submitError;
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 }
@@ -723,11 +732,13 @@ test('executeIntent performs 2 Fast submits + 2 cross-signs + 1 relayer call', a
   const originalFetch = globalThis.fetch;
   const urls: string[] = [];
   const submitCalls: unknown[] = [];
+  const submittedHashes: string[] = [];
+  let crossSignCalls = 0;
 
-  globalThis.fetch = async (url) => {
+  globalThis.fetch = async (url, init) => {
     urls.push(String(url));
     if (String(url).includes('/relay')) return Response.json(RELAY_ACCEPTED);
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return crossSignResponseForHash(submittedHashes[crossSignCalls++]);
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -736,8 +747,9 @@ test('executeIntent performs 2 Fast submits + 2 cross-signs + 1 relayer call', a
   const mockProvider = {
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
-      submitCalls.push(envelope);
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      submitCalls.push(structuredClone(envelope));
+      submittedHashes.push(await hashRecoveryEnvelope(envelope));
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -751,9 +763,104 @@ test('executeIntent performs 2 Fast submits + 2 cross-signs + 1 relayer call', a
   assert.equal(submitCalls.length, 2);
   assert.equal(urls.filter((u) => u === CROSS_SIGN_URL).length, 2);
   assert.equal(urls.filter((u) => u.includes('/relay')).length, 1);
-  // txHash is derived from cross-sign bytes[32:64] = MOCK_CROSS_SIGN_TX[32:64] = TX_HASH
-  assert.equal(result.txHash, TX_HASH);
-  assert.equal(result.orderId, TX_HASH);
+  assert.equal(result.txHash, submittedHashes[0]);
+  assert.equal(result.orderId, result.txHash);
+});
+
+test('executeIntent rejects a well-formed transfer cross-sign ID that differs from the confirmed hash', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/relay')) relayCalls++;
+    else crossSignCalls++;
+    return Response.json({ result: { transaction: [...Array(32).fill(0), ...Array(32).fill(0x22)], signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const submissions: unknown[] = [];
+  const provider = {
+    getAccountInfo: async () => ({ nextNonce: 1n }) as any,
+    submitTransaction: async (envelope: unknown) => {
+      submissions.push(structuredClone(envelope));
+      return mockProviderSuccess(envelope);
+    },
+  } as unknown as FastProvider;
+
+  let failure: PostPaymentRecoveryError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider,
+    }),
+    (error: unknown) => {
+      failure = error instanceof PostPaymentRecoveryError ? error : undefined;
+      return failure?.stage === 'transfer-cross-sign';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+  assert.deepEqual(failure.transfer.recoveryEnvelope, submissions[0]);
+  assert.equal(submissions.length, 1);
+  assert.equal(crossSignCalls, 1);
+  assert.equal(relayCalls, 0);
+});
+
+test('executeIntent rejects a well-formed intent cross-sign ID that differs from the confirmed hash', async () => {
+  const originalFetch = globalThis.fetch;
+  let crossSignCalls = 0;
+  let relayCalls = 0;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/relay')) {
+      relayCalls++;
+      return Response.json(RELAY_ACCEPTED);
+    }
+    crossSignCalls++;
+    if (crossSignCalls === 1) return crossSignResponseForHash(submittedHashes[0]);
+    return Response.json({ result: { transaction: [...Array(32).fill(0), ...Array(32).fill(0x22)], signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const submissions: unknown[] = [];
+  const submittedHashes: string[] = [];
+  const provider = {
+    getAccountInfo: async () => ({ nextNonce: BigInt(submissions.length + 1) }),
+    submitTransaction: async (envelope: unknown) => {
+      submissions.push(structuredClone(envelope));
+      submittedHashes.push(await hashRecoveryEnvelope(envelope));
+      return mockProviderSuccess(envelope);
+    },
+  } as unknown as FastProvider;
+
+  let failure: PostPaymentRecoveryError | undefined;
+  await assert.rejects(
+    executeIntent({
+      ...BASE_INTENT_PARAMS,
+      intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+      signer: testSigner,
+      provider,
+    }),
+    (error: unknown) => {
+      failure = error instanceof PostPaymentRecoveryError ? error : undefined;
+      return failure?.stage === 'intent-cross-sign';
+    },
+  );
+
+  assert.ok(failure);
+  assert.equal(failure.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+  assert.deepEqual(failure.transfer.recoveryEnvelope, submissions[0]);
+  assert.equal(failure.intent?.txHash, await hashRecoveryEnvelope(submissions[1]));
+  assert.deepEqual(failure.intent?.recoveryEnvelope, submissions[1]);
+  assert.equal(submissions.length, 2);
+  assert.equal(crossSignCalls, 2);
+  assert.equal(relayCalls, 0);
 });
 
 test('executeIntent rejects a transfer success certificate for another transaction before cross-signing', async () => {
@@ -763,7 +870,7 @@ test('executeIntent rejects a transfer success certificate for another transacti
   globalThis.fetch = async (url) => {
     if (String(url).includes('/relay')) relayerCalls++;
     else crossSignCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -806,7 +913,7 @@ test('executeIntent rejects a transfer success certificate from another network'
   let crossSignCalls = 0;
   globalThis.fetch = async () => {
     crossSignCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -843,7 +950,7 @@ test('executeIntent rejects a malformed transfer success certificate before cros
   let crossSignCalls = 0;
   globalThis.fetch = async () => {
     crossSignCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -926,7 +1033,7 @@ for (const { label, result } of INCOMPLETE_SUBMISSION_RESULTS) {
     globalThis.fetch = async (url) => {
       if (String(url).includes('/relay')) relayerCalls++;
       else crossSignCalls++;
-      return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+      return matchingMockCrossSignResponse();
     };
     onTestFinished(() => {
       globalThis.fetch = originalFetch;
@@ -967,7 +1074,7 @@ test('executeIntent rejects an intent success certificate for another transactio
   globalThis.fetch = async (url) => {
     if (String(url).includes('/relay')) relayerCalls++;
     else crossSignCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -989,6 +1096,7 @@ test('executeIntent rejects an intent success certificate for another transactio
             (envelope as any).transaction.value.nonce = 2n;
             certificateEnvelope.transaction.value.nonce = 2n;
           }
+          if (submitCalls === 1) return mockProviderSuccess(envelope);
           return { type: 'Success', value: { envelope: certificateEnvelope, signatures: [] } };
         },
       } as unknown as FastProvider,
@@ -1024,7 +1132,7 @@ test('executeIntent preserves intent recovery when FastProvider decodes malforme
       return Response.json(RELAY_ACCEPTED);
     }
     crossSignCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1042,7 +1150,7 @@ test('executeIntent preserves intent recovery when FastProvider decodes malforme
         getAccountInfo: async () => ({ nextNonce: 1n }) as any,
         submitTransaction: async (envelope: unknown) => {
           submitCalls++;
-          if (submitCalls === 1) return { type: 'Success', value: { envelope, signatures: [] } };
+          if (submitCalls === 1) return mockProviderSuccess(envelope);
           return realProvider.submitTransaction(envelope as any);
         },
       } as unknown as FastProvider,
@@ -1074,7 +1182,7 @@ for (const { label, result } of INCOMPLETE_SUBMISSION_RESULTS) {
         return Response.json(RELAY_ACCEPTED);
       }
       crossSignCalls++;
-      return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+      return matchingMockCrossSignResponse();
     };
     onTestFinished(() => {
       globalThis.fetch = originalFetch;
@@ -1095,7 +1203,7 @@ for (const { label, result } of INCOMPLETE_SUBMISSION_RESULTS) {
             if (submitCalls === 1) {
               const submittedEnvelope = structuredClone(envelope as object) as any;
               transferHash = await hashRecoveryEnvelope(submittedEnvelope);
-              return { type: 'Success', value: { envelope: submittedEnvelope, signatures: [] } };
+              return mockProviderSuccess(submittedEnvelope);
             }
             return result as any;
           },
@@ -1129,10 +1237,7 @@ test('legacy deadlines are added exactly without number rounding', async () => {
   });
   const submitted: unknown[] = [];
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) =>
-    String(url).includes('/relay')
-      ? Response.json(RELAY_ACCEPTED)
-      : Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  globalThis.fetch = async (url) => (String(url).includes('/relay') ? Response.json(RELAY_ACCEPTED) : matchingMockCrossSignResponse());
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
   });
@@ -1147,15 +1252,16 @@ test('legacy deadlines are added exactly without number rounding', async () => {
       getAccountInfo: async () => ({ nextNonce: 1n }) as any,
       submitTransaction: async (envelope: unknown) => {
         submitted.push(envelope);
-        return { type: 'Success', value: { envelope, signatures: [] } };
+        return mockProviderSuccess(envelope);
       },
     } as unknown as FastProvider,
   });
 
-  const claimData = (((submitted[1] as any).transaction.value.claims?.[0] ?? (submitted[1] as any).transaction.value.claim).value.claim.claimData) as Uint8Array;
+  const claimData = ((submitted[1] as any).transaction.value.claims?.[0] ?? (submitted[1] as any).transaction.value.claim).value.claim
+    .claimData as Uint8Array;
   const expected = hexToBytes(
     encodeIntentClaim({
-      transferFastTxId: TX_HASH,
+      transferFastTxId: submittedCrossSignHashes[0],
       deadline: BigInt(Math.floor(1700000000000 / 1000)) + BigInt(deadlineSeconds),
       intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
     }),
@@ -1169,7 +1275,7 @@ test('executeIntent uses fastBridgeAddress as recipient in TokenTransfer', async
 
   globalThis.fetch = async (url) => {
     if (String(url).includes('/relay')) return Response.json(RELAY_ACCEPTED);
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1179,7 +1285,7 @@ test('executeIntent uses fastBridgeAddress as recipient in TokenTransfer', async
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
       submitCalls.push(envelope);
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1209,7 +1315,7 @@ test('executeIntent sends correct relayer payload', async () => {
       relayerBody = JSON.parse(String(init?.body));
       return Response.json(RELAY_ACCEPTED);
     }
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1238,7 +1344,7 @@ test('executeIntent infers external_address from Execute intent target', async (
       relayerBody = JSON.parse(String(init?.body));
       return Response.json(RELAY_ACCEPTED);
     }
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1259,7 +1365,7 @@ test('executeIntent throws FastError when no external address can be resolved', 
   let fetchCalls = 0;
   globalThis.fetch = async () => {
     fetchCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1352,7 +1458,7 @@ test('executeIntent preserves transfer recovery when the intent submission is de
   globalThis.fetch = async (url) => {
     if (String(url).includes('/relay')) relayCalls++;
     else crossSignCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1369,7 +1475,7 @@ test('executeIntent preserves transfer recovery when the intent submission is de
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
       if (submissions.length === 2) throw rejection;
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1405,7 +1511,7 @@ test('executeIntent preserves transfer recovery when signing the intent fails', 
   globalThis.fetch = async (url) => {
     if (String(url).includes('/relay')) relayCalls++;
     else crossSignCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1431,7 +1537,7 @@ test('executeIntent preserves transfer recovery when signing the intent fails', 
     getAccountInfo: async () => ({ nextNonce: BigInt(submissions.length + 1) }),
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1463,7 +1569,7 @@ test('executeIntent preserves recovery identity on relayer failure', async () =>
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     if (String(url).includes('/relay')) return new Response('internal error', { status: 500 });
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1474,7 +1580,7 @@ test('executeIntent preserves recovery identity on relayer failure', async () =>
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1559,7 +1665,7 @@ test('executeIntent preserves transfer recovery when the second account read fai
       return Response.json(RELAY_ACCEPTED);
     }
     crossSignCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1576,7 +1682,7 @@ test('executeIntent preserves transfer recovery when the second account read fai
     },
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1626,7 +1732,7 @@ test('executeIntent preserves the settled transfer identity when cross-sign fail
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1680,7 +1786,7 @@ test('executeIntent preserves transfer recovery when cross-sign returns a malfor
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1733,7 +1839,7 @@ test('executeIntent rejects non-byte cross-sign transaction values before extrac
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1773,7 +1879,7 @@ test('executeIntent preserves both settled identities when intent cross-sign fai
       return Response.json(RELAY_ACCEPTED);
     }
     if (crossSignCalls++ === 0) {
-      return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+      return matchingMockCrossSignResponse();
     }
     return Response.json({ error: { message: 'intent cross-sign unavailable' } });
   };
@@ -1786,7 +1892,7 @@ test('executeIntent preserves both settled identities when intent cross-sign fai
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1832,7 +1938,7 @@ test('executeIntent preserves intent recovery when intent cross-sign returns no 
     crossSignCalls++;
     return Response.json({
       result: {
-        transaction: crossSignCalls === 1 ? MOCK_CROSS_SIGN_TX : [],
+        transaction: crossSignCalls === 1 ? matchingMockCrossSignTransaction() : [],
         signature: '0xsig',
       },
     });
@@ -1846,7 +1952,7 @@ test('executeIntent preserves intent recovery when intent cross-sign returns no 
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1884,7 +1990,7 @@ test('executeIntent rejects a relayer success:false acknowledgement without losi
       return Response.json({ success: false, message: 'Failed to persist task', block_number: null, job_id: 'test-job' });
     }
     crossSignCalls++;
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1895,7 +2001,7 @@ test('executeIntent rejects a relayer success:false acknowledgement without losi
     getAccountInfo: async () => ({ nextNonce: 1n }) as any,
     submitTransaction: async (envelope: unknown) => {
       submissions.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -1954,13 +2060,22 @@ function spyOnProvider(touched: string[], submitted: unknown[]): FastProvider {
     submitTransaction: async (envelope: unknown) => {
       touched.push('submitTransaction');
       submitted.push(envelope);
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 }
 
+function crossSignResponseForHash(txHash: string): Response {
+  return Response.json({
+    result: {
+      transaction: [...Array(32).fill(0), ...Array.from(hexToBytes(txHash as Hex))],
+      signature: '0xsig',
+    },
+  });
+}
+
 const crossSignFetch = async (url: RequestInfo | URL) =>
-  String(url).includes('/relay') ? Response.json(RELAY_ACCEPTED) : Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  String(url).includes('/relay') ? Response.json(RELAY_ACCEPTED) : matchingMockCrossSignResponse();
 
 function submittedClaim(submitted: unknown[], index: number): any {
   const tx = (submitted[index] as any).transaction.value;
@@ -2192,7 +2307,7 @@ test('executeIntent with claimEncoding v1 is immune to caller mutation during th
       relayerBody = JSON.parse(String(init?.body));
       return Response.json(RELAY_ACCEPTED);
     }
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -2240,7 +2355,7 @@ test('executeIntent legacy claim and relayer metadata use the same pre-await int
       relayerBody = JSON.parse(String(init?.body));
       return Response.json(RELAY_ACCEPTED);
     }
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -2259,7 +2374,7 @@ test('executeIntent legacy claim and relayer metadata use the same pre-await int
     },
     submitTransaction: async (envelope: unknown) => {
       submitted.push(structuredClone(envelope));
-      return { type: 'Success', value: { envelope, signatures: [] } };
+      return mockProviderSuccess(envelope);
     },
   } as unknown as FastProvider;
 
@@ -2275,7 +2390,7 @@ test('executeIntent legacy claim and relayer metadata use the same pre-await int
     .claimData as Uint8Array;
   const expected = hexToBytes(
     encodeIntentClaim({
-      transferFastTxId: TX_HASH,
+      transferFastTxId: submittedCrossSignHashes[0],
       deadline: BigInt(Math.floor(1700000000000 / 1000)) + 3600n,
       intents: [originalIntent],
     }),
@@ -2298,7 +2413,7 @@ test('executeWithdraw calls executeIntent with a DynamicTransfer intent', async 
       relayerBody = JSON.parse(String(init?.body));
       return Response.json(RELAY_ACCEPTED);
     }
-    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -2313,8 +2428,8 @@ test('executeWithdraw calls executeIntent with a DynamicTransfer intent', async 
 
   assert.equal(relayerBody?.external_address, EVM_ADDRESS);
   assert.equal(relayerBody?.external_token_address, TOKEN_ADDRESS);
-  assert.equal(result.txHash, TX_HASH);
-  assert.equal(result.orderId, TX_HASH);
+  assert.equal(result.txHash, submittedCrossSignHashes[0]);
+  assert.equal(result.orderId, submittedCrossSignHashes[0]);
 });
 
 // ---------------------------------------------------------------------------
@@ -2336,18 +2451,21 @@ test('smartDeposit throws InsufficientBalanceError when balance is below amount'
       result: '0x0000000000000000000000000000000000000000000000000000000000000000',
     });
   };
-  onTestFinished(() => { globalThis.fetch = originalFetch; });
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
 
   await assert.rejects(
-    () => smartDeposit({
-      privateKey: PRIVATE_KEY,
-      rpcUrl: 'https://mainnet.base.org',
-      allsetApiUrl: 'http://localhost:9999',
-      tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-      amount: 1_000_000n,
-      bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
-      depositCalldata: '0xdeadbeef',
-    }),
+    () =>
+      smartDeposit({
+        privateKey: PRIVATE_KEY,
+        rpcUrl: 'https://mainnet.base.org',
+        allsetApiUrl: 'http://localhost:9999',
+        tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        amount: 1_000_000n,
+        bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+        depositCalldata: '0xdeadbeef',
+      }),
     (err: unknown) => {
       assert.ok(err instanceof InsufficientBalanceError, `expected InsufficientBalanceError, got ${err}`);
       return true;
@@ -2370,18 +2488,21 @@ test('smartDeposit rejects with prepare error when backend returns 500', async (
       result: '0x0000000000000000000000000000000000000000000000000000000000989680',
     });
   };
-  onTestFinished(() => { globalThis.fetch = originalFetch; });
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
 
   await assert.rejects(
-    () => smartDeposit({
-      privateKey: PRIVATE_KEY,
-      rpcUrl: 'https://mainnet.base.org',
-      allsetApiUrl: 'http://localhost:9999',
-      tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-      amount: 1_000_000n,
-      bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
-      depositCalldata: '0xdeadbeef',
-    }),
+    () =>
+      smartDeposit({
+        privateKey: PRIVATE_KEY,
+        rpcUrl: 'https://mainnet.base.org',
+        allsetApiUrl: 'http://localhost:9999',
+        tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        amount: 1_000_000n,
+        bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+        depositCalldata: '0xdeadbeef',
+      }),
     (err: unknown) => {
       assert.match(String(err), /failed/i);
       return true;

@@ -7,20 +7,27 @@ import { fileURLToPath } from "node:url";
 import { assertPackageInventory } from "./package-artifact.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const sdkRoot = resolve(root, "..", "fast-sdk");
 const scratch = mkdtempSync(join(tmpdir(), "fastid-sdk-consumer-"));
 try {
   execFileSync("pnpm", ["pack", "--pack-destination", scratch], {
     cwd: root,
     stdio: "inherit",
   });
+  execFileSync("pnpm", ["pack", "--pack-destination", scratch], {
+    cwd: sdkRoot,
+    stdio: "inherit",
+  });
   const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const tarball = join(scratch, `fastxyz-fastid-sdk-${manifest.version}.tgz`);
+  const sdkManifest = JSON.parse(readFileSync(join(sdkRoot, "package.json"), "utf8"));
+  const sdkTarball = join(scratch, `fastxyz-sdk-${sdkManifest.version}.tgz`);
   const inventory = execFileSync("tar", ["-tzf", tarball], { encoding: "utf8" });
   assertPackageInventory(inventory.trim().split("\n"));
   writeFileSync(join(scratch, "package.json"), JSON.stringify({
     name: "fastid-sdk-consumer-smoke", private: true, type: "module",
   }));
-  execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], {
+  execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball, sdkTarball], {
     cwd: scratch,
     stdio: "inherit",
   });

@@ -37,6 +37,61 @@ const CROSS_SIGN_TRANSACTION_ABI = [
   },
 ] as const;
 
+const TOKEN_TRANSFER_OPERATION_ABI = [
+  {
+    type: "tuple",
+    components: [
+      { name: "tokenId", type: "bytes32" },
+      { name: "amount", type: "uint256" },
+      { name: "userData", type: "bytes32" },
+    ],
+  },
+] as const;
+
+const EXTERNAL_CLAIM_OPERATION_ABI = [
+  {
+    type: "tuple",
+    components: [
+      {
+        name: "claim",
+        type: "tuple",
+        components: [
+          { name: "claimData", type: "bytes" },
+          { name: "verifierCommittee", type: "bytes32[]" },
+          { name: "verifierQuorum", type: "uint64" },
+        ],
+      },
+      {
+        name: "signatures",
+        type: "tuple[]",
+        components: [
+          { name: "signerAddress", type: "bytes32" },
+          { name: "signature", type: "bytes" },
+        ],
+      },
+    ],
+  },
+] as const;
+
+const INTENT_CLAIM_ABI = [
+  {
+    type: "tuple",
+    components: [
+      { name: "transferFastTxId", type: "bytes32" },
+      { name: "deadline", type: "uint256" },
+      {
+        name: "intents",
+        type: "tuple[]",
+        components: [
+          { name: "action", type: "uint8" },
+          { name: "payload", type: "bytes" },
+          { name: "value", type: "uint256" },
+        ],
+      },
+    ],
+  },
+] as const;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -100,7 +155,11 @@ function normalizeTransactionHash(hash: string): string {
   return lower.startsWith("0x") ? lower.slice(2) : lower;
 }
 
-function extractCrossSignClaimId(transaction: unknown, expectedTxHash: string): Hex {
+function extractCrossSignClaimId(
+  transaction: unknown,
+  expectedTxHash: string,
+  stage: "transfer" | "intent",
+): Hex {
   if (!Array.isArray(transaction)) {
     throw new FastError("TX_FAILED", "Cross-sign returned invalid transaction bytes");
   }
@@ -116,6 +175,20 @@ function extractCrossSignClaimId(transaction: unknown, expectedTxHash: string): 
     decoded = decodeAbiParameters(CROSS_SIGN_TRANSACTION_ABI, bytesToHex(Uint8Array.from(transaction)));
   } catch {
     throw new FastError("TX_FAILED", "Cross-sign returned invalid Transaction ABI bytes");
+  }
+  const expectedClaimType = stage === "transfer" ? 0 : 5;
+  if (decoded[0].claim_type !== expectedClaimType) {
+    throw new FastError("TX_FAILED", `Cross-sign returned the wrong claim type for the ${stage} stage`);
+  }
+  try {
+    if (stage === "transfer") {
+      decodeAbiParameters(TOKEN_TRANSFER_OPERATION_ABI, decoded[0].operation);
+    } else {
+      const [externalClaim] = decodeAbiParameters(EXTERNAL_CLAIM_OPERATION_ABI, decoded[0].operation);
+      decodeAbiParameters(INTENT_CLAIM_ABI, externalClaim.claim.claimData);
+    }
+  } catch {
+    throw new FastError("TX_FAILED", `Cross-sign returned an invalid ${stage} claim operation`);
   }
   const claimId = decoded[0].id;
   if (!/^0x[0-9a-f]{64}$/.test(claimId)) {
@@ -608,7 +681,7 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
   try {
     transferCrossSign = await evmSign(transferResult.value, crossSignUrl);
     // Derive the Fast tx ID from cross-sign bytes[32:64] — this is the canonical transaction hash
-    transferFastTxId = extractCrossSignClaimId(transferCrossSign.transaction, transferIdentity.txHash);
+    transferFastTxId = extractCrossSignClaimId(transferCrossSign.transaction, transferIdentity.txHash, "transfer");
   } catch (cause) {
     throw new PostPaymentRecoveryError({
       stage: "transfer-cross-sign",
@@ -726,7 +799,7 @@ export async function executeIntent(params: ExecuteIntentParams): Promise<Bridge
   let intentFastTxId: Hex;
   try {
     intentCrossSign = await evmSign(intentResult.value, crossSignUrl);
-    intentFastTxId = extractCrossSignClaimId(intentCrossSign.transaction, intentIdentity.txHash);
+    intentFastTxId = extractCrossSignClaimId(intentCrossSign.transaction, intentIdentity.txHash, "intent");
   } catch (cause) {
     throw new PostPaymentRecoveryError({
       stage: "intent-cross-sign",

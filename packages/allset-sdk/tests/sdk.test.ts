@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test, onTestFinished } from 'vitest';
 import { FastError, IndeterminateTransactionError, PostPaymentRecoveryError } from '../src/errors.ts';
-import { encodeAbiParameters, encodeFunctionData, hexToBytes, type Hex } from 'viem';
+import { bytesToHex, encodeAbiParameters, encodeFunctionData, hexToBytes, type Hex } from 'viem';
 import { hashHex, InvalidRequestError, ProxyUnexpectedNonceError, Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
 import { Schema } from 'effect';
 import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs } from '@fastxyz/schema';
@@ -41,6 +41,7 @@ import {
   weiToTokenUnits,
 } from '../src/index.ts';
 import { encodeIntentClaim } from '../src/claims.ts';
+import { intentClaimV1ToAbi } from '../src/intent-v1.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
 const EVM_ADDRESS = '0x1234567890123456789012345678901234567890';
@@ -72,34 +73,146 @@ const MOCK_CROSS_SIGN_TRANSACTION_ABI = [
   },
 ] as const;
 
+const MOCK_TOKEN_TRANSFER_OPERATION_ABI = [
+  {
+    type: 'tuple',
+    components: [
+      { name: 'tokenId', type: 'bytes32' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'userData', type: 'bytes32' },
+    ],
+  },
+] as const;
+
+const MOCK_EXTERNAL_CLAIM_OPERATION_ABI = [
+  {
+    type: 'tuple',
+    components: [
+      {
+        name: 'claim',
+        type: 'tuple',
+        components: [
+          { name: 'claimData', type: 'bytes' },
+          { name: 'verifierCommittee', type: 'bytes32[]' },
+          { name: 'verifierQuorum', type: 'uint64' },
+        ],
+      },
+      {
+        name: 'signatures',
+        type: 'tuple[]',
+        components: [
+          { name: 'signerAddress', type: 'bytes32' },
+          { name: 'signature', type: 'bytes' },
+        ],
+      },
+    ],
+  },
+] as const;
+
+const MOCK_INTENT_CLAIM_ABI = [
+  {
+    type: 'tuple',
+    components: [
+      { name: 'transferFastTxId', type: 'bytes32' },
+      { name: 'deadline', type: 'uint256' },
+      {
+        name: 'intents',
+        type: 'tuple[]',
+        components: [
+          { name: 'action', type: 'uint8' },
+          { name: 'payload', type: 'bytes' },
+          { name: 'value', type: 'uint256' },
+        ],
+      },
+    ],
+  },
+] as const;
+
 const MOCK_CROSS_SIGN_TX = [...Array(32).fill(0), ...Array(32).fill(0x11)];
 
 const hashRecoveryEnvelope = async (envelope: any): Promise<string> =>
   hashHex(bcsSchema.VersionedTransaction, Schema.encodeSync(VersionedTransactionFromBcs)(envelope.transaction));
 
-let submittedCrossSignHashes: string[] = [];
+type MockCrossSignSubmission = {
+  txHash: string;
+  sender: Hex;
+  recipient: Hex;
+  nonce: bigint;
+  timestampNanos: bigint;
+  claimType: number;
+  operation: Hex;
+};
+
+let submittedCrossSignTransactions: MockCrossSignSubmission[] = [];
 let nextCrossSignHashIndex = 0;
 
 beforeEach(() => {
-  submittedCrossSignHashes = [];
+  submittedCrossSignTransactions = [];
   nextCrossSignHashIndex = 0;
 });
 
 async function mockProviderSuccess(envelope: unknown) {
-  submittedCrossSignHashes.push(await hashRecoveryEnvelope(envelope));
+  const transaction = (envelope as any).transaction.value;
+  const claim = submittedClaim([envelope], 0);
+  const shared = {
+    txHash: await hashRecoveryEnvelope(envelope),
+    sender: bytesToHex(transaction.sender),
+    recipient: `0x${'00'.repeat(32)}` as Hex,
+    nonce: BigInt(transaction.nonce),
+    timestampNanos: BigInt(transaction.timestampNanos),
+  };
+  if (claim.type === 'TokenTransfer') {
+    submittedCrossSignTransactions.push({
+      ...shared,
+      recipient: bytesToHex(claim.value.recipient),
+      claimType: 0,
+      operation: encodeAbiParameters(MOCK_TOKEN_TRANSFER_OPERATION_ABI, [
+        {
+          tokenId: bytesToHex(claim.value.tokenId),
+          amount: BigInt(claim.value.amount),
+          userData: claim.value.userData ? bytesToHex(claim.value.userData) : `0x${'00'.repeat(32)}`,
+        },
+      ]),
+    });
+  } else if (claim.type === 'ExternalClaim') {
+    const submittedClaimData = claim.value.claim.claimData as Uint8Array;
+    let claimData = bytesToHex(submittedClaimData);
+    try {
+      claimData = intentClaimV1ToAbi(decodeIntentClaimV1(submittedClaimData));
+    } catch {
+      // Legacy claim data is already ABI-encoded; v1 JSON is projected by cross-sign.
+    }
+    submittedCrossSignTransactions.push({
+      ...shared,
+      claimType: 5,
+      operation: encodeAbiParameters(MOCK_EXTERNAL_CLAIM_OPERATION_ABI, [
+        {
+          claim: {
+            claimData,
+            verifierCommittee: claim.value.claim.verifierCommittee.map((address: Uint8Array) => bytesToHex(address)),
+            verifierQuorum: BigInt(claim.value.claim.verifierQuorum),
+          },
+          signatures: claim.value.signatures.map((signature: any) => ({
+            signerAddress: bytesToHex(signature.verifierAddr),
+            signature: bytesToHex(signature.sig),
+          })),
+        },
+      ]),
+    });
+  }
   return { type: 'Success', value: { envelope, signatures: [] } } as const;
 }
 
 function matchingMockCrossSignResponse(): Response {
-  const txHash = submittedCrossSignHashes[nextCrossSignHashIndex++];
-  if (!txHash) throw new Error('No confirmed transaction hash is queued for cross-sign mock');
-  return crossSignResponseForHash(txHash);
+  const submitted = submittedCrossSignTransactions[nextCrossSignHashIndex++];
+  if (!submitted) throw new Error('No confirmed transaction is queued for cross-sign mock');
+  return crossSignResponseForSubmission(submitted);
 }
 
 function matchingMockCrossSignTransaction(): number[] {
-  const txHash = submittedCrossSignHashes[nextCrossSignHashIndex++];
-  if (!txHash) throw new Error('No confirmed transaction hash is queued for cross-sign mock');
-  return Array.from(hexToBytes(mockCrossSignTransactionForHash(txHash)));
+  const submitted = submittedCrossSignTransactions[nextCrossSignHashIndex++];
+  if (!submitted) throw new Error('No confirmed transaction is queued for cross-sign mock');
+  return Array.from(hexToBytes(mockCrossSignTransactionForSubmission(submitted)));
 }
 
 const restoreJsonSafeBytes = (value: any): any => {
@@ -772,7 +885,7 @@ test('executeIntent performs 2 Fast submits + 2 cross-signs + 1 relayer call', a
   globalThis.fetch = async (url, init) => {
     urls.push(String(url));
     if (String(url).includes('/relay')) return Response.json(RELAY_ACCEPTED);
-    return crossSignResponseForHash(submittedHashes[crossSignCalls++]);
+    return matchingMockCrossSignResponse();
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -855,7 +968,7 @@ test('executeIntent rejects a truncated transfer cross-sign ABI even when its ID
       return Response.json(RELAY_ACCEPTED);
     }
     crossSignCalls++;
-    return truncatedCrossSignResponseForHash(submittedCrossSignHashes[0]!);
+    return truncatedCrossSignResponseForHash(submittedCrossSignTransactions[0]!.txHash);
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -892,6 +1005,75 @@ test('executeIntent rejects a truncated transfer cross-sign ABI even when its ID
   assert.equal(relayCalls, 0);
 });
 
+const CROSS_SIGN_SHAPE_CASES = [
+  { name: 'transfer wrong claim type', stage: 'transfer', overrides: { claimType: 5 } },
+  { name: 'transfer malformed operation', stage: 'transfer', overrides: { operation: '0x' as Hex } },
+  { name: 'intent wrong claim type', stage: 'intent', overrides: { claimType: 0 } },
+  { name: 'intent malformed operation', stage: 'intent', overrides: { operation: '0x' as Hex } },
+] as const;
+
+for (const testCase of CROSS_SIGN_SHAPE_CASES) {
+  test(`executeIntent rejects ${testCase.name} before advancing`, async () => {
+    const originalFetch = globalThis.fetch;
+    let crossSignCalls = 0;
+    let relayCalls = 0;
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/relay')) {
+        relayCalls++;
+        return Response.json(RELAY_ACCEPTED);
+      }
+
+      const submissionIndex = crossSignCalls++;
+      const submission = submittedCrossSignTransactions[submissionIndex];
+      if (!submission) throw new Error('No confirmed transaction is queued for cross-sign mock');
+      const stage = submissionIndex === 0 ? 'transfer' : 'intent';
+      if (stage === testCase.stage) {
+        return crossSignResponseForHash(submission.txHash, stage, testCase.overrides);
+      }
+      return crossSignResponseForSubmission(submission);
+    };
+    onTestFinished(() => {
+      globalThis.fetch = originalFetch;
+    });
+
+    const submissions: unknown[] = [];
+    const provider = {
+      getAccountInfo: async () => ({ nextNonce: BigInt(submissions.length + 1) }),
+      submitTransaction: async (envelope: unknown) => {
+        submissions.push(structuredClone(envelope));
+        return mockProviderSuccess(envelope);
+      },
+    } as unknown as FastProvider;
+
+    let failure: PostPaymentRecoveryError | undefined;
+    await assert.rejects(
+      executeIntent({
+        ...BASE_INTENT_PARAMS,
+        intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
+        signer: testSigner,
+        provider,
+      }),
+      (error: unknown) => {
+        failure = error instanceof PostPaymentRecoveryError ? error : undefined;
+        const expectedStage = testCase.stage === 'transfer' ? 'transfer-cross-sign' : 'intent-cross-sign';
+        return failure?.stage === expectedStage;
+      },
+    );
+
+    assert.ok(failure);
+    assert.equal(failure.transfer.txHash, await hashRecoveryEnvelope(submissions[0]));
+    assert.deepEqual(failure.transfer.recoveryEnvelope, submissions[0]);
+    const expectedSubmissions = testCase.stage === 'transfer' ? 1 : 2;
+    assert.equal(submissions.length, expectedSubmissions, 'invalid cross-sign data must not advance to another paid or relay step');
+    assert.equal(crossSignCalls, expectedSubmissions);
+    assert.equal(relayCalls, 0);
+    if (testCase.stage === 'intent') {
+      assert.equal(failure.intent?.txHash, await hashRecoveryEnvelope(submissions[1]));
+      assert.deepEqual(failure.intent?.recoveryEnvelope, submissions[1]);
+    }
+  });
+}
+
 test('executeIntent rejects a well-formed intent cross-sign ID that differs from the confirmed hash', async () => {
   const originalFetch = globalThis.fetch;
   let crossSignCalls = 0;
@@ -902,8 +1084,8 @@ test('executeIntent rejects a well-formed intent cross-sign ID that differs from
       return Response.json(RELAY_ACCEPTED);
     }
     crossSignCalls++;
-    if (crossSignCalls === 1) return crossSignResponseForHash(submittedHashes[0]);
-    return crossSignResponseForHash(`0x${'22'.repeat(32)}`);
+    if (crossSignCalls === 1) return matchingMockCrossSignResponse();
+    return crossSignResponseForHash(`0x${'22'.repeat(32)}`, 'intent');
   };
   onTestFinished(() => {
     globalThis.fetch = originalFetch;
@@ -1342,7 +1524,7 @@ test('legacy deadlines are added exactly without number rounding', async () => {
     .claimData as Uint8Array;
   const expected = hexToBytes(
     encodeIntentClaim({
-      transferFastTxId: submittedCrossSignHashes[0],
+      transferFastTxId: submittedCrossSignTransactions[0]!.txHash,
       deadline: BigInt(Math.floor(1700000000000 / 1000)) + BigInt(deadlineSeconds),
       intents: [buildTransferIntent(TOKEN_ADDRESS, EVM_ADDRESS)],
     }),
@@ -2146,16 +2328,24 @@ function spyOnProvider(touched: string[], submitted: unknown[]): FastProvider {
   } as unknown as FastProvider;
 }
 
-function crossSignResponseForHash(txHash: string): Response {
+function crossSignResponseForHash(
+  txHash: string,
+  stage: 'transfer' | 'intent' = 'transfer',
+  overrides: { claimType?: number; operation?: Hex } = {},
+): Response {
   return Response.json({
     result: {
-      transaction: Array.from(hexToBytes(mockCrossSignTransactionForHash(txHash))),
+      transaction: Array.from(hexToBytes(mockCrossSignTransactionForHash(txHash, stage, overrides))),
       signature: '0xsig',
     },
   });
 }
 
-function mockCrossSignTransactionForHash(txHash: string): Hex {
+function mockCrossSignTransactionForHash(
+  txHash: string,
+  stage: 'transfer' | 'intent' = 'transfer',
+  overrides: { claimType?: number; operation?: Hex } = {},
+): Hex {
   return encodeAbiParameters(MOCK_CROSS_SIGN_TRANSACTION_ABI, [
     {
       id: txHash as Hex,
@@ -2163,10 +2353,59 @@ function mockCrossSignTransactionForHash(txHash: string): Hex {
       recipient: `0x${'00'.repeat(32)}`,
       nonce: 1n,
       timestampNanos: 1n,
-      claim_type: 0,
-      operation: '0x',
+      claim_type: overrides.claimType ?? (stage === 'transfer' ? 0 : 5),
+      operation: overrides.operation ?? mockOperationForStage(stage),
     },
   ]);
+}
+
+function mockOperationForStage(stage: 'transfer' | 'intent'): Hex {
+  if (stage === 'transfer') {
+    return encodeAbiParameters(MOCK_TOKEN_TRANSFER_OPERATION_ABI, [
+      {
+        tokenId: `0x${'11'.repeat(32)}`,
+        amount: 1n,
+        userData: `0x${'00'.repeat(32)}`,
+      },
+    ]);
+  }
+
+  const claimData = encodeAbiParameters(MOCK_INTENT_CLAIM_ABI, [
+    {
+      transferFastTxId: TX_HASH as Hex,
+      deadline: 9999999999n,
+      intents: [],
+    },
+  ]);
+  return encodeAbiParameters(MOCK_EXTERNAL_CLAIM_OPERATION_ABI, [
+    {
+      claim: { claimData, verifierCommittee: [], verifierQuorum: 0n },
+      signatures: [],
+    },
+  ]);
+}
+
+function mockCrossSignTransactionForSubmission(submission: MockCrossSignSubmission): Hex {
+  return encodeAbiParameters(MOCK_CROSS_SIGN_TRANSACTION_ABI, [
+    {
+      id: submission.txHash as Hex,
+      sender: submission.sender,
+      recipient: submission.recipient,
+      nonce: submission.nonce,
+      timestampNanos: submission.timestampNanos,
+      claim_type: submission.claimType,
+      operation: submission.operation,
+    },
+  ]);
+}
+
+function crossSignResponseForSubmission(submission: MockCrossSignSubmission): Response {
+  return Response.json({
+    result: {
+      transaction: Array.from(hexToBytes(mockCrossSignTransactionForSubmission(submission))),
+      signature: '0xsig',
+    },
+  });
 }
 
 function truncatedCrossSignResponseForHash(txHash: string): Response {
@@ -2494,7 +2733,7 @@ test('executeIntent legacy claim and relayer metadata use the same pre-await int
     .claimData as Uint8Array;
   const expected = hexToBytes(
     encodeIntentClaim({
-      transferFastTxId: submittedCrossSignHashes[0],
+      transferFastTxId: submittedCrossSignTransactions[0]!.txHash,
       deadline: BigInt(Math.floor(1700000000000 / 1000)) + 3600n,
       intents: [originalIntent],
     }),
@@ -2532,8 +2771,8 @@ test('executeWithdraw calls executeIntent with a DynamicTransfer intent', async 
 
   assert.equal(relayerBody?.external_address, EVM_ADDRESS);
   assert.equal(relayerBody?.external_token_address, TOKEN_ADDRESS);
-  assert.equal(result.txHash, submittedCrossSignHashes[0]);
-  assert.equal(result.orderId, submittedCrossSignHashes[0]);
+  assert.equal(result.txHash, submittedCrossSignTransactions[0]!.txHash);
+  assert.equal(result.orderId, submittedCrossSignTransactions[0]!.txHash);
 });
 
 // ---------------------------------------------------------------------------

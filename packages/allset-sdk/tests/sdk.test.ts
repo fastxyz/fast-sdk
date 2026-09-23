@@ -447,6 +447,26 @@ test('evmSign sends certificate to crossSignUrl and returns result', async () =>
   assert.equal(result.signature, '0xsig');
 });
 
+test('evmSign preserves u128 timestamp precision in the cross-sign request', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody = '';
+  const certificate = structuredClone(MOCK_CERTIFICATE) as any;
+  const timestampNanos = 9_007_199_254_740_993n;
+  certificate.envelope.transaction.value.timestampNanos = timestampNanos;
+
+  globalThis.fetch = async (_url, init) => {
+    requestBody = String(init?.body);
+    return Response.json({ result: { transaction: MOCK_CROSS_SIGN_TX, signature: '0xsig' } });
+  };
+  onTestFinished(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await evmSign(certificate, CROSS_SIGN_URL);
+
+  assert.match(requestBody, /"timestamp_nanos":9007199254740993(?:[,}])/);
+});
+
 test('evmSign throws FastError on cross-sign error response', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => Response.json({ error: { message: 'Invalid certificate' } });

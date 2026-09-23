@@ -9,6 +9,7 @@ import {
   VerifierSigsInvalidError,
 } from "@fastxyz/sdk";
 import { Schema } from "effect";
+import { JSONStringify } from "json-with-bigint";
 import { decodeAbiParameters, type Hex } from "viem";
 import { fastAddressToBytes } from "./address.js";
 import { encodeIntentClaim, extractClaimId } from "./claims.js";
@@ -34,14 +35,13 @@ function hexToUint8Array(hex: string): Uint8Array {
   return bytes;
 }
 
-function bigIntToNumber(obj: unknown): unknown {
-  if (typeof obj === "bigint") return Number(obj);
+function toCrossSignWireValue(obj: unknown): unknown {
   if (obj instanceof Uint8Array) return Array.from(obj);
-  if (Array.isArray(obj)) return obj.map(bigIntToNumber);
+  if (Array.isArray(obj)) return obj.map(toCrossSignWireValue);
   if (obj !== null && typeof obj === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      result[key] = bigIntToNumber(value);
+      result[key] = toCrossSignWireValue(value);
     }
     return result;
   }
@@ -289,11 +289,11 @@ export interface EvmSignResult {
  */
 export async function evmSign(certificate: unknown, crossSignUrl: string): Promise<EvmSignResult> {
   const wireFormat = Schema.encodeSync(TransactionCertificateFromRpc)(certificate as never);
-  const serialized = bigIntToNumber(wireFormat);
+  const serialized = toCrossSignWireValue(wireFormat);
   const res = await fetch(crossSignUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    body: JSONStringify({
       jsonrpc: "2.0",
       id: 1,
       method: "crossSign_evmSignCertificate",

@@ -11,7 +11,13 @@ import {
 } from "./internal/index-http.js";
 import { validateRecordRequest } from "./internal/record-wire.js";
 import { snapshotRecoveryJournal } from "./internal/journal-snapshot.js";
-import type { PendingRegistration, RecoveryJournal, SettledJournalSnapshot, SignNetwork } from "./types.js";
+import {
+  assertOperationId,
+  type PendingRegistration,
+  type RecoveryJournal,
+  type SettledJournalSnapshot,
+  type SignNetwork,
+} from "./types.js";
 
 export type RegistrationState = "registered" | "pending" | "conflict" | "rejected";
 
@@ -40,6 +46,7 @@ function snapshotReceipt(value: PendingRegistration): PendingRegistration {
   assertBoundedObjectCertificate(value);
   const receipt = structuredClone(value);
   if (receipt.version !== 1 || typeof receipt.operationId !== "string") throw new Error("receipt identity is invalid");
+  assertOperationId(receipt.operationId);
   const record = validateRecordRequest(receipt.record);
   if (!/^(?:[0-9a-f]{2})+$/.test(receipt.claimDataHex)) throw new Error("receipt claimDataHex is invalid");
   if (!/^[0-9a-f]{128}$/.test(receipt.senderSignatureHex)) throw new Error("receipt sender signature is invalid");

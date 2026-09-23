@@ -140,8 +140,11 @@ function lockfileResolutions(packageRoot, dependencies) {
         const sourceUrl = resolution.tarball ?? registryUrl;
         let url;
         try { url = new URL(sourceUrl); } catch { throw new Error(`dependency ${dependency.name}@${dependency.version} has an invalid lockfile source URL`); }
-        if (url.protocol !== "https:") throw new Error(`dependency ${dependency.name}@${dependency.version} source URL must use HTTPS`);
-        return { key, registryUrl: url.href, integrity: resolution.integrity };
+        const registryOrigin = new URL(registryUrl).origin;
+        if (url.protocol !== "https:" || url.origin !== registryOrigin || url.username || url.password) {
+          throw new Error(`dependency ${dependency.name}@${dependency.version} uses a non-registry source URL; expected origin ${registryOrigin}`);
+        }
+        return { key, registryUrl, integrity: resolution.integrity };
       });
     if (candidates.length === 0) throw new Error(`dependency ${dependency.name}@${dependency.version} is absent from the pnpm lockfile`);
     const signatures = new Set(candidates.map(({ registryUrl: source, integrity }) => `${source}\n${integrity}`));

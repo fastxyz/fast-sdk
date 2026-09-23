@@ -21,7 +21,7 @@ import type {
   RecoveryJournal,
   SignedSubmission,
 } from "./types.js";
-import { assertBoundedObjectCertificate } from "./internal/receipts.js";
+import { snapshotBoundedObjectCertificate } from "./internal/receipts.js";
 
 export const MAX_JOURNAL_SNAPSHOT_BYTES = 1024 * 1024;
 const MAX_LOCK_BYTES = 4 * 1024;
@@ -517,14 +517,18 @@ class FileRecoveryJournal implements RecoveryJournal {
 
   async save(snapshot: JournalSnapshot): Promise<void> {
     await this.#ensureLayout();
+    let ownedSnapshot: unknown;
     try {
-      assertBoundedObjectCertificate(snapshot);
+      ownedSnapshot = snapshotBoundedObjectCertificate(snapshot);
+      if (!ownedSnapshot || typeof ownedSnapshot !== "object" || Array.isArray(ownedSnapshot)) {
+        throw new Error("journal snapshot must be an object");
+      }
     } catch (cause) {
       throw new Error("journal snapshot preflight rejected: 1 MiB, depth or logical node limit, or invalid data", { cause });
     }
     let encoded: string;
     try {
-      encoded = JSON.stringify(snapshot);
+      encoded = JSON.stringify(ownedSnapshot);
     } catch {
       throw new Error("journal snapshot must be JSON and encode bigint fields as decimal strings");
     }

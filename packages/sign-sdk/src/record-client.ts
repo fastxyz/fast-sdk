@@ -1,7 +1,7 @@
 // Copyright (c) Pi Squared, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { assertBoundedObjectCertificate, certificatesEqual } from "./internal/receipts.js";
+import { certificatesEqual, snapshotBoundedObjectCertificate } from "./internal/receipts.js";
 import {
   createIndexHttpClient,
   IndexHttpError,
@@ -43,8 +43,9 @@ export interface RecordClient {
 }
 
 function snapshotReceipt(value: PendingRegistration): PendingRegistration {
-  assertBoundedObjectCertificate(value);
-  const receipt = structuredClone(value);
+  const copied = snapshotBoundedObjectCertificate(value);
+  if (!copied || typeof copied !== "object" || Array.isArray(copied)) throw new Error("receipt must be an object");
+  const receipt = copied as PendingRegistration;
   if (receipt.version !== 1 || typeof receipt.operationId !== "string") throw new Error("receipt identity is invalid");
   assertOperationId(receipt.operationId);
   const record = validateRecordRequest(receipt.record);

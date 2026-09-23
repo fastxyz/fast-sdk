@@ -318,6 +318,29 @@ describe("file recovery journal", () => {
     await expect(journal.load(original.operationId)).resolves.toEqual(original);
   });
 
+  it("serializes only the bounded value captured from a changing getter", async () => {
+    const parent = await temporaryRoot();
+    const journal = createFileJournal({ directory: join(parent, "state") });
+    const snapshot = prepared("bounded-getter-operation");
+    let reads = 0;
+    Object.defineProperty(snapshot, "debug", {
+      enumerable: true,
+      get() {
+        reads += 1;
+        return reads === 1 ? "small" : "x".repeat(MAX_JOURNAL_SNAPSHOT_BYTES + 1);
+      },
+    });
+    const stringify = vi.spyOn(JSON, "stringify");
+    try {
+      await expect(journal.save(snapshot)).rejects.toThrow();
+      expect(reads).toBe(1);
+      expect(stringify.mock.calls[0]?.[0]).toMatchObject({ debug: "small" });
+    } finally {
+      stringify.mockRestore();
+    }
+    await expect(journal.load(snapshot.operationId)).resolves.toBeNull();
+  });
+
   it("loads through bounded handle reads instead of unbounded readFile", async () => {
     const parent = await temporaryRoot();
     const directory = join(parent, "state");

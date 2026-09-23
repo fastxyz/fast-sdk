@@ -23,7 +23,7 @@ export type {
   SignedSubmission,
   SubmissionUnknownJournalSnapshot,
 } from "./types.js";
-import { SETTLEMENT_TRUST, assertBoundedObjectCertificate, certificatesEqual, validateSettlementCertificate } from "./internal/receipts.js";
+import { SETTLEMENT_TRUST, certificatesEqual, snapshotBoundedObjectCertificate, validateSettlementCertificate } from "./internal/receipts.js";
 import { validateRecordRequest } from "./internal/record-wire.js";
 import { nonceToSafeNumber } from "./internal/transactions.js";
 import { bytesToHex } from "./internal/bytes.js";
@@ -84,7 +84,9 @@ function snapshotReceipt(receipt: PendingRegistration): PendingRegistration {
   if (version !== 1) throw new Error("receipt version must be 1");
   assertOperationId(operationId);
   const record = validateRecordRequest(recordInput);
-  if (typeof certificate !== "string") assertBoundedObjectCertificate(certificate);
+  const ownedCertificate = typeof certificate === "string"
+    ? certificate
+    : snapshotBoundedObjectCertificate(certificate);
   return {
     version,
     operationId,
@@ -93,7 +95,7 @@ function snapshotReceipt(receipt: PendingRegistration): PendingRegistration {
     claimDataHex,
     senderSignatureHex,
     signatureScope,
-    certificate: typeof certificate === "string" ? certificate : structuredClone(certificate),
+    certificate: ownedCertificate,
   };
 }
 

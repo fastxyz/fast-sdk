@@ -91,10 +91,12 @@ function fail(code: ReceiptValidationErrorCode, message: string, cause?: unknown
   throw new ReceiptValidationError(code, message, cause === undefined ? undefined : { cause });
 }
 
-/** Internal shared preflight: must run before cloning or schema traversal. */
-export function assertBoundedObjectCertificate(root: unknown): void {
-  type Frame = { readonly value: unknown; readonly depth: number; readonly leaving?: object };
-  const stack: Frame[] = [{ value: root, depth: 0 }];
+/**
+ * Copy a caller-owned certificate into bounded SDK-owned data while measuring
+ * the exact values that will later be validated or serialized. In particular,
+ * getters are evaluated once and never re-read by a subsequent clone.
+ */
+export function snapshotBoundedObjectCertificate(root: unknown): unknown {
   const ancestors = new Set<object>();
   let nodes = 0;
   let estimatedBytes = 0;
@@ -111,39 +113,42 @@ export function assertBoundedObjectCertificate(root: unknown): void {
     addBytes(textEncoder.encode(value).byteLength);
   };
 
-  while (stack.length > 0) {
-    const frame = stack.pop()!;
-    if (frame.leaving) {
-      ancestors.delete(frame.leaving);
-      continue;
-    }
+  const copyValue = (value: unknown, depth: number): unknown => {
     nodes += 1;
     if (nodes > MAX_CERTIFICATE_NODES) {
       fail("certificate_too_large", "certificate exceeds the object node parsing limit");
     }
-    const value = frame.value;
     if (typeof value === "number") {
       if (!Number.isSafeInteger(value)) fail("lossy_number", "certificate contains an unsafe numeric value");
       addText(value.toString());
-      continue;
+      return value;
     }
     if (typeof value === "string") {
       addText(value);
-      continue;
+      return value;
     }
     if (typeof value === "bigint") {
       addText(value.toString());
-      continue;
+      return value;
     }
     if (!value || typeof value !== "object") {
       addBytes(4);
-      continue;
+      if (typeof value === "function" || typeof value === "symbol") {
+        fail("invalid_certificate", "certificate contains an unsupported value");
+      }
+      return value;
     }
     if (value instanceof Uint8Array) {
-      addBytes(value.byteLength);
-      continue;
+      const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype) as object;
+      const byteLengthGetter = Object.getOwnPropertyDescriptor(typedArrayPrototype, "byteLength")?.get;
+      if (!byteLengthGetter) fail("invalid_certificate", "certificate contains an unsupported byte array");
+      const byteLength = byteLengthGetter.call(value) as number;
+      addBytes(byteLength);
+      const copy = new Uint8Array(byteLength);
+      copy.set(value);
+      return copy;
     }
-    if (frame.depth > MAX_CERTIFICATE_DEPTH) {
+    if (depth > MAX_CERTIFICATE_DEPTH) {
       fail("certificate_too_large", "certificate exceeds the object depth parsing limit");
     }
     if (ancestors.has(value)) fail("invalid_certificate", "certificate contains a cycle");
@@ -160,33 +165,39 @@ export function assertBoundedObjectCertificate(root: unknown): void {
       // first would defeat the aggregate preflight bound for oversized input.
       fail("certificate_too_large", "certificate array exceeds the logical node parsing limit");
     }
+    const copy: unknown[] | Record<string, unknown> = isArray ? new Array(value.length) : {};
     ancestors.add(value);
-    stack.push({ value: null, depth: frame.depth, leaving: value });
-    const keys = Object.keys(value);
-    if (keys.length > MAX_CERTIFICATE_NODES - nodes) {
-      fail("certificate_too_large", "certificate exceeds the object node parsing limit");
-    }
-    if (isArray) {
-      // JSON.stringify emits every array slot, including holes as `null`,
-      // while Object.keys only reports populated enumerable indexes. Charge
-      // the complete logical array representation cumulatively so many
-      // individually-small sparse arrays cannot defer a huge allocation to
-      // the later serializer/journal size check.
-      let populatedSlots = 0;
-      for (const key of keys) {
-        const index = Number(key);
-        if (Number.isInteger(index) && index >= 0 && index < value.length && String(index) === key) {
-          populatedSlots += 1;
-        }
+    try {
+      const keys = Object.keys(value);
+      if (keys.length > MAX_CERTIFICATE_NODES - nodes) {
+        fail("certificate_too_large", "certificate exceeds the object node parsing limit");
       }
-      const holes = value.length - populatedSlots;
-      addBytes(2 + Math.max(0, value.length - 1) + holes * 4);
+      if (isArray) {
+        // JSON.stringify emits every array slot, including holes as `null`,
+        // while Object.keys only reports populated indexes. Charge the full
+        // logical array representation before allocating the owned array.
+        let populatedSlots = 0;
+        for (const key of keys) {
+          const index = Number(key);
+          if (Number.isInteger(index) && index >= 0 && index < value.length && String(index) === key) {
+            populatedSlots += 1;
+          }
+        }
+        const holes = value.length - populatedSlots;
+        addBytes(2 + Math.max(0, value.length - 1) + holes * 4);
+      }
+      for (const key of keys) {
+        addText(key);
+        const child = copyValue((value as Record<string, unknown>)[key], depth + 1);
+        Object.defineProperty(copy, key, { value: child, enumerable: true, writable: true, configurable: true });
+      }
+      return copy;
+    } finally {
+      ancestors.delete(value);
     }
-    for (const key of keys) {
-      addText(key);
-      stack.push({ value: (value as Record<string, unknown>)[key], depth: frame.depth + 1 });
-    }
-  }
+  };
+
+  return copyValue(root, 0);
 }
 
 function isDomainCertificate(value: unknown): value is DomainCertificate {
@@ -217,9 +228,10 @@ function decodeCertificate(input: unknown): { domain: DomainCertificate; restJso
       fail("invalid_certificate", "certificate is not valid lossless JSON", error);
     }
   }
-  // Bound the parsed graph too: a short wire string can encode excessive
-  // nesting or node counts that schema traversal would otherwise visit.
-  assertBoundedObjectCertificate(wire);
+  // Bound and detach the graph too: a short wire string can encode excessive
+  // nesting or node counts, while object getters must not be re-read by schema
+  // traversal after their values have been measured.
+  wire = snapshotBoundedObjectCertificate(wire);
 
   if (isDomainCertificate(wire) && wire.envelope.signature.type === "MultiSig") {
     fail("multisig_not_supported", "multisig transaction envelopes are not supported");

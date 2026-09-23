@@ -125,6 +125,25 @@ it("rejects a receipt whose indexOrigin is not the exact configured origin", asy
   })).rejects.toThrow(/index.?origin/i);
 });
 
+it("validates and uses one bounded receipt snapshot when a getter changes its next value", async () => {
+  const journal = memoryJournal(settled());
+  const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ sha256: receipt.record.sha256, settlements: [] })));
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl });
+  const source = { ...receipt } as typeof receipt;
+  let reads = 0;
+  Object.defineProperty(source, "operationId", {
+    enumerable: true,
+    get() {
+      reads += 1;
+      return reads === 1 ? receipt.operationId : "x".repeat(2 * 1024 * 1024);
+    },
+  });
+
+  await expect(client.checkRegistration(source)).resolves.toMatchObject({ registration: "pending" });
+  expect(reads).toBe(1);
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
 it("persists the detached journal identity when the source mutates its loaded value during I/O", async () => {
   const source = structuredClone(settled());
   const saved: JournalSnapshot[] = [];

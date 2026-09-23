@@ -59,19 +59,40 @@ export type VerifyReceiptResult =
     };
 
 function snapshotReceipt(receipt: PendingRegistration): PendingRegistration {
-  if (receipt.version !== 1) throw new Error("receipt version must be 1");
-  assertOperationId(receipt.operationId);
-  const record = validateRecordRequest(receipt.record);
+  // Read caller-controlled properties once, then validate and use only this
+  // owned snapshot so getters cannot change values between validation and use.
+  const version = receipt.version;
+  const operationId = receipt.operationId;
+  const indexOrigin = receipt.indexOrigin;
+  const sourceRecord = receipt.record;
+  const claimDataHex = receipt.claimDataHex;
+  const senderSignatureHex = receipt.senderSignatureHex;
+  const signatureScope = receipt.signatureScope;
   const certificate = receipt.certificate;
+  let recordInput: unknown = sourceRecord;
+  if (sourceRecord && typeof sourceRecord === "object" && !Array.isArray(sourceRecord)) {
+    const candidate = sourceRecord as Record<string, unknown>;
+    recordInput = {
+      sha256: candidate.sha256,
+      tx_id: candidate.tx_id,
+      signer: candidate.signer,
+      nonce: candidate.nonce,
+      network: candidate.network,
+    };
+  }
+
+  if (version !== 1) throw new Error("receipt version must be 1");
+  assertOperationId(operationId);
+  const record = validateRecordRequest(recordInput);
   if (typeof certificate !== "string") assertBoundedObjectCertificate(certificate);
   return {
-    version: receipt.version,
-    operationId: receipt.operationId,
-    indexOrigin: receipt.indexOrigin,
+    version,
+    operationId,
+    indexOrigin,
     record,
-    claimDataHex: receipt.claimDataHex,
-    senderSignatureHex: receipt.senderSignatureHex,
-    signatureScope: receipt.signatureScope,
+    claimDataHex,
+    senderSignatureHex,
+    signatureScope,
     certificate: typeof certificate === "string" ? certificate : structuredClone(certificate),
   };
 }

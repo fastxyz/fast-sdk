@@ -3,7 +3,7 @@
 
 import { expect, it, vi } from "vitest";
 
-import { recoverSettlement, verifyReceipt } from "../src/recovery.js";
+import { recoverSettlement, registerReceipt, verifyReceipt } from "../src/recovery.js";
 import type { RecoveryJournal, SubmissionUnknownJournalSnapshot } from "../src/types.js";
 
 it("keeps an unobserved submission indeterminate without signing or submitting", async () => {
@@ -65,6 +65,56 @@ it("reports a stable validation error for a malformed reader origin", async () =
     journal,
     reader: { origin: "not an absolute URL", getCertificate: vi.fn(async () => null) },
   })).rejects.toThrow("reader.origin must be a configured public HTTP(S) proxy URL");
+});
+
+it("snapshots receipt identity once before journal lookup", async () => {
+  let operationIdReads = 0;
+  let recordReads = 0;
+  const recordFieldReads = { sha256: 0, tx_id: 0, signer: 0, nonce: 0, network: 0 };
+  const record = {
+    get sha256() { recordFieldReads.sha256 += 1; return "11".repeat(32); },
+    get tx_id() { recordFieldReads.tx_id += 1; return "22".repeat(32); },
+    get signer() { recordFieldReads.signer += 1; return "33".repeat(32); },
+    get nonce() { recordFieldReads.nonce += 1; return 7; },
+    get network() { recordFieldReads.network += 1; return "fast:testnet" as const; },
+  };
+  const receipt = {
+    version: 1 as const,
+    get operationId() {
+      operationIdReads += 1;
+      return operationIdReads === 1 ? "safe-operation" : "../unsafe-operation";
+    },
+    indexOrigin: "https://index.example",
+    get record() {
+      recordReads += 1;
+      return record;
+    },
+    claimDataHex: "01",
+    senderSignatureHex: "44".repeat(64),
+    signatureScope: "versioned_transaction" as const,
+    certificate: "{}",
+  };
+  const journal: RecoveryJournal = {
+    load: vi.fn(async () => null),
+    save: vi.fn(async () => undefined),
+    withLock: vi.fn(async <T>(_key: string, operation: () => Promise<T>) => operation()) as RecoveryJournal["withLock"],
+  };
+
+  await expect(registerReceipt({
+    receipt,
+    network: "fast:testnet",
+    indexOrigin: "https://index.example",
+    journal,
+    reader: { origin: "https://proxy.example", getCertificate: vi.fn(async () => null) },
+  })).rejects.toThrow();
+
+  expect(operationIdReads).toBe(1);
+  expect(recordReads).toBe(1);
+  expect(recordFieldReads).toEqual({ sha256: 1, tx_id: 1, signer: 1, nonce: 1, network: 1 });
+  expect(journal.load).toHaveBeenCalledTimes(1);
+  expect(journal.load).toHaveBeenCalledWith("safe-operation");
+  expect(journal.withLock).not.toHaveBeenCalled();
+  expect(journal.save).not.toHaveBeenCalled();
 });
 
 it("bounds an object certificate before cloning it into a public receipt", async () => {

@@ -124,7 +124,8 @@ export interface IndexHttpClient {
   fetchExact(value: ExactLookupInput): Promise<IndexSettlement | null>;
 }
 
-export function normalizeIndexOrigin(value: string): string {
+export function normalizeIndexOrigin(value: unknown): string {
+  if (typeof value !== "string") throw new Error("indexOrigin must be an absolute HTTP(S) origin");
   const hasQueryDelimiter = value.includes("?");
   const hasFragmentDelimiter = value.includes("#");
   let url: URL;

@@ -296,6 +296,37 @@ it("bounds an object certificate before cloning it into a public receipt", async
   })).rejects.toMatchObject({ code: "certificate_too_large" });
 });
 
+it.each([
+  42,
+  "https://index.example/private/path",
+  "https://user:pass@index.example",
+  "https://index.example?",
+  "https://index.example#",
+] as const)("rejects a verified receipt with an invalid indexOrigin: %s", async (indexOrigin) => {
+  const getCertificate = vi.fn(async () => null);
+  await expect(verifyReceipt({
+    network: "fast:testnet",
+    receipt: {
+      version: 1,
+      operationId: "invalid-index-origin",
+      indexOrigin: indexOrigin as unknown as string,
+      record: {
+        sha256: "11".repeat(32),
+        tx_id: "22".repeat(32),
+        signer: "33".repeat(32),
+        nonce: 7,
+        network: "fast:testnet",
+      },
+      claimDataHex: "01",
+      senderSignatureHex: "44".repeat(64),
+      signatureScope: "versioned_transaction",
+      certificate: "{}",
+    },
+    reader: { origin: "https://proxy.example", getCertificate },
+  })).rejects.toThrow(/indexOrigin.*absolute HTTP\(S\) origin|indexOrigin/i);
+  expect(getCertificate).not.toHaveBeenCalled();
+});
+
 it("validates and uses one bounded certificate snapshot when a nested getter changes its next value", async () => {
   let reads = 0;
   const certificate = {

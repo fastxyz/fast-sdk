@@ -27,7 +27,7 @@ import { SETTLEMENT_TRUST, certificatesEqual, snapshotBoundedObjectCertificate, 
 import { validateRecordRequest } from "./internal/record-wire.js";
 import { nonceToSafeNumber } from "./internal/transactions.js";
 import { bytesToHex } from "./internal/bytes.js";
-import { createIndexHttpClient } from "./internal/index-http.js";
+import { createIndexHttpClient, normalizeIndexOrigin } from "./internal/index-http.js";
 import { snapshotRecoveryJournal } from "./internal/journal-snapshot.js";
 import { createRecordClient, type RegistrationState } from "./record-client.js";
 
@@ -63,7 +63,7 @@ function snapshotReceipt(receipt: PendingRegistration): PendingRegistration {
   // owned snapshot so getters cannot change values between validation and use.
   const version = receipt.version;
   const operationId = receipt.operationId;
-  const indexOrigin = receipt.indexOrigin;
+  const indexOrigin = normalizeIndexOrigin(receipt.indexOrigin);
   const sourceRecord = receipt.record;
   const claimDataHex = receipt.claimDataHex;
   const senderSignatureHex = receipt.senderSignatureHex;

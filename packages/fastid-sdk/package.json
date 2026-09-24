@@ -34,6 +34,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "smoke:package": "node scripts/package-consumer.mjs",
+    "smoke:agent": "node scripts/agent-smoke.mjs",
     "prepack": "pnpm build"
   },
   "dependencies": {

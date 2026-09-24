@@ -130,6 +130,31 @@ it("captures the registration timestamp before a successful POST", async () => {
   expect(journal.saves.at(-1)).toMatchObject({ state: "registered", updatedAt: 123 });
 });
 
+it("uses the pre-request timestamp for an HTTP-date retry response", async () => {
+  const journal = memoryJournal(settled());
+  let posted = false;
+  const now = vi.fn(() => {
+    if (posted) throw new Error("clock unavailable after registration");
+    return 1_700_000_000_000;
+  });
+  const fetchImpl = vi.fn(async () => {
+    posted = true;
+    return new Response("temporarily unavailable", {
+      status: 503,
+      headers: { "retry-after": new Date(1_700_000_005_000).toUTCString() },
+    });
+  });
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl, now });
+
+  await expect(client.retryRegistration(receipt)).resolves.toMatchObject({
+    registration: "pending",
+    recoveryPersisted: true,
+    error: expect.stringMatching(/503|temporarily unavailable/i),
+  });
+  expect(now).toHaveBeenCalledTimes(1);
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
 it("persists a pending diagnostic when conflict reconciliation fails", async () => {
   const journal = memoryJournal(settled());
   const responses = [

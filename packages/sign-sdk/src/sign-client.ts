@@ -215,8 +215,8 @@ function certificateFromSubmit(result: unknown): unknown | null {
 }
 
 export function createSignClient(options: SignClientOptions): SignClient {
-  if (options.network !== "fast:testnet" && options.network !== "fast:mainnet") throw new Error("invalid network");
   const network = options.network;
+  if (network !== "fast:testnet" && network !== "fast:mainnet") throw new Error("invalid network");
   const proxyUrl = normalizedHttpUrl(options.proxyUrl, false, "proxyUrl");
   const indexOrigin = normalizedHttpUrl(options.indexOrigin, true, "indexOrigin");
   if (!options.signer || typeof options.signer.getPublicKey !== "function" || typeof options.signer.signMessage !== "function") {

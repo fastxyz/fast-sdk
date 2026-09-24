@@ -491,9 +491,10 @@ class FileRecoveryJournal implements RecoveryJournal {
   readonly #lockPollMs: number;
 
   constructor(options: FileJournalOptions) {
+    const directory = options.directory;
     if (platform === "win32") throw new Error("FileJournal currently supports macOS and Linux only");
-    if (!options.directory || !isAbsolute(options.directory)) throw new Error("journal directory must be absolute");
-    this.#directory = resolve(options.directory);
+    if (!directory || !isAbsolute(directory)) throw new Error("journal directory must be absolute");
+    this.#directory = resolve(directory);
     this.#operations = join(this.#directory, "operations");
     this.#locks = join(this.#directory, "locks");
     this.#lockTimeoutMs = options.lockTimeoutMs ?? 30_000;

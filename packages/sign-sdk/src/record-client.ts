@@ -95,19 +95,19 @@ function journalState(state: RegistrationState): SettledJournalSnapshot["state"]
 }
 
 export function createRecordClient(options: RecordClientOptions): RecordClient {
+  const now = options.now ?? Date.now;
   const journal = snapshotRecoveryJournal(options.journal);
   const http = createIndexHttpClient({
     network: options.network,
     indexOrigin: options.indexOrigin,
     ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
     ...(options.deadlineMs === undefined ? {} : { deadlineMs: options.deadlineMs }),
-    ...(options.now === undefined ? {} : { now: options.now }),
+    now,
   });
-  const now = options.now ?? Date.now;
 
   async function withSnapshot(
     rawReceipt: PendingRegistration,
-    operation: (receipt: PendingRegistration, snapshot: SettledJournalSnapshot) => Promise<{ state: RegistrationState; error?: string }>,
+    operation: (receipt: PendingRegistration, snapshot: SettledJournalSnapshot, instant: number) => Promise<{ state: RegistrationState; error?: string }>,
   ): Promise<RegistrationResult> {
     const receipt = snapshotReceipt(rawReceipt);
     if (receipt.record.network !== http.network || normalizeIndexOrigin(receipt.indexOrigin) !== http.indexOrigin) {
@@ -125,7 +125,7 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
       if (!Number.isSafeInteger(instant) || instant < 0) {
         throw new Error("clock must return non-negative integer milliseconds");
       }
-      const outcome = await operation(durableReceipt, loaded);
+      const outcome = await operation(durableReceipt, loaded, instant);
       const next: SettledJournalSnapshot = {
         ...loaded,
         state: journalState(outcome.state),
@@ -164,10 +164,10 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
       });
     },
     retryRegistration(receipt) {
-      return withSnapshot(receipt, async (durable, snapshot) => {
+      return withSnapshot(receipt, async (durable, snapshot, instant) => {
         if (snapshot.state === "registration_rejected") return { state: "rejected", ...(snapshot.diagnostic === undefined ? {} : { error: snapshot.diagnostic.message }) };
         try {
-          await http.record(durable.record);
+          await http.record(durable.record, instant);
           return { state: "registered" };
         } catch (error) {
           if (error instanceof IndexHttpError && error.kind === "conflict") {

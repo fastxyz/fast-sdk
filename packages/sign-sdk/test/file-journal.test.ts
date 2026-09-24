@@ -275,6 +275,25 @@ describe("file recovery journal", () => {
     await expect(journal.load("missing")).rejects.toThrow(/permissions/i);
   });
 
+  it("captures the directory option before validation and resolution", async () => {
+    const parent = await temporaryRoot();
+    const approved = join(parent, "approved");
+    const redirected = join(parent, "redirected");
+    let reads = 0;
+    const options = {
+      get directory() {
+        reads += 1;
+        return reads === 1 ? approved : redirected;
+      },
+    } as unknown as Parameters<typeof createFileJournal>[0];
+    const journal = createFileJournal(options);
+
+    await expect(journal.load("directory-getter")).resolves.toBeNull();
+    expect(reads).toBe(1);
+    await expect(lstat(join(approved, "operations"))).resolves.toBeTruthy();
+    await expect(lstat(join(redirected, "operations"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("rejects symlink ancestors before creating journal state outside the configured path", async () => {
     const parent = await temporaryRoot();
     const outside = join(parent, "outside");

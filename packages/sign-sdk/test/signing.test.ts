@@ -837,6 +837,46 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(snapshots.at(-1)).toMatchObject({ state: "submission_unknown" });
   });
 
+  it("captures the network getter once before validation and assignment", async () => {
+    const actual = new Signer(seed);
+    const snapshots: JournalSnapshot[] = [];
+    let reads = 0;
+    const options = {
+      get network() {
+        reads += 1;
+        return reads === 1 ? "fast:testnet" : "fast:mainnet";
+      },
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes: Uint8Array) => actual.signMessage(bytes) },
+      journal: {
+        async load(operationId: string) {
+          return structuredClone([...snapshots].reverse().find((entry) => entry.operationId === operationId) ?? null);
+        },
+        async save(value: JournalSnapshot) { snapshots.push(structuredClone(value)); },
+        async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+      },
+      provider: { getNextNonce: async () => 7n, submitTransaction: async () => null },
+      feeSource: {
+        async networkInfo() { throw new Error("fee schedule unavailable"); },
+        async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      feePolicy: { feeFreeNetwork: true, tokenId: null, maxAtomicAmount: "0" },
+      now: () => 1_700_000_000_000,
+      randomBytes: (length: number) => new Uint8Array(length).fill(0x33),
+    };
+    const client = createSignClient(options as Parameters<typeof createSignClient>[0]);
+
+    await expect(client.signDigest({
+      operationId: "network-getter-snapshot",
+      sha256: "11".repeat(32),
+      relationship: "authored",
+    })).resolves.toMatchObject({ settlement: "unknown" });
+    expect(reads).toBe(1);
+    expect(snapshots.find((snapshot) => snapshot.operationId === "network-getter-snapshot"))
+      .toMatchObject({ operation: { network: "fast:testnet" } });
+  });
+
   it.each([undefined, null, 7, {}, "", "../escape", "x".repeat(129), "valid\n", `nonce-reservation-${"0".repeat(64)}`])("rejects runtime operationId %j before any capability", async (operationId) => {
     const poison = vi.fn(async () => { throw new Error("capability reached"); });
     const journal = { load: poison, save: poison, withLock: poison };

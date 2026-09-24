@@ -120,7 +120,7 @@ export interface ExactLookupInput {
 export interface IndexHttpClient {
   readonly network: SignNetwork;
   readonly indexOrigin: string;
-  record(value: RecordRequest): Promise<void>;
+  record(value: RecordRequest, requestTimestampMs?: number): Promise<void>;
   fetchExact(value: ExactLookupInput): Promise<IndexSettlement | null>;
 }
 
@@ -233,7 +233,7 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
   return {
     network,
     indexOrigin,
-    async record(value) {
+    async record(value, requestTimestampMs = now()) {
       const validated = validateRecordRequest(value);
       if (validated.network !== network) {
         throw new Error("record network does not match the configured network");
@@ -253,7 +253,7 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
           if (error instanceof IndexHttpError) throw error;
           throw new IndexHttpError("transport", error instanceof Error ? error.message : String(error));
         }
-        if (response.status !== 200) throw await responseError(response, "index /record failed", signal, now);
+        if (response.status !== 200) throw await responseError(response, "index /record failed", signal, () => requestTimestampMs);
         if (response.body) await response.body.cancel().catch(() => undefined);
       });
     },

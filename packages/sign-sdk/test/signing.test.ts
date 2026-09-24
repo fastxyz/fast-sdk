@@ -714,7 +714,11 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("rejects a query-bearing proxy before journal, signer, nonce, or submit effects", () => {
+  it.each([
+    "https://proxy.example/proxy?region=one",
+    "https://proxy.example/proxy?",
+    "https://proxy.example/proxy#",
+  ])("rejects a query or fragment-bearing proxy before effects: %s", (proxyUrl) => {
     const getPublicKey = vi.fn(async () => new Uint8Array(32));
     const signMessage = vi.fn(async () => new Uint8Array(64));
     const getNextNonce = vi.fn(async () => 0n);
@@ -725,7 +729,7 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
 
     expect(() => createSignClient({
       network: "fast:testnet",
-      proxyUrl: "https://proxy.example/proxy?region=one",
+      proxyUrl,
       indexOrigin: "https://index.example",
       signer: { getPublicKey, signMessage },
       journal: {

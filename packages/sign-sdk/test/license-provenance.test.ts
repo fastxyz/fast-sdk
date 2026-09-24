@@ -8,16 +8,22 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 
 interface SourceRecord {
-  destination: string;
+  destination: {
+    path: string;
+    copyrightHolder: string;
+    header: string;
+    license: string;
+  };
   classification: "new" | "copied" | "derived";
   origin: {
     repository: string;
     commit: string | null;
     path: string | null;
     blob: string | null;
+    copyrightHolder: string;
+    header: string;
+    license: string;
   };
-  copyright: string;
-  license: string;
   disposition: "approved";
 }
 
@@ -36,7 +42,7 @@ describe("public source provenance", () => {
     const records = JSON.parse(
       readFileSync(join(root, "provenance/source-files.json"), "utf8"),
     ) as SourceRecord[];
-    const destinations = records.map((record) => record.destination);
+    const destinations = records.map((record) => record.destination.path);
 
     expect(new Set(destinations).size).toBe(destinations.length);
     expect(destinations).toContain("src/index.ts");
@@ -52,9 +58,14 @@ describe("public source provenance", () => {
     ].sort());
 
     for (const record of records) {
-      expect(record.copyright).not.toBe("");
-      expect(record.license).toBe("Apache-2.0");
+      expect(record.destination.copyrightHolder).not.toBe("");
+      expect(record.destination.header).not.toBe("");
+      expect(record.destination.license).toBe("Apache-2.0");
+      expect(record.origin.copyrightHolder).not.toBe("");
+      expect(record.origin.header).not.toBe("");
+      expect(record.origin.license).toBe("Apache-2.0");
       expect(record.disposition).toBe("approved");
+      expect(record.destination.path).toBeTruthy();
       if (record.classification !== "new") {
         expect(record.origin.commit).toMatch(/^[0-9a-f]{40}$/);
         expect(record.origin.path).not.toBeNull();

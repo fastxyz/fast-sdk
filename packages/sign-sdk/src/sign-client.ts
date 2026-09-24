@@ -72,10 +72,13 @@ export interface SignClient {
 }
 
 function normalizedHttpUrl(value: string, originOnly: boolean, field: string): string {
+  const hasQueryDelimiter = value.includes("?");
+  const hasFragmentDelimiter = value.includes("#");
   let url: URL;
   try { url = new URL(value); } catch { throw new Error(`${field} must be an absolute HTTP(S) URL`); }
   if (
-    !["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash ||
+    !["http:", "https:"].includes(url.protocol) || url.username || url.password ||
+    hasQueryDelimiter || hasFragmentDelimiter || url.search || url.hash ||
     (originOnly && (url.pathname !== "/" || url.search))
   ) throw new Error(`${field} must be an absolute public HTTP(S) ${originOnly ? "origin" : "URL"}`);
   return originOnly ? url.origin : url.href.replace(/\/$/, "");

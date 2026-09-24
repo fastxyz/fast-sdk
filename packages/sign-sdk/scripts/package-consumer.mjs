@@ -53,6 +53,19 @@ const journal: RecoveryJournal = {
 const client = createRecordClient({ network, indexOrigin: "https://index.example", journal });
 void [client, createFastSdkProviderAdapter, createSignClient, recoverSettlement, registerReceipt, verifyReceipt];
 `);
+  writeFileSync(join(scratch, "forbidden.ts"), `
+// These imports are intentionally forbidden by the public package boundary.
+// @ts-expect-error generic claim-data preparation is not public
+import { prepareExternalClaimTransaction } from "@fastxyz/sign-sdk";
+// @ts-expect-error raw claimDataHex encoding is not public
+import { encodeClaimData } from "@fastxyz/sign-sdk";
+// @ts-expect-error arbitrary operation arrays are not public
+import { submitOperations } from "@fastxyz/sign-sdk";
+// @ts-expect-error internal transaction helpers are not a published subpath
+import { prepareExternalClaimTransaction as deepPrepare } from "@fastxyz/sign-sdk/internal/transactions";
+
+void [prepareExternalClaimTransaction, encodeClaimData, submitOperations, deepPrepare];
+`);
   writeFileSync(join(scratch, "tsconfig.json"), JSON.stringify({
     compilerOptions: {
       target: "ES2022",
@@ -61,7 +74,7 @@ void [client, createFastSdkProviderAdapter, createSignClient, recoverSettlement,
       strict: true,
       noEmit: true,
     },
-    include: ["consumer.ts"],
+    include: ["consumer.ts", "forbidden.ts"],
   }));
   execFileSync(resolve(repoRoot, "node_modules/.bin/tsc"), ["--project", join(scratch, "tsconfig.json")], {
     cwd: scratch,

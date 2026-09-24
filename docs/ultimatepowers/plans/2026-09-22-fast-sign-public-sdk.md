@@ -94,7 +94,7 @@ Use the reviewed bytes from `/private/tmp/sign-sdk-migration-specs/`; do not rew
 
 - [ ] **Step 2: Add a failing provenance test**
 
-Create `packages/sign-sdk/test/license-provenance.test.ts` that loads `provenance/source-files.json`, enumerates every `src/**/*.ts`, README/example/license/notice file intended for distribution, and requires exactly one record with `destination`, `classification`, `origin`, `copyright`, `license`, and `disposition: "approved"`.
+Create `packages/sign-sdk/test/license-provenance.test.ts` that loads `provenance/source-files.json`, enumerates every `src/**/*.ts`, README/example/license/notice file intended for distribution, and requires exactly one record with a structured `destination` (path, copyright holder, header, and license), `classification`, an `origin` containing the repository/commit/path/blob plus original copyright/header/license basis, and `disposition: "approved"`.
 
 - [ ] **Step 3: Run RED**
 
@@ -107,11 +107,22 @@ Use JSON records of this shape:
 
 ```json
 {
-  "destination": "src/index.ts",
+  "destination": {
+    "path": "src/index.ts",
+    "copyrightHolder": "Pi Squared, Inc.",
+    "header": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0"
+  },
   "classification": "new",
-  "origin": { "repository": "fastxyz/fast-sdk", "commit": null, "path": null, "blob": null },
-  "copyright": "Copyright (c) Pi Squared, Inc.",
-  "license": "Apache-2.0",
+  "origin": {
+    "repository": "fastxyz/fast-sdk",
+    "commit": null,
+    "path": null,
+    "blob": null,
+    "copyrightHolder": "Pi Squared, Inc.",
+    "header": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0"
+  },
   "disposition": "approved"
 }
 ```

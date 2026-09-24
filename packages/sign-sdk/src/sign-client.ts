@@ -24,7 +24,7 @@ import {
   type FastSettlementProvider,
 } from "./internal/transactions.js";
 import {
-  assertOperationId,
+  assertPublicOperationId,
   type ByteSigner,
   type FrozenOperation,
   type JournalSnapshot,
@@ -258,7 +258,7 @@ export function createSignClient(options: SignClientOptions): SignClient {
   return {
     async signDigest(rawInput) {
       const input = snapshotSignInput(rawInput);
-      assertOperationId(input.operationId);
+      assertPublicOperationId(input.operationId);
       assertLowerHex(input.sha256, 32, "sha256");
       validateSignInput(input);
       let newSettlement = false;
@@ -347,7 +347,6 @@ export function createSignClient(options: SignClientOptions): SignClient {
           const reservationId = nonceReservationOperationId(network, senderHex, nonce);
           const existingReservation = await journal.load(reservationId);
           const reservation = reserveNonce(existingReservation, reservationId, operation, input.operationId, network, senderHex, nonce, instant);
-          if (existingReservation === null) await journal.save(reservation);
           const prepared = await prepareExternalClaimTransaction({
             network, senderPublicKey: publicKey, nonce, claimDataHex,
             feeToken: feeTokenForState(quote), timestampNanos,
@@ -356,6 +355,10 @@ export function createSignClient(options: SignClientOptions): SignClient {
           const currentQuote = await resolveClaimFee(network, feeSource, feePolicy.feeFreeNetwork ?? false);
           if (quote.kind === "unavailable") throw new Error("fee became unavailable");
           assertFeeSnapshotUnchanged(network, quote, currentQuote);
+          // Do not pin a free nonce until all pre-submit preparation and
+          // signing have succeeded. Existing reservations were checked above,
+          // so a competing operation still fails before it can sign.
+          if (existingReservation === null) await journal.save(reservation);
           const submission: SignedSubmission = {
             txId: signed.txId,
             signingBytesHex: bytesToHex(signed.signingBytes),

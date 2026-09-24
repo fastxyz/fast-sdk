@@ -3,11 +3,21 @@
 
 export type SignNetwork = "fast:testnet" | "fast:mainnet";
 
+const INTERNAL_OPERATION_ID_PREFIX = "nonce-reservation-";
+
 /** Shared runtime grammar for durable operation identifiers. */
 export function assertOperationId(value: unknown): asserts value is string {
   if (typeof value !== "string" || value.length < 1 || value.length > 128 ||
     !/^[A-Za-z0-9]/.test(value) || /[^A-Za-z0-9._-]/.test(value)) {
     throw new Error("operationId must be 1-128 safe ASCII characters and start with an alphanumeric character");
+  }
+}
+
+/** Validate an operation ID supplied through a public SDK entry point. */
+export function assertPublicOperationId(value: unknown): asserts value is string {
+  assertOperationId(value);
+  if (value.startsWith(INTERNAL_OPERATION_ID_PREFIX)) {
+    throw new Error("operationId uses a reserved internal prefix");
   }
 }
 

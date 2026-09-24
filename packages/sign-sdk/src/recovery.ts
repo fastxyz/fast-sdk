@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  assertOperationId,
+  assertPublicOperationId,
   type FrozenOperation,
   type JournalSnapshot,
   type PendingRegistration,
@@ -82,7 +82,7 @@ function snapshotReceipt(receipt: PendingRegistration): PendingRegistration {
   }
 
   if (version !== 1) throw new Error("receipt version must be 1");
-  assertOperationId(operationId);
+  assertPublicOperationId(operationId);
   const record = validateRecordRequest(recordInput);
   const ownedCertificate = typeof certificate === "string"
     ? certificate
@@ -317,7 +317,7 @@ export async function recoverSettlement(options: {
   readonly now?: () => number;
 }): Promise<SettlementRecoveryResult> {
   const operationId = options.operationId;
-  assertOperationId(operationId);
+  assertPublicOperationId(operationId);
   const journal = snapshotRecoveryJournal(options.journal);
   const reader = snapshotSettlementReader(options.reader);
   const now = options.now ?? Date.now;

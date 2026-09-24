@@ -155,6 +155,26 @@ it("uses the pre-request timestamp for an HTTP-date retry response", async () =>
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
 
+it("reads the configured clock capability once for HTTP and journal use", async () => {
+  const journal = memoryJournal(settled());
+  let clockReads = 0;
+  const client = createRecordClient({
+    network: "fast:testnet",
+    indexOrigin: receipt.indexOrigin,
+    journal,
+    fetchImpl: vi.fn(async () => new Response(null, { status: 200 })),
+    get now() {
+      clockReads += 1;
+      if (clockReads !== 1) throw new Error("clock getter was read again");
+      return () => 123;
+    },
+  });
+
+  await expect(client.retryRegistration(receipt)).resolves.toMatchObject({ registration: "registered" });
+  expect(clockReads).toBe(1);
+  expect(journal.saves.at(-1)).toMatchObject({ state: "registered", updatedAt: 123 });
+});
+
 it("persists a pending diagnostic when conflict reconciliation fails", async () => {
   const journal = memoryJournal(settled());
   const responses = [

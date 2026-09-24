@@ -92,8 +92,8 @@ export function createFastSdkProviderAdapter(
   ) {
     throw new Error("provider must implement getAccountInfo() and submitTransaction()");
   }
-  const getAccountInfo = accountInfoMethod.bind(provider);
-  const submitTransaction = submitMethod.bind(provider);
+  const getAccountInfo = Function.prototype.bind.call(accountInfoMethod, provider);
+  const submitTransaction = Function.prototype.bind.call(submitMethod, provider);
   return {
     async getNextNonce(address) {
       const info = await getAccountInfo({

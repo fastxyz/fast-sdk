@@ -108,7 +108,7 @@ function snapshotSettlementReader(reader: SettlementReader): SettlementReader {
     throw new Error("reader must provide only the read-only getCertificate capability");
   }
   const origin = normalizeProxyOrigin(reader.origin);
-  return { origin, getCertificate: getCertificate.bind(reader) };
+  return { origin, getCertificate: Function.prototype.bind.call(getCertificate, reader) };
 }
 
 function receiptExpectation(receipt: PendingRegistration, network: SignNetwork) {

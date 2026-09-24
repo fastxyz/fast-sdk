@@ -251,8 +251,8 @@ export function createSignClient(options: SignClientOptions): SignClient {
   const feeSource = feeSourceOption === undefined
     ? createProxyFeeSource({ proxyUrl, ...(fetchImpl === undefined ? {} : { fetchImpl }) })
     : {
-        networkInfo: feeSourceOption.networkInfo.bind(feeSourceOption),
-        tokenMeta: feeSourceOption.tokenMeta.bind(feeSourceOption),
+        networkInfo: Function.prototype.bind.call(feeSourceOption.networkInfo, feeSourceOption),
+        tokenMeta: Function.prototype.bind.call(feeSourceOption.tokenMeta, feeSourceOption),
       };
   const random = options.randomBytes ?? ((length: number) => {
     const output = new Uint8Array(length);

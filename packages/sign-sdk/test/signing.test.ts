@@ -1084,14 +1084,15 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(submitMethodReads).toBe(1);
   });
 
-  it("binds the validated methods even when a function shadows bind", async () => {
+  it("binds signer, provider, and fee methods even when functions shadow bind", async () => {
     const actual = new Signer(seed);
     const poison = vi.fn(async () => { throw new Error("shadowed bind used"); });
     const getPublicKey = () => actual.getPublicKey();
     const signMessage = (bytes: Uint8Array) => actual.signMessage(bytes);
     const getNextNonce = async () => 7n;
     const submitTransaction = async () => null;
-    for (const method of [getPublicKey, signMessage, getNextNonce, submitTransaction]) {
+    const source = feeSource({ amount: "7" });
+    for (const method of [getPublicKey, signMessage, getNextNonce, submitTransaction, source.networkInfo, source.tokenMeta]) {
       Object.defineProperty(method, "bind", { value: () => poison });
     }
     const client = createSignClient({
@@ -1105,11 +1106,8 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
         async save() {},
         async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
       },
-      feeSource: {
-        async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
-        async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
-      },
-      feePolicy: { feeFreeNetwork: true, tokenId: null, maxAtomicAmount: "0" },
+      feeSource: source,
+      feePolicy: { tokenId, maxAtomicAmount: "7" },
       now: () => 1_700_000_000_000,
       randomBytes: (length) => new Uint8Array(length).fill(0x33),
     });
@@ -1531,8 +1529,10 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
       async getAccountInfo() { return { nextNonce: this.nonce }; },
       async submitTransaction(envelope: unknown) { this.submitted.push(envelope); return { accepted: true }; },
     };
-    const adapter = createFastSdkProviderAdapter(provider);
     const poison = vi.fn(async () => { throw new Error("mutated source capability used"); });
+    Object.defineProperty(provider.getAccountInfo, "bind", { value: () => poison });
+    Object.defineProperty(provider.submitTransaction, "bind", { value: () => poison });
+    const adapter = createFastSdkProviderAdapter(provider);
     provider.getAccountInfo = poison;
     provider.submitTransaction = poison;
     await expect(adapter.getNextNonce(fixture.certificate.senderAddress)).resolves.toBe(7n);

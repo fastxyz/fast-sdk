@@ -82,9 +82,29 @@ it("captures journal capabilities once at construction", async () => {
   expect(withLockMock).toHaveBeenCalledTimes(1);
 });
 
-it("captures a settlement reader getter once before validation and binding", async () => {
+it("uses the captured journal methods when their bind properties are shadowed", async () => {
+  const load = vi.fn(async () => null);
+  const save = vi.fn(async (_snapshot: JournalSnapshot) => undefined);
+  const withLock = vi.fn(async <T>(_key: string, operation: () => Promise<T>) => operation()) as RecoveryJournal["withLock"];
+  const substitute = vi.fn(async () => undefined);
+  for (const method of [load, save, withLock]) {
+    Object.defineProperty(method, "bind", { value: () => substitute });
+  }
+
+  const journal = snapshotRecoveryJournal({ load, save, withLock });
+  await journal.save({} as JournalSnapshot);
+  expect(save).toHaveBeenCalledTimes(1);
+  await expect(journal.load("shadowed-bind")).resolves.toBeNull();
+  await expect(journal.withLock("shadowed-bind", async () => "ok")).resolves.toBe("ok");
+  expect(load).toHaveBeenCalledTimes(1);
+  expect(withLock).toHaveBeenCalledTimes(1);
+  expect(substitute).not.toHaveBeenCalled();
+});
+
+it("captures a settlement reader getter once despite a shadowed bind", async () => {
   const expected = vi.fn(async () => null);
   const poison = vi.fn(async () => { throw new Error("mutated reader used"); });
+  Object.defineProperty(expected, "bind", { value: () => poison });
   let reads = 0;
   const reader = {
     origin: "https://proxy.example",

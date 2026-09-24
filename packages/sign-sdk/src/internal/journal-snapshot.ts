@@ -36,9 +36,9 @@ export function snapshotRecoveryJournal(journal: RecoveryJournal): RecoveryJourn
   if (typeof load !== "function" || typeof save !== "function" || typeof withLock !== "function") {
     throw new Error("journal must provide load, save, and withLock capabilities");
   }
-  const boundLoad = load.bind(journal);
-  const boundSave = save.bind(journal);
-  const boundWithLock = withLock.bind(journal);
+  const boundLoad = Function.prototype.bind.call(load, journal);
+  const boundSave = Function.prototype.bind.call(save, journal);
+  const boundWithLock = Function.prototype.bind.call(withLock, journal);
   return {
     async load(operationId) {
       const snapshot = await boundLoad(operationId);

@@ -352,10 +352,13 @@ export function createSignClient(options: SignClientOptions): SignClient {
             issuedAtNanoseconds: timestampNanos.toString(),
             fee: authorized,
           });
-          if (!signingCurrent) await journal.save({ version: 1, state: "prepared", operationId: input.operationId, updatedAt: instant, operation });
           const reservationId = nonceReservationOperationId(network, senderHex, nonce);
           const existingReservation = await journal.load(reservationId);
           const reservation = reserveNonce(existingReservation, reservationId, operation, input.operationId, network, senderHex, nonce, instant);
+          // Do not bind a fresh operation to this nonce until the reservation
+          // check has succeeded. A competing reservation must leave the
+          // caller's operationId free to retry with a later nonce.
+          if (!signingCurrent) await journal.save({ version: 1, state: "prepared", operationId: input.operationId, updatedAt: instant, operation });
           const prepared = await prepareExternalClaimTransaction({
             network, senderPublicKey: publicKey, nonce, claimDataHex,
             feeToken: feeTokenForState(quote), timestampNanos,

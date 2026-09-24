@@ -508,6 +508,7 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
       sha256: "22".repeat(32),
       relationship: "approved",
     })).rejects.toThrow(/nonce.*reserved|indeterminate/i);
+    expect(snapshots.has("reserved-second")).toBe(false);
     expect(signMessage).toHaveBeenCalledTimes(1);
     expect(submitTransaction).toHaveBeenCalledTimes(1);
     expect(getNextNonce).toHaveBeenCalledTimes(2);

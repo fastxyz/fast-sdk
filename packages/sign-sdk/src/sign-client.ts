@@ -374,7 +374,15 @@ export function createSignClient(options: SignClientOptions): SignClient {
             if (insufficientFunds) throw insufficientFunds;
             return { settlement: "unknown", operationId: input.operationId, txId: signed.txId, recoveryPersisted: true };
           }
-          const certificate = certificateFromSubmit(submitted);
+          let certificate: unknown | null;
+          try {
+            // A provider may return a structurally hostile object after the
+            // submission was accepted. Property access is therefore part of
+            // the post-submit uncertainty boundary, not a pre-submit parse.
+            certificate = certificateFromSubmit(submitted);
+          } catch {
+            return { settlement: "unknown", operationId: input.operationId, txId: signed.txId, recoveryPersisted: true };
+          }
           if (certificate === null) return { settlement: "unknown", operationId: input.operationId, txId: signed.txId, recoveryPersisted: true };
           let validated;
           try {

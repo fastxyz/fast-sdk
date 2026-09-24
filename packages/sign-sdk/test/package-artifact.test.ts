@@ -1,10 +1,13 @@
 // Copyright (c) Pi Squared, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { readFileSync } from "node:fs";
+
 import { expect, it } from "vitest";
 
 import {
   assertPackageInventory,
+  assertPackageContent,
   expectedPackageInventory,
 } from "../scripts/package-artifact.mjs";
 import { assertLicenseProvenance, reviewedDependencies } from "../scripts/license-provenance.mjs";
@@ -14,6 +17,28 @@ it("accepts only the exact public tarball inventory", () => {
   expect(() => assertPackageInventory([...expectedPackageInventory, "package/src/private.ts"]))
     .toThrow(/unexpected/i);
   expect(() => assertPackageInventory(expectedPackageInventory.slice(1))).toThrow(/missing/i);
+});
+
+it.each([
+  ["private source paths", "// fastset-sign-core/src/attestation_v3.rs"],
+  ["absolute paths", "source: /Users/agent/private/file.ts"],
+  ["secret-like material", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456"],
+])("rejects tarball text containing %s", (_label, content) => {
+  expect(() => assertPackageContent([{ path: "package/dist/index.js", content }]))
+    .toThrow(/private|absolute|secret|forbidden/i);
+});
+
+it("requires every published release-evidence gate in the schema", () => {
+  const schema = JSON.parse(readFileSync(new URL("../provenance/release-evidence.schema.json", import.meta.url), "utf8")) as {
+    required: string[];
+  };
+  expect(schema.required).toEqual(expect.arrayContaining([
+    "trustedPublishingEnvironment",
+    "downloadedTarball",
+    "provenance",
+    "npmVerification",
+    "extractedMetadata",
+  ]));
 });
 
 it("rejects dependencies without reviewed license provenance", () => {

@@ -513,6 +513,91 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(getNextNonce).toHaveBeenCalledTimes(2);
   });
 
+  it("turns submit-result extraction traps into durable unknown settlement", async () => {
+    const actual = new Signer(seed);
+    const snapshotState: { snapshot: JournalSnapshot | null } = { snapshot: null };
+    const submitTransaction = vi.fn(async () => new Proxy({}, {
+      has() { throw new Error("malformed submit result"); },
+    }));
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes) => actual.signMessage(bytes) },
+      journal: {
+        async load(operationId) {
+          return snapshotState.snapshot?.operationId === operationId ? structuredClone(snapshotState.snapshot) : null;
+        },
+        async save(value) { snapshotState.snapshot = structuredClone(value); },
+        async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+      },
+      provider: { getNextNonce: async () => 7n, submitTransaction },
+      feeSource: {
+        async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
+        async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+      now: () => 1_700_000_000_000,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+
+    await expect(client.signDigest({
+      operationId: "submit-result-trap",
+      sha256: "11".repeat(32),
+      relationship: "authored",
+    })).resolves.toMatchObject({ settlement: "unknown", recoveryPersisted: true, txId: expect.any(String) });
+    expect(snapshotState.snapshot).toMatchObject({ state: "submission_unknown" });
+    expect(submitTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles and registers a successful signed envelope exactly once", async () => {
+    const actual = new Signer(seed);
+    const snapshots: JournalSnapshot[] = [];
+    const submitTransaction = vi.fn(async (envelope: unknown) => ({
+      envelope,
+      signatures: [],
+    }));
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      expect(init?.method).toBe("POST");
+      return new Response(null, { status: 200 });
+    });
+    const journal = {
+      async load(operationId: string) {
+        const value = [...snapshots].reverse().find((entry) => entry.operationId === operationId) ?? null;
+        return structuredClone(value);
+      },
+      async save(value: JournalSnapshot) {
+        snapshots.push(structuredClone(value));
+      },
+      async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+    };
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes) => actual.signMessage(bytes) },
+      journal,
+      provider: { getNextNonce: async () => 7n, submitTransaction },
+      feeSource: {
+        async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
+        async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+      fetchImpl,
+      now: () => 1_700_000_000_000,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+
+    await expect(client.signDigest({
+      operationId: "successful-registration",
+      sha256: "11".repeat(32),
+      relationship: "authored",
+    })).resolves.toMatchObject({ settlement: "settled", registration: "registered", recoveryPersisted: true });
+    expect(submitTransaction).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(snapshots.at(-1)).toMatchObject({ state: "registered" });
+  });
+
   it.each([undefined, null, 7, {}, "", "../escape", "x".repeat(129), "valid\n"])("rejects runtime operationId %j before any capability", async (operationId) => {
     const poison = vi.fn(async () => { throw new Error("capability reached"); });
     const journal = { load: poison, save: poison, withLock: poison };

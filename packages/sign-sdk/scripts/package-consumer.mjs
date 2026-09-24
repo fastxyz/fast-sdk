@@ -2,21 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { assertPackageInventory } from "./package-artifact.mjs";
+import { assertPackageContent, assertPackageInventory, expectedPackageInventory } from "./package-artifact.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(root, "../..");
+const TEXT_MEMBER = /\.(?:js|d\.ts|json|mjs|cjs)$/;
 const scratch = mkdtempSync(join(tmpdir(), "sign-sdk-consumer-"));
 try {
   execFileSync("pnpm", ["pack", "--pack-destination", scratch], { cwd: root, stdio: "inherit" });
   const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const tarball = join(scratch, `fastxyz-sign-sdk-${manifest.version}.tgz`);
   assertPackageInventory(execFileSync("tar", ["-tzf", tarball], { encoding: "utf8" }).trim().split("\n"));
+  const extracted = join(scratch, "extracted");
+  mkdirSync(extracted);
+  execFileSync("tar", ["-xzf", tarball, "-C", extracted], { stdio: "inherit" });
+  assertPackageContent(expectedPackageInventory
+    .filter((path) => TEXT_MEMBER.test(path))
+    .map((path) => ({ path, content: readFileSync(join(extracted, path), "utf8") })));
   writeFileSync(join(scratch, "package.json"), JSON.stringify({ name: "sign-sdk-consumer", private: true, type: "module" }));
   execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], {
     cwd: scratch,

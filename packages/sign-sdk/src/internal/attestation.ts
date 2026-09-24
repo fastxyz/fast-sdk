@@ -3,8 +3,8 @@
 
 /**
  * The V3-only, typed `ArtifactAttestationV3` claim payload — an independent TS
- * mirror of `fastset-sign-core/src/attestation_v3.rs` built on the canonical
- * JSON codec (`./canonical`). Callers either decode the exact V3 schema or
+ * independent cross-language implementation built on the canonical JSON
+ * codec (`./canonical`). Callers either decode the exact V3 schema or
  * receive an `AttestationV3Error` carrying one of the frozen error classes.
  * V3 drops the `artifact_version` field V2 carried; there is no V2 back-compat.
  *

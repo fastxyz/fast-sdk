@@ -221,10 +221,16 @@ importers:
       effect:
         specifier: ^3.21.0
         version: 3.21.0
+      tr46:
+        specifier: 6.0.0
+        version: 6.0.0
     devDependencies:
       '@types/node':
         specifier: ^22
         version: 22.19.15
+      '@types/tr46':
+        specifier: 5.0.1
+        version: 5.0.1
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -1685,6 +1691,9 @@ packages:
 
   '@types/serve-static@1.15.10':
     resolution: {integrity: sha512-tRs1dB+g8Itk72rlSI2ZrW6vZg0YrLI81iQSTkMmOqnqCaNr/8Ek4VwWcN5vZgCYWbg/JJSGBlUaYGAOP73qBw==}
+
+  '@types/tr46@5.0.1':
+    resolution: {integrity: sha512-/nNLTzy884WMMjksAFsrazXpwKcipQn1FltlXu4PycQFD8t6a4aq/z+F7mw05UI7p5O8MUvXLTPbISOoQtaugg==}
 
   '@types/uuid@10.0.0':
     resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
@@ -3220,6 +3229,10 @@ packages:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
     engines: {node: '>=0.6'}
 
+  tr46@6.0.0:
+    resolution: {integrity: sha512-bLVMLPtstlZ4iMQHpFHTR7GAGj2jxi8Dg0s2h2MafAE4uSWF98FC/3MomU51iQAMf8/qDUbKWf5GxuvvVcXEhw==}
+    engines: {node: '>=20'}
+
   tree-kill@1.2.2:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
     hasBin: true
@@ -4572,6 +4585,8 @@ snapshots:
       '@types/http-errors': 2.0.5
       '@types/node': 25.5.0
       '@types/send': 0.17.6
+
+  '@types/tr46@5.0.1': {}
 
   '@types/uuid@10.0.0': {}
 
@@ -6123,6 +6138,10 @@ snapshots:
       is-number: 7.0.0
 
   toidentifier@1.0.1: {}
+
+  tr46@6.0.0:
+    dependencies:
+      punycode: 2.3.1
 
   tree-kill@1.2.2: {}
 

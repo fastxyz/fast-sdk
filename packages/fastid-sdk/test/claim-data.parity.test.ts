@@ -27,6 +27,11 @@ const fixture = JSON.parse(
 ) as { kinds: ClaimDataKind[]; cases: FixtureCase[] };
 
 describe("claim-data parity with the web writer", () => {
+  it("keeps valid A-labels and non-IDNA double hyphens", () => {
+    expect(isCanonicalClaimValue("website", "xn--nxasmq6b.com")).toBe(true);
+    expect(isCanonicalClaimValue("website", "ab--cd.com")).toBe(true);
+  });
+
   it("covers every runtime kind", () => {
     expect(fixture.kinds).toEqual(CLAIM_DATA_KINDS);
     expect(new Set(fixture.cases.map(({ kind }) => kind))).toEqual(

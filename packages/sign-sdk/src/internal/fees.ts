@@ -184,8 +184,10 @@ export async function resolveClaimFee(
   );
   if (matchingEntries.length !== 1) return { kind: "unavailable" };
   const entry = matchingEntries[0];
-  if (!isObject(entry) || !validAmount(entry.fixed_amount)) return { kind: "unavailable" };
-  if (entry.fixed_amount === "0") return { kind: "none" };
+  if (!isObject(entry)) return { kind: "unavailable" };
+  const fixedAmount = entry.fixed_amount;
+  if (!validAmount(fixedAmount)) return { kind: "unavailable" };
+  if (fixedAmount === "0") return { kind: "none" };
   let metadata: unknown;
   try {
     metadata = await source.tokenMeta(defaultId);
@@ -199,7 +201,7 @@ export async function resolveClaimFee(
     tokenId: defaultId,
     symbol: token.symbol,
     decimals: token.decimals,
-    atomicAmount: entry.fixed_amount,
+    atomicAmount: fixedAmount,
     updateId: token.updateId,
   };
 }

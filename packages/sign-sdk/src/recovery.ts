@@ -374,12 +374,16 @@ export async function recoverSettlement(options: {
     }
     const input = snapshot.operation.input;
     const expectedFileLabel = input.publicTitle ?? "";
+    const issuedAtNanoseconds = BigInt(snapshot.operation.issuedAtNanoseconds);
+    const attestationIssuedAtNanoseconds = validated.attestation.issuedAt * 1_000_000_000n;
     if (
       bytesToHex(validated.attestation.requestId) !== snapshot.operation.requestIdHex ||
       validated.attestation.relationship !== input.relationship ||
       validated.attestation.signerName !== (input.signerName ?? "") ||
       validated.attestation.fileLabel !== expectedFileLabel ||
-      validated.attestation.listBySigner !== input.listBySigner
+      validated.attestation.listBySigner !== input.listBySigner ||
+      issuedAtNanoseconds < attestationIssuedAtNanoseconds ||
+      issuedAtNanoseconds >= attestationIssuedAtNanoseconds + 1_000_000_000n
     ) {
       throw new Error("observed attestation metadata does not match the frozen operation");
     }

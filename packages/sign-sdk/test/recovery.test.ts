@@ -93,7 +93,7 @@ it.each(["signingBytesHex", "transactionBytesHex"] as const)(
         senderHex: expected.senderHex,
         nonce: expected.nonce.toString(),
         requestIdHex: "33".repeat(16),
-        issuedAtNanoseconds: "1",
+        issuedAtNanoseconds: "1721520000000000000",
         fee: null,
       },
       submission: {
@@ -130,6 +130,7 @@ it.each([
   ["signer name", {}, { signerName: "Different signer" }],
   ["public title", {}, { publicTitle: "Different title" }],
   ["listing flag", {}, { listBySigner: true, publicTitle: "Listed title" }],
+  ["issued timestamp", { issuedAtNanoseconds: "1721520001000000000" }, {}],
 ] as const)("rejects recovery when frozen %s does not match the attestation", async (_label, operationOverride, inputOverride) => {
   const expected = {
     network: "fast:testnet" as const,
@@ -161,7 +162,7 @@ it.each([
       senderHex: expected.senderHex,
       nonce: expected.nonce.toString(),
       requestIdHex: "33".repeat(16),
-      issuedAtNanoseconds: "1",
+      issuedAtNanoseconds: "1721520000000000000",
       fee: null,
       ...operationOverride,
     },

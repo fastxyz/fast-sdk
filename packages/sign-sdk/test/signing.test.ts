@@ -611,6 +611,55 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(submitTransaction).toHaveBeenCalledTimes(1);
   });
 
+  it("retains the nonce reservation when the retry marker cannot be persisted", async () => {
+    const actual = new Signer(seed);
+    const snapshots = new Map<string, JournalSnapshot>();
+    const submitTransaction = vi.fn(async () => null);
+    let failEvidenceSave = true;
+    let failRetryMarkerSave = true;
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes) => actual.signMessage(bytes) },
+      journal: {
+        async load(operationId) { return structuredClone(snapshots.get(operationId) ?? null); },
+        async save(value) {
+          if (failEvidenceSave && value.state === "submission_unknown") {
+            failEvidenceSave = false;
+            throw new Error("journal evidence write failed");
+          }
+          if (failRetryMarkerSave && value.state === "prepared" && value.diagnostic !== undefined) {
+            failRetryMarkerSave = false;
+            throw new Error("journal retry marker write failed");
+          }
+          snapshots.set(value.operationId, structuredClone(value));
+        },
+        async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+      },
+      provider: { getNextNonce: async () => 7n, submitTransaction },
+      feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+      feeSource: {
+        async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
+        async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      now: () => 1_700_000_000_000,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+
+    await expect(client.signDigest({
+      operationId: "retry-marker-write-fails",
+      sha256: "11".repeat(32),
+      relationship: "authored",
+    })).rejects.toThrow("journal evidence write failed");
+    const reservation = [...snapshots.values()].find((snapshot) => snapshot.operationId.startsWith("nonce-reservation-"));
+    expect(reservation).toMatchObject({
+      state: "prepared",
+      reservation: { ownerOperationId: "retry-marker-write-fails", nonce: "7" },
+    });
+    expect(submitTransaction).not.toHaveBeenCalled();
+  });
+
   it("turns submit-result extraction traps into durable unknown settlement", async () => {
     const actual = new Signer(seed);
     const snapshotState: { snapshot: JournalSnapshot | null } = { snapshot: null };

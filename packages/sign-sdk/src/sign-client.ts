@@ -368,7 +368,8 @@ export function createSignClient(options: SignClientOptions): SignClient {
           // signing have succeeded. Existing reservations were checked above,
           // so a competing operation still fails before it can sign.
           const reusingReservationTombstone = existingReservation?.state === "prepared" && existingReservation.reservation === undefined;
-          if (existingReservation === null || reusingReservationTombstone) await journal.save(reservation);
+          const reservationCreatedForThisAttempt = existingReservation === null || reusingReservationTombstone;
+          if (reservationCreatedForThisAttempt) await journal.save(reservation);
           const submission: SignedSubmission = {
             txId: signed.txId,
             signingBytesHex: bytesToHex(signed.signingBytes),
@@ -383,24 +384,11 @@ export function createSignClient(options: SignClientOptions): SignClient {
           try {
             await journal.save(unknown);
           } catch (error) {
-            // No provider call has happened yet. If this was a new
-            // reservation, release it only after the recoverable evidence
-            // write failed; if release also fails, retain the reservation to
-            // fail closed rather than allowing another operation to reuse the
-            // nonce without recovery evidence.
-            if (existingReservation === null) {
-              try {
-                await journal.save({
-                  version: 1,
-                  state: "prepared",
-                  operationId: reservationId,
-                  updatedAt: instant,
-                  operation: reservation.operation,
-                });
-              } catch {
-                // The durable reservation is the safe fallback.
-              }
-            }
+            // No provider call has happened yet. Persist the retry marker
+            // while the reservation is still held; only a durable marker may
+            // authorize releasing a newly-created reservation. If the marker
+            // cannot be saved, retaining the reservation fails closed.
+            let retryMarkerPersisted = false;
             try {
               await journal.save({
                 version: 1,
@@ -414,8 +402,22 @@ export function createSignClient(options: SignClientOptions): SignClient {
                   at: instant,
                 },
               });
+              retryMarkerPersisted = true;
             } catch {
-              // The earlier prepared snapshot remains the safest fallback.
+              // The durable reservation is the safest fallback.
+            }
+            if (reservationCreatedForThisAttempt && retryMarkerPersisted) {
+              try {
+                await journal.save({
+                  version: 1,
+                  state: "prepared",
+                  operationId: reservationId,
+                  updatedAt: instant,
+                  operation: reservation.operation,
+                });
+              } catch {
+                // Retain the reservation if its release tombstone fails.
+              }
             }
             throw error;
           }

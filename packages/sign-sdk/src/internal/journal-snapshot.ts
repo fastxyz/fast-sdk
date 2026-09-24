@@ -27,22 +27,26 @@ export function snapshotFrozenOperation(operation: FrozenOperation): FrozenOpera
 }
 
 export function snapshotRecoveryJournal(journal: RecoveryJournal): RecoveryJournal {
-  if (
-    !journal ||
-    typeof journal.load !== "function" ||
-    typeof journal.save !== "function" ||
-    typeof journal.withLock !== "function"
-  ) {
+  if (!journal) {
     throw new Error("journal must provide load, save, and withLock capabilities");
   }
+  const load = journal.load;
+  const save = journal.save;
+  const withLock = journal.withLock;
+  if (typeof load !== "function" || typeof save !== "function" || typeof withLock !== "function") {
+    throw new Error("journal must provide load, save, and withLock capabilities");
+  }
+  const boundLoad = load.bind(journal);
+  const boundSave = save.bind(journal);
+  const boundWithLock = withLock.bind(journal);
   return {
     async load(operationId) {
-      const snapshot = await journal.load(operationId);
+      const snapshot = await boundLoad(operationId);
       return snapshot === null ? null : snapshotJournalSnapshot(snapshot);
     },
     async save(snapshot) {
-      await journal.save(snapshotJournalSnapshot(snapshot));
+      await boundSave(snapshotJournalSnapshot(snapshot));
     },
-    withLock: journal.withLock.bind(journal),
+    withLock: boundWithLock,
   };
 }

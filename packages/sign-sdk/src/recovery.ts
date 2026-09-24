@@ -100,12 +100,15 @@ function snapshotReceipt(receipt: PendingRegistration): PendingRegistration {
 }
 
 function snapshotSettlementReader(reader: SettlementReader): SettlementReader {
-  if (!reader || typeof reader.getCertificate !== "function") {
+  if (!reader) {
+    throw new Error("reader must provide only the read-only getCertificate capability");
+  }
+  const getCertificate = reader.getCertificate;
+  if (typeof getCertificate !== "function") {
     throw new Error("reader must provide only the read-only getCertificate capability");
   }
   const origin = normalizeProxyOrigin(reader.origin);
-  const getCertificate = reader.getCertificate.bind(reader);
-  return { origin, getCertificate };
+  return { origin, getCertificate: getCertificate.bind(reader) };
 }
 
 function receiptExpectation(receipt: PendingRegistration, network: SignNetwork) {

@@ -8,8 +8,8 @@ import { fileURLToPath } from "node:url";
 import { expect, it, vi } from "vitest";
 
 import { validateSettlementCertificate } from "../src/internal/receipts.js";
-import { recoverSettlement, registerReceipt, verifyReceipt } from "../src/recovery.js";
-import type { RecoveryJournal, SubmissionUnknownJournalSnapshot } from "../src/types.js";
+import { recoverSettlement, registerReceipt, snapshotRecoveryJournal, verifyReceipt } from "../src/recovery.js";
+import type { JournalSnapshot, RecoveryJournal, SubmissionUnknownJournalSnapshot } from "../src/types.js";
 
 const protocol = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures/protocol.json"), "utf8"),
@@ -60,6 +60,77 @@ it("keeps an unobserved submission indeterminate without signing or submitting",
   });
   expect(getCertificate).toHaveBeenCalledTimes(1);
   expect(save).not.toHaveBeenCalled();
+});
+
+it("captures journal capabilities once at construction", async () => {
+  const load = vi.fn(async () => null);
+  const save = vi.fn(async (_snapshot: JournalSnapshot) => undefined);
+  const withLockMock = vi.fn(async <T>(_key: string, operation: () => Promise<T>): Promise<T> => operation());
+  const withLock = withLockMock as unknown as RecoveryJournal["withLock"];
+  const source: RecoveryJournal = { load, save, withLock };
+  const captured = snapshotRecoveryJournal(source);
+
+  source.load = async () => { throw new Error("mutated load used"); };
+  source.save = async () => { throw new Error("mutated save used"); };
+  source.withLock = async () => { throw new Error("mutated lock used"); };
+
+  await expect(captured.load("capability-snapshot")).resolves.toBeNull();
+  await captured.save({} as JournalSnapshot);
+  await expect(captured.withLock("capability-snapshot", async () => "ok")).resolves.toBe("ok");
+  expect(load).toHaveBeenCalledWith("capability-snapshot");
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(withLockMock).toHaveBeenCalledTimes(1);
+});
+
+it("captures a settlement reader getter once before validation and binding", async () => {
+  const expected = vi.fn(async () => null);
+  const poison = vi.fn(async () => { throw new Error("mutated reader used"); });
+  let reads = 0;
+  const reader = {
+    origin: "https://proxy.example",
+    get getCertificate() {
+      reads += 1;
+      return reads === 1 ? expected : poison;
+    },
+  };
+  const snapshot: SubmissionUnknownJournalSnapshot = {
+    version: 1,
+    state: "submission_unknown",
+    operationId: "reader-capability-snapshot",
+    updatedAt: 1,
+    operation: {
+      input: { operationId: "reader-capability-snapshot", sha256: "11".repeat(32), relationship: "authored", listBySigner: false },
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      senderHex: "22".repeat(32),
+      nonce: "7",
+      requestIdHex: "33".repeat(16),
+      issuedAtNanoseconds: "1",
+      fee: null,
+    },
+    submission: {
+      txId: "44".repeat(32),
+      signingBytesHex: "aa",
+      transactionBytesHex: "bb",
+      senderSignatureHex: "55".repeat(64),
+      claimDataHex: "cc",
+    },
+  };
+  const journal: RecoveryJournal = {
+    load: vi.fn(async () => snapshot),
+    save: vi.fn(async () => undefined),
+    withLock: vi.fn(async <T>(_key: string, operation: () => Promise<T>) => operation()) as RecoveryJournal["withLock"],
+  };
+
+  await expect(recoverSettlement({
+    operationId: "reader-capability-snapshot",
+    journal,
+    reader,
+  })).resolves.toMatchObject({ settlement: "unknown" });
+  expect(reads).toBe(1);
+  expect(expected).toHaveBeenCalledTimes(1);
+  expect(poison).not.toHaveBeenCalled();
 });
 
 it.each(["signingBytesHex", "transactionBytesHex"] as const)(

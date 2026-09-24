@@ -11,7 +11,7 @@ interface SourceRecord {
   destination: {
     path: string;
     copyrightHolder: string;
-    header: string;
+    header: string | null;
     license: string;
   };
   classification: "new" | "copied" | "derived";
@@ -21,7 +21,7 @@ interface SourceRecord {
     path: string | null;
     blob: string | null;
     copyrightHolder: string;
-    header: string;
+    header: string | null;
     license: string;
   };
   disposition: "approved";
@@ -59,13 +59,16 @@ describe("public source provenance", () => {
 
     for (const record of records) {
       expect(record.destination.copyrightHolder).not.toBe("");
-      expect(record.destination.header).not.toBe("");
+      expect(record.destination.header === null || record.destination.header.length > 0).toBe(true);
       expect(record.destination.license).toBe("Apache-2.0");
       expect(record.origin.copyrightHolder).not.toBe("");
-      expect(record.origin.header).not.toBe("");
+      expect(record.origin.header === null || record.origin.header.length > 0).toBe(true);
       expect(record.origin.license).toBe("Apache-2.0");
       expect(record.disposition).toBe("approved");
       expect(record.destination.path).toBeTruthy();
+      if (record.destination.header !== null) {
+        expect(readFileSync(join(root, record.destination.path), "utf8")).toContain(record.destination.header);
+      }
       if (record.classification !== "new") {
         expect(record.origin.commit).toMatch(/^[0-9a-f]{40}$/);
         expect(record.origin.path).not.toBeNull();

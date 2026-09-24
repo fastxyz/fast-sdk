@@ -63,8 +63,18 @@ import { encodeClaimData } from "@fastxyz/sign-sdk";
 import { submitOperations } from "@fastxyz/sign-sdk";
 // @ts-expect-error internal transaction helpers are not a published subpath
 import { prepareExternalClaimTransaction as deepPrepare } from "@fastxyz/sign-sdk/internal/transactions";
+import type { SignInput } from "@fastxyz/sign-sdk";
+import { createSignClient } from "@fastxyz/sign-sdk";
 
-void [prepareExternalClaimTransaction, encodeClaimData, submitOperations, deepPrepare];
+const signClient = null as unknown as Pick<ReturnType<typeof createSignClient>, "signDigest">;
+// @ts-expect-error a generic claim-data object is not a valid sign input
+void signClient.signDigest({ claimDataHex: "00" });
+// @ts-expect-error raw claimDataHex cannot be added to the signed input
+void signClient.signDigest({ operationId: "op", sha256: "11".repeat(32), relationship: "authored", claimDataHex: "00" });
+// @ts-expect-error arbitrary operation arrays are not accepted by SignInput
+const arbitraryOperations: SignInput = { operationId: "op", sha256: "11".repeat(32), relationship: "authored", operations: [] };
+
+void [prepareExternalClaimTransaction, encodeClaimData, submitOperations, deepPrepare, arbitraryOperations];
 `);
   writeFileSync(join(scratch, "tsconfig.json"), JSON.stringify({
     compilerOptions: {

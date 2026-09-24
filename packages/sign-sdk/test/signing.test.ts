@@ -371,14 +371,15 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
   });
 
   it("serializes concurrent signDigest calls for one operation before submitting", async () => {
-    let snapshot: JournalSnapshot | null = null;
+    const snapshots = new Map<string, JournalSnapshot>();
     const locks = new Map<string, Promise<void>>();
     const journal = {
       async load(operationId: string) {
-        return snapshot?.operationId === operationId ? structuredClone(snapshot) : null;
+        const snapshot = snapshots.get(operationId);
+        return snapshot === undefined ? null : structuredClone(snapshot);
       },
       async save(value: JournalSnapshot) {
-        snapshot = structuredClone(value);
+        snapshots.set(value.operationId, structuredClone(value));
       },
       async withLock<T>(key: string, operation: () => Promise<T>) {
         const previous = locks.get(key) ?? Promise.resolve();
@@ -395,6 +396,16 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
       },
     };
     const submitTransaction = vi.fn(async () => null);
+    let nextNonce = 7n;
+    let activeNonceReads = 0;
+    let maxActiveNonceReads = 0;
+    const getNextNonce = vi.fn(async () => {
+      activeNonceReads += 1;
+      maxActiveNonceReads = Math.max(maxActiveNonceReads, activeNonceReads);
+      await Promise.resolve();
+      activeNonceReads -= 1;
+      return nextNonce++;
+    });
     const actual = new Signer(seed);
     const client = createSignClient({
       network: "fast:testnet",
@@ -402,7 +413,7 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
       indexOrigin: "https://index.example",
       signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes) => actual.signMessage(bytes) },
       journal,
-      provider: { getNextNonce: vi.fn(async () => 7n), submitTransaction },
+      provider: { getNextNonce, submitTransaction },
       feeSource: {
         networkInfo: async () => ({ data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }),
         tokenMeta: async () => { throw new Error("fee-free fixture must not read token metadata"); },
@@ -418,6 +429,19 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
       { settlement: "unknown", operationId: input.operationId, txId: expect.any(String), recoveryPersisted: true },
     ]);
     expect(submitTransaction).toHaveBeenCalledTimes(1);
+
+    const secondInput = (operationId: string) => ({
+      operationId,
+      sha256: "22".repeat(32),
+      relationship: "approved" as const,
+    });
+    await expect(Promise.all([
+      client.signDigest(secondInput("concurrent-first")),
+      client.signDigest(secondInput("concurrent-second")),
+    ])).resolves.toHaveLength(2);
+    expect(getNextNonce).toHaveBeenCalledTimes(3);
+    expect(submitTransaction).toHaveBeenCalledTimes(3);
+    expect(maxActiveNonceReads).toBe(1);
   });
 
   it.each([undefined, null, 7, {}, "", "../escape", "x".repeat(129), "valid\n"])("rejects runtime operationId %j before any capability", async (operationId) => {

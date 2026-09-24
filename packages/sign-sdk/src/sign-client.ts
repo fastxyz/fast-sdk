@@ -369,7 +369,27 @@ export function createSignClient(options: SignClientOptions): SignClient {
           // so a competing operation still fails before it can sign.
           const reusingReservationTombstone = existingReservation?.state === "prepared" && existingReservation.reservation === undefined;
           const reservationCreatedForThisAttempt = existingReservation === null || reusingReservationTombstone;
-          if (reservationCreatedForThisAttempt) await journal.save(reservation);
+          if (reservationCreatedForThisAttempt) {
+            try {
+              await journal.save(reservation);
+            } catch (error) {
+              // A journal may fail after publishing the reservation. Best
+              // effort release it; if that release also fails, retaining the
+              // reservation is the safe fail-closed outcome.
+              try {
+                await journal.save({
+                  version: 1,
+                  state: "prepared",
+                  operationId: reservationId,
+                  updatedAt: instant,
+                  operation: reservation.operation,
+                });
+              } catch {
+                // Keep any durable reservation rather than risking reuse.
+              }
+              throw error;
+            }
+          }
           const submission: SignedSubmission = {
             txId: signed.txId,
             signingBytesHex: bytesToHex(signed.signingBytes),

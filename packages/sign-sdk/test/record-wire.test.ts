@@ -44,6 +44,29 @@ describe("POST /record wire", () => {
     expect(typeof JSON.parse(serializeRecord(record)).nonce).toBe("number");
   });
 
+  it("validates and returns one owned snapshot of caller-controlled fields", () => {
+    const expected = {
+      sha256: "11".repeat(32),
+      tx_id: "22".repeat(32),
+      signer: "33".repeat(32),
+      nonce: 7,
+      network: "fast:testnet",
+    };
+    const reads: Record<string, number> = {};
+    const input: Record<string, unknown> = {};
+    for (const [field, valid] of Object.entries(expected)) {
+      Object.defineProperty(input, field, {
+        get() {
+          reads[field] = (reads[field] ?? 0) + 1;
+          return reads[field] === 1 ? valid : "invalid on a second read";
+        },
+      });
+    }
+
+    expect(validateRecordRequest(input)).toEqual(expected);
+    expect(reads).toEqual({ sha256: 1, tx_id: 1, signer: 1, nonce: 1, network: 1 });
+  });
+
   it.each([
     [{ sha256: "AA".repeat(32) }, "sha256"],
     [{ tx_id: "22".repeat(31) }, "tx_id"],

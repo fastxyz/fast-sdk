@@ -238,7 +238,7 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
       if (validated.network !== network) {
         throw new Error("record network does not match the configured network");
       }
-      const body = serializeRecord(value);
+      const body = serializeRecord(validated);
       await withDeadline(deadlineMs, async (signal) => {
         let response: Response;
         try {

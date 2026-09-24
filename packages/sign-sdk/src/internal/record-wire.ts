@@ -17,25 +17,24 @@ export function validateRecordRequest(value: unknown): RecordRequest {
     throw new Error("record must be an object");
   }
   const candidate = value as Record<string, unknown>;
-  if (typeof candidate.sha256 !== "string") throw new Error("sha256 must be a string");
-  if (typeof candidate.tx_id !== "string") throw new Error("tx_id must be a string");
-  if (typeof candidate.signer !== "string") throw new Error("signer must be a string");
-  assertLowerHex(candidate.sha256, 32, "sha256");
-  assertLowerHex(candidate.tx_id, 32, "tx_id");
-  assertLowerHex(candidate.signer, 32, "signer");
-  if (typeof candidate.nonce !== "number" || !Number.isSafeInteger(candidate.nonce) || candidate.nonce < 0) {
+  const sha256 = candidate.sha256;
+  const tx_id = candidate.tx_id;
+  const signer = candidate.signer;
+  const nonce = candidate.nonce;
+  const network = candidate.network;
+  if (typeof sha256 !== "string") throw new Error("sha256 must be a string");
+  if (typeof tx_id !== "string") throw new Error("tx_id must be a string");
+  if (typeof signer !== "string") throw new Error("signer must be a string");
+  assertLowerHex(sha256, 32, "sha256");
+  assertLowerHex(tx_id, 32, "tx_id");
+  assertLowerHex(signer, 32, "signer");
+  if (typeof nonce !== "number" || !Number.isSafeInteger(nonce) || nonce < 0) {
     throw new Error("nonce must be a non-negative safe integer");
   }
-  if (candidate.network !== "fast:testnet" && candidate.network !== "fast:mainnet") {
+  if (network !== "fast:testnet" && network !== "fast:mainnet") {
     throw new Error("network must be fast:testnet or fast:mainnet");
   }
-  return {
-    sha256: candidate.sha256,
-    tx_id: candidate.tx_id,
-    signer: candidate.signer,
-    nonce: candidate.nonce,
-    network: candidate.network,
-  };
+  return { sha256, tx_id, signer, nonce, network };
 }
 
 export function serializeRecord(value: RecordRequest): string {

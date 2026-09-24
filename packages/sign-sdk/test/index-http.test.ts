@@ -109,6 +109,27 @@ describe("index HTTP client", () => {
     });
   });
 
+  it("serializes the same record snapshot that passed the configured-network check", async () => {
+    let networkReads = 0;
+    const input = {
+      ...record(),
+      get network() {
+        networkReads += 1;
+        return networkReads === 1 ? "fast:testnet" as const : "fast:mainnet" as const;
+      },
+    };
+    const fetchImpl = vi.fn<FetchLike>(async () => new Response(null, { status: 200 }));
+    const client = createIndexHttpClient({
+      network: "fast:testnet",
+      indexOrigin: "https://index.example",
+      fetchImpl,
+    });
+
+    await client.record(input);
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).network).toBe("fast:testnet");
+    expect(networkReads).toBe(1);
+  });
+
   it("cancels an accepted record response body", async () => {
     let canceled = false;
     const body = new ReadableStream<Uint8Array>({

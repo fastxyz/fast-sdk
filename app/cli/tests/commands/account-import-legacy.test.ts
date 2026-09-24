@@ -84,4 +84,40 @@ describe('legacy multisig CLI keystore import', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 15_000);
+
+  it('rejects an empty private-key flag alongside a legacy keystore before prompting', async () => {
+    const importAccount = vi.fn(() => Effect.die('must not store'));
+    const passwordPrompt = vi.fn(() => Effect.die('must not prompt'));
+    const layer = Layer.mergeAll(
+      Layer.succeed(AccountStore, { import: importAccount } as never),
+      Layer.succeed(Prompt, { password: passwordPrompt } as never),
+      Layer.succeed(Output, { humanLine: () => Effect.void, ok: () => Effect.void } as never),
+    );
+
+    await expect(
+      Effect.runPromise(accountImport.handler({
+        name: 'my-signer',
+        privateKey: '',
+        legacyKeystore: 'unused.json',
+      } as never).pipe(Effect.provide(layer))),
+    ).rejects.toThrow('Provide exactly one of --private-key, --key-file or --legacy-keystore');
+    expect(passwordPrompt).not.toHaveBeenCalled();
+    expect(importAccount).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty private-key flag as an invalid key rather than selecting a different source', async () => {
+    const importAccount = vi.fn(() => Effect.die('must not store'));
+    const passwordPrompt = vi.fn(() => Effect.die('must not prompt'));
+    const layer = Layer.mergeAll(
+      Layer.succeed(AccountStore, { import: importAccount } as never),
+      Layer.succeed(Prompt, { password: passwordPrompt } as never),
+      Layer.succeed(Output, { humanLine: () => Effect.void, ok: () => Effect.void } as never),
+    );
+
+    await expect(
+      Effect.runPromise(accountImport.handler({ name: 'my-signer', privateKey: '' } as never).pipe(Effect.provide(layer))),
+    ).rejects.toThrow('Private key must be exactly 32 bytes');
+    expect(passwordPrompt).not.toHaveBeenCalled();
+    expect(importAccount).not.toHaveBeenCalled();
+  });
 });

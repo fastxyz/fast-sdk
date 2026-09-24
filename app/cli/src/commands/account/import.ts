@@ -18,7 +18,7 @@ export const accountImport: Command<AccountImportArgs> = {
       const prompt = yield* Prompt;
       const output = yield* Output;
 
-      if ([args.privateKey, args.keyFile, args.legacyKeystore].filter(Boolean).length !== 1) {
+      if ([args.privateKey, args.keyFile, args.legacyKeystore].filter((value) => value !== undefined).length !== 1) {
         return yield* Effect.fail(
           new InvalidUsageError({
             message: "Provide exactly one of --private-key, --key-file or --legacy-keystore",
@@ -37,7 +37,7 @@ export const accountImport: Command<AccountImportArgs> = {
 
       let seed: Uint8Array;
       let legacyPassword: string | undefined;
-      if (args.privateKey) {
+      if (args.privateKey !== undefined) {
         seed = yield* parseHexSeed(args.privateKey);
         if (seed.length !== 32) {
           return yield* Effect.fail(
@@ -47,7 +47,7 @@ export const accountImport: Command<AccountImportArgs> = {
             }),
           );
         }
-      } else if (args.keyFile) {
+      } else if (args.keyFile !== undefined) {
         const keyFilePath = args.keyFile;
         const content = yield* Effect.try({
           try: () => readFileSync(keyFilePath, "utf-8"),

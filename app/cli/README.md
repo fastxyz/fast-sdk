@@ -168,6 +168,7 @@ Import an existing account from a 32-byte hex private key.
 
 ```bash
 fast account import --name my-imported-account --private-key 0x...
+fast account import --name my-signer --legacy-keystore /path/to/legacy-keystore.json
 ```
 
 **Options:**
@@ -175,8 +176,9 @@ fast account import --name my-imported-account --private-key 0x...
 - `--name <alias>` — Optional human-readable alias for the imported account
 - `--private-key <hex>` — Hex-encoded 32-byte private key
 - `--key-file <path>` — Path to a JSON file containing a `privateKey` field
+- `--legacy-keystore <path>` — Encrypted JSON keystore from the original Rust multisig CLI
 
-If `--name` is omitted, the CLI auto-generates one. You must provide exactly one of `--private-key` or `--key-file`.
+If `--name` is omitted, the CLI auto-generates one. Provide exactly one key source. The legacy option prompts for its password, verifies the file's Fast address, and stores the imported key encrypted. The original file is not changed.
 
 ---
 

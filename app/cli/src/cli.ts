@@ -90,6 +90,11 @@ const accountImportParser = command(
         description: message`Path to a JSON file containing a privateKey field`,
       }),
     ),
+    legacyKeystore: optional(
+      option('--legacy-keystore', string({ metavar: 'PATH' }), {
+        description: message`Path to an encrypted keystore from the original multisig CLI`,
+      }),
+    ),
   }),
   { description: message`Import an existing private key` },
 );

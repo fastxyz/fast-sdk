@@ -175,7 +175,7 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
             }
           }
           if (error instanceof IndexHttpError && (error.kind === "retryable" || error.kind === "transport")) {
-            return { state: "pending", error: error.message };
+            return reconcileFailure(error, snapshot.state);
           }
           return { state: "rejected", error: error instanceof Error ? error.message : String(error) };
         }

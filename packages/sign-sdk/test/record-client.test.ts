@@ -155,6 +155,27 @@ it("preserves a persisted conflict when its reconciliation is inconclusive", asy
   });
 });
 
+it("preserves a persisted conflict when retry receives an inconclusive 503", async () => {
+  const journal = memoryJournal({
+    ...settled(),
+    state: "registration_conflict",
+    diagnostic: { code: "registration_conflict", message: "previous conflict", at: 1 },
+  });
+  const fetchImpl = vi.fn(async () => new Response("temporarily unavailable", { status: 503 }));
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl });
+
+  await expect(client.retryRegistration(receipt)).resolves.toMatchObject({
+    registration: "conflict",
+    recoveryPersisted: true,
+    error: expect.stringMatching(/503|temporarily unavailable/i),
+  });
+  expect(journal.saves.at(-1)).toMatchObject({
+    state: "registration_conflict",
+    diagnostic: { code: "registration_conflict" },
+  });
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
 it("rejects a receipt whose indexOrigin is not the exact configured origin", async () => {
   const journal = memoryJournal(settled());
   const client = createRecordClient({

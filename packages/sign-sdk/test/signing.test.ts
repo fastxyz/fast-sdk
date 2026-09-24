@@ -788,6 +788,55 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(snapshots.at(-1)).toMatchObject({ state: "registered" });
   });
 
+  it("returns a recovery receipt when the clock fails after submission", async () => {
+    const actual = new Signer(seed);
+    const snapshots: JournalSnapshot[] = [];
+    let submitted = false;
+    const submitTransaction = vi.fn(async (envelope: unknown) => {
+      submitted = true;
+      return { envelope, signatures: [] };
+    });
+    const now = vi.fn(() => {
+      if (submitted) throw new Error("clock unavailable after submission");
+      return 1_700_000_000_000;
+    });
+    const journal = {
+      async load(operationId: string) {
+        const value = [...snapshots].reverse().find((entry) => entry.operationId === operationId) ?? null;
+        return structuredClone(value);
+      },
+      async save(value: JournalSnapshot) {
+        if (value.state === "registration_pending") throw new Error("settlement journal write failed");
+        snapshots.push(structuredClone(value));
+      },
+      async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+    };
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes) => actual.signMessage(bytes) },
+      journal,
+      provider: { getNextNonce: async () => 7n, submitTransaction },
+      feeSource: {
+        async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
+        async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+      now,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+
+    await expect(client.signDigest({
+      operationId: "clock-fails-after-submit",
+      sha256: "11".repeat(32),
+      relationship: "authored",
+    })).resolves.toMatchObject({ settlement: "settled", registration: "pending", recoveryPersisted: false });
+    expect(now).toHaveBeenCalledTimes(1);
+    expect(submitTransaction).toHaveBeenCalledTimes(1);
+    expect(snapshots.at(-1)).toMatchObject({ state: "submission_unknown" });
+  });
+
   it.each([undefined, null, 7, {}, "", "../escape", "x".repeat(129), "valid\n", `nonce-reservation-${"0".repeat(64)}`])("rejects runtime operationId %j before any capability", async (operationId) => {
     const poison = vi.fn(async () => { throw new Error("capability reached"); });
     const journal = { load: poison, save: poison, withLock: poison };

@@ -121,12 +121,16 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
       const durableReceipt = snapshotReceipt(loaded.receipt);
       if (!sameReceipt(durableReceipt, receipt)) throw new Error("receipt does not match the durable settlement candidate");
       if (loaded.state === "registered") return { registration: "registered", receipt: durableReceipt, recoveryPersisted: true };
+      const instant = now();
+      if (!Number.isSafeInteger(instant) || instant < 0) {
+        throw new Error("clock must return non-negative integer milliseconds");
+      }
       const outcome = await operation(durableReceipt, loaded);
       const next: SettledJournalSnapshot = {
         ...loaded,
         state: journalState(outcome.state),
-        updatedAt: now(),
-        ...(outcome.error === undefined ? {} : { diagnostic: { code: `registration_${outcome.state}`, message: outcome.error, at: now() } }),
+        updatedAt: instant,
+        ...(outcome.error === undefined ? {} : { diagnostic: { code: `registration_${outcome.state}`, message: outcome.error, at: instant } }),
       };
       try {
         await journal.save(next);

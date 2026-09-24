@@ -482,7 +482,7 @@ export function createSignClient(options: SignClientOptions): SignClient {
             claimDataHex, senderSignatureHex: validated.senderSignatureHex,
             signatureScope: "versioned_transaction", certificate: validated.certificate,
           };
-          const settled: SettledJournalSnapshot = { ...unknown, state: "registration_pending", updatedAt: now(), receipt };
+          const settled: SettledJournalSnapshot = { ...unknown, state: "registration_pending", updatedAt: instant, receipt };
           try { await journal.save(settled); }
           catch { return { settlement: "settled", registration: "pending", receipt, recoveryPersisted: false }; }
           newSettlement = true;

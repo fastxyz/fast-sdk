@@ -110,6 +110,26 @@ it("retryRegistration performs one explicit POST and persists acknowledgement", 
   expect(journal.saves.at(-1)).toMatchObject({ state: "registered" });
 });
 
+it("captures the registration timestamp before a successful POST", async () => {
+  const journal = memoryJournal(settled());
+  let posted = false;
+  const now = vi.fn(() => {
+    if (posted) throw new Error("clock unavailable after registration");
+    return 123;
+  });
+  const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+    expect(init?.method).toBe("POST");
+    posted = true;
+    return new Response(null, { status: 200 });
+  });
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl, now });
+
+  await expect(client.retryRegistration(receipt)).resolves.toMatchObject({ registration: "registered", recoveryPersisted: true });
+  expect(now).toHaveBeenCalledTimes(1);
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  expect(journal.saves.at(-1)).toMatchObject({ state: "registered", updatedAt: 123 });
+});
+
 it("persists a pending diagnostic when conflict reconciliation fails", async () => {
   const journal = memoryJournal(settled());
   const responses = [

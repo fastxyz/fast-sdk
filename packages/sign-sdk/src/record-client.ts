@@ -126,8 +126,9 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
         throw new Error("clock must return non-negative integer milliseconds");
       }
       const outcome = await operation(durableReceipt, loaded, instant);
+      const { diagnostic: _previousDiagnostic, ...loadedWithoutDiagnostic } = loaded;
       const next: SettledJournalSnapshot = {
-        ...loaded,
+        ...loadedWithoutDiagnostic,
         state: journalState(outcome.state),
         updatedAt: instant,
         ...(outcome.error === undefined ? {} : { diagnostic: { code: `registration_${outcome.state}`, message: outcome.error, at: instant } }),

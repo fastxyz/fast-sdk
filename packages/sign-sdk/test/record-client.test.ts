@@ -110,6 +110,22 @@ it("retryRegistration performs one explicit POST and persists acknowledgement", 
   expect(journal.saves.at(-1)).toMatchObject({ state: "registered" });
 });
 
+it("clears a prior diagnostic after registration succeeds", async () => {
+  const journal = memoryJournal({
+    ...settled(),
+    diagnostic: { code: "registration_pending", message: "previous attempt failed", at: 1 },
+  });
+  const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+    expect(init?.method).toBe("POST");
+    return new Response(null, { status: 200 });
+  });
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl });
+
+  await expect(client.retryRegistration(receipt)).resolves.toMatchObject({ registration: "registered", recoveryPersisted: true });
+  expect(journal.saves.at(-1)).toMatchObject({ state: "registered" });
+  expect(journal.saves.at(-1)).not.toHaveProperty("diagnostic");
+});
+
 it("captures the registration timestamp before a successful POST", async () => {
   const journal = memoryJournal(settled());
   let posted = false;

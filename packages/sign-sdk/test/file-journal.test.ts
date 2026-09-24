@@ -291,13 +291,17 @@ describe("file recovery journal", () => {
     await expect(readFile(join(outside, "sentinel"), "utf8")).resolves.toBe("untouched");
   });
 
-  it("rejects a frozen proxy URL that the read-only recovery API cannot represent", async () => {
+  it.each([
+    "https://proxy.example/proxy?region=one",
+    "https://proxy.example/proxy?",
+    "https://proxy.example/proxy#",
+  ])("rejects a frozen proxy URL that the read-only recovery API cannot represent: %s", async (proxyUrl) => {
     const parent = await temporaryRoot();
     const journal = createFileJournal({ directory: join(parent, "state") });
     const value = prepared("query-proxy");
     const malformed = {
       ...value,
-      operation: { ...value.operation, proxyUrl: "https://proxy.example/proxy?region=one" },
+      operation: { ...value.operation, proxyUrl },
     };
 
     await expect(journal.save(malformed)).rejects.toThrow(/proxyUrl/i);

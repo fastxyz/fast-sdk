@@ -67,7 +67,19 @@ describe("public source provenance", () => {
       expect(record.disposition).toBe("approved");
       expect(record.destination.path).toBeTruthy();
       if (record.destination.header !== null) {
-        expect(readFileSync(join(root, record.destination.path), "utf8")).toContain(record.destination.header);
+        expect(readFileSync(join(root, record.destination.path), "utf8").startsWith(record.destination.header)).toBe(true);
+      }
+      if (record.destination.path === "package.json") {
+        const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { license?: string };
+        expect(record.destination.header).toBeNull();
+        expect(manifest.license).toBe(record.destination.license);
+      }
+      if (record.destination.path === "LICENSE") {
+        expect(record.destination.header).toBeNull();
+        expect(readFileSync(join(root, "LICENSE"), "utf8")).toContain("Apache License");
+      }
+      if (record.destination.path === "README.md" || record.destination.path === "THIRD_PARTY_NOTICES.md") {
+        expect(record.destination.header).toBeNull();
       }
       if (record.classification !== "new") {
         expect(record.origin.commit).toMatch(/^[0-9a-f]{40}$/);

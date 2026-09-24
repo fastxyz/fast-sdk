@@ -352,7 +352,8 @@ class JsonCursor {
 export type RawValue =
   | { kind: "string"; value: string }
   | { kind: "bool"; value: boolean }
-  | { kind: "null" };
+  | { kind: "null" }
+  | { kind: "other" };
 
 /**
  * Fold a JSON object's top-level key/value pairs in source order, rejecting a
@@ -362,7 +363,7 @@ export type RawValue =
  * the probe's precedence (duplicate_key > unsupported_schema) in lockstep with
  * the decoder. Assumes syntax/trailing were already validated by the caller.
  */
-export function parseRawObject(text: string): Array<[string, RawValue]> {
+export function parseRawObject(text: string, allowOtherValues = false): Array<[string, RawValue]> {
   const cursor = new JsonCursor(text);
   cursor.skipWhitespace();
   if (text[cursor.position++] !== "{") fail("ROOT_NOT_OBJECT", "canonical JSON root is not an object");
@@ -393,6 +394,9 @@ export function parseRawObject(text: string): Array<[string, RawValue]> {
     } else if (text.slice(cursor.position, cursor.position + 4) === "null") {
       cursor.position += 4;
       value = { kind: "null" };
+    } else if (allowOtherValues) {
+      cursor.parseValue();
+      value = { kind: "other" };
     } else {
       fail("NON_CANONICAL", `value for ${key} has the wrong JSON type`);
     }

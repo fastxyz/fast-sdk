@@ -355,10 +355,12 @@ type PayloadShape = "base" | "attributed";
  *     This is the Rust probe's schema short-circuit; dropping it (as an earlier
  *     over-correction did) breaks the frozen error-class partition.
  *
- * Any syntactic/structural surprise (malformed, trailing, non-object root, BOM,
- * bad UTF-8, or a non string/bool/null top-level value) DEFERS to the strict
- * decoder, which owns those classes. Beyond classification, the probe also
- * SELECTS the field-set: attributed iff an attribution key is present.
+ * Syntactic/structural surprises (malformed, trailing, non-object root, BOM,
+ * bad UTF-8, or a canonical-schema non-scalar value) DEFER to the strict
+ * decoder, which owns those classes. A foreign schema remains probe-owned even
+ * when a sibling uses an array, object, or number, because the Rust probe
+ * short-circuits on schema before field decoding. Beyond classification, the
+ * probe also SELECTS the field-set: attributed iff an attribution key is present.
  */
 function probeShape(bytes: Uint8Array): PayloadShape {
   let text: string;
@@ -380,19 +382,16 @@ function probeShape(bytes: Uint8Array): PayloadShape {
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return "base";
 
   // Re-fold the raw object to (a) DETECT duplicate top-level keys and (b) read
-  // the `schema` value BEFORE JSON.parse's last-wins collapse. `parseRawObject`
-  // throws on a repeated key (DUPLICATE_KEY) or a non string/bool/null value;
-  // either way we DEFER, letting the strict decoder own the terminal class —
-  // crucially keeping a divergent duplicated `schema` at `duplicate_key`.
+  // the `schema` value BEFORE JSON.parse's last-wins collapse. Non-scalar
+  // siblings are syntax-valid foreign-schema payloads, so they are skipped
+  // after validation; duplicate keys still defer to the strict decoder and
+  // retain `duplicate_key` precedence.
   let rawFields: Array<[string, RawValue]>;
   try {
-    rawFields = parseRawObject(text);
+    rawFields = parseRawObject(text, true);
   } catch {
-    // KNOWN RESIDUAL: a foreign `schema` alongside a NON-scalar sibling (array/
-    // object/number) makes parseRawObject throw, so we defer here and the strict
-    // decoder reports `wrong_json_type` where Rust's probe reports
-    // `unsupported_schema`. Both still REJECT, and it is unreachable for a real
-    // V2 payload (every V2 field is a scalar string/bool/null).
+    // Duplicate keys remain owned by the strict decoder, preserving the
+    // duplicate_key > unsupported_schema precedence.
     return "base";
   }
 

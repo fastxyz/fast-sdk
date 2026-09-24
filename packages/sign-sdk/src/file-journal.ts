@@ -121,6 +121,8 @@ function assertHex(value: unknown, pattern: RegExp, label: string): asserts valu
 
 function assertHttpUrl(value: unknown, label: string, originOnly: boolean): asserts value is string {
   if (typeof value !== "string") throw new Error(`${label} must be an absolute HTTP(S) URL`);
+  const hasQueryDelimiter = value.includes("?");
+  const hasFragmentDelimiter = value.includes("#");
   let url: URL;
   try {
     url = new URL(value);
@@ -131,6 +133,8 @@ function assertHttpUrl(value: unknown, label: string, originOnly: boolean): asse
     (url.protocol !== "http:" && url.protocol !== "https:") ||
     url.username !== "" ||
     url.password !== "" ||
+    hasQueryDelimiter ||
+    hasFragmentDelimiter ||
     url.search !== "" ||
     url.hash !== "" ||
     (originOnly && url.pathname !== "/")

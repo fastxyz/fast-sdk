@@ -196,7 +196,11 @@ it.each([
   expect(save).not.toHaveBeenCalled();
 });
 
-it("reports a stable validation error for a malformed reader origin", async () => {
+it.each([
+  "not an absolute URL",
+  "https://proxy.example?",
+  "https://proxy.example#",
+])("reports a stable validation error for a malformed reader origin: %s", async (origin) => {
   const journal: RecoveryJournal = {
     load: vi.fn(async () => null),
     save: vi.fn(async () => undefined),
@@ -206,7 +210,7 @@ it("reports a stable validation error for a malformed reader origin", async () =
   await expect(recoverSettlement({
     operationId: "recover-op",
     journal,
-    reader: { origin: "not an absolute URL", getCertificate: vi.fn(async () => null) },
+    reader: { origin, getCertificate: vi.fn(async () => null) },
   })).rejects.toThrow("reader.origin must be a configured public HTTP(S) proxy URL");
 });
 

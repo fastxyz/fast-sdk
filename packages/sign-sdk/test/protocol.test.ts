@@ -79,6 +79,16 @@ describe("canonical ArtifactAttestationV3", () => {
       expect.objectContaining({ errorClass: expectedClass }),
     );
   });
+
+  it.each([
+    ["array", '{"schema":"foreign/schema","digest":[]}'],
+    ["object", '{"schema":"foreign/schema","digest":{}}'],
+    ["number", '{"schema":"foreign/schema","digest":1}'],
+  ] as const)("classifies a foreign schema with a %s sibling as unsupported_schema", (_kind, text) => {
+    expect(() => decodeAttestationV3(new TextEncoder().encode(text))).toThrow(
+      expect.objectContaining({ errorClass: "unsupported_schema" }),
+    );
+  });
 });
 
 describe("strict byte and address helpers", () => {

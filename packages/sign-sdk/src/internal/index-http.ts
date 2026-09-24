@@ -125,6 +125,8 @@ export interface IndexHttpClient {
 }
 
 export function normalizeIndexOrigin(value: string): string {
+  const hasQueryDelimiter = value.includes("?");
+  const hasFragmentDelimiter = value.includes("#");
   let url: URL;
   try {
     url = new URL(value);
@@ -135,6 +137,8 @@ export function normalizeIndexOrigin(value: string): string {
     (url.protocol !== "https:" && url.protocol !== "http:") ||
     url.username !== "" ||
     url.password !== "" ||
+    hasQueryDelimiter ||
+    hasFragmentDelimiter ||
     url.search !== "" ||
     url.hash !== "" ||
     (url.pathname !== "" && url.pathname !== "/")

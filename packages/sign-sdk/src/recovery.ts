@@ -158,13 +158,18 @@ export async function verifyReceipt(options: {
 
 function normalizeProxyOrigin(value: string | undefined): string {
   if (!value) throw new Error("reader.origin is required to import a receipt into an empty journal");
+  const hasQueryDelimiter = value.includes("?");
+  const hasFragmentDelimiter = value.includes("#");
   let url: URL;
   try {
     url = new URL(value);
   } catch {
     throw new Error("reader.origin must be a configured public HTTP(S) proxy URL");
   }
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+  if (
+    !["http:", "https:"].includes(url.protocol) || url.username || url.password ||
+    hasQueryDelimiter || hasFragmentDelimiter || url.search || url.hash
+  ) {
     throw new Error("reader.origin must be a configured public HTTP(S) proxy URL");
   }
   return url.href.replace(/\/$/, "");

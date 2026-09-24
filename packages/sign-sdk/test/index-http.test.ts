@@ -210,13 +210,19 @@ describe("index HTTP client", () => {
         fetchImpl,
       }),
     ).toThrow(/network/i);
-    expect(() =>
-      createIndexHttpClient({
-        network: "fast:testnet",
-        indexOrigin: "https://index.example/path?unexpected=1",
-        fetchImpl,
-      }),
-    ).toThrow(/origin/i);
+    for (const indexOrigin of [
+      "https://index.example/path?unexpected=1",
+      "https://index.example?",
+      "https://index.example#",
+    ]) {
+      expect(() =>
+        createIndexHttpClient({
+          network: "fast:testnet",
+          indexOrigin,
+          fetchImpl,
+        }),
+      ).toThrow(/origin/i);
+    }
     const client = createIndexHttpClient({
       network: "fast:testnet",
       indexOrigin: "https://index.example",

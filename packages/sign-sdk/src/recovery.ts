@@ -387,6 +387,9 @@ export async function recoverSettlement(options: {
     ) {
       throw new Error("observed attestation metadata does not match the frozen operation");
     }
+    if (issuedAtNanoseconds !== validated.timestampNanos) {
+      throw new Error("observed transaction timestamp does not match the frozen operation");
+    }
     const receipt: PendingRegistration = {
       version: 1,
       operationId,

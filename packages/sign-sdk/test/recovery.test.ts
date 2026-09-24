@@ -130,7 +130,7 @@ it.each([
   ["signer name", {}, { signerName: "Different signer" }],
   ["public title", {}, { publicTitle: "Different title" }],
   ["listing flag", {}, { listBySigner: true, publicTitle: "Listed title" }],
-  ["issued timestamp", { issuedAtNanoseconds: "1721520001000000000" }, {}],
+  ["issued timestamp", { issuedAtNanoseconds: "1721520000001000000" }, {}],
 ] as const)("rejects recovery when frozen %s does not match the attestation", async (_label, operationOverride, inputOverride) => {
   const expected = {
     network: "fast:testnet" as const,
@@ -188,7 +188,11 @@ it.each([
       origin: snapshot.operation.proxyUrl,
       getCertificate: vi.fn(async () => protocol.certificateRestJson),
     },
-  })).rejects.toThrow("observed attestation metadata does not match the frozen operation");
+  })).rejects.toThrow(
+    _label === "issued timestamp"
+      ? "observed transaction timestamp does not match the frozen operation"
+      : "observed attestation metadata does not match the frozen operation",
+  );
   expect(save).not.toHaveBeenCalled();
 });
 

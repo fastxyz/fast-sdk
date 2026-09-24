@@ -1,5 +1,11 @@
 # @fastxyz/cli
 
+## 1.3.1
+
+### Patch Changes
+
+- 040ce63: Allow importing an encrypted keystore from the original Rust multisig CLI with `fast account import --legacy-keystore`.
+
 ## 1.3.0
 
 ### Minor Changes

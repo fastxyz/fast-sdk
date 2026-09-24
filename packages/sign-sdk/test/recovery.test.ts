@@ -1,10 +1,19 @@
 // Copyright (c) Pi Squared, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { expect, it, vi } from "vitest";
 
+import { validateSettlementCertificate } from "../src/internal/receipts.js";
 import { recoverSettlement, registerReceipt, verifyReceipt } from "../src/recovery.js";
 import type { RecoveryJournal, SubmissionUnknownJournalSnapshot } from "../src/types.js";
+
+const protocol = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures/protocol.json"), "utf8"),
+).certificate as Record<string, unknown>;
 
 it("keeps an unobserved submission indeterminate without signing or submitting", async () => {
   const snapshot: SubmissionUnknownJournalSnapshot = {
@@ -52,6 +61,67 @@ it("keeps an unobserved submission indeterminate without signing or submitting",
   expect(getCertificate).toHaveBeenCalledTimes(1);
   expect(save).not.toHaveBeenCalled();
 });
+
+it.each(["signingBytesHex", "transactionBytesHex"] as const)(
+  "rejects recovery when frozen %s differs from the observed certificate",
+  async (field) => {
+    const expected = {
+      network: "fast:testnet" as const,
+      senderHex: protocol.signerHex as string,
+      nonce: BigInt(protocol.nonce as string | number),
+      txId: protocol.txId as string,
+      sha256: "11".repeat(32),
+      claimDataHex: protocol.claimDataHex as string,
+    };
+    const validated = await validateSettlementCertificate(protocol.certificateRestJson, expected);
+    const snapshot: SubmissionUnknownJournalSnapshot = {
+      version: 1,
+      state: "submission_unknown",
+      operationId: "recover-evidence-op",
+      updatedAt: 1,
+      operation: {
+        input: {
+          operationId: "recover-evidence-op",
+          sha256: expected.sha256,
+          relationship: "authored",
+          listBySigner: false,
+        },
+        network: expected.network,
+        proxyUrl: "https://proxy.example",
+        indexOrigin: "https://index.example",
+        senderHex: expected.senderHex,
+        nonce: expected.nonce.toString(),
+        requestIdHex: "33".repeat(16),
+        issuedAtNanoseconds: "1",
+        fee: null,
+      },
+      submission: {
+        txId: expected.txId,
+        signingBytesHex: field === "signingBytesHex" ? "00" : validated.signingBytesHex,
+        transactionBytesHex: field === "transactionBytesHex" ? "00" : validated.transactionBytesHex,
+        senderSignatureHex: validated.senderSignatureHex,
+        claimDataHex: expected.claimDataHex,
+      },
+    };
+    const save = vi.fn(async () => undefined);
+    const journal: RecoveryJournal = {
+      load: vi.fn(async () => snapshot),
+      save,
+      withLock: vi.fn(async <T>(_key: string, operation: () => Promise<T>) => operation()) as RecoveryJournal["withLock"],
+    };
+
+    await expect(recoverSettlement({
+      operationId: snapshot.operationId,
+      journal,
+      reader: {
+        origin: snapshot.operation.proxyUrl,
+        getCertificate: vi.fn(async () => protocol.certificateRestJson),
+      },
+    })).rejects.toThrow(`observed ${field === "signingBytesHex" ? "signing" : "transaction"} bytes do not match the frozen submission`);
+
+    expect(save).not.toHaveBeenCalled();
+  },
+);
 
 it("reports a stable validation error for a malformed reader origin", async () => {
   const journal: RecoveryJournal = {

@@ -363,6 +363,12 @@ export async function recoverSettlement(options: {
       sha256: snapshot.operation.input.sha256,
       claimDataHex: snapshot.submission.claimDataHex,
     });
+    if (validated.signingBytesHex !== snapshot.submission.signingBytesHex) {
+      throw new Error("observed signing bytes do not match the frozen submission");
+    }
+    if (validated.transactionBytesHex !== snapshot.submission.transactionBytesHex) {
+      throw new Error("observed transaction bytes do not match the frozen submission");
+    }
     if (validated.senderSignatureHex !== snapshot.submission.senderSignatureHex) {
       throw new Error("observed sender signature does not match the frozen submission");
     }

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vitest";
 
-import { validateSettlementCertificate } from "../src/internal/receipts.js";
+import { snapshotBoundedObjectCertificate, validateSettlementCertificate } from "../src/internal/receipts.js";
 
 const fixture = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures/protocol.json"), "utf8"),
@@ -55,4 +55,58 @@ it("bounds parsed lossless JSON before certificate schema traversal", async () =
     sha256: "11".repeat(32),
     claimDataHex: fixture.claimDataHex as string,
   })).rejects.toMatchObject({ code: "certificate_too_large" });
+});
+
+it("uses one captured length when snapshotting a proxied certificate array", () => {
+  let lengthReads = 0;
+  const input = new Proxy(["safe"], {
+    get(target, property, receiver) {
+      if (property === "length") {
+        lengthReads += 1;
+        return lengthReads === 1 ? 1 : 10_001;
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+
+  const snapshot = snapshotBoundedObjectCertificate(input);
+
+  expect(lengthReads).toBe(1);
+  expect(snapshot).toHaveLength(1);
+});
+
+it("rejects proxied certificate array indices outside the captured length before copying", () => {
+  let indexedValueReads = 0;
+  let lengthReads = 0;
+  const input = new Proxy([] as unknown[], {
+    get(target, property, receiver) {
+      if (property === "length") {
+        lengthReads += 1;
+        return 1;
+      }
+      if (property === "0" || property === "100000") indexedValueReads += 1;
+      return Reflect.get(target, property, receiver);
+    },
+    ownKeys() {
+      return ["0", "100000", "length"];
+    },
+    getOwnPropertyDescriptor(target, property) {
+      if (property === "length") return Reflect.getOwnPropertyDescriptor(target, property);
+      if (property === "0" || property === "100000") {
+        return { configurable: true, enumerable: true, value: "safe", writable: true };
+      }
+      return Reflect.getOwnPropertyDescriptor(target, property);
+    },
+  });
+  let thrown: unknown;
+
+  try {
+    snapshotBoundedObjectCertificate(input);
+  } catch (error) {
+    thrown = error;
+  }
+
+  expect(thrown).toMatchObject({ code: "certificate_too_large" });
+  expect(lengthReads).toBe(1);
+  expect(indexedValueReads).toBe(0);
 });

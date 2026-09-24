@@ -153,19 +153,20 @@ export function snapshotBoundedObjectCertificate(root: unknown): unknown {
     }
     if (ancestors.has(value)) fail("invalid_certificate", "certificate contains a cycle");
     const isArray = Array.isArray(value);
+    let arrayLength: number | undefined;
+    if (isArray) {
+      const capturedLength = value.length;
+      if (!Number.isSafeInteger(capturedLength) || capturedLength < 0 || capturedLength > MAX_CERTIFICATE_NODES - nodes) {
+        fail("certificate_too_large", "certificate array exceeds the logical node parsing limit");
+      }
+      arrayLength = capturedLength;
+    }
     if (!isArray) {
       const prototype = Object.getPrototypeOf(value);
       if (prototype !== Object.prototype && prototype !== null) {
         fail("invalid_certificate", "certificate contains an unsupported object container");
       }
     }
-    if (isArray && value.length > MAX_CERTIFICATE_NODES - nodes) {
-      // Check the logical array length before asking the host for its keys.
-      // Object.keys(array) materializes every dense index, so enumerating
-      // first would defeat the aggregate preflight bound for oversized input.
-      fail("certificate_too_large", "certificate array exceeds the logical node parsing limit");
-    }
-    const copy: unknown[] | Record<string, unknown> = isArray ? new Array(value.length) : {};
     ancestors.add(value);
     try {
       const keys = Object.keys(value);
@@ -173,18 +174,35 @@ export function snapshotBoundedObjectCertificate(root: unknown): unknown {
         fail("certificate_too_large", "certificate exceeds the object node parsing limit");
       }
       if (isArray) {
+        // A proxy can report enumerable indexes beyond the length captured
+        // above. Reject them before allocating or populating the owned copy.
+        for (const key of keys) {
+          const index = Number(key);
+          if (
+            Number.isInteger(index) &&
+            index >= 0 &&
+            index < 0xffff_ffff &&
+            String(index) === key &&
+            index >= arrayLength!
+          ) {
+            fail("certificate_too_large", "certificate array has an enumerable index outside its declared length");
+          }
+        }
+      }
+      const copy: unknown[] | Record<string, unknown> = isArray ? new Array(arrayLength!) : {};
+      if (isArray) {
         // JSON.stringify emits every array slot, including holes as `null`,
         // while Object.keys only reports populated indexes. Charge the full
         // logical array representation before allocating the owned array.
         let populatedSlots = 0;
         for (const key of keys) {
           const index = Number(key);
-          if (Number.isInteger(index) && index >= 0 && index < value.length && String(index) === key) {
+          if (Number.isInteger(index) && index >= 0 && index < arrayLength! && String(index) === key) {
             populatedSlots += 1;
           }
         }
-        const holes = value.length - populatedSlots;
-        addBytes(2 + Math.max(0, value.length - 1) + holes * 4);
+        const holes = arrayLength! - populatedSlots;
+        addBytes(2 + Math.max(0, arrayLength! - 1) + holes * 4);
       }
       for (const key of keys) {
         addText(key);

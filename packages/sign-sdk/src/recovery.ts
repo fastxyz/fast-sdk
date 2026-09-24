@@ -178,6 +178,14 @@ function normalizeProxyOrigin(value: string | undefined): string {
   return url.href.replace(/\/$/, "");
 }
 
+function recoveryUpdatedAt(now: () => number): number {
+  const updatedAt = now();
+  if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) {
+    throw new Error("snapshot.updatedAt must be a non-negative safe integer");
+  }
+  return updatedAt;
+}
+
 export async function registerReceipt(options: {
   readonly receipt: PendingRegistration;
   readonly network: SignNetwork;
@@ -271,7 +279,7 @@ export async function registerReceipt(options: {
       version: 1,
       state: "registration_pending",
       operationId: durableReceipt.operationId,
-      updatedAt: now(),
+      updatedAt: recoveryUpdatedAt(now),
       operation,
       submission,
       receipt: durableReceipt,
@@ -417,7 +425,7 @@ export async function recoverSettlement(options: {
     const recovered: SettledJournalSnapshot = {
       ...snapshot,
       state: "registration_pending",
-      updatedAt: now(),
+      updatedAt: recoveryUpdatedAt(now),
       receipt,
     };
     try {

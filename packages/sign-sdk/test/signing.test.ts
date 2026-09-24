@@ -1017,7 +1017,7 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(poison).not.toHaveBeenCalled();
   });
 
-  it("captures signer, provider, and fee source accessors once at construction", async () => {
+  it("captures signer, provider, and fee source methods and accessors once at construction", async () => {
     const actual = new Signer(seed);
     const journal = {
       async load() { return null; },
@@ -1026,6 +1026,10 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     };
     const signer = { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes: Uint8Array) => actual.signMessage(bytes) };
     const provider = { getNextNonce: async () => 7n, submitTransaction: async () => null };
+    const getPublicKey = signer.getPublicKey;
+    const signMessage = signer.signMessage;
+    const getNextNonce = provider.getNextNonce;
+    const submitTransaction = provider.submitTransaction;
     const feeSource = {
       async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
       async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
@@ -1038,6 +1042,18 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
       async networkInfo() { throw new Error("mutated fee source used"); },
       async tokenMeta() { throw new Error("mutated fee source used"); },
     };
+    let publicKeyMethodReads = 0;
+    let signMessageMethodReads = 0;
+    let nonceMethodReads = 0;
+    let submitMethodReads = 0;
+    Object.defineProperties(signer, {
+      getPublicKey: { get: () => (++publicKeyMethodReads === 1 ? getPublicKey : poison.getPublicKey) },
+      signMessage: { get: () => (++signMessageMethodReads === 1 ? signMessage : poison.signMessage) },
+    });
+    Object.defineProperties(provider, {
+      getNextNonce: { get: () => (++nonceMethodReads === 1 ? getNextNonce : poison.getNextNonce) },
+      submitTransaction: { get: () => (++submitMethodReads === 1 ? submitTransaction : poison.submitTransaction) },
+    });
     let signerReads = 0;
     let providerReads = 0;
     let feeSourceReads = 0;
@@ -1062,6 +1078,45 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(signerReads).toBe(1);
     expect(providerReads).toBe(1);
     expect(feeSourceReads).toBe(1);
+    expect(publicKeyMethodReads).toBe(1);
+    expect(signMessageMethodReads).toBe(1);
+    expect(nonceMethodReads).toBe(1);
+    expect(submitMethodReads).toBe(1);
+  });
+
+  it("binds the validated methods even when a function shadows bind", async () => {
+    const actual = new Signer(seed);
+    const poison = vi.fn(async () => { throw new Error("shadowed bind used"); });
+    const getPublicKey = () => actual.getPublicKey();
+    const signMessage = (bytes: Uint8Array) => actual.signMessage(bytes);
+    const getNextNonce = async () => 7n;
+    const submitTransaction = async () => null;
+    for (const method of [getPublicKey, signMessage, getNextNonce, submitTransaction]) {
+      Object.defineProperty(method, "bind", { value: () => poison });
+    }
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example/proxy",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey, signMessage },
+      provider: { getNextNonce, submitTransaction },
+      journal: {
+        async load() { return null; },
+        async save() {},
+        async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+      },
+      feeSource: {
+        async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
+        async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      feePolicy: { feeFreeNetwork: true, tokenId: null, maxAtomicAmount: "0" },
+      now: () => 1_700_000_000_000,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+
+    await expect(client.signDigest({ operationId: "shadowed-bind", sha256: "11".repeat(32), relationship: "authored" }))
+      .resolves.toMatchObject({ settlement: "unknown" });
+    expect(poison).not.toHaveBeenCalled();
   });
 
   it("owns a journal snapshot before later awaits can mutate the journal result", async () => {

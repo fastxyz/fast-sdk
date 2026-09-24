@@ -221,19 +221,23 @@ export function createSignClient(options: SignClientOptions): SignClient {
   const indexOrigin = normalizedHttpUrl(options.indexOrigin, true, "indexOrigin");
   const signerSource = options.signer;
   const providerSource = options.provider;
-  if (!signerSource || typeof signerSource.getPublicKey !== "function" || typeof signerSource.signMessage !== "function") {
+  const getPublicKeyMethod = signerSource?.getPublicKey;
+  const signMessageMethod = signerSource?.signMessage;
+  if (!signerSource || typeof getPublicKeyMethod !== "function" || typeof signMessageMethod !== "function") {
     throw new Error("signer must implement getPublicKey() and signMessage(bytes)");
   }
-  if (!providerSource || typeof providerSource.getNextNonce !== "function" || typeof providerSource.submitTransaction !== "function") {
+  const getNextNonceMethod = providerSource?.getNextNonce;
+  const submitTransactionMethod = providerSource?.submitTransaction;
+  if (!providerSource || typeof getNextNonceMethod !== "function" || typeof submitTransactionMethod !== "function") {
     throw new Error("provider must expose nonce read and submit capabilities");
   }
   const signer: ByteSigner = {
-    getPublicKey: signerSource.getPublicKey.bind(signerSource),
-    signMessage: signerSource.signMessage.bind(signerSource),
+    getPublicKey: Function.prototype.bind.call(getPublicKeyMethod, signerSource),
+    signMessage: Function.prototype.bind.call(signMessageMethod, signerSource),
   };
   const provider: FastSettlementProvider = {
-    getNextNonce: providerSource.getNextNonce.bind(providerSource),
-    submitTransaction: providerSource.submitTransaction.bind(providerSource),
+    getNextNonce: Function.prototype.bind.call(getNextNonceMethod, providerSource),
+    submitTransaction: Function.prototype.bind.call(submitTransactionMethod, providerSource),
   };
   const journalSource = options.journal;
   const journal: RecoveryJournal = snapshotRecoveryJournal(journalSource);

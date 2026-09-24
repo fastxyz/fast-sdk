@@ -85,6 +85,28 @@ describe('legacy multisig CLI keystore import', () => {
     }
   }, 15_000);
 
+  it('preserves filesystem details when the legacy keystore cannot be read', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fast-legacy-import-'));
+    const missingPath = join(dir, 'missing.json');
+    const importAccount = vi.fn(() => Effect.die('must not store'));
+    const passwordPrompt = vi.fn(() => Effect.die('must not prompt'));
+    const layer = Layer.mergeAll(
+      Layer.succeed(AccountStore, { import: importAccount } as never),
+      Layer.succeed(Prompt, { password: passwordPrompt } as never),
+      Layer.succeed(Output, { humanLine: () => Effect.void, ok: () => Effect.void } as never),
+    );
+
+    try {
+      await expect(
+        Effect.runPromise(accountImport.handler({ name: 'my-signer', legacyKeystore: missingPath } as never).pipe(Effect.provide(layer))),
+      ).rejects.toThrow(/Cannot read legacy keystore:.*ENOENT/);
+      expect(passwordPrompt).not.toHaveBeenCalled();
+      expect(importAccount).not.toHaveBeenCalled();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('rejects an empty private-key flag alongside a legacy keystore before prompting', async () => {
     const importAccount = vi.fn(() => Effect.die('must not store'));
     const passwordPrompt = vi.fn(() => Effect.die('must not prompt'));

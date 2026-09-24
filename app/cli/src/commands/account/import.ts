@@ -84,7 +84,10 @@ export const accountImport: Command<AccountImportArgs> = {
         }
         const content = yield* Effect.try({
           try: () => readFileSync(path, "utf-8"),
-          catch: () => new InvalidUsageError({ message: "Cannot read legacy keystore" }),
+          catch: (e) =>
+            new InvalidUsageError({
+              message: `Cannot read legacy keystore: ${e instanceof Error ? e.message : String(e)}`,
+            }),
         });
         const parsed = yield* Effect.try({
           try: () => JSON.parse(content) as unknown,

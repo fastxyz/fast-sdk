@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/fastid-sdk",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Programmatic client for id.fast.xyz — everything a non-admin user can do, for agents",
   "license": "Apache-2.0",
   "repository": {
@@ -42,10 +42,12 @@
     "@hpke/core": "^1.9.0",
     "@noble/ed25519": "^2.1.0",
     "@noble/hashes": "^1.5.0",
-    "effect": "^3.21.0"
+    "effect": "^3.21.0",
+    "tr46": "6.0.0"
   },
   "devDependencies": {
     "@types/node": "^22",
+    "@types/tr46": "5.0.1",
     "typescript": "^5",
     "vitest": "^3.0.0"
   },

@@ -1,3 +1,5 @@
+import tr46 from "tr46";
+
 import { encodeCanonicalObject } from "./canonical-json.js";
 import { isCanonicalName } from "./name.js";
 
@@ -53,13 +55,17 @@ function asciiLowercase(value: string): string {
 }
 
 function isIdnaCanonicalHost(value: string): boolean {
-  let host: string;
-  try {
-    host = new URL(`https://${value}/`).hostname;
-  } catch {
-    return false;
-  }
-  return host === value;
+  // URL parsers may preserve an invalid ASCII A-label for web compatibility.
+  // Validate with UTS-46 instead; the LDH and length gates below remain separate.
+  return tr46.toASCII(value, {
+    checkHyphens: false,
+    checkBidi: true,
+    checkJoiners: true,
+    useSTD3ASCIIRules: false,
+    verifyDNSLength: false,
+    transitionalProcessing: false,
+    ignoreInvalidPunycode: false,
+  }) === value;
 }
 
 function isCanonicalWebsite(value: string): boolean {

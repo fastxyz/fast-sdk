@@ -11,7 +11,7 @@ import { assertPackageContent, assertPackageInventory, expectedPackageInventory 
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(root, "../..");
-const TEXT_MEMBER = /\.(?:js|d\.ts|json|mjs|cjs)$/;
+const TEXT_MEMBER = /\.(?:js|d\.ts|json|md|mjs|cjs)$/;
 const scratch = mkdtempSync(join(tmpdir(), "sign-sdk-consumer-"));
 try {
   execFileSync("pnpm", ["pack", "--pack-destination", scratch], { cwd: root, stdio: "inherit" });
@@ -22,7 +22,7 @@ try {
   mkdirSync(extracted);
   execFileSync("tar", ["-xzf", tarball, "-C", extracted], { stdio: "inherit" });
   assertPackageContent(expectedPackageInventory
-    .filter((path) => TEXT_MEMBER.test(path))
+    .filter((path) => TEXT_MEMBER.test(path) || path.endsWith("/LICENSE"))
     .map((path) => ({ path, content: readFileSync(join(extracted, path), "utf8") })));
   writeFileSync(join(scratch, "package.json"), JSON.stringify({ name: "sign-sdk-consumer", private: true, type: "module" }));
   execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball], {

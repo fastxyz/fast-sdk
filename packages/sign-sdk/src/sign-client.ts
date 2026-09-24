@@ -40,6 +40,7 @@ import { createRecordClient, type RegistrationState } from "./record-client.js";
 import { asInsufficientFunds, asNonceConflict } from "./errors.js";
 
 const MAX_U64 = (1n << 64n) - 1n;
+const PRE_SUBMIT_RETRY_CODE = "pre_submit_evidence_persistence_failed";
 
 export type SignResult =
   | {
@@ -147,6 +148,12 @@ function reserveNonce(
   nonce: bigint,
   updatedAt: number,
 ): PreparedJournalSnapshot {
+  // A prepared reservation record without the reservation field is the
+  // explicit tombstone written when pre-submit evidence persistence failed.
+  // It is available for reuse, but remains structurally valid in journals.
+  if (existing !== null && existing.state === "prepared" && existing.reservation === undefined) {
+    return reserveNonce(null, reservationId, operation, operationId, network, senderHex, nonce, updatedAt);
+  }
   if (existing !== null) {
     if (
       existing.operationId !== reservationId ||
@@ -293,25 +300,27 @@ export function createSignClient(options: SignClientOptions): SignClient {
             if (current.state === "submission_unknown") return { settlement: "unknown", operationId: input.operationId, txId: current.submission.txId, recoveryPersisted: true };
             return resultFromSettled(current);
           }
+          const retryablePrepared = current?.state === "prepared" && current.diagnostic?.code === PRE_SUBMIT_RETRY_CODE;
+          const signingCurrent = retryablePrepared ? null : current;
           const instant = now();
           if (!Number.isSafeInteger(instant) || instant < 0) throw new Error("clock must return non-negative integer milliseconds");
-          const timestampNanos = current
-            ? BigInt(current.operation.issuedAtNanoseconds)
+          const timestampNanos = signingCurrent
+            ? BigInt(signingCurrent.operation.issuedAtNanoseconds)
             : BigInt(instant) * 1_000_000n;
           if (timestampNanos < 0n || timestampNanos > MAX_U64) {
             throw new Error("clock timestamp is outside the transaction u64 range");
           }
-          const nonce = current ? BigInt(current.operation.nonce) : await provider.getNextNonce(
+          const nonce = signingCurrent ? BigInt(signingCurrent.operation.nonce) : await provider.getNextNonce(
             fastAddressFromPublicKey(publicKey),
           );
           nonceToSafeNumber(nonce);
           const quote = await resolveClaimFee(network, feeSource, feePolicy.feeFreeNetwork ?? false);
-          if (current?.operation.fee === null) throw new Error("an imported settled operation cannot resume signing");
+          if (signingCurrent?.operation.fee === null) throw new Error("an imported settled operation cannot resume signing");
           const authorized = assertFeePolicy(network, quote, feePolicy);
-          if (current && current.operation.fee.scheduleFingerprint !== authorized.scheduleFingerprint) {
+          if (signingCurrent && signingCurrent.operation.fee.scheduleFingerprint !== authorized.scheduleFingerprint) {
             throw new Error("the Fast fee schedule changed since this operation was prepared");
           }
-          const randomRequestId = current ? hexToBytes(current.operation.requestIdHex) : random(16);
+          const randomRequestId = signingCurrent ? hexToBytes(signingCurrent.operation.requestIdHex) : random(16);
           if (!(randomRequestId instanceof Uint8Array) || randomRequestId.byteLength !== 16) {
             throw new Error("randomBytes must return the requested 16 bytes");
           }
@@ -323,8 +332,8 @@ export function createSignClient(options: SignClientOptions): SignClient {
             relationship: input.relationship,
             signer: publicKey,
             requestId,
-            issuedAt: current
-              ? BigInt(current.operation.issuedAtNanoseconds) / 1_000_000_000n
+            issuedAt: signingCurrent
+              ? BigInt(signingCurrent.operation.issuedAtNanoseconds) / 1_000_000_000n
               : BigInt(Math.floor(instant / 1000)),
             signerName: input.signerName ?? "",
             fileLabel: input.listBySigner ? (input.publicTitle ?? "") : "",
@@ -332,7 +341,7 @@ export function createSignClient(options: SignClientOptions): SignClient {
             metadataRevision: 1n,
             fastIdAttribution: null,
           }));
-          const operation: FrozenOperation = current?.operation ?? snapshotFrozenOperation({
+          const operation: FrozenOperation = signingCurrent?.operation ?? snapshotFrozenOperation({
             input,
             network,
             proxyUrl,
@@ -343,7 +352,7 @@ export function createSignClient(options: SignClientOptions): SignClient {
             issuedAtNanoseconds: timestampNanos.toString(),
             fee: authorized,
           });
-          if (!current) await journal.save({ version: 1, state: "prepared", operationId: input.operationId, updatedAt: instant, operation });
+          if (!signingCurrent) await journal.save({ version: 1, state: "prepared", operationId: input.operationId, updatedAt: instant, operation });
           const reservationId = nonceReservationOperationId(network, senderHex, nonce);
           const existingReservation = await journal.load(reservationId);
           const reservation = reserveNonce(existingReservation, reservationId, operation, input.operationId, network, senderHex, nonce, instant);
@@ -367,7 +376,45 @@ export function createSignClient(options: SignClientOptions): SignClient {
             claimDataHex,
           };
           const unknown: JournalSnapshot = { version: 1, state: "submission_unknown", operationId: input.operationId, updatedAt: now(), operation, submission };
-          await journal.save(unknown);
+          try {
+            await journal.save(unknown);
+          } catch (error) {
+            // No provider call has happened yet. If this was a new
+            // reservation, release it only after the recoverable evidence
+            // write failed; if release also fails, retain the reservation to
+            // fail closed rather than allowing another operation to reuse the
+            // nonce without recovery evidence.
+            if (existingReservation === null) {
+              try {
+                await journal.save({
+                  version: 1,
+                  state: "prepared",
+                  operationId: reservationId,
+                  updatedAt: now(),
+                  operation: reservation.operation,
+                });
+              } catch {
+                // The durable reservation is the safe fallback.
+              }
+            }
+            try {
+              await journal.save({
+                version: 1,
+                state: "prepared",
+                operationId: input.operationId,
+                updatedAt: now(),
+                operation,
+                diagnostic: {
+                  code: PRE_SUBMIT_RETRY_CODE,
+                  message: "submission evidence could not be persisted before the provider call",
+                  at: now(),
+                },
+              });
+            } catch {
+              // The earlier prepared snapshot remains the safest fallback.
+            }
+            throw error;
+          }
           let submitted: unknown;
           try { submitted = await provider.submitTransaction(signed.envelope); }
           catch (error) {

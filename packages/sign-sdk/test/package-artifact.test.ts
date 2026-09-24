@@ -28,6 +28,13 @@ it.each([
     .toThrow(/private|absolute|secret|forbidden/i);
 });
 
+it("inspects published documentation and license members", () => {
+  for (const path of ["package/README.md", "package/THIRD_PARTY_NOTICES.md", "package/LICENSE"]) {
+    expect(() => assertPackageContent([{ path, content: "private source: /tmp/agent-only.ts" }]))
+      .toThrow(/private|absolute|forbidden/i);
+  }
+});
+
 it("requires every published release-evidence gate in the schema", () => {
   const schema = JSON.parse(readFileSync(new URL("../provenance/release-evidence.schema.json", import.meta.url), "utf8")) as {
     required: string[];

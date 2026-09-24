@@ -222,6 +222,41 @@ describe("index HTTP client", () => {
     await expect(client.record(record())).rejects.toMatchObject({ kind: "transport" });
   });
 
+  it("uses a validated pre-request clock for a direct exact GET HTTP-date retry", async () => {
+    let requested = false;
+    const now = vi.fn(() => {
+      if (requested) throw new Error("clock unavailable after lookup");
+      return 1_700_000_000_000;
+    });
+    const fetchImpl = vi.fn(async () => {
+      requested = true;
+      return new Response("temporarily unavailable", {
+        status: 503,
+        headers: { "retry-after": new Date(1_700_000_005_000).toUTCString() },
+      });
+    });
+    const client = createIndexHttpClient({ network: "fast:testnet", indexOrigin: "https://index.example", fetchImpl, now });
+
+    await expect(client.fetchExact(record())).rejects.toMatchObject({
+      kind: "retryable",
+      status: 503,
+      retryAfterMs: 5_000,
+    });
+    expect(now).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an invalid direct exact-lookup clock before any GET", async () => {
+    const fetchImpl = vi.fn();
+    const client = createIndexHttpClient({
+      network: "fast:testnet", indexOrigin: "https://index.example", fetchImpl,
+      now: () => Number.NaN,
+    });
+
+    await expect(client.fetchExact(record())).rejects.toThrow(/clock must return non-negative integer milliseconds/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("validates destination and network binding before any fetch", async () => {
     const fetchImpl = vi.fn();
     expect(() =>

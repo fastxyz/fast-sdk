@@ -121,7 +121,7 @@ export interface IndexHttpClient {
   readonly network: SignNetwork;
   readonly indexOrigin: string;
   record(value: RecordRequest, requestTimestampMs?: number): Promise<void>;
-  fetchExact(value: ExactLookupInput): Promise<IndexSettlement | null>;
+  fetchExact(value: ExactLookupInput, requestTimestampMs?: number): Promise<IndexSettlement | null>;
 }
 
 export function normalizeIndexOrigin(value: unknown): string {
@@ -257,8 +257,12 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
         if (response.body) await response.body.cancel().catch(() => undefined);
       });
     },
-    async fetchExact(value) {
+    async fetchExact(value, requestTimestampMs) {
       assertExactBinding(value, network);
+      const instant = requestTimestampMs === undefined ? now() : requestTimestampMs;
+      if (!Number.isSafeInteger(instant) || instant < 0) {
+        throw new Error("clock must return non-negative integer milliseconds");
+      }
       return withDeadline(deadlineMs, async (signal) => {
         let response: Response;
         try {
@@ -268,7 +272,7 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
           if (error instanceof IndexHttpError) throw error;
           throw new IndexHttpError("transport", error instanceof Error ? error.message : String(error));
         }
-        if (!response.ok) throw await responseError(response, "index /by-hash failed", signal, now);
+        if (!response.ok) throw await responseError(response, "index /by-hash failed", signal, () => instant);
         let body: unknown;
         let result: BoundedBody;
         try {

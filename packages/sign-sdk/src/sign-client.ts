@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { encodeAttestationV3, RELATIONSHIPS } from "./internal/attestation.js";
+import { createHash } from "node:crypto";
 import { hasVisibleMetadataTextV1, validateMetadataTextV1 } from "./internal/metadata.js";
 import { fastAddressFromPublicKey } from "./internal/address.js";
 import { assertLowerHex, bytesToHex, hexToBytes } from "./internal/bytes.js";
@@ -27,6 +28,7 @@ import {
   type ByteSigner,
   type FrozenOperation,
   type JournalSnapshot,
+  type PreparedJournalSnapshot,
   type PendingRegistration,
   type RecoveryJournal,
   type SettledJournalSnapshot,
@@ -126,6 +128,53 @@ function sameInput(snapshot: JournalSnapshot, input: NormalizedSignInput): boole
   return frozen.operationId === input.operationId && frozen.sha256 === input.sha256 &&
     frozen.relationship === input.relationship && frozen.signerName === input.signerName &&
     frozen.publicTitle === input.publicTitle && frozen.listBySigner === input.listBySigner;
+}
+
+function nonceReservationOperationId(network: SignNetwork, senderHex: string, nonce: bigint): string {
+  const digest = createHash("sha256")
+    .update(`${network}\0${senderHex}\0${nonce.toString()}`, "utf8")
+    .digest("hex");
+  return `nonce-reservation-${digest}`;
+}
+
+function reserveNonce(
+  existing: JournalSnapshot | null,
+  reservationId: string,
+  operation: FrozenOperation,
+  operationId: string,
+  network: SignNetwork,
+  senderHex: string,
+  nonce: bigint,
+  updatedAt: number,
+): PreparedJournalSnapshot {
+  if (existing !== null) {
+    if (
+      existing.operationId !== reservationId ||
+      existing.state !== "prepared" ||
+      existing.reservation === undefined ||
+      existing.reservation.network !== network ||
+      existing.reservation.senderHex !== senderHex ||
+      existing.reservation.nonce !== nonce.toString()
+    ) {
+      throw new Error("nonce reservation record is malformed");
+    }
+    if (existing.reservation.ownerOperationId !== operationId) {
+      throw new Error("nonce is reserved by an indeterminate operation");
+    }
+    return existing;
+  }
+  const reservationOperation = snapshotFrozenOperation({
+    ...operation,
+    input: { ...operation.input, operationId: reservationId },
+  });
+  return {
+    version: 1,
+    state: "prepared",
+    operationId: reservationId,
+    updatedAt,
+    operation: reservationOperation,
+    reservation: { ownerOperationId: operationId, network, senderHex, nonce: nonce.toString() },
+  };
 }
 
 function assertFrozenClientBindings(
@@ -295,6 +344,10 @@ export function createSignClient(options: SignClientOptions): SignClient {
             fee: authorized,
           });
           if (!current) await journal.save({ version: 1, state: "prepared", operationId: input.operationId, updatedAt: instant, operation });
+          const reservationId = nonceReservationOperationId(network, senderHex, nonce);
+          const existingReservation = await journal.load(reservationId);
+          const reservation = reserveNonce(existingReservation, reservationId, operation, input.operationId, network, senderHex, nonce, instant);
+          if (existingReservation === null) await journal.save(reservation);
           const prepared = await prepareExternalClaimTransaction({
             network, senderPublicKey: publicKey, nonce, claimDataHex,
             feeToken: feeTokenForState(quote), timestampNanos,

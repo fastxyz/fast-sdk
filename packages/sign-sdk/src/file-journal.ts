@@ -288,7 +288,7 @@ function assertJournalSnapshot(value: unknown): asserts value is JournalSnapshot
   assertExactKeys(
     value,
     ["version", "state", "operationId", "updatedAt", "operation"],
-    ["submission", "receipt", "diagnostic", "nextRegistrationAttemptAt", "registrationAttempts"],
+    ["reservation", "submission", "receipt", "diagnostic", "nextRegistrationAttemptAt", "registrationAttempts"],
     "snapshot",
   );
   if (value.version !== 1) throw new Error("unsupported journal snapshot version");
@@ -302,6 +302,21 @@ function assertJournalSnapshot(value: unknown): asserts value is JournalSnapshot
   if (value.registrationAttempts !== undefined && (typeof value.registrationAttempts !== "number" || !Number.isSafeInteger(value.registrationAttempts) || value.registrationAttempts < 0)) {
     throw new Error("snapshot.registrationAttempts must be a safe nonnegative integer");
   }
+  if (value.state === "prepared" && value.reservation !== undefined) {
+    assertPlainObject(value.reservation, "snapshot.reservation");
+    assertExactKeys(value.reservation, ["ownerOperationId", "network", "senderHex", "nonce"], [], "snapshot.reservation");
+    assertOperationId(value.reservation.ownerOperationId);
+    if (value.reservation.network !== value.operation.network) throw new Error("snapshot reservation network does not match operation");
+    if (value.reservation.senderHex !== value.operation.senderHex) throw new Error("snapshot reservation sender does not match operation");
+    assertDecimal(value.reservation.nonce, "snapshot.reservation.nonce");
+    if (value.reservation.nonce !== value.operation.nonce) throw new Error("snapshot reservation nonce does not match operation");
+    if (value.submission !== undefined || value.receipt !== undefined || value.diagnostic !== undefined ||
+      value.nextRegistrationAttemptAt !== undefined || value.registrationAttempts !== undefined) {
+      throw new Error("nonce reservation snapshot contains settlement fields");
+    }
+    return;
+  }
+  if (value.reservation !== undefined) throw new Error("non-prepared snapshot cannot contain reservation");
   if (value.state === "prepared") {
     if (value.submission !== undefined || value.receipt !== undefined) throw new Error("prepared snapshot cannot contain settlement evidence");
     return;

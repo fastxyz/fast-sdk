@@ -103,6 +103,13 @@ interface JournalSnapshotBase {
 
 export interface PreparedJournalSnapshot extends JournalSnapshotBase {
   readonly state: "prepared";
+  /** Present only on the internal deterministic nonce-reservation record. */
+  readonly reservation?: {
+    readonly ownerOperationId: string;
+    readonly network: SignNetwork;
+    readonly senderHex: string;
+    readonly nonce: string;
+  };
 }
 
 export interface SubmissionUnknownJournalSnapshot extends JournalSnapshotBase {

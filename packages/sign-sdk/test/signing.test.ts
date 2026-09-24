@@ -444,6 +444,75 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(maxActiveNonceReads).toBe(1);
   });
 
+  it("blocks a different operation after an indeterminate submission reserves its nonce", async () => {
+    const snapshots = new Map<string, unknown>();
+    const locks = new Map<string, Promise<void>>();
+    const journal = {
+      async load(operationId: string) {
+        const snapshot = snapshots.get(operationId);
+        return snapshot === undefined ? null : structuredClone(snapshot) as JournalSnapshot;
+      },
+      async save(value: JournalSnapshot) {
+        snapshots.set(value.operationId, structuredClone(value));
+      },
+      async withLock<T>(key: string, operation: () => Promise<T>) {
+        const previous = locks.get(key) ?? Promise.resolve();
+        let release!: () => void;
+        const current = new Promise<void>((resolve) => { release = resolve; });
+        locks.set(key, current);
+        await previous;
+        try {
+          return await operation();
+        } finally {
+          release();
+          if (locks.get(key) === current) locks.delete(key);
+        }
+      },
+    };
+    const actual = new Signer(seed);
+    const signMessage = vi.fn(async (bytes: Uint8Array) => actual.signMessage(bytes));
+    const submitTransaction = vi.fn(async () => null);
+    const getNextNonce = vi.fn(async () => 7n);
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage },
+      journal,
+      provider: { getNextNonce, submitTransaction },
+      feeSource: {
+        networkInfo: async () => ({ data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }),
+        tokenMeta: async () => { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+      now: () => 1_700_000_000_000,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+
+    await expect(client.signDigest({
+      operationId: "reserved-first",
+      sha256: "11".repeat(32),
+      relationship: "authored",
+    })).resolves.toMatchObject({ settlement: "unknown", txId: expect.any(String) });
+
+    const reservation = [...snapshots.values()].find((value) =>
+      typeof value === "object" && value !== null && "reservation" in value,
+    ) as { state?: unknown; reservation?: { ownerOperationId?: unknown; nonce?: unknown } } | undefined;
+    expect(reservation).toMatchObject({
+      state: "prepared",
+      reservation: { ownerOperationId: "reserved-first", nonce: "7" },
+    });
+
+    await expect(client.signDigest({
+      operationId: "reserved-second",
+      sha256: "22".repeat(32),
+      relationship: "approved",
+    })).rejects.toThrow(/nonce.*reserved|indeterminate/i);
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(submitTransaction).toHaveBeenCalledTimes(1);
+    expect(getNextNonce).toHaveBeenCalledTimes(2);
+  });
+
   it.each([undefined, null, 7, {}, "", "../escape", "x".repeat(129), "valid\n"])("rejects runtime operationId %j before any capability", async (operationId) => {
     const poison = vi.fn(async () => { throw new Error("capability reached"); });
     const journal = { load: poison, save: poison, withLock: poison };

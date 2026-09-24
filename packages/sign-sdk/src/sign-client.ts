@@ -367,7 +367,8 @@ export function createSignClient(options: SignClientOptions): SignClient {
           // Do not pin a free nonce until all pre-submit preparation and
           // signing have succeeded. Existing reservations were checked above,
           // so a competing operation still fails before it can sign.
-          if (existingReservation === null) await journal.save(reservation);
+          const reusingReservationTombstone = existingReservation?.state === "prepared" && existingReservation.reservation === undefined;
+          if (existingReservation === null || reusingReservationTombstone) await journal.save(reservation);
           const submission: SignedSubmission = {
             txId: signed.txId,
             signingBytesHex: bytesToHex(signed.signingBytes),
@@ -375,7 +376,10 @@ export function createSignClient(options: SignClientOptions): SignClient {
             senderSignatureHex: signed.senderSignatureHex,
             claimDataHex,
           };
-          const unknown: JournalSnapshot = { version: 1, state: "submission_unknown", operationId: input.operationId, updatedAt: now(), operation, submission };
+          // `instant` was validated before any reservation was created. Reuse
+          // it for all pre-submit journal transitions so a second clock read
+          // cannot strand a durable reservation without a recoverable state.
+          const unknown: JournalSnapshot = { version: 1, state: "submission_unknown", operationId: input.operationId, updatedAt: instant, operation, submission };
           try {
             await journal.save(unknown);
           } catch (error) {
@@ -390,7 +394,7 @@ export function createSignClient(options: SignClientOptions): SignClient {
                   version: 1,
                   state: "prepared",
                   operationId: reservationId,
-                  updatedAt: now(),
+                  updatedAt: instant,
                   operation: reservation.operation,
                 });
               } catch {
@@ -402,12 +406,12 @@ export function createSignClient(options: SignClientOptions): SignClient {
                 version: 1,
                 state: "prepared",
                 operationId: input.operationId,
-                updatedAt: now(),
+                updatedAt: instant,
                 operation,
                 diagnostic: {
                   code: PRE_SUBMIT_RETRY_CODE,
                   message: "submission evidence could not be persisted before the provider call",
-                  at: now(),
+                  at: instant,
                 },
               });
             } catch {

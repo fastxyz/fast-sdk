@@ -553,6 +553,7 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     const snapshots = new Map<string, JournalSnapshot>();
     const submitTransaction = vi.fn(async () => null);
     let failEvidenceSave = true;
+    let failClockAfterEvidenceWrite = false;
     const client = createSignClient({
       network: "fast:testnet",
       proxyUrl: "https://proxy.example",
@@ -563,6 +564,7 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
         async save(value) {
           if (failEvidenceSave && value.state === "submission_unknown") {
             failEvidenceSave = false;
+            failClockAfterEvidenceWrite = true;
             throw new Error("journal evidence write failed");
           }
           snapshots.set(value.operationId, structuredClone(value));
@@ -575,7 +577,10 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
         async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
         async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
       },
-      now: () => 1_700_000_000_000,
+      now: () => {
+        if (failClockAfterEvidenceWrite) throw new Error("clock unavailable");
+        return 1_700_000_000_000;
+      },
       randomBytes: (length) => new Uint8Array(length).fill(0x33),
     });
 
@@ -588,6 +593,22 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(reservation).toMatchObject({ state: "prepared" });
     expect(reservation && "reservation" in reservation ? reservation.reservation : undefined).toBeUndefined();
     expect(submitTransaction).not.toHaveBeenCalled();
+    failClockAfterEvidenceWrite = false;
+
+    // A retry must replace the release tombstone with a fresh durable
+    // reservation before it can submit. The pre-submit path must also reuse
+    // the already validated instant rather than reading a failing clock.
+    await expect(client.signDigest({
+      operationId: "evidence-write-fails",
+      sha256: "11".repeat(32),
+      relationship: "authored",
+    })).resolves.toMatchObject({ settlement: "unknown", operationId: "evidence-write-fails" });
+    const retriedReservation = [...snapshots.values()].find((snapshot) => snapshot.operationId.startsWith("nonce-reservation-"));
+    expect(retriedReservation).toMatchObject({
+      state: "prepared",
+      reservation: { ownerOperationId: "evidence-write-fails", nonce: "7" },
+    });
+    expect(submitTransaction).toHaveBeenCalledTimes(1);
   });
 
   it("turns submit-result extraction traps into durable unknown settlement", async () => {

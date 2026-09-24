@@ -3,6 +3,7 @@ import { fromHex } from "@fastxyz/sdk";
 import { Effect, Option } from "effect";
 import type { AccountImportArgs } from "../../cli.js";
 import { InvalidUsageError } from "../../errors/index.js";
+import { decryptLegacyKeystore } from "../../services/legacy-keystore.js";
 import { validateName } from "../../services/validate.js";
 import { Output } from "../../services/output.js";
 import { Prompt } from "../../services/prompt.js";
@@ -17,10 +18,10 @@ export const accountImport: Command<AccountImportArgs> = {
       const prompt = yield* Prompt;
       const output = yield* Output;
 
-      if (args.privateKey && args.keyFile) {
+      if ([args.privateKey, args.keyFile, args.legacyKeystore].filter(Boolean).length !== 1) {
         return yield* Effect.fail(
           new InvalidUsageError({
-            message: "--private-key and --key-file are mutually exclusive",
+            message: "Provide exactly one of --private-key, --key-file or --legacy-keystore",
           }),
         );
       }
@@ -35,6 +36,7 @@ export const accountImport: Command<AccountImportArgs> = {
         });
 
       let seed: Uint8Array;
+      let legacyPassword: string | undefined;
       if (args.privateKey) {
         seed = yield* parseHexSeed(args.privateKey);
         if (seed.length !== 32) {
@@ -76,11 +78,30 @@ export const accountImport: Command<AccountImportArgs> = {
           );
         }
       } else {
-        return yield* Effect.fail(
-          new InvalidUsageError({
-            message: "Provide --private-key or --key-file",
-          }),
-        );
+        const path = args.legacyKeystore;
+        if (!path) {
+          return yield* Effect.fail(new InvalidUsageError({ message: "Legacy keystore path is required" }));
+        }
+        const content = yield* Effect.try({
+          try: () => readFileSync(path, "utf-8"),
+          catch: () => new InvalidUsageError({ message: "Cannot read legacy keystore" }),
+        });
+        const parsed = yield* Effect.try({
+          try: () => JSON.parse(content) as unknown,
+          catch: () => new InvalidUsageError({ message: "Legacy keystore is not valid JSON" }),
+        });
+        const password = yield* prompt.password();
+        if (password.length === 0) {
+          return yield* Effect.fail(new InvalidUsageError({ message: "Legacy keystore password is required" }));
+        }
+        legacyPassword = password;
+        seed = yield* Effect.tryPromise({
+          try: () => decryptLegacyKeystore(parsed, password),
+          catch: (e) =>
+            new InvalidUsageError({
+              message: e instanceof Error ? e.message : "Invalid legacy keystore",
+            }),
+        });
       }
 
       const name = args.name ?? (yield* accounts.nextAutoName());
@@ -92,7 +113,7 @@ export const accountImport: Command<AccountImportArgs> = {
         }
       }
 
-      const pwd = yield* prompt.password({ required: false });
+      const pwd = legacyPassword === undefined ? yield* prompt.password({ required: false }) : Option.some(legacyPassword);
       const entry = yield* accounts.import(name, seed, Option.getOrNull(pwd));
 
       if (Option.isNone(pwd)) {

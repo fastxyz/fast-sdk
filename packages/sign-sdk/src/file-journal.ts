@@ -330,19 +330,23 @@ function assertJournalSnapshot(value: unknown): asserts value is JournalSnapshot
 }
 
 async function ensureDirectoryEntry(path: string): Promise<void> {
+  const parent = dirname(path);
   try {
     await mkdir(path, { mode: 0o700 });
-    await syncDirectory(dirname(path));
-    return;
   } catch (error) {
-    if (errno(error, "EEXIST")) return;
-    if (!errno(error, "ENOENT")) throw error;
-    const parent = dirname(path);
-    if (parent === path) throw error;
-    await ensureDirectoryEntry(parent);
-    await mkdir(path, { mode: 0o700 });
-    await syncDirectory(parent);
+    if (errno(error, "ENOENT")) {
+      if (parent === path) throw error;
+      await ensureDirectoryEntry(parent);
+      try {
+        await mkdir(path, { mode: 0o700 });
+      } catch (retryError) {
+        if (!errno(retryError, "EEXIST")) throw retryError;
+      }
+    } else if (!errno(error, "EEXIST")) {
+      throw error;
+    }
   }
+  await syncDirectory(parent);
 }
 
 async function assertNoSymlinkPathComponents(path: string): Promise<void> {
@@ -430,8 +434,6 @@ async function syncDirectory(path: string): Promise<void> {
   const handle = await open(path, constants.O_RDONLY | (constants.O_DIRECTORY ?? 0));
   try {
     await handle.sync();
-  } catch (error) {
-    if (!errno(error, "EINVAL") && !errno(error, "ENOTSUP") && !errno(error, "EBADF")) throw error;
   } finally {
     await handle.close();
   }

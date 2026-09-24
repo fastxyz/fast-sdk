@@ -21,11 +21,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Signer } from "@fastxyz/sdk";
 
 import {
   MAX_JOURNAL_SNAPSHOT_BYTES,
   createFileJournal,
 } from "../src/file-journal.js";
+import { createSignClient } from "../src/sign-client.js";
 import type { JournalSnapshot } from "../src/types.js";
 
 const roots: string[] = [];
@@ -106,8 +108,42 @@ async function waitForFile(path: string): Promise<void> {
   throw new Error(`timed out waiting for ${path}`);
 }
 
-async function childRuntime(root: string, publicationBarrier?: { ready: string; release: string }, setupFailure?: "directory-sync" | "owner-unlink"): Promise<string> {
+async function childRuntime(
+  root: string,
+  publicationBarrier?: { ready: string; release: string },
+  setupFailure?: "directory-sync" | "owner-unlink",
+  directorySyncError?: "EINVAL" | "ENOTSUP" | "EBADF",
+  parentDirectorySyncError?: { path: string; code: "EINVAL" },
+): Promise<string> {
   let source = await readFile(new URL("../src/file-journal.ts", import.meta.url), "utf8");
+  if (parentDirectorySyncError) {
+    const boundary = `async function syncDirectory(path: string): Promise<void> {
+  const handle = await open(path, constants.O_RDONLY | (constants.O_DIRECTORY ?? 0));
+  try {
+    await handle.sync();`;
+    expect(source).toContain(boundary);
+    source = source.replace(boundary, boundary.replace(
+      "    await handle.sync();",
+      `    if (path === ${JSON.stringify(parentDirectorySyncError.path)}) {
+      throw Object.assign(new Error("injected parent directory fsync failure"), { code: ${JSON.stringify(parentDirectorySyncError.code)} });
+    }
+    await handle.sync();`,
+    ));
+  }
+  if (directorySyncError) {
+    const boundary = `async function syncDirectory(path: string): Promise<void> {
+  const handle = await open(path, constants.O_RDONLY | (constants.O_DIRECTORY ?? 0));
+  try {
+    await handle.sync();`;
+    expect(source).toContain(boundary);
+    source = `let operationDirectorySyncs = 0;\n` + source.replace(boundary, boundary.replace(
+      "    await handle.sync();",
+      `    if (path.endsWith(sep + "operations") && ++operationDirectorySyncs === 3) {
+      throw Object.assign(new Error("injected operations directory fsync failure"), { code: ${JSON.stringify(directorySyncError)} });
+    }
+    await handle.sync();`,
+    ));
+  }
   if (setupFailure) {
     // Inject a one-shot setup fault at the real publication boundary; retain
     // actual file writes, hard-link publication, owner checks and unlink I/O.
@@ -228,6 +264,58 @@ async function exit(child: ChildProcess): Promise<number | null> {
 }
 
 describe("file recovery journal", () => {
+  it("does not treat an existing directory as durable after its parent fsync failed", async () => {
+    const parent = await temporaryRoot();
+    const runtime = await childRuntime(parent, undefined, undefined, undefined, { path: parent, code: "EINVAL" });
+    const module = await import(new URL(`file://${runtime}`).href);
+    const directory = join(parent, "state");
+    const journal = module.createFileJournal({ directory });
+    const snapshot = prepared("failed-layout-parent-sync");
+
+    await expect(journal.save(snapshot)).rejects.toThrow("injected parent directory fsync failure");
+    expect((await lstat(directory)).isDirectory()).toBe(true);
+    await expect(journal.save(snapshot)).rejects.toThrow("injected parent directory fsync failure");
+  });
+
+  it.each(["EINVAL", "ENOTSUP", "EBADF"] as const)(
+    "does not submit when the submission evidence directory fsync fails with %s",
+    async (code) => {
+      const parent = await temporaryRoot();
+      const runtime = await childRuntime(parent, undefined, undefined, code);
+      const module = await import(new URL(`file://${runtime}`).href);
+      const signer = new Signer(new Uint8Array(32).fill(7));
+      const provider = {
+        getNextNonce: vi.fn(async () => 7n),
+        submitTransaction: vi.fn(async () => null),
+      };
+      const client = createSignClient({
+        network: "fast:testnet",
+        proxyUrl: "https://proxy.example",
+        indexOrigin: "https://index.example",
+        signer: {
+          getPublicKey: () => signer.getPublicKey(),
+          signMessage: (bytes) => signer.signMessage(bytes),
+        },
+        journal: module.createFileJournal({ directory: join(parent, "state") }),
+        provider,
+        feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+        feeSource: {
+          async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
+          async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+        },
+        now: () => 1_700_000_000_000,
+        randomBytes: (length) => new Uint8Array(length).fill(0x33),
+      });
+
+      await expect(client.signDigest({
+        operationId: `directory-fsync-${code.toLowerCase()}`,
+        sha256: "11".repeat(32),
+        relationship: "authored",
+      })).rejects.toThrow("injected operations directory fsync failure");
+      expect(provider.submitTransaction).not.toHaveBeenCalled();
+    },
+  );
+
   it("round-trips lossless fields with private directory and file permissions", async () => {
     const parent = await temporaryRoot();
     const directory = join(parent, "state");

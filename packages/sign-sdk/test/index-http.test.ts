@@ -109,6 +109,26 @@ describe("index HTTP client", () => {
     });
   });
 
+  it("cancels an accepted record response body", async () => {
+    let canceled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("ignored"));
+      },
+      cancel() {
+        canceled = true;
+      },
+    });
+    const client = createIndexHttpClient({
+      network: "fast:testnet",
+      indexOrigin: "https://index.example",
+      fetchImpl: async () => new Response(body, { status: 200 }),
+    });
+
+    await expect(client.record(record())).resolves.toBeUndefined();
+    expect(canceled).toBe(true);
+  });
+
   it.each([201, 202, 204])("rejects non-200 record acknowledgements: %i", async (status) => {
     const client = createIndexHttpClient({
       network: "fast:testnet",

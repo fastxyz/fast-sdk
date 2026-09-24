@@ -43,9 +43,13 @@ describe("public source provenance", () => {
     expect(destinations).toContain("README.md");
     expect(destinations).toContain("LICENSE");
     expect(destinations).toContain("THIRD_PARTY_NOTICES.md");
-    expect(filesUnder(join(root, "src")).sort()).toEqual(
-      destinations.filter((path) => path.startsWith("src/")).sort(),
-    );
+    expect(destinations.sort()).toEqual([
+      ...filesUnder(join(root, "src")),
+      "README.md",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md",
+      "package.json",
+    ].sort());
 
     for (const record of records) {
       expect(record.copyright).not.toBe("");

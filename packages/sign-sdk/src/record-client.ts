@@ -145,6 +145,11 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
       : { state: "conflict", error: "the exact index row does not match the durable receipt" };
   };
 
+  const reconcileFailure = (error: unknown): { state: RegistrationState; error: string } => ({
+    state: "pending",
+    error: error instanceof Error ? error.message : String(error),
+  });
+
   return {
     checkRegistration(receipt) {
       return withSnapshot(receipt, async (durable, snapshot) => {
@@ -162,8 +167,12 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
           return { state: "registered" };
         } catch (error) {
           if (error instanceof IndexHttpError && error.kind === "conflict") {
-            const result = await reconcile(durable);
-            return result.state === "pending" ? { state: "conflict", error: error.message } : result;
+            try {
+              const result = await reconcile(durable);
+              return result.state === "pending" ? { state: "conflict", error: error.message } : result;
+            } catch (reconciliationError) {
+              return reconcileFailure(reconciliationError);
+            }
           }
           if (error instanceof IndexHttpError && (error.kind === "retryable" || error.kind === "transport")) {
             return { state: "pending", error: error.message };

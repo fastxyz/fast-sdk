@@ -24,6 +24,14 @@
     "disposition": "approved"
   },
   {
+    "destination": "package.json",
+    "classification": "new",
+    "origin": { "repository": "fastxyz/fast-sdk", "commit": null, "path": null, "blob": null },
+    "copyright": "Copyright (c) Pi Squared, Inc.",
+    "license": "Apache-2.0",
+    "disposition": "approved"
+  },
+  {
     "destination": "src/index.ts",
     "classification": "new",
     "origin": { "repository": "fastxyz/fast-sdk", "commit": null, "path": null, "blob": null },

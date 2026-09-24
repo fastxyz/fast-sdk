@@ -249,6 +249,7 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
           throw new IndexHttpError("transport", error instanceof Error ? error.message : String(error));
         }
         if (response.status !== 200) throw await responseError(response, "index /record failed", signal, now);
+        if (response.body) await response.body.cancel().catch(() => undefined);
       });
     },
     async fetchExact(value) {

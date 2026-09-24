@@ -110,6 +110,27 @@ it("retryRegistration performs one explicit POST and persists acknowledgement", 
   expect(journal.saves.at(-1)).toMatchObject({ state: "registered" });
 });
 
+it("persists a pending diagnostic when conflict reconciliation fails", async () => {
+  const journal = memoryJournal(settled());
+  const responses = [
+    new Response("already exists", { status: 409 }),
+    new Response("not-json", { status: 200 }),
+  ];
+  const fetchImpl = vi.fn(async () => responses.shift()!);
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl });
+
+  await expect(client.retryRegistration(receipt)).resolves.toMatchObject({
+    registration: "pending",
+    recoveryPersisted: true,
+    error: expect.stringMatching(/malformed JSON/i),
+  });
+  expect(journal.saves.at(-1)).toMatchObject({
+    state: "registration_pending",
+    diagnostic: { code: "registration_pending" },
+  });
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+});
+
 it("rejects a receipt whose indexOrigin is not the exact configured origin", async () => {
   const journal = memoryJournal(settled());
   const client = createRecordClient({

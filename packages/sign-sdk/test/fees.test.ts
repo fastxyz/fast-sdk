@@ -35,4 +35,27 @@ describe("fee authorization", () => {
       updateId: 1,
     })).toThrow(/changed/i);
   });
+
+  it("fails closed when the fee schedule contains duplicate token entries", async () => {
+    const duplicateEntry = { token_id: "11".repeat(32), fixed_amount: "7" };
+    await expect(resolveClaimFee("fast:testnet", {
+      networkInfo: async () => ({
+        data: { network_id: "fast:testnet", fees: { default: duplicateEntry.token_id, entries: [duplicateEntry, duplicateEntry] } },
+      }),
+      tokenMeta: async () => ({ data: { requested_token_metadata: [] } }),
+    })).resolves.toEqual({ kind: "unavailable" });
+  });
+
+  it.each(["identical", "conflicting"] as const)("fails closed when token metadata is duplicated (%s)", async (kind) => {
+    const rows = [
+      ["11".repeat(32), { token_name: "FAST", decimals: 9, update_id: 1 }],
+      ["11".repeat(32), { token_name: kind === "conflicting" ? "OTHER" : "FAST", decimals: 9, update_id: 1 }],
+    ];
+    await expect(resolveClaimFee("fast:testnet", {
+      networkInfo: async () => ({
+        data: { network_id: "fast:testnet", fees: { default: "11".repeat(32), entries: [{ token_id: "11".repeat(32), fixed_amount: "7" }] } },
+      }),
+      tokenMeta: async () => ({ data: { requested_token_metadata: rows } }),
+    })).resolves.toEqual({ kind: "unavailable" });
+  });
 });

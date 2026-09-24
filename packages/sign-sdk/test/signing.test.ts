@@ -370,6 +370,56 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(attestation.listBySigner).toBe(original.listBySigner);
   });
 
+  it("serializes concurrent signDigest calls for one operation before submitting", async () => {
+    let snapshot: JournalSnapshot | null = null;
+    const locks = new Map<string, Promise<void>>();
+    const journal = {
+      async load(operationId: string) {
+        return snapshot?.operationId === operationId ? structuredClone(snapshot) : null;
+      },
+      async save(value: JournalSnapshot) {
+        snapshot = structuredClone(value);
+      },
+      async withLock<T>(key: string, operation: () => Promise<T>) {
+        const previous = locks.get(key) ?? Promise.resolve();
+        let release!: () => void;
+        const current = new Promise<void>((resolve) => { release = resolve; });
+        locks.set(key, current);
+        await previous;
+        try {
+          return await operation();
+        } finally {
+          release();
+          if (locks.get(key) === current) locks.delete(key);
+        }
+      },
+    };
+    const submitTransaction = vi.fn(async () => null);
+    const actual = new Signer(seed);
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes) => actual.signMessage(bytes) },
+      journal,
+      provider: { getNextNonce: vi.fn(async () => 7n), submitTransaction },
+      feeSource: {
+        networkInfo: async () => ({ data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }),
+        tokenMeta: async () => { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+      now: () => 1_700_000_000_000,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+    const input = { operationId: "concurrent-operation", sha256: "11".repeat(32), relationship: "authored" as const };
+
+    await expect(Promise.all([client.signDigest(input), client.signDigest(input)])).resolves.toEqual([
+      { settlement: "unknown", operationId: input.operationId, txId: expect.any(String), recoveryPersisted: true },
+      { settlement: "unknown", operationId: input.operationId, txId: expect.any(String), recoveryPersisted: true },
+    ]);
+    expect(submitTransaction).toHaveBeenCalledTimes(1);
+  });
+
   it.each([undefined, null, 7, {}, "", "../escape", "x".repeat(129), "valid\n"])("rejects runtime operationId %j before any capability", async (operationId) => {
     const poison = vi.fn(async () => { throw new Error("capability reached"); });
     const journal = { load: poison, save: poison, withLock: poison };

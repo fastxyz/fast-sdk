@@ -1,6 +1,7 @@
 // Copyright (c) Pi Squared, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,6 +29,9 @@ interface ProtocolFixture {
 
 const fixturePath = join(dirname(fileURLToPath(import.meta.url)), "fixtures/protocol.json");
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as ProtocolFixture;
+const provenance = JSON.parse(
+  readFileSync(join(dirname(fixturePath), "provenance.json"), "utf8"),
+) as { fixture: string; fixtureSha256: string };
 
 describe("canonical ArtifactAttestationV3", () => {
   it.each(fixture.protocol.positive.map((value) => [value.name, value] as const))(
@@ -66,6 +70,12 @@ describe("canonical ArtifactAttestationV3", () => {
       "received",
       "official_release",
     ]);
+  });
+
+  it("binds the committed fixture bytes to its provenance hash", () => {
+    expect(provenance.fixture).toBe("test/fixtures/protocol.json");
+    expect(provenance.fixtureSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(createHash("sha256").update(readFileSync(fixturePath)).digest("hex")).toBe(provenance.fixtureSha256);
   });
 
   it.each([

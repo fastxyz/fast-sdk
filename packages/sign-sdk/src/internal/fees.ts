@@ -85,18 +85,16 @@ function tokenMetaFor(
     ? value.data.requested_token_metadata
     : undefined;
   if (!Array.isArray(list)) return null;
-  for (const row of list) {
-    if (!Array.isArray(row) || row[0] !== tokenId || !isObject(row[1])) continue;
-    const { token_name: symbol, decimals, update_id: updateIdValue } = row[1];
-    if (typeof symbol !== "string" || symbol.length === 0 || !isU8(decimals)) return null;
-    let updateId: number | null = null;
-    if (updateIdValue !== undefined) {
-      if (!Number.isSafeInteger(updateIdValue) || (updateIdValue as number) < 0) return null;
-      updateId = updateIdValue as number;
-    }
-    return { symbol, decimals, updateId };
+  const matches = list.filter((row) => Array.isArray(row) && row[0] === tokenId);
+  if (matches.length !== 1 || !isObject(matches[0]?.[1])) return null;
+  const { token_name: symbol, decimals, update_id: updateIdValue } = matches[0][1];
+  if (typeof symbol !== "string" || symbol.length === 0 || !isU8(decimals)) return null;
+  let updateId: number | null = null;
+  if (updateIdValue !== undefined) {
+    if (!Number.isSafeInteger(updateIdValue) || (updateIdValue as number) < 0) return null;
+    updateId = updateIdValue as number;
   }
-  return null;
+  return { symbol, decimals, updateId };
 }
 
 export function toRestGateway(proxyUrl: string): string {
@@ -178,9 +176,11 @@ export async function resolveClaimFee(
   if (fees.entries.length === 0) return fees.default === "" ? { kind: "none" } : { kind: "unavailable" };
   const defaultId = fees.default;
   if (!TOKEN_ID.test(defaultId)) return { kind: "unavailable" };
-  const entry = fees.entries.find(
+  const matchingEntries = fees.entries.filter(
     (candidate) => isObject(candidate) && candidate.token_id === defaultId,
   );
+  if (matchingEntries.length !== 1) return { kind: "unavailable" };
+  const entry = matchingEntries[0];
   if (!isObject(entry) || !validAmount(entry.fixed_amount)) return { kind: "unavailable" };
   if (entry.fixed_amount === "0") return { kind: "none" };
   let metadata: unknown;

@@ -129,7 +129,10 @@ export function createProxyFeeSource(options: ProxyFeeSourceOptions): FeeSource 
         redirect: "error",
         signal,
       });
-      if (!response.ok) throw new Error(`${path} ${response.status}`);
+      if (!response.ok) {
+        if (response.body) await response.body.cancel().catch(() => undefined);
+        throw new Error(`${path} ${response.status}`);
+      }
       const body = await readBoundedBody(response, FEE_BODY_LIMIT_BYTES, signal);
       if (body.truncated) {
         // The response was received, but its schema cannot be inspected

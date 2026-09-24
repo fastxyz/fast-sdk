@@ -161,6 +161,25 @@ describe("fee resolution and explicit authorization", () => {
     });
   });
 
+  it("cancels a non-success fee response body", async () => {
+    let canceled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("busy"));
+      },
+      cancel() {
+        canceled = true;
+      },
+    });
+    const source = createProxyFeeSource({
+      proxyUrl: "https://proxy.example/proxy",
+      fetchImpl: async () => new Response(body, { status: 503 }),
+    });
+
+    await expect(source.networkInfo()).rejects.toThrow("/v1/network-info 503");
+    expect(canceled).toBe(true);
+  });
+
   it("rejects readable non-empty default with no fee entries even on configured fee-free networks", async () => {
     for (const feeFreeNetwork of [false, true]) {
       await expect(resolveClaimFee("fast:testnet", {
@@ -996,6 +1015,53 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     await expect(signing).resolves.toMatchObject({ settlement: "unknown" });
     expect(submitTransaction).toHaveBeenCalledTimes(1);
     expect(poison).not.toHaveBeenCalled();
+  });
+
+  it("captures signer, provider, and fee source accessors once at construction", async () => {
+    const actual = new Signer(seed);
+    const journal = {
+      async load() { return null; },
+      async save() {},
+      async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+    };
+    const signer = { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes: Uint8Array) => actual.signMessage(bytes) };
+    const provider = { getNextNonce: async () => 7n, submitTransaction: async () => null };
+    const feeSource = {
+      async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
+      async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+    };
+    const poison = {
+      getPublicKey: () => { throw new Error("mutated signer used"); },
+      signMessage: () => { throw new Error("mutated signer used"); },
+      getNextNonce: async () => { throw new Error("mutated provider used"); },
+      submitTransaction: async () => { throw new Error("mutated provider used"); },
+      async networkInfo() { throw new Error("mutated fee source used"); },
+      async tokenMeta() { throw new Error("mutated fee source used"); },
+    };
+    let signerReads = 0;
+    let providerReads = 0;
+    let feeSourceReads = 0;
+    const options = {
+      network: "fast:testnet" as const,
+      proxyUrl: "https://proxy.example/proxy",
+      indexOrigin: "https://index.example",
+      journal,
+      feePolicy: { feeFreeNetwork: true, tokenId: null, maxAtomicAmount: "0" },
+      now: () => 1_700_000_000_000,
+      randomBytes: (length: number) => new Uint8Array(length).fill(0x33),
+    } as Record<string, unknown>;
+    Object.defineProperties(options, {
+      signer: { get: () => (++signerReads === 1 ? signer : poison) },
+      provider: { get: () => (++providerReads === 1 ? provider : poison) },
+      feeSource: { get: () => (++feeSourceReads === 1 ? feeSource : poison) },
+    });
+
+    const client = createSignClient(options as unknown as Parameters<typeof createSignClient>[0]);
+    await expect(client.signDigest({ operationId: "capability-accessors", sha256: "11".repeat(32), relationship: "authored" }))
+      .resolves.toMatchObject({ settlement: "unknown" });
+    expect(signerReads).toBe(1);
+    expect(providerReads).toBe(1);
+    expect(feeSourceReads).toBe(1);
   });
 
   it("owns a journal snapshot before later awaits can mutate the journal result", async () => {

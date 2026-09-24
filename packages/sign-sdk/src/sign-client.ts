@@ -219,18 +219,18 @@ export function createSignClient(options: SignClientOptions): SignClient {
   if (network !== "fast:testnet" && network !== "fast:mainnet") throw new Error("invalid network");
   const proxyUrl = normalizedHttpUrl(options.proxyUrl, false, "proxyUrl");
   const indexOrigin = normalizedHttpUrl(options.indexOrigin, true, "indexOrigin");
-  if (!options.signer || typeof options.signer.getPublicKey !== "function" || typeof options.signer.signMessage !== "function") {
+  const signerSource = options.signer;
+  const providerSource = options.provider;
+  if (!signerSource || typeof signerSource.getPublicKey !== "function" || typeof signerSource.signMessage !== "function") {
     throw new Error("signer must implement getPublicKey() and signMessage(bytes)");
   }
-  if (!options.provider || typeof options.provider.getNextNonce !== "function" || typeof options.provider.submitTransaction !== "function") {
+  if (!providerSource || typeof providerSource.getNextNonce !== "function" || typeof providerSource.submitTransaction !== "function") {
     throw new Error("provider must expose nonce read and submit capabilities");
   }
-  const signerSource = options.signer;
   const signer: ByteSigner = {
     getPublicKey: signerSource.getPublicKey.bind(signerSource),
     signMessage: signerSource.signMessage.bind(signerSource),
   };
-  const providerSource = options.provider;
   const provider: FastSettlementProvider = {
     getNextNonce: providerSource.getNextNonce.bind(providerSource),
     submitTransaction: providerSource.submitTransaction.bind(providerSource),
@@ -243,11 +243,12 @@ export function createSignClient(options: SignClientOptions): SignClient {
   }
   const fetchImpl = options.fetchImpl;
   const now = options.now ?? Date.now;
-  const feeSource = options.feeSource === undefined
+  const feeSourceOption = options.feeSource;
+  const feeSource = feeSourceOption === undefined
     ? createProxyFeeSource({ proxyUrl, ...(fetchImpl === undefined ? {} : { fetchImpl }) })
     : {
-        networkInfo: options.feeSource.networkInfo.bind(options.feeSource),
-        tokenMeta: options.feeSource.tokenMeta.bind(options.feeSource),
+        networkInfo: feeSourceOption.networkInfo.bind(feeSourceOption),
+        tokenMeta: feeSourceOption.tokenMeta.bind(feeSourceOption),
       };
   const random = options.randomBytes ?? ((length: number) => {
     const output = new Uint8Array(length);

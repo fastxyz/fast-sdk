@@ -314,8 +314,8 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     check: () => null,
   },
   "account import": {
-    usage: "fast account import [--name <name>] [--private-key <hex>] [--key-file <path>]",
-    options: ["--name", "--private-key", "--key-file"],
+    usage: "fast account import [--name <name>] [--private-key <hex> | --key-file <path> | --legacy-keystore <path>]",
+    options: ["--name", "--private-key", "--key-file", "--legacy-keystore"],
     check: () => null,
   },
   "account export": {

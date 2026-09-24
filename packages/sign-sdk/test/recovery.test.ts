@@ -84,6 +84,7 @@ it.each(["signingBytesHex", "transactionBytesHex"] as const)(
           operationId: "recover-evidence-op",
           sha256: expected.sha256,
           relationship: "authored",
+          signerName: "Fixture Agent",
           listBySigner: false,
         },
         network: expected.network,
@@ -122,6 +123,73 @@ it.each(["signingBytesHex", "transactionBytesHex"] as const)(
     expect(save).not.toHaveBeenCalled();
   },
 );
+
+it.each([
+  ["request ID", { requestIdHex: "44".repeat(16) }, {}],
+  ["relationship", {}, { relationship: "approved" as const }],
+  ["signer name", {}, { signerName: "Different signer" }],
+  ["public title", {}, { publicTitle: "Different title" }],
+  ["listing flag", {}, { listBySigner: true, publicTitle: "Listed title" }],
+] as const)("rejects recovery when frozen %s does not match the attestation", async (_label, operationOverride, inputOverride) => {
+  const expected = {
+    network: "fast:testnet" as const,
+    senderHex: protocol.signerHex as string,
+    nonce: BigInt(protocol.nonce as string | number),
+    txId: protocol.txId as string,
+    sha256: "11".repeat(32),
+    claimDataHex: protocol.claimDataHex as string,
+  };
+  const validated = await validateSettlementCertificate(protocol.certificateRestJson, expected);
+  const input = {
+    operationId: "recover-metadata-op",
+    sha256: expected.sha256,
+    relationship: "authored" as const,
+    signerName: "Fixture Agent",
+    listBySigner: false,
+    ...inputOverride,
+  };
+  const snapshot: SubmissionUnknownJournalSnapshot = {
+    version: 1,
+    state: "submission_unknown",
+    operationId: input.operationId,
+    updatedAt: 1,
+    operation: {
+      input,
+      network: expected.network,
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      senderHex: expected.senderHex,
+      nonce: expected.nonce.toString(),
+      requestIdHex: "33".repeat(16),
+      issuedAtNanoseconds: "1",
+      fee: null,
+      ...operationOverride,
+    },
+    submission: {
+      txId: expected.txId,
+      signingBytesHex: validated.signingBytesHex,
+      transactionBytesHex: validated.transactionBytesHex,
+      senderSignatureHex: validated.senderSignatureHex,
+      claimDataHex: expected.claimDataHex,
+    },
+  };
+  const save = vi.fn(async () => undefined);
+  const journal: RecoveryJournal = {
+    load: vi.fn(async () => snapshot),
+    save,
+    withLock: vi.fn(async <T>(_key: string, operation: () => Promise<T>) => operation()) as RecoveryJournal["withLock"],
+  };
+
+  await expect(recoverSettlement({
+    operationId: snapshot.operationId,
+    journal,
+    reader: {
+      origin: snapshot.operation.proxyUrl,
+      getCertificate: vi.fn(async () => protocol.certificateRestJson),
+    },
+  })).rejects.toThrow("observed attestation metadata does not match the frozen operation");
+  expect(save).not.toHaveBeenCalled();
+});
 
 it("reports a stable validation error for a malformed reader origin", async () => {
   const journal: RecoveryJournal = {

@@ -125,6 +125,22 @@ it("rejects a receipt whose indexOrigin is not the exact configured origin", asy
   })).rejects.toThrow(/index.?origin/i);
 });
 
+it("uses the network binding captured when the record client was constructed", async () => {
+  const journal = memoryJournal(settled());
+  const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ sha256: receipt.record.sha256, settlements: [] })));
+  const options = {
+    network: "fast:testnet" as "fast:testnet" | "fast:mainnet",
+    indexOrigin: receipt.indexOrigin,
+    journal,
+    fetchImpl,
+  };
+  const client = createRecordClient(options);
+  options.network = "fast:mainnet";
+
+  await expect(client.checkRegistration(receipt)).resolves.toMatchObject({ registration: "pending" });
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
 it("validates and uses one bounded receipt snapshot when a getter changes its next value", async () => {
   const journal = memoryJournal(settled());
   const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ sha256: receipt.record.sha256, settlements: [] })));

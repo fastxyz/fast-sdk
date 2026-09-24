@@ -110,7 +110,7 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
     operation: (receipt: PendingRegistration, snapshot: SettledJournalSnapshot) => Promise<{ state: RegistrationState; error?: string }>,
   ): Promise<RegistrationResult> {
     const receipt = snapshotReceipt(rawReceipt);
-    if (receipt.record.network !== options.network || normalizeIndexOrigin(receipt.indexOrigin) !== http.indexOrigin) {
+    if (receipt.record.network !== http.network || normalizeIndexOrigin(receipt.indexOrigin) !== http.indexOrigin) {
       throw new Error("receipt does not match the configured network or index origin");
     }
     return journal.withLock(`operation:${receipt.operationId}`, async () => {

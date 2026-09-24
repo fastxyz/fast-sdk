@@ -372,6 +372,17 @@ export async function recoverSettlement(options: {
     if (validated.senderSignatureHex !== snapshot.submission.senderSignatureHex) {
       throw new Error("observed sender signature does not match the frozen submission");
     }
+    const input = snapshot.operation.input;
+    const expectedFileLabel = input.publicTitle ?? "";
+    if (
+      bytesToHex(validated.attestation.requestId) !== snapshot.operation.requestIdHex ||
+      validated.attestation.relationship !== input.relationship ||
+      validated.attestation.signerName !== (input.signerName ?? "") ||
+      validated.attestation.fileLabel !== expectedFileLabel ||
+      validated.attestation.listBySigner !== input.listBySigner
+    ) {
+      throw new Error("observed attestation metadata does not match the frozen operation");
+    }
     const receipt: PendingRegistration = {
       version: 1,
       operationId,

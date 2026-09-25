@@ -155,7 +155,7 @@ it("uses the pre-request timestamp for an HTTP-date retry response", async () =>
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
 
-it("reads the configured clock capability once for HTTP and journal use", async () => {
+it("reads the configured clock capability once and uses it for journal persistence", async () => {
   const journal = memoryJournal(settled());
   let clockReads = 0;
   const client = createRecordClient({
@@ -173,6 +173,37 @@ it("reads the configured clock capability once for HTTP and journal use", async 
   await expect(client.retryRegistration(receipt)).resolves.toMatchObject({ registration: "registered" });
   expect(clockReads).toBe(1);
   expect(journal.saves.at(-1)).toMatchObject({ state: "registered", updatedAt: 123 });
+});
+
+it("uses the captured clock to calculate HTTP-date Retry-After", async () => {
+  const journal = memoryJournal(settled());
+  const now = vi.fn()
+    .mockReturnValueOnce(1_700_000_000_000)
+    .mockReturnValueOnce(1_700_000_001_000);
+  const retryAt = 1_700_000_005_000;
+  let clockReads = 0;
+  const client = createRecordClient({
+    network: "fast:testnet",
+    indexOrigin: receipt.indexOrigin,
+    journal,
+    fetchImpl: vi.fn(async () => new Response("temporarily unavailable", {
+      status: 503,
+      headers: { "retry-after": new Date(retryAt).toUTCString() },
+    })),
+    get now() {
+      clockReads += 1;
+      if (clockReads !== 1) throw new Error("clock getter was read again");
+      return now;
+    },
+  });
+
+  await expect(client.checkRegistration(receipt)).rejects.toMatchObject({
+    kind: "retryable",
+    status: 503,
+    retryAfterMs: 4_000,
+  });
+  expect(clockReads).toBe(1);
+  expect(now).toHaveBeenCalledTimes(2);
 });
 
 it("persists a pending diagnostic when conflict reconciliation fails", async () => {

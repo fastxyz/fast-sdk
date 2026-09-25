@@ -155,6 +155,7 @@ it("uses the pre-request timestamp for an HTTP-date retry response", async () =>
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
 
+<<<<<<< HEAD
 it("reads the configured clock capability once and uses it for journal persistence", async () => {
   const journal = memoryJournal(settled());
   let clockReads = 0;
@@ -205,7 +206,7 @@ it("uses the captured clock to calculate HTTP-date Retry-After", async () => {
   expect(now).toHaveBeenCalledTimes(2);
 });
 
-it("keeps an exact GET 503 retryable when the clock fails after the request", async () => {
+it("keeps an exact GET 503 retryable without a date delay when the response-time clock fails", async () => {
   const journal = memoryJournal(settled());
   let requested = false;
   const now = vi.fn(() => {

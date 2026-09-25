@@ -381,7 +381,7 @@ The isolated consumer installs the local tarball with scripts disabled, checks l
 
 - [ ] **Step 4: Run GREEN**
 
-Run: `pnpm --filter @fastxyz/sign-sdk build && pnpm --filter @fastxyz/sign-sdk smoke:package && pnpm --filter @fastxyz/sign-sdk audit:license`.
+Run: `pnpm --filter @fastxyz/sign-sdk build && pnpm --filter @fastxyz/sign-sdk smoke:package && pnpm --filter @fastxyz/sign-sdk audit:licenses`.
 
 - [ ] **Step 5: Commit**
 

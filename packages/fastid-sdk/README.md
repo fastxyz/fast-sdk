@@ -90,6 +90,7 @@ authorized `Signer` instead of loading a key from the environment.
 
    ```js
    import { constants, closeSync, fsyncSync, openSync, writeFileSync } from 'node:fs';
+   import { dirname } from 'node:path';
    import {
      IdClient,
      IndeterminateSubmissionError,
@@ -123,6 +124,14 @@ authorized `Signer` instead of loading a key from the environment.
    };
    try {
      save({ stage: 'attempting', network: 'fast:testnet', address: signer.address, name });
+     // Persist the new directory entry before the paid request. Any failure aborts.
+     const journalDirectory = openSync(dirname(journalPath), constants.O_RDONLY);
+     try {
+       fsyncSync(journalDirectory);
+     } finally {
+       closeSync(journalDirectory);
+     }
+
      let claim;
      try {
        claim = await client.claimName(name); // Signs and submits one claim.

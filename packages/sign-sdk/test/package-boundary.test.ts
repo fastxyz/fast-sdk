@@ -20,9 +20,10 @@ describe("public package boundary", () => {
     const changelogPath = join(root, "CHANGELOG.md");
     if (existsSync(changelogPath)) {
       const changelog = readFileSync(changelogPath, "utf8");
-      const releasedVersion = changelog.match(
-        /^## (\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?)$/m,
-      )?.[1];
+      const releasedVersion = changelog
+        .split(/\r?\n/)
+        .find((line) => line.startsWith("## "))
+        ?.slice(3);
       expect(releasedVersion).toBe(manifest.version);
     } else {
       expect(manifest.version).toBe("0.0.0");

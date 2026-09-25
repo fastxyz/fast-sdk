@@ -222,13 +222,19 @@ describe("index HTTP client", () => {
     await expect(client.record(record())).rejects.toMatchObject({ kind: "transport" });
   });
 
-  it("uses the response-time clock for a direct exact GET HTTP-date retry", async () => {
+  it("uses the post-body response-time clock for a direct exact GET HTTP-date retry", async () => {
     let instant = 1_700_000_000_000;
     const now = vi.fn(() => instant);
     const fetchImpl = vi.fn(async () => {
-      // Model a slow GET whose Retry-After date expires before the response arrives.
-      instant += 10_000;
-      return new Response("temporarily unavailable", {
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          // Headers have arrived, but reading the body takes long enough to expire the delay.
+          instant += 10_000;
+          controller.enqueue(new TextEncoder().encode("temporarily unavailable"));
+          controller.close();
+        },
+      }, { highWaterMark: 0 });
+      return new Response(body, {
         status: 503,
         headers: { "retry-after": new Date(1_700_000_005_000).toUTCString() },
       });

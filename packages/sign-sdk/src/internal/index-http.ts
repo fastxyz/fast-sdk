@@ -159,15 +159,18 @@ function boundedMessage(value: string): string {
   return value.length > 500 ? `${value.slice(0, 500)}...` : value;
 }
 
-function parseRetryAfter(value: string | null, responseTimestampMs: number | undefined): number | undefined {
+function parseRetryAfter(value: string | null, responseTimestamp: () => number): number | undefined {
   if (!value) return undefined;
   const seconds = Number(value);
   if (Number.isFinite(seconds) && seconds >= 0) {
     return Math.min(seconds * 1_000, 24 * 60 * 60 * 1_000);
   }
   const date = Date.parse(value);
-  if (!Number.isNaN(date) && responseTimestampMs !== undefined) {
-    return Math.min(Math.max(0, date - responseTimestampMs), 24 * 60 * 60 * 1_000);
+  if (!Number.isNaN(date)) {
+    const responseTimestampMs = readResponseTimestamp(responseTimestamp);
+    if (responseTimestampMs !== undefined) {
+      return Math.min(Math.max(0, date - responseTimestampMs), 24 * 60 * 60 * 1_000);
+    }
   }
   return undefined;
 }
@@ -206,7 +209,7 @@ async function responseError(
   response: Response,
   prefix: string,
   signal: AbortSignal,
-  responseTimestampMs: number | undefined,
+  responseTimestamp: () => number,
 ): Promise<IndexHttpError> {
   const result = await readBoundedBody(response, INDEX_ERROR_BODY_LIMIT_BYTES, signal).catch(() => ({
     bytes: new Uint8Array(),
@@ -220,7 +223,7 @@ async function responseError(
     `${prefix}: ${response.status}${body ? ` ${body}` : ""}`,
     response.status,
     body,
-    parseRetryAfter(response.headers.get("retry-after"), responseTimestampMs),
+    parseRetryAfter(response.headers.get("retry-after"), responseTimestamp),
   );
 }
 
@@ -263,7 +266,7 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
           if (error instanceof IndexHttpError) throw error;
           throw new IndexHttpError("transport", error instanceof Error ? error.message : String(error));
         }
-        if (response.status !== 200) throw await responseError(response, "index /record failed", signal, requestTimestampMs);
+        if (response.status !== 200) throw await responseError(response, "index /record failed", signal, () => requestTimestampMs);
         if (response.body) await response.body.cancel().catch(() => undefined);
       });
     },
@@ -283,8 +286,7 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
           throw new IndexHttpError("transport", error instanceof Error ? error.message : String(error));
         }
         if (!response.ok) {
-          const responseTimestampMs = readResponseTimestamp(now);
-          throw await responseError(response, "index /by-hash failed", signal, responseTimestampMs);
+          throw await responseError(response, "index /by-hash failed", signal, now);
         }
         let body: unknown;
         let result: BoundedBody;

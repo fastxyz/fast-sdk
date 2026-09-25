@@ -126,12 +126,11 @@ it("rejects a file mutated during reading instead of blessing unstable bytes", a
 it("rejects mutation observed only by the final path stat and closes its handle", async () => {
   const path = join(await root(), "final-stat-race.bin");
   await writeFile(path, new Uint8Array([1, 2]));
-  let handleStatObserved!: () => void;
-  const finalHandleStat = new Promise<void>((resolve) => { handleStatObserved = resolve; });
+  let finalHandleStatComplete = false;
   statSchedule.path = path;
-  statSchedule.onFinalHandleStat = handleStatObserved;
+  statSchedule.onFinalHandleStat = () => { finalHandleStatComplete = true; };
   statSchedule.beforeFinalPathStat = async () => {
-    await finalHandleStat;
+    if (!finalHandleStatComplete) throw new Error("final path stat started before final handle stat completed");
     // Real write after the final handle snapshot, before the real path stat.
     await writeFile(path, new Uint8Array([3, 4, 5]));
   };

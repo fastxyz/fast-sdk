@@ -64,10 +64,9 @@ export async function hashFile(path: string, options: HashFileOptions = {}): Pro
       await options.onProgress?.(total);
     }
     if (options.signal?.aborted) throw abortError(options.signal);
-    const [openedAfter, pathAfter] = await Promise.all([
-      handle.stat({ bigint: true }),
-      lstat(path, { bigint: true }),
-    ]);
+    // The path must be observed after the final handle snapshot.
+    const openedAfter = await handle.stat({ bigint: true });
+    const pathAfter = await lstat(path, { bigint: true });
     if (options.signal?.aborted) throw abortError(options.signal);
     if (!pathAfter.isFile() || !sameVersion(openedBefore, openedAfter) || !sameVersion(openedAfter, pathAfter)) {
       throw new FileChangedDuringHashError();

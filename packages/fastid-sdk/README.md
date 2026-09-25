@@ -180,6 +180,14 @@ authorized `Signer` instead of loading a key from the environment.
    }
    ```
 
+   If `claimName()` throws `RegistrationTerminalError`, settlement has completed
+   and the error reports `feeSpent === true` (the network fee may have been
+   charged). This example cannot persist a transaction ID from that error, so
+   the journal remains at `attempting`; its existing-file guard prevents
+   rerunning the script. Do not remove or replace
+   the journal or submit another claim. Manually reconcile using trusted
+   transaction evidence before any further payment.
+
 3. This read-back confirms what the Fast ID index currently reports; it is not
    an independent validator-quorum proof of on-chain settlement. If it is not
    yet visible, repeat **only** `identity` and `resolve` with the `registered`
@@ -193,7 +201,7 @@ authorized `Signer` instead of loading a key from the environment.
    persistence format, and these hints may be insufficient to reconcile on
    their own. If a journal write fails after submission, stop and investigate;
    never interpret that failure or a missing read as permission to pay again.
-   See the [agent guide](https://id.fast.xyz/AGENTS.md) for the remaining
+   See the [testnet agent guide](https://testnet.id.fast.xyz/AGENTS.md) for the remaining
    recovery and evidence limits.
 
 ## Development and web parity

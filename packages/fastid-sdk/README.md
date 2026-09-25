@@ -7,9 +7,18 @@ unchanged. The package is licensed under Apache-2.0, as specified in this
 directory's LICENSE, independently of the monorepo's root license.
 Copyright (c) Pi Squared, Inc.
 
-## Install before the first npm publication
+## Install
 
-From the public fast-sdk checkout:
+The [public package](https://www.npmjs.com/package/@fastxyz/fastid-sdk) is
+available on npm. Pin a version in an agent project:
+
+```sh
+npm install @fastxyz/fastid-sdk@0.1.0
+```
+
+It builds and runs without access to the private Fast ID repository. The
+following source-tarball path is only for testing an unpublished change from a
+public `fast-sdk` checkout:
 
 ```sh
 corepack pnpm install --frozen-lockfile
@@ -18,9 +27,6 @@ corepack pnpm --filter @fastxyz/fastid-sdk pack --pack-destination /tmp/fastid-s
 # From your consumer project (use the emitted tarball filename):
 npm install /tmp/fastid-sdk-pack/fastxyz-fastid-sdk-*.tgz
 ```
-
-After npm publication, the package name is `@fastxyz/fastid-sdk`. Building and
-using it requires no access to the private Fast ID repository.
 
 ```ts
 import { IdClient, KeySigner } from '@fastxyz/fastid-sdk';
@@ -49,6 +55,85 @@ GitHub/ORCID OAuth uses the existing browser page, the same wallet/network and a
 known provider identity; the SDK polls the persisted proof, without receiving
 OAuth callbacks or tokens. See the served [agent guide](https://id.fast.xyz/AGENTS.md)
 for the full capability and recovery contracts.
+
+## Claim a name and read it back (testnet)
+
+This example **submits a Fast transaction that may carry a network fee**. Use
+only a testnet key whose owner has authorized the particular claim and any
+applicable fee, and fund that address when a fee applies. Never put a private
+key in the source file or print it. A production integration can supply its own
+authorized `Signer` instead of loading a key from the environment.
+
+1. Check the current network fee before authorizing the operation:
+
+   | Network | Public `GET /v1/network-info` |
+   |---|---|
+   | Testnet | https://testnet.api.fast.xyz/proxy-rest/v1/network-info |
+   | Mainnet | https://api.fast.xyz/proxy-rest/v1/network-info |
+
+   Confirm `data.network_id`, then find the entry in `data.fees.entries` whose
+   `token_id` equals `data.fees.default`. Its `fixed_amount` is a decimal string
+   in **atomic units**, not a display amount. For a nonzero fee, fetch the token
+   metadata and decimals from `GET /v1/tokens?token_ids=<default>` on the same
+   `proxy-rest` origin. An empty authoritative fee list or a zero default fee
+   means no fee; a failed or malformed request does **not** mean no fee. The SDK
+   resolves the authoritative schedule during the claim and refuses unavailable
+   or ambiguous fee data. This preview does not pin the schedule or enforce a
+   spending ceiling if the network changes it before submission.
+
+2. Provide `FAST_ID_NAME` and a privately held `FAST_ID_PRIVATE_KEY` (a bare
+   64-character hex Ed25519 key) to a Node 20.19+ process. Save the following
+   as `claim.mjs` and run `node claim.mjs` **once for this authorization**. Do
+   not use a newly generated, unfunded key for a paid claim, and do not rerun
+   this script to retry a late read-back.
+
+   ```js
+   import { IdClient, KeySigner } from '@fastxyz/fastid-sdk';
+
+   const name = process.env.FAST_ID_NAME;
+   const privateKey = process.env.FAST_ID_PRIVATE_KEY;
+   if (!name || !privateKey) throw new Error('Missing name or authorized key');
+
+   const signer = await KeySigner.fromPrivateKey(privateKey);
+   const client = new IdClient({ network: 'fast:testnet', signer });
+
+   // Advisory read. claimName performs its own fresh, fail-closed preflight.
+   const availability = await client.availability(name);
+   if (!availability.available) throw new Error('Name is not available');
+
+   const claim = await client.claimName(name); // Signs and submits one claim.
+
+   // Separate index read-back of the registered name and its exact claim tx.
+   const identity = await client.identity(signer.address);
+   const record = await client.resolve(name);
+   if (
+     identity.name !== name ||
+     identity.name_claim_tx !== claim.txIdHex ||
+     record.name !== name ||
+     record.address !== signer.address ||
+     record.name_claim_tx !== claim.txIdHex
+   ) {
+     throw new Error('Claim not yet visible in reads; retry reads, not payment');
+   }
+
+   console.log({
+     txIdHex: claim.txIdHex,
+     profileUrl: client.share.profileUrl(name),
+   });
+   ```
+
+3. This read-back confirms what the Fast ID index currently reports; it is not
+   an independent validator-quorum proof of on-chain settlement. If it is not
+   yet visible, repeat **only** `identity` and `resolve` with the saved name,
+   address and transaction ID; never rerun `claim.mjs` or call `claimName`
+   merely because a read is late. If `claimName` throws
+   `RegistrationPendingError`, durably save `error.pending` and pass that same
+   record to `client.retryRegistration(...)`; this retries registration only.
+   If it throws `IndeterminateSubmissionError`, retain its recovery data and
+   reconcile the transaction before taking any further paid action. Its
+   `recoveryEnvelope` is an in-memory structured clone, **not** a JSON-safe
+   persistence format. See the [agent guide](https://id.fast.xyz/AGENTS.md)
+   for the remaining recovery and evidence limits.
 
 ## Development and web parity
 

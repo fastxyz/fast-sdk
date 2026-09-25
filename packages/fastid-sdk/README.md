@@ -81,18 +81,28 @@ authorized `Signer` instead of loading a key from the environment.
    or ambiguous fee data. This preview does not pin the schedule or enforce a
    spending ceiling if the network changes it before submission.
 
-2. Provide `FAST_ID_NAME` and a privately held `FAST_ID_PRIVATE_KEY` (a bare
-   64-character hex Ed25519 key) to a Node 20.19+ process. Save the following
-   as `claim.mjs` and run `node claim.mjs` **once for this authorization**. Do
-   not use a newly generated, unfunded key for a paid claim, and do not rerun
-   this script to retry a late read-back.
+2. Provide `FAST_ID_NAME`, a privately held `FAST_ID_PRIVATE_KEY` (a bare
+   64-character hex Ed25519 key), and `FAST_ID_JOURNAL` (a new, private file on
+   persistent storage) to a Node 20.19+ process. Save the following as
+   `claim.mjs` and run `node claim.mjs` **once for this authorization**. The
+   journal file must not already exist; do not use a newly generated, unfunded
+   key for a paid claim or rerun this script to retry a late read-back.
 
    ```js
-   import { IdClient, KeySigner } from '@fastxyz/fastid-sdk';
+   import { constants, closeSync, fsyncSync, openSync, writeFileSync } from 'node:fs';
+   import {
+     IdClient,
+     IndeterminateSubmissionError,
+     KeySigner,
+     RegistrationPendingError,
+   } from '@fastxyz/fastid-sdk';
 
    const name = process.env.FAST_ID_NAME;
    const privateKey = process.env.FAST_ID_PRIVATE_KEY;
-   if (!name || !privateKey) throw new Error('Missing name or authorized key');
+   const journalPath = process.env.FAST_ID_JOURNAL;
+   if (!name || !privateKey || !journalPath) {
+     throw new Error('Missing name, authorized key, or journal path');
+   }
 
    const signer = await KeySigner.fromPrivateKey(privateKey);
    const client = new IdClient({ network: 'fast:testnet', signer });
@@ -101,39 +111,81 @@ authorized `Signer` instead of loading a key from the environment.
    const availability = await client.availability(name);
    if (!availability.available) throw new Error('Name is not available');
 
-   const claim = await client.claimName(name); // Signs and submits one claim.
+   // An existing journal stops this script before it can submit another claim.
+   const journal = openSync(
+     journalPath,
+     constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_APPEND,
+     0o600,
+   );
+   const save = (event) => {
+     writeFileSync(journal, `${JSON.stringify(event)}\n`);
+     fsyncSync(journal);
+   };
+   try {
+     save({ stage: 'attempting', network: 'fast:testnet', address: signer.address, name });
+     let claim;
+     try {
+       claim = await client.claimName(name); // Signs and submits one claim.
+     } catch (error) {
+       if (error instanceof RegistrationPendingError) {
+         save({ stage: 'registration_pending', pending: error.pending });
+       } else if (error instanceof IndeterminateSubmissionError) {
+         save({
+           stage: 'indeterminate',
+           network: error.network,
+           address: error.address,
+           nonce: error.nonce?.toString(),
+           txIdHex: error.txIdHex,
+         });
+       }
+       throw error;
+     }
+     save({
+       stage: 'registered',
+       network: 'fast:testnet',
+       address: signer.address,
+       name,
+       nonce: claim.nonce,
+       txIdHex: claim.txIdHex,
+     });
 
-   // Separate index read-back of the registered name and its exact claim tx.
-   const identity = await client.identity(signer.address);
-   const record = await client.resolve(name);
-   if (
-     identity.name !== name ||
-     identity.name_claim_tx !== claim.txIdHex ||
-     record.name !== name ||
-     record.address !== signer.address ||
-     record.name_claim_tx !== claim.txIdHex
-   ) {
-     throw new Error('Claim not yet visible in reads; retry reads, not payment');
+     // These reads can fail without losing the already saved claim transaction ID.
+     const identity = await client.identity(signer.address);
+     const record = await client.resolve(name);
+     if (
+       identity.name !== name ||
+       identity.name_claim_tx !== claim.txIdHex ||
+       record.name !== name ||
+       record.address !== signer.address ||
+       record.name_claim_tx !== claim.txIdHex
+     ) {
+       throw new Error('Claim not yet visible in reads; retry reads, not payment');
+     }
+
+     console.log({
+       txIdHex: claim.txIdHex,
+       profileUrl: client.share.profileUrl(name),
+     });
+   } finally {
+     closeSync(journal);
    }
-
-   console.log({
-     txIdHex: claim.txIdHex,
-     profileUrl: client.share.profileUrl(name),
-   });
    ```
 
 3. This read-back confirms what the Fast ID index currently reports; it is not
    an independent validator-quorum proof of on-chain settlement. If it is not
-   yet visible, repeat **only** `identity` and `resolve` with the saved name,
-   address and transaction ID; never rerun `claim.mjs` or call `claimName`
-   merely because a read is late. If `claimName` throws
-   `RegistrationPendingError`, durably save `error.pending` and pass that same
-   record to `client.retryRegistration(...)`; this retries registration only.
-   If it throws `IndeterminateSubmissionError`, retain its recovery data and
-   reconcile the transaction before taking any further paid action. Its
+   yet visible, repeat **only** `identity` and `resolve` with the `registered`
+   journal entry's name, address and transaction ID; never rerun `claim.mjs`
+   or call `claimName` merely because a read is late. For
+   `registration_pending`, pass the saved `pending` record to
+   `client.retryRegistration(...)`; this retries registration only. For
+   `indeterminate`, the journal retains available network, address, nonce and
+   transaction ID hints; reconcile before any further paid action. The SDK's
    `recoveryEnvelope` is an in-memory structured clone, **not** a JSON-safe
-   persistence format. See the [agent guide](https://id.fast.xyz/AGENTS.md)
-   for the remaining recovery and evidence limits.
+   persistence format, and these hints may be insufficient to reconcile on
+   their own. If a journal write fails after submission, stop and investigate;
+   never interpret that failure or a missing read as permission to pay again.
+   See the [agent guide](https://id.fast.xyz/AGENTS.md) for the remaining
+   recovery and evidence limits.
 
 ## Development and web parity
 

@@ -110,6 +110,22 @@ it("retryRegistration performs one explicit POST and persists acknowledgement", 
   expect(journal.saves.at(-1)).toMatchObject({ state: "registered" });
 });
 
+it("clears a prior diagnostic after registration succeeds", async () => {
+  const journal = memoryJournal({
+    ...settled(),
+    diagnostic: { code: "registration_pending", message: "previous attempt failed", at: 1 },
+  });
+  const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+    expect(init?.method).toBe("POST");
+    return new Response(null, { status: 200 });
+  });
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl });
+
+  await expect(client.retryRegistration(receipt)).resolves.toMatchObject({ registration: "registered", recoveryPersisted: true });
+  expect(journal.saves.at(-1)).toMatchObject({ state: "registered" });
+  expect(journal.saves.at(-1)).not.toHaveProperty("diagnostic");
+});
+
 it("captures the registration timestamp before a successful POST", async () => {
   const journal = memoryJournal(settled());
   let posted = false;
@@ -153,6 +169,113 @@ it("uses the pre-request timestamp for an HTTP-date retry response", async () =>
   });
   expect(now).toHaveBeenCalledTimes(1);
   expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
+it("reads the configured clock capability once and uses it for journal persistence", async () => {
+  const journal = memoryJournal(settled());
+  let clockReads = 0;
+  const client = createRecordClient({
+    network: "fast:testnet",
+    indexOrigin: receipt.indexOrigin,
+    journal,
+    fetchImpl: vi.fn(async () => new Response(null, { status: 200 })),
+    get now() {
+      clockReads += 1;
+      if (clockReads !== 1) throw new Error("clock getter was read again");
+      return () => 123;
+    },
+  });
+
+  await expect(client.retryRegistration(receipt)).resolves.toMatchObject({ registration: "registered" });
+  expect(clockReads).toBe(1);
+  expect(journal.saves.at(-1)).toMatchObject({ state: "registered", updatedAt: 123 });
+});
+
+it("uses the captured clock to calculate HTTP-date Retry-After", async () => {
+  const journal = memoryJournal(settled());
+  const now = vi.fn()
+    .mockReturnValueOnce(1_700_000_000_000)
+    .mockReturnValueOnce(1_700_000_001_000);
+  const retryAt = 1_700_000_005_000;
+  let clockReads = 0;
+  const client = createRecordClient({
+    network: "fast:testnet",
+    indexOrigin: receipt.indexOrigin,
+    journal,
+    fetchImpl: vi.fn(async () => new Response("temporarily unavailable", {
+      status: 503,
+      headers: { "retry-after": new Date(retryAt).toUTCString() },
+    })),
+    get now() {
+      clockReads += 1;
+      if (clockReads !== 1) throw new Error("clock getter was read again");
+      return now;
+    },
+  });
+  await expect(client.checkRegistration(receipt)).rejects.toMatchObject({
+    kind: "retryable",
+    status: 503,
+    retryAfterMs: 4_000,
+  });
+  expect(clockReads).toBe(1);
+  expect(now).toHaveBeenCalledTimes(2);
+});
+
+it("keeps an exact GET 503 retryable without a date delay when the response-time clock fails", async () => {
+  const journal = memoryJournal(settled());
+  let requested = false;
+  const now = vi.fn(() => {
+    if (requested) throw new Error("clock unavailable after lookup");
+    return 1_700_000_000_000;
+  });
+  const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+    expect(init?.method).toBeUndefined();
+    requested = true;
+    return new Response("temporarily unavailable", {
+      status: 503,
+      headers: { "retry-after": new Date(1_700_000_005_000).toUTCString() },
+    });
+  });
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl, now });
+
+  await expect(client.checkRegistration(receipt)).rejects.toMatchObject({
+    kind: "retryable",
+    status: 503,
+    retryAfterMs: undefined,
+    message: expect.stringMatching(/503.*temporarily unavailable/i),
+  });
+  expect(now).toHaveBeenCalledTimes(2);
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  expect(journal.saves).toHaveLength(0);
+});
+
+it("keeps a conflicted POST pending when reconciliation GET returns an HTTP-date 503", async () => {
+  const journal = memoryJournal(settled());
+  let requested = false;
+  const now = vi.fn(() => {
+    if (requested) throw new Error("clock unavailable after request");
+    return 1_700_000_000_000;
+  });
+  const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+    requested = true;
+    return init?.method === "POST"
+      ? new Response("already exists", { status: 409 })
+      : new Response("temporarily unavailable", {
+        status: 503,
+        headers: { "retry-after": new Date(1_700_000_005_000).toUTCString() },
+      });
+  });
+  const client = createRecordClient({ network: "fast:testnet", indexOrigin: receipt.indexOrigin, journal, fetchImpl, now });
+
+  await expect(client.retryRegistration(receipt)).resolves.toMatchObject({
+    registration: "pending",
+    recoveryPersisted: true,
+    error: expect.stringMatching(/503.*temporarily unavailable/i),
+  });
+  expect(now).toHaveBeenCalledTimes(2);
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+  expect(fetchImpl.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  expect(journal.saves.at(-1)).toMatchObject({ state: "registration_pending", updatedAt: 1_700_000_000_000 });
 });
 
 it("persists a pending diagnostic when conflict reconciliation fails", async () => {

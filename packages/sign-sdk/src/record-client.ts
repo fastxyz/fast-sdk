@@ -126,8 +126,9 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
         throw new Error("clock must return non-negative integer milliseconds");
       }
       const outcome = await operation(durableReceipt, loaded, instant);
+      const { diagnostic: _previousDiagnostic, ...loadedWithoutDiagnostic } = loaded;
       const next: SettledJournalSnapshot = {
-        ...loaded,
+        ...loadedWithoutDiagnostic,
         state: journalState(outcome.state),
         updatedAt: instant,
         ...(outcome.error === undefined ? {} : { diagnostic: { code: `registration_${outcome.state}`, message: outcome.error, at: instant } }),
@@ -141,8 +142,8 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
     });
   }
 
-  const reconcile = async (receipt: PendingRegistration): Promise<{ state: RegistrationState; error?: string }> => {
-    const row = await http.fetchExact(receipt.record);
+  const reconcile = async (receipt: PendingRegistration, instant: number): Promise<{ state: RegistrationState; error?: string }> => {
+    const row = await http.fetchExact(receipt.record, instant);
     if (row === null) return { state: "pending" };
     return rowMatches(row, receipt)
       ? { state: "registered" }
@@ -156,8 +157,8 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
 
   return {
     checkRegistration(receipt) {
-      return withSnapshot(receipt, async (durable, snapshot) => {
-        const result = await reconcile(durable);
+      return withSnapshot(receipt, async (durable, snapshot, instant) => {
+        const result = await reconcile(durable, instant);
         return result.state === "pending" && stateOf(snapshot) !== "pending"
           ? { state: stateOf(snapshot), ...(snapshot.diagnostic === undefined ? {} : { error: snapshot.diagnostic.message }) }
           : result;
@@ -172,7 +173,7 @@ export function createRecordClient(options: RecordClientOptions): RecordClient {
         } catch (error) {
           if (error instanceof IndexHttpError && error.kind === "conflict") {
             try {
-              const result = await reconcile(durable);
+              const result = await reconcile(durable, instant);
               return result.state === "pending" ? { state: "conflict", error: error.message } : result;
             } catch (reconciliationError) {
               return reconcileFailure(reconciliationError, snapshot.state);

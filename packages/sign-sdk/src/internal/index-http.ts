@@ -121,7 +121,7 @@ export interface IndexHttpClient {
   readonly network: SignNetwork;
   readonly indexOrigin: string;
   record(value: RecordRequest, requestTimestampMs?: number): Promise<void>;
-  fetchExact(value: ExactLookupInput): Promise<IndexSettlement | null>;
+  fetchExact(value: ExactLookupInput, requestTimestampMs?: number): Promise<IndexSettlement | null>;
 }
 
 export function normalizeIndexOrigin(value: unknown): string {
@@ -159,7 +159,7 @@ function boundedMessage(value: string): string {
   return value.length > 500 ? `${value.slice(0, 500)}...` : value;
 }
 
-function parseRetryAfter(value: string | null, now: () => number): number | undefined {
+function parseRetryAfter(value: string | null, responseTimestamp: () => number): number | undefined {
   if (!value) return undefined;
   const seconds = Number(value);
   if (Number.isFinite(seconds) && seconds >= 0) {
@@ -167,9 +167,22 @@ function parseRetryAfter(value: string | null, now: () => number): number | unde
   }
   const date = Date.parse(value);
   if (!Number.isNaN(date)) {
-    return Math.min(Math.max(0, date - now()), 24 * 60 * 60 * 1_000);
+    const responseTimestampMs = readResponseTimestamp(responseTimestamp);
+    if (responseTimestampMs !== undefined) {
+      return Math.min(Math.max(0, date - responseTimestampMs), 24 * 60 * 60 * 1_000);
+    }
   }
   return undefined;
+}
+
+function readResponseTimestamp(now: () => number): number | undefined {
+  try {
+    const value = now();
+    return Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+  } catch {
+    // A failed optional clock read must not replace the HTTP error classification.
+    return undefined;
+  }
 }
 
 export async function withDeadline<T>(
@@ -196,7 +209,7 @@ async function responseError(
   response: Response,
   prefix: string,
   signal: AbortSignal,
-  now: () => number,
+  responseTimestamp: () => number,
 ): Promise<IndexHttpError> {
   const result = await readBoundedBody(response, INDEX_ERROR_BODY_LIMIT_BYTES, signal).catch(() => ({
     bytes: new Uint8Array(),
@@ -210,7 +223,7 @@ async function responseError(
     `${prefix}: ${response.status}${body ? ` ${body}` : ""}`,
     response.status,
     body,
-    parseRetryAfter(response.headers.get("retry-after"), now),
+    parseRetryAfter(response.headers.get("retry-after"), responseTimestamp),
   );
 }
 
@@ -257,8 +270,12 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
         if (response.body) await response.body.cancel().catch(() => undefined);
       });
     },
-    async fetchExact(value) {
+    async fetchExact(value, requestTimestampMs) {
       assertExactBinding(value, network);
+      const instant = requestTimestampMs === undefined ? now() : requestTimestampMs;
+      if (!Number.isSafeInteger(instant) || instant < 0) {
+        throw new Error("clock must return non-negative integer milliseconds");
+      }
       return withDeadline(deadlineMs, async (signal) => {
         let response: Response;
         try {
@@ -268,7 +285,9 @@ export function createIndexHttpClient(options: IndexHttpClientOptions): IndexHtt
           if (error instanceof IndexHttpError) throw error;
           throw new IndexHttpError("transport", error instanceof Error ? error.message : String(error));
         }
-        if (!response.ok) throw await responseError(response, "index /by-hash failed", signal, now);
+        if (!response.ok) {
+          throw await responseError(response, "index /by-hash failed", signal, now);
+        }
         let body: unknown;
         let result: BoundedBody;
         try {

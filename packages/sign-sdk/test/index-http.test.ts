@@ -222,7 +222,29 @@ describe("index HTTP client", () => {
     await expect(client.record(record())).rejects.toMatchObject({ kind: "transport" });
   });
 
-  it("uses a validated pre-request clock for a direct exact GET HTTP-date retry", async () => {
+  it("uses the response-time clock for a direct exact GET HTTP-date retry", async () => {
+    let instant = 1_700_000_000_000;
+    const now = vi.fn(() => instant);
+    const fetchImpl = vi.fn(async () => {
+      // Model a slow GET whose Retry-After date expires before the response arrives.
+      instant += 10_000;
+      return new Response("temporarily unavailable", {
+        status: 503,
+        headers: { "retry-after": new Date(1_700_000_005_000).toUTCString() },
+      });
+    });
+    const client = createIndexHttpClient({ network: "fast:testnet", indexOrigin: "https://index.example", fetchImpl, now });
+
+    await expect(client.fetchExact(record())).rejects.toMatchObject({
+      kind: "retryable",
+      status: 503,
+      retryAfterMs: 0,
+    });
+    expect(now).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves retry classification if the response-time clock fails", async () => {
     let requested = false;
     const now = vi.fn(() => {
       if (requested) throw new Error("clock unavailable after lookup");
@@ -240,9 +262,9 @@ describe("index HTTP client", () => {
     await expect(client.fetchExact(record())).rejects.toMatchObject({
       kind: "retryable",
       status: 503,
-      retryAfterMs: 5_000,
+      retryAfterMs: undefined,
     });
-    expect(now).toHaveBeenCalledTimes(1);
+    expect(now).toHaveBeenCalledTimes(2);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 

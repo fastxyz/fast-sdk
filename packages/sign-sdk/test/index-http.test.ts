@@ -222,6 +222,69 @@ describe("index HTTP client", () => {
     await expect(client.record(record())).rejects.toMatchObject({ kind: "transport" });
   });
 
+  it("uses the post-body response-time clock for a direct exact GET HTTP-date retry", async () => {
+    let instant = 1_700_000_000_000;
+    const now = vi.fn(() => instant);
+    const fetchImpl = vi.fn(async () => {
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          // Headers have arrived, but reading the body takes long enough to expire the delay.
+          instant += 10_000;
+          controller.enqueue(new TextEncoder().encode("temporarily unavailable"));
+          controller.close();
+        },
+      }, { highWaterMark: 0 });
+      return new Response(body, {
+        status: 503,
+        headers: { "retry-after": new Date(1_700_000_005_000).toUTCString() },
+      });
+    });
+    const client = createIndexHttpClient({ network: "fast:testnet", indexOrigin: "https://index.example", fetchImpl, now });
+
+    await expect(client.fetchExact(record())).rejects.toMatchObject({
+      kind: "retryable",
+      status: 503,
+      retryAfterMs: 0,
+    });
+    expect(now).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves retry classification if the response-time clock fails", async () => {
+    let requested = false;
+    const now = vi.fn(() => {
+      if (requested) throw new Error("clock unavailable after lookup");
+      return 1_700_000_000_000;
+    });
+    const fetchImpl = vi.fn(async () => {
+      requested = true;
+      return new Response("temporarily unavailable", {
+        status: 503,
+        headers: { "retry-after": new Date(1_700_000_005_000).toUTCString() },
+      });
+    });
+    const client = createIndexHttpClient({ network: "fast:testnet", indexOrigin: "https://index.example", fetchImpl, now });
+
+    await expect(client.fetchExact(record())).rejects.toMatchObject({
+      kind: "retryable",
+      status: 503,
+      retryAfterMs: undefined,
+    });
+    expect(now).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an invalid direct exact-lookup clock before any GET", async () => {
+    const fetchImpl = vi.fn();
+    const client = createIndexHttpClient({
+      network: "fast:testnet", indexOrigin: "https://index.example", fetchImpl,
+      now: () => Number.NaN,
+    });
+
+    await expect(client.fetchExact(record())).rejects.toThrow(/clock must return non-negative integer milliseconds/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("validates destination and network binding before any fetch", async () => {
     const fetchImpl = vi.fn();
     expect(() =>

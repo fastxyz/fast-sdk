@@ -155,7 +155,6 @@ it("uses the pre-request timestamp for an HTTP-date retry response", async () =>
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
 
-<<<<<<< HEAD
 it("reads the configured clock capability once and uses it for journal persistence", async () => {
   const journal = memoryJournal(settled());
   let clockReads = 0;

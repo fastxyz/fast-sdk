@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/sign-sdk",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Public Node agent SDK for canonical Fast Sign artifact attestations",
   "license": "Apache-2.0",
   "repository": {

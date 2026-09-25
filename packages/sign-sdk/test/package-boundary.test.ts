@@ -17,7 +17,17 @@ describe("public package boundary", () => {
     const manifest = JSON.parse(readFileSync(path, "utf8")) as Record<string, any>;
 
     expect(manifest.name).toBe("@fastxyz/sign-sdk");
-    expect(manifest.version).toBe("0.0.0");
+    const changelogPath = join(root, "CHANGELOG.md");
+    if (existsSync(changelogPath)) {
+      const changelog = readFileSync(changelogPath, "utf8");
+      const releasedVersion = changelog
+        .split(/\r?\n/)
+        .find((line) => line.startsWith("## "))
+        ?.slice(3);
+      expect(releasedVersion).toBe(manifest.version);
+    } else {
+      expect(manifest.version).toBe("0.0.0");
+    }
     expect(manifest.license).toBe("Apache-2.0");
     expect(manifest.engines).toEqual({ node: ">=20.19.0" });
     expect(Object.keys(manifest.exports)).toEqual(["."]);

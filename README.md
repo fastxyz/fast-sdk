@@ -27,6 +27,7 @@ The monorepo contains multiple packages:
 | [@fastxyz/sdk](packages/fast-sdk/) | Core SDK — signing, transactions, REST queries |
 | [@fastxyz/allset-sdk](packages/allset-sdk/) | AllSet SDK — bridge tokens between Fast and EVM |
 | [@fastxyz/fastid-sdk](packages/fastid-sdk/) | Fast ID SDK — public identity reads and owner-authorized claims |
+| [@fastxyz/sign-sdk](packages/sign-sdk/) | Fast Sign agent SDK — artifact attestations, safe settlement recovery, and index registration |
 | [@fastxyz/x402-client](packages/x402-client/) | Pay for x402-protected HTTP resources |
 | [@fastxyz/x402-server](packages/x402-server/) | Protect API routes with x402 payments |
 | [@fastxyz/x402-facilitator](packages/x402-facilitator/) | Verify and settle x402 payments on the network |
@@ -40,6 +41,7 @@ The monorepo contains multiple packages:
 | [@fastxyz/sdk](packages/fast-sdk/) | Core Fast SDK — signing, transactions, provider, conversions |
 | [@fastxyz/allset-sdk](packages/allset-sdk/) | AllSet SDK for bridge flows between Fast and EVM |
 | [@fastxyz/fastid-sdk](packages/fastid-sdk/) | Fast ID client — identity reads, claims, profiles and sealed reports |
+| [@fastxyz/sign-sdk](packages/sign-sdk/) | Fast Sign client — canonical artifact attestation for Node agents |
 | [@fastxyz/x402-client](packages/x402-client/) | Client SDK for paying for x402-protected resources |
 | [@fastxyz/x402-server](packages/x402-server/) | Server SDK for x402 payment verification / middleware |
 | [@fastxyz/x402-facilitator](packages/x402-facilitator/) | Facilitator for verifying and settling x402 payments |
@@ -57,6 +59,7 @@ The monorepo contains multiple packages:
 | [@fastxyz/sdk](packages/fast-sdk/) | Programmatic access — Signer, FastProvider, TransactionBuilder |
 | [@fastxyz/allset-sdk](packages/allset-sdk/) | Cross-chain bridging — EVM ↔ Fast via AllSet |
 | [@fastxyz/fastid-sdk](packages/fastid-sdk/) | Fast ID integration — identity reads, claims, profiles and reports |
+| [@fastxyz/sign-sdk](packages/sign-sdk/) | Fast Sign agent integration — attest, recover, verify and register artifacts |
 | [@fastxyz/x402-client](packages/x402-client/) | Pay for 402-protected APIs (auto-handles HTTP 402) |
 | [@fastxyz/x402-server](packages/x402-server/) | Protect your API routes with payment requirements |
 | [@fastxyz/x402-facilitator](packages/x402-facilitator/) | Run a payment verification/settlement service |

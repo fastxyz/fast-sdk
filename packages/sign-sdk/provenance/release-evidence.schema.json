@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "@fastxyz/sign-sdk release evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "package",
+    "version",
+    "implementationCommit",
+    "releaseCommit",
+    "workflowRun",
+    "trustedPublishingEnvironment",
+    "tarball",
+    "integrity",
+    "downloadedTarball",
+    "attestationUrl",
+    "predicateType",
+    "provenance",
+    "sourceRepository",
+    "sourceCommit",
+    "npmVerification",
+    "extractedMetadata",
+    "contentManifestSha256",
+    "lockfileResolved",
+    "lockfileIntegrity"
+  ],
+  "properties": {
+    "package": { "const": "@fastxyz/sign-sdk" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$" },
+    "implementationCommit": { "$ref": "#/$defs/sha" },
+    "releaseCommit": { "$ref": "#/$defs/sha" },
+    "workflowRun": { "type": "string", "format": "uri" },
+    "trustedPublishingEnvironment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "workflow", "environment"],
+      "properties": {
+        "provider": { "const": "github-actions" },
+        "workflow": { "type": "string", "format": "uri" },
+        "environment": { "type": "string", "minLength": 1 }
+      }
+    },
+    "tarball": { "type": "string", "format": "uri" },
+    "integrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" },
+    "downloadedTarball": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha512", "matchesRegistryIntegrity"],
+      "properties": {
+        "sha512": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" },
+        "matchesRegistryIntegrity": { "const": true }
+      }
+    },
+    "attestationUrl": { "type": "string", "format": "uri" },
+    "predicateType": { "const": "https://slsa.dev/provenance/v1" },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subjectDigest", "sourceRepository", "sourceCommit"],
+      "properties": {
+        "subjectDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "sourceRepository": { "const": "https://github.com/fastxyz/fast-sdk" },
+        "sourceCommit": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "sourceRepository": { "const": "https://github.com/fastxyz/fast-sdk" },
+    "sourceCommit": { "$ref": "#/$defs/sha" },
+    "npmVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "status"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "status": { "const": "verified" }
+      }
+    },
+    "extractedMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchesCandidateManifest", "package", "version", "license", "repository", "exports", "engines"],
+      "properties": {
+        "matchesCandidateManifest": { "const": true },
+        "package": { "const": "@fastxyz/sign-sdk" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$" },
+        "license": { "const": "Apache-2.0" },
+        "repository": { "const": "https://github.com/fastxyz/fast-sdk" },
+        "exports": { "type": "object" },
+        "engines": { "type": "object", "required": ["node"], "properties": { "node": { "type": "string", "minLength": 1 } } }
+      }
+    },
+    "contentManifestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "lockfileResolved": { "type": "string", "format": "uri" },
+    "lockfileIntegrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "fixture": "test/fixtures/protocol.json",
+  "fixtureSha256": "160fbdf2ea6c730937432811f04b049af446461bd0b34d72b6e33f3ba0be7b30",
+  "sourceHead": "2fd5577241635cc15f38d4f8150359db6ca5cced",
+  "rustVectorSha256": "a30afa8dab12e0ee8fec15c6b0e9d466c111a1e78c459fc3eee4bc5661a0c270",
+  "generator": "fastset-sign-web/scripts/generate-sign-sdk-fixtures.ts",
+  "regeneration": "Run the fixture generator explicitly with UPDATE_SIGN_SDK_FIXTURES=1, then review the byte diff; tests never write."
+}

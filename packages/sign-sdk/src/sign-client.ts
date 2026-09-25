@@ -472,10 +472,13 @@ export function createSignClient(options: SignClientOptions): SignClient {
           let submitted: unknown;
           try { submitted = await provider.submitTransaction(signed.envelope); }
           catch (error) {
-            const nonceConflict = asNonceConflict(error);
-            if (nonceConflict) throw nonceConflict;
-            const insufficientFunds = asInsufficientFunds(error, authorized.tokenId);
-            if (insufficientFunds) throw insufficientFunds;
+            let definitive: Error | null = null;
+            try {
+              definitive = asNonceConflict(error) ?? asInsufficientFunds(error, authorized.tokenId);
+            } catch {
+              // An uninspectable provider error cannot prove submission failed.
+            }
+            if (definitive) throw definitive;
             return { settlement: "unknown", operationId: input.operationId, txId: signed.txId, recoveryPersisted: true };
           }
           let certificate: unknown | null;

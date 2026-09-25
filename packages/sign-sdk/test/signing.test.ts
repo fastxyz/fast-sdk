@@ -32,7 +32,7 @@ import {
   signPreparedTransaction,
 } from "../src/internal/transactions.js";
 import { createSignClient } from "../src/sign-client.js";
-import type { JournalSnapshot } from "../src/recovery.js";
+import type { JournalSnapshot, RecoveryJournal } from "../src/recovery.js";
 
 interface ProtocolFixture {
   certificate: {
@@ -1309,6 +1309,45 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     await expect(client.signDigest(input)).rejects.toBeInstanceOf(ErrorType);
     expect(snapshot).toMatchObject({ state: "submission_unknown" });
     await expect(client.signDigest(input)).resolves.toMatchObject({ settlement: "unknown" });
+    expect(submitTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["throwing tag trap", () => new Proxy({}, { has(_target, key) {
+      if (key === "_tag") throw new Error("cannot inspect tag");
+      return false;
+    } })],
+    ["throwing details getter", () => Object.defineProperty({}, "details", { get() {
+      throw new Error("cannot inspect details");
+    } })],
+  ] as const)("returns a recoverable unknown result for a provider error with %s", async (kind, rejection) => {
+    const actual = new Signer(seed);
+    let snapshot: JournalSnapshot | null = null;
+    const submitTransaction = vi.fn(async () => { throw rejection(); });
+    const journal: RecoveryJournal = {
+      async load(operationId) { return snapshot?.operationId === operationId ? structuredClone(snapshot) : null; },
+      async save(value) { snapshot = structuredClone(value); },
+      async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+    };
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example/proxy",
+      indexOrigin: "https://index.example",
+      signer: { getPublicKey: () => actual.getPublicKey(), signMessage: (bytes) => actual.signMessage(bytes) },
+      journal,
+      provider: { getNextNonce: async () => 7n, submitTransaction },
+      feePolicy: { tokenId, maxAtomicAmount: "7" },
+      feeSource: feeSource(),
+      now: () => 1_700_000_000_000,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+    const input = { operationId: `hostile-${kind.replaceAll(" ", "-")}`, sha256: "11".repeat(32), relationship: "authored" as const };
+
+    const result = await client.signDigest(input);
+    const saved = await journal.load(input.operationId);
+    if (saved?.state !== "submission_unknown") throw new Error("expected durable submission evidence");
+    expect(result).toMatchObject({ settlement: "unknown", txId: saved.submission.txId, recoveryPersisted: true });
+    await expect(client.signDigest(input)).resolves.toMatchObject({ settlement: "unknown", txId: saved.submission.txId });
     expect(submitTransaction).toHaveBeenCalledTimes(1);
   });
 

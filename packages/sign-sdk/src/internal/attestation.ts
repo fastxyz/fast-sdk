@@ -8,11 +8,11 @@
  * receive an `AttestationV3Error` carrying one of the frozen error classes.
  * V3 drops the `artifact_version` field V2 carried; there is no V2 back-compat.
  *
- * The normative spec is
- * `docs/ultimatepowers/specs/2026-07-21-artifact-attestation-v3-design.md`
- * (§3 fields, §5 canonical JSON, §5.1 metadata text, §10 size). This module
- * must round-trip byte-identically with the Rust golden vectors in
- * `test-vectors/artifact-attestation-v3.json`.
+ * The normative public SDK specification is
+ * `docs/ultimatepowers/specs/2026-09-22-fast-sign-public-sdk.md`.
+ * Cross-language fixture bytes and their source hashes are recorded in
+ * `packages/sign-sdk/test/fixtures/protocol.json` and
+ * `packages/sign-sdk/test/fixtures/provenance.json`.
  */
 
 import {

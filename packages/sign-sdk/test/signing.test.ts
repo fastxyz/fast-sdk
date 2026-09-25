@@ -1598,6 +1598,24 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(poison).not.toHaveBeenCalled();
   });
 
+  it("validates and returns the same provider nonce snapshot", async () => {
+    let reads = 0;
+    const adapter = createFastSdkProviderAdapter({
+      async getAccountInfo() {
+        return {
+          get nextNonce() {
+            reads += 1;
+            return reads < 3 ? 7n : 8n;
+          },
+        };
+      },
+      async submitTransaction() { throw new Error("unexpected submission"); },
+    });
+
+    await expect(adapter.getNextNonce(fixture.certificate.senderAddress)).resolves.toBe(7n);
+    expect(reads).toBe(1);
+  });
+
   it("matches the independent website signing bytes and Rust-compatible tx-id fixture", async () => {
     const prepared = await prepareExternalClaimTransaction({
       network: "fast:testnet",

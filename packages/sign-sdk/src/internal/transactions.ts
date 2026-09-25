@@ -101,11 +101,12 @@ export function createFastSdkProviderAdapter(
         tokenBalancesFilter: null,
         stateKeyFilter: null,
       });
-      if (typeof info.nextNonce !== "bigint") {
+      const nonce = info.nextNonce;
+      if (typeof nonce !== "bigint") {
         throw new Error("FastProvider nextNonce must be a bigint");
       }
-      assertU64(info.nextNonce, "nextNonce");
-      return info.nextNonce;
+      assertU64(nonce, "nextNonce");
+      return nonce;
     },
     submitTransaction,
   };

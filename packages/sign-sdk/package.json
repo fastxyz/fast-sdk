@@ -1,0 +1,59 @@
+{
+  "name": "@fastxyz/sign-sdk",
+  "version": "0.0.0",
+  "description": "Public Node agent SDK for canonical Fast Sign artifact attestations",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fastxyz/fast-sdk.git",
+    "directory": "packages/sign-sdk"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "prebuild": "node scripts/package-artifact.mjs",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "audit:licenses": "node scripts/license-provenance.mjs",
+    "smoke:package": "node scripts/package-consumer.mjs",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@fastxyz/schema": "2.0.0",
+    "@fastxyz/sdk": "2.3.1",
+    "@noble/ed25519": "2.3.0",
+    "@noble/hashes": "1.8.0",
+    "bech32": "2.0.0",
+    "effect": "3.21.4",
+    "json-with-bigint": "3.5.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "0.28.2",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.1",
+    "yaml": "2.8.3"
+  },
+  "packageManager": "pnpm@10.1.0"
+}

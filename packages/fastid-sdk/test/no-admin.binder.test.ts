@@ -167,12 +167,13 @@ const sourceRoot = process.env.ID_SDK_BINDER_ROOT
   : resolve(packageRoot, "src");
 
 describe("non-admin public SDK binder", () => {
-  // Cold TypeScript graph construction took 6.7s in workspace CI; preserve all checks.
+  // Cold TypeScript graph construction is CPU-bound and can exceed 15s when a
+  // sibling SDK runs process-level filesystem witnesses in workspace CI.
   it("contains no admin route reference or admin-named public export", () => {
     const result = scanNoAdmin(sourceRoot);
     expect(result.routeViolations).toEqual([]);
     expect(result.adminExports).toEqual([]);
-  }, 15_000);
+  }, 30_000);
 
   it("has live positive controls without rejecting the reserved name", () => {
     const result = scanNoAdmin(sourceRoot);

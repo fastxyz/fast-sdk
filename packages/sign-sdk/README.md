@@ -77,7 +77,9 @@ proxy, **not validator-quorum verification**. With a durably persisted receipt,
 `createRecordClient({ network, indexOrigin, journal }).checkRegistration(receipt)`
 checks the exact reverse-index record independently of settlement. A pending
 registration is not proof that settlement failed; registration recovery uses
-the same receipt, not a second signing transaction.
+the same receipt, not a second signing transaction. To retry only registration,
+call `retryRegistration(receipt)` on a client created with all required options:
+`createRecordClient({ network, indexOrigin, journal }).retryRegistration(receipt)`.
 
 ```ts
 import {

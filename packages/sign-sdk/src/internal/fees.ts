@@ -173,13 +173,15 @@ export async function resolveClaimFee(
   const data = isObject(response) ? response.data : undefined;
   if (!isObject(data) || data.network_id !== network) return { kind: "unavailable" };
   const fees = data.fees;
-  if (!isObject(fees) || typeof fees.default !== "string" || !Array.isArray(fees.entries)) {
+  if (!isObject(fees)) return { kind: "unavailable" };
+  const defaultId = fees.default;
+  const entries = fees.entries;
+  if (typeof defaultId !== "string" || !Array.isArray(entries)) {
     return { kind: "unavailable" };
   }
-  if (fees.entries.length === 0) return fees.default === "" ? { kind: "none" } : { kind: "unavailable" };
-  const defaultId = fees.default;
+  if (entries.length === 0) return defaultId === "" ? { kind: "none" } : { kind: "unavailable" };
   if (!TOKEN_ID.test(defaultId)) return { kind: "unavailable" };
-  const matchingEntries = fees.entries.filter(
+  const matchingEntries = entries.filter(
     (candidate) => isObject(candidate) && candidate.token_id === defaultId,
   );
   if (matchingEntries.length !== 1) return { kind: "unavailable" };

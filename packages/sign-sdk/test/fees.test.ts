@@ -72,6 +72,30 @@ describe("fee authorization", () => {
     expect(amountReads).toBe(1);
   });
 
+  it("uses one fee schedule snapshot before deciding whether a fee is due", async () => {
+    const tokenId = "11".repeat(32);
+    let defaultReads = 0;
+    let entriesReads = 0;
+    const fees = {
+      get default() { return ++defaultReads === 1 ? tokenId : ""; },
+      get entries() {
+        return ++entriesReads === 1 ? [{ token_id: tokenId, fixed_amount: "7" }] : [];
+      },
+    };
+    const state = await resolveClaimFee("fast:testnet", {
+      networkInfo: async () => ({ data: { network_id: "fast:testnet", fees } }),
+      tokenMeta: async () => ({
+        data: { requested_token_metadata: [[tokenId, { token_name: "FAST", decimals: 6 }]] },
+      }),
+    });
+
+    expect(state).toMatchObject({ kind: "quoted", tokenId, atomicAmount: "7" });
+    expect(() => assertFeePolicy("fast:testnet", state, { tokenId: null, maxAtomicAmount: "0" }))
+      .toThrow(/fee token/i);
+    expect(defaultReads).toBe(1);
+    expect(entriesReads).toBe(1);
+  });
+
   it("fails closed when the fee schedule contains duplicate token entries", async () => {
     const duplicateEntry = { token_id: "11".repeat(32), fixed_amount: "7" };
     await expect(resolveClaimFee("fast:testnet", {

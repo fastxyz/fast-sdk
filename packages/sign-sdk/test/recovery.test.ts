@@ -5,15 +5,136 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { Signer } from "@fastxyz/sdk";
 import { expect, it, vi } from "vitest";
 
 import { validateSettlementCertificate } from "../src/internal/receipts.js";
+import { prepareExternalClaimTransaction, signPreparedTransaction } from "../src/internal/transactions.js";
 import { recoverSettlement, registerReceipt, snapshotRecoveryJournal, verifyReceipt } from "../src/recovery.js";
-import type { JournalSnapshot, RecoveryJournal, SubmissionUnknownJournalSnapshot } from "../src/types.js";
+import type { JournalSnapshot, PendingRegistration, RecoveryJournal, SubmissionUnknownJournalSnapshot } from "../src/types.js";
 
 const protocol = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures/protocol.json"), "utf8"),
 ).certificate as Record<string, unknown>;
+
+async function settledFixture(operationId: string) {
+  const network = "fast:testnet" as const;
+  const sha256 = "11".repeat(32);
+  const original = await validateSettlementCertificate(protocol.certificateRestJson, {
+    network,
+    senderHex: protocol.signerHex as string,
+    nonce: BigInt(protocol.nonce as string | number),
+    txId: protocol.txId as string,
+    sha256,
+    claimDataHex: protocol.claimDataHex as string,
+  });
+  const signer = new Signer(new Uint8Array(32).fill(7));
+  const timestampNanos = original.attestation.issuedAt * 1_000_000_000n + 123_456_789n;
+  const prepared = await prepareExternalClaimTransaction({
+    network,
+    senderPublicKey: await signer.getPublicKey(),
+    nonce: original.nonce,
+    claimDataHex: original.claimDataHex,
+    feeToken: null,
+    timestampNanos,
+  });
+  const signed = await signPreparedTransaction(prepared, signer);
+  const certificate = (protocol.certificateRestJson as string)
+    .replace(`"timestamp_nanos":${protocol.timestampNanos}`, `"timestamp_nanos":${timestampNanos}`)
+    .replace(`"Signature":"${protocol.senderSignatureHex}"`, `"Signature":"${signed.senderSignatureHex}"`);
+  const validated = await validateSettlementCertificate(certificate, {
+    network,
+    senderHex: original.senderHex,
+    nonce: original.nonce,
+    txId: signed.txId,
+    sha256,
+    claimDataHex: original.claimDataHex,
+  });
+  const receipt: PendingRegistration = {
+    version: 1,
+    operationId,
+    indexOrigin: "https://index.example",
+    record: { sha256, tx_id: validated.txId, signer: validated.senderHex, nonce: Number(validated.nonce), network },
+    claimDataHex: validated.claimDataHex,
+    senderSignatureHex: validated.senderSignatureHex,
+    signatureScope: "versioned_transaction",
+    certificate: validated.certificate,
+  };
+  const snapshot: SubmissionUnknownJournalSnapshot = {
+    version: 1,
+    state: "submission_unknown",
+    operationId,
+    updatedAt: 1,
+    operation: {
+      input: {
+        operationId,
+        sha256,
+        relationship: validated.attestation.relationship,
+        ...(validated.attestation.signerName === "" ? {} : { signerName: validated.attestation.signerName }),
+        ...(validated.attestation.listBySigner ? { publicTitle: validated.attestation.fileLabel } : {}),
+        listBySigner: validated.attestation.listBySigner,
+      },
+      network,
+      proxyUrl: "https://proxy.example",
+      indexOrigin: receipt.indexOrigin,
+      senderHex: validated.senderHex,
+      nonce: validated.nonce.toString(),
+      requestIdHex: Buffer.from(validated.attestation.requestId).toString("hex"),
+      issuedAtNanoseconds: validated.timestampNanos.toString(),
+      fee: null,
+    },
+    submission: {
+      txId: validated.txId,
+      signingBytesHex: validated.signingBytesHex,
+      transactionBytesHex: validated.transactionBytesHex,
+      senderSignatureHex: validated.senderSignatureHex,
+      claimDataHex: validated.claimDataHex,
+    },
+  };
+  return { receipt, snapshot, certificate };
+}
+
+it.each([NaN, -1, 1.5])("does not persist an invalid recovery timestamp %s with a permissive journal", async (timestamp) => {
+  const { snapshot, certificate } = await settledFixture("invalid-recovery-clock");
+  const save = vi.fn(async (_value: JournalSnapshot) => undefined);
+  const journal: RecoveryJournal = {
+    load: vi.fn(async () => snapshot),
+    save,
+    withLock: vi.fn(async <T>(_key: string, operation: () => Promise<T>) => operation()) as RecoveryJournal["withLock"],
+  };
+
+  await expect(recoverSettlement({
+    operationId: snapshot.operationId,
+    journal,
+    reader: { origin: snapshot.operation.proxyUrl, getCertificate: async () => certificate },
+    now: () => timestamp,
+  })).rejects.toThrow("snapshot.updatedAt must be a non-negative safe integer");
+  expect(save).not.toHaveBeenCalled();
+});
+
+it("does not persist an invalid receipt timestamp with a permissive journal", async () => {
+  const { receipt, certificate } = await settledFixture("invalid-receipt-clock");
+  let stored: JournalSnapshot | null = null;
+  const save = vi.fn(async (value: JournalSnapshot) => { stored = value; });
+  const fetchImpl = vi.fn(async () => { throw new Error("registration should not be called"); });
+  const journal: RecoveryJournal = {
+    load: vi.fn(async () => stored),
+    save,
+    withLock: vi.fn(async <T>(_key: string, operation: () => Promise<T>) => operation()) as RecoveryJournal["withLock"],
+  };
+
+  await expect(registerReceipt({
+    receipt,
+    network: "fast:testnet",
+    indexOrigin: receipt.indexOrigin,
+    journal,
+    reader: { origin: "https://proxy.example", getCertificate: async () => certificate },
+    now: () => NaN,
+    fetchImpl,
+  })).rejects.toThrow("snapshot.updatedAt must be a non-negative safe integer");
+  expect(save).not.toHaveBeenCalled();
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
 
 it("keeps an unobserved submission indeterminate without signing or submitting", async () => {
   const snapshot: SubmissionUnknownJournalSnapshot = {

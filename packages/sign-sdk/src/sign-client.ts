@@ -306,7 +306,27 @@ export function createSignClient(options: SignClientOptions): SignClient {
             return resultFromSettled(current);
           }
           const retryablePrepared = current?.state === "prepared" && current.diagnostic?.code === PRE_SUBMIT_RETRY_CODE;
-          const signingCurrent = retryablePrepared ? null : current;
+          let signingCurrent = retryablePrepared ? null : current;
+          if (signingCurrent?.state === "prepared") {
+            const previousNonce = BigInt(signingCurrent.operation.nonce);
+            const previousReservationId = nonceReservationOperationId(network, senderHex, previousNonce);
+            const previousReservation = await journal.load(previousReservationId);
+            if (previousReservation !== null && (
+              previousReservation.operationId !== previousReservationId ||
+              previousReservation.state !== "prepared" ||
+              (previousReservation.reservation !== undefined && (
+                previousReservation.reservation.network !== network ||
+                previousReservation.reservation.senderHex !== senderHex ||
+                previousReservation.reservation.nonce !== previousNonce.toString()
+              ))
+            )) throw new Error("nonce reservation record is malformed");
+            // No signed submission exists yet. Re-read the provider nonce if
+            // this operation does not own the old reservation; another
+            // operation may have used it since preparation failed.
+            if (previousReservation?.state !== "prepared" || previousReservation.reservation?.ownerOperationId !== input.operationId) {
+              signingCurrent = null;
+            }
+          }
           const instant = now();
           if (!Number.isSafeInteger(instant) || instant < 0) throw new Error("clock must return non-negative integer milliseconds");
           const timestampNanos = signingCurrent

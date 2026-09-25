@@ -568,6 +568,54 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     expect(submitTransaction).not.toHaveBeenCalled();
   });
 
+  it("reprepares a never-submitted operation after another operation uses its nonce", async () => {
+    const actual = new Signer(seed);
+    const snapshots = new Map<string, JournalSnapshot>();
+    let nextNonce = 7n;
+    let failFirstSignature = true;
+    const getNextNonce = vi.fn(async () => nextNonce);
+    const submitTransaction = vi.fn(async () => { nextNonce += 1n; return null; });
+    const client = createSignClient({
+      network: "fast:testnet",
+      proxyUrl: "https://proxy.example",
+      indexOrigin: "https://index.example",
+      signer: {
+        getPublicKey: () => actual.getPublicKey(),
+        signMessage: async (bytes) => {
+          if (failFirstSignature) {
+            failFirstSignature = false;
+            throw new Error("signing blocked");
+          }
+          return actual.signMessage(bytes);
+        },
+      },
+      journal: {
+        async load(operationId) { return structuredClone(snapshots.get(operationId) ?? null); },
+        async save(value) { snapshots.set(value.operationId, structuredClone(value)); },
+        async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+      },
+      provider: { getNextNonce, submitTransaction },
+      feePolicy: { tokenId: null, maxAtomicAmount: "0" },
+      feeSource: {
+        async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
+        async tokenMeta() { throw new Error("fee-free fixture must not read token metadata"); },
+      },
+      now: () => 1_700_000_000_000,
+      randomBytes: (length) => new Uint8Array(length).fill(0x33),
+    });
+    const first = { operationId: "prepared-first", sha256: "11".repeat(32), relationship: "authored" as const };
+    const second = { operationId: "prepared-second", sha256: "22".repeat(32), relationship: "approved" as const };
+
+    await expect(client.signDigest(first)).rejects.toThrow("signing blocked");
+    expect(snapshots.get(first.operationId)).toMatchObject({ state: "prepared", operation: { nonce: "7" } });
+    expect([...snapshots.values()].some((snapshot) => "reservation" in snapshot && snapshot.reservation !== undefined)).toBe(false);
+    await expect(client.signDigest(second)).resolves.toMatchObject({ settlement: "unknown" });
+    await expect(client.signDigest(first)).resolves.toMatchObject({ settlement: "unknown", operationId: first.operationId });
+    expect(snapshots.get(first.operationId)).toMatchObject({ state: "submission_unknown", operation: { nonce: "8" } });
+    expect(getNextNonce).toHaveBeenCalledTimes(3);
+    expect(submitTransaction).toHaveBeenCalledTimes(2);
+  });
+
   it("releases a new nonce reservation when submission evidence cannot be persisted", async () => {
     const actual = new Signer(seed);
     const snapshots = new Map<string, JournalSnapshot>();
@@ -635,6 +683,7 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
     const actual = new Signer(seed);
     const snapshots = new Map<string, JournalSnapshot>();
     const submitTransaction = vi.fn(async () => null);
+    const getNextNonce = vi.fn(async () => 7n);
     let failEvidenceSave = true;
     let failRetryMarkerSave = true;
     const client = createSignClient({
@@ -657,7 +706,7 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
         },
         async withLock<T>(_key: string, operation: () => Promise<T>) { return operation(); },
       },
-      provider: { getNextNonce: async () => 7n, submitTransaction },
+      provider: { getNextNonce, submitTransaction },
       feePolicy: { tokenId: null, maxAtomicAmount: "0" },
       feeSource: {
         async networkInfo() { return { data: { network_id: "fast:testnet", fees: { default: "", entries: [] } } }; },
@@ -678,6 +727,13 @@ describe("canonical Fast transaction preparation and caller-owned signing", () =
       reservation: { ownerOperationId: "retry-marker-write-fails", nonce: "7" },
     });
     expect(submitTransaction).not.toHaveBeenCalled();
+    await expect(client.signDigest({
+      operationId: "retry-marker-write-fails",
+      sha256: "11".repeat(32),
+      relationship: "authored",
+    })).resolves.toMatchObject({ settlement: "unknown" });
+    expect(getNextNonce).toHaveBeenCalledTimes(1);
+    expect(submitTransaction).toHaveBeenCalledTimes(1);
   });
 
   it("releases a partially persisted reservation when its write fails", async () => {

@@ -107,10 +107,14 @@ The reader and index origin must be independently configured for the same
 network, and `checkRegistration` requires the durably saved receipt. Keep
 `not_observed` and `pending` distinct from a verified, registered result.
 
-For public file/hash lookup, use [Fast Sign Verify](https://sign.fast.xyz/verify).
-There is no JSON verification API on the Fast Sign website; its reverse index
-is a separate service. For a stamped PDF, verify the signed-original prefix by
-dropping the stamped file on that page. Hashing the entire stamped container
+For public **mainnet** file/hash lookup, use
+[Fast Sign Verify](https://sign.fast.xyz/verify).
+That page serves `fast:mainnet`; absence of a testnet receipt there is not a
+testnet failure. For testnet, use the testnet-bound receipt reader and index
+origin with `verifyReceipt` and `checkRegistration` as shown above. There is no
+JSON verification API on the Fast Sign website; its reverse index is a separate
+service. On that mainnet page, verify a stamped PDF's signed-original prefix by
+dropping the stamped file there. Hashing the entire stamped container
 usually produces a *different* digest because the stamp is an unsigned append.
 See [Fast Sign's semantics guide](https://sign.fast.xyz/llms.txt) for what a
 verified signature does—and does not—prove.

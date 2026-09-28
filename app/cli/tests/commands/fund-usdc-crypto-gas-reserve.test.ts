@@ -30,7 +30,7 @@ class Sentinel extends Error {
   }
 }
 
-function harness(balance: bigint) {
+function harness(balance: bigint, chain = "arc") {
   const lines: string[] = [];
   const calls = { export: 0, deposit: 0, nativeBalance: 0, gasReserve: 0 };
 
@@ -103,7 +103,7 @@ function harness(balance: bigint) {
     Effect.runPromise(
       Effect.flip(
         fundUsdcCrypto
-          .handler({ amount: "1", chain: "arc", token: "USDC", eip7702: false } as never)
+          .handler({ amount: "1", chain, token: "USDC", eip7702: false } as never)
           .pipe(Effect.provide(layers)),
       ),
     );
@@ -139,6 +139,24 @@ describe("fund usdc crypto on Arc (gas token == deposit token)", () => {
     expect(err).toBeInstanceOf(Sentinel);
     expect((err as Sentinel).where).toBe("accounts.export");
     expect(calls.export).toBe(1);
+    expect(calls.deposit).toBe(0);
+  });
+});
+
+describe("fund usdc crypto on Polygon (native gas token != deposit token)", () => {
+  it("asks for POL when the native balance is zero, without exporting or depositing", async () => {
+    const { run, lines, calls } = harness(ONE_USDC, "polygon");
+    const err = await run();
+
+    expect(err).toBeInstanceOf(FundingRequiredError);
+    expect((err as FundingRequiredError).message).toContain("No POL for gas on polygon");
+    const text = lines.join("\n");
+    expect(text).toContain("Insufficient POL for gas on polygon.");
+    expect(text).toContain("Send POL to the EVM address above on polygon to cover gas fees.");
+    expect(text).not.toContain("ETH");
+    expect(calls.nativeBalance).toBe(1);
+    expect(calls.gasReserve).toBe(0);
+    expect(calls.export).toBe(0);
     expect(calls.deposit).toBe(0);
   });
 });

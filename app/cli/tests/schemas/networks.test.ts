@@ -40,8 +40,9 @@ describe("bundledNetworks", () => {
     expect(polygon.fastBridgeAddress).toBe("fast1elfwrg5zevdvzm2ccm2js3wvm98sy8t99jwp9c82cermdmpfxfgqkg53th");
     expect(polygon.relayerUrl).toBe("https://allset.fast.xyz/polygon/relayer");
     expect(polygon.evmRpcUrl).toBe("https://allset.fast.xyz/chain/rpc/polygon");
-    expect(polygon.evmExplorerUrl).toBe("https://polygonscan.com/");
-    expect(polygon.gasToken).toBeUndefined();
+    expect(polygon.evmExplorerUrl).toBe("https://polygonscan.com");
+    expect(`${polygon.evmExplorerUrl}/tx/0xabc`).toBe("https://polygonscan.com/tx/0xabc");
+    expect(polygon.gasToken).toEqual({ symbol: "POL" });
     expect(polygon.tokens.USDC).toEqual({
       evmAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
       fastTokenId: "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",

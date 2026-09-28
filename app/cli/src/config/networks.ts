@@ -100,11 +100,12 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
         },
         polygon: {
           chainId: 137,
+          gasToken: { symbol: "POL" },
           bridgeContract: "0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538",
           fastBridgeAddress: "fast1elfwrg5zevdvzm2ccm2js3wvm98sy8t99jwp9c82cermdmpfxfgqkg53th",
           relayerUrl: "https://allset.fast.xyz/polygon/relayer",
           evmRpcUrl: "https://allset.fast.xyz/chain/rpc/polygon",
-          evmExplorerUrl: "https://polygonscan.com/",
+          evmExplorerUrl: "https://polygonscan.com",
           tokens: {
             USDC: {
               evmAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",

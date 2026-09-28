@@ -1,5 +1,11 @@
 # @fastxyz/allset-sdk
 
+## 1.3.0
+
+### Minor Changes
+
+- 364cfda: Support Polygon mainnet (chain ID 137) in the AllSet EVM executor and bundle the production Polygon USDC route in the CLI.
+
 ## 1.2.0
 
 ### Minor Changes

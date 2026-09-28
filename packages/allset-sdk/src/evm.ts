@@ -1,6 +1,6 @@
 import { createPublicClient, createWalletClient, defineChain, http, parseAbi, type Account, type Chain, type PublicClient, type WalletClient } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import { arbitrum, arbitrumSepolia, base, mainnet as ethereum, sepolia } from 'viem/chains';
+import { arbitrum, arbitrumSepolia, base, mainnet as ethereum, polygon, sepolia } from 'viem/chains';
 
 /**
  * Account-compatible wallet returned by createEvmWallet().
@@ -126,6 +126,7 @@ export function weiToTokenUnits(wei: bigint, tokenDecimals: number): bigint {
 /** Bundled supported chain mappings */
 export const CHAIN_MAP: Record<number, Chain> = {
   1: ethereum,
+  137: polygon,
   11155111: sepolia,
   421614: arbitrumSepolia,
   42161: arbitrum,

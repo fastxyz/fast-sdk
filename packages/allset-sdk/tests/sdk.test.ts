@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { beforeEach, test, onTestFinished } from 'vitest';
 import { FastError, IndeterminateTransactionError, PostPaymentRecoveryError } from '../src/errors.ts';
 import { bytesToHex, encodeAbiParameters, encodeFunctionData, hexToBytes, type Hex } from 'viem';
+import { polygon } from 'viem/chains';
 import { hashHex, InvalidRequestError, ProxyUnexpectedNonceError, Signer, FastProvider, toFastAddress } from '@fastxyz/sdk';
 import { Schema } from 'effect';
 import { bcsSchema, TransactionCertificateFromRpc, VersionedTransactionFromBcs } from '@fastxyz/schema';
@@ -518,6 +519,16 @@ test('createEvmExecutor maps chainId 5042 to Arc on both clients', () => {
   assert.equal(clients.publicClient.chain?.name, 'Arc');
   assert.equal(clients.publicClient.chain?.nativeCurrency.symbol, 'USDC');
   assert.equal(CHAIN_MAP[5042], arc);
+});
+
+test('createEvmExecutor maps chainId 137 to Polygon on both clients', () => {
+  const account = createEvmWallet(`0x${'33'.repeat(32)}`);
+  const clients = createEvmExecutor(account, 'https://allset.fast.xyz/chain/rpc/polygon', 137);
+  assert.equal(clients.walletClient.chain?.id, 137);
+  assert.equal(clients.publicClient.chain?.id, 137);
+  assert.equal(clients.publicClient.chain?.nativeCurrency.symbol, 'POL');
+  assert.equal(CHAIN_MAP[137], polygon);
+  assert.equal(gasTokenErc20(CHAIN_MAP[137]), undefined);
 });
 
 test('gasTokenErc20 is set for Arc only', () => {

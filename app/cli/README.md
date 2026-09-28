@@ -230,6 +230,9 @@ Send tokens between Fast and supported EVM chains.
 
 ```bash
 fast send fast1recipient... 10.5 --token USDC
+
+# Withdraw USDC from Fast mainnet to Polygon mainnet
+fast --network mainnet send 0x1234567890123456789012345678901234567890 0.01 --to-chain polygon --token USDC
 ```
 
 **Positional arguments:**

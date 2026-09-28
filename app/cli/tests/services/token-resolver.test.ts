@@ -6,6 +6,7 @@ import {
 } from "../../src/services/token-resolver.js";
 import { TokenNotFoundError, UnsupportedChainError } from "../../src/errors/index.js";
 import type { NetworkConfig } from "../../src/schemas/networks.js";
+import { bundledNetworks } from "../../src/config/networks.js";
 import {
   customCfgWithoutDefaultToken,
   mainnetCfg,
@@ -80,9 +81,16 @@ describe("resolveToken", () => {
   });
 
   it("throws UnsupportedChainError for an unknown chain", () => {
-    expect(() => resolveToken("USDC", MAINNET, "polygon")).toThrow(
+    expect(() => resolveToken("USDC", MAINNET, "unknown-chain")).toThrow(
       UnsupportedChainError,
     );
+  });
+
+  it("resolves Polygon USDC from the bundled mainnet route", () => {
+    const token = resolveToken("USDC", bundledNetworks.mainnet!, "polygon");
+    expect(token.evmAddress).toBe("0x3c499c542cef5e3811e1192ce70d8cc03d5c3359");
+    expect(Buffer.from(token.fastTokenId).toString("hex")).toBe("c655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130");
+    expect(token.decimals).toBe(6);
   });
 
   it("throws TokenNotFoundError when chain exists but token does not", () => {

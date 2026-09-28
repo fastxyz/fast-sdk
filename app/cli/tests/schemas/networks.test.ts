@@ -33,6 +33,23 @@ describe("NetworkConfigSchema", () => {
 });
 
 describe("bundledNetworks", () => {
+  it("bundles Polygon mainnet USDC with the production bridge and relayer", () => {
+    const polygon = bundledNetworks.mainnet!.allSet!.chains.polygon!;
+    expect(polygon.chainId).toBe(137);
+    expect(polygon.bridgeContract).toBe("0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538");
+    expect(polygon.fastBridgeAddress).toBe("fast1elfwrg5zevdvzm2ccm2js3wvm98sy8t99jwp9c82cermdmpfxfgqkg53th");
+    expect(polygon.relayerUrl).toBe("https://allset.fast.xyz/polygon/relayer");
+    expect(polygon.evmRpcUrl).toBe("https://allset.fast.xyz/chain/rpc/polygon");
+    expect(polygon.evmExplorerUrl).toBe("https://polygonscan.com/");
+    expect(polygon.gasToken).toBeUndefined();
+    expect(polygon.tokens.USDC).toEqual({
+      evmAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+      fastTokenId: "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
+      decimals: 6,
+    });
+    expect(bundledNetworks.testnet!.allSet!.chains.polygon).toBeUndefined();
+  });
+
   it("mainnet.arc pays gas in USDC and declares the USDC ERC-20 as the gas token", () => {
     const arc = bundledNetworks.mainnet!.allSet!.chains.arc!;
     expect(arc.chainId).toBe(5042);

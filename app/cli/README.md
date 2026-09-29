@@ -46,12 +46,12 @@ fast send fast1abc...xyz 10 --token USDC --memo "invoice-42"
 fast fund usdc crypto 50 --chain arbitrum-sepolia --token USDC
 
 # Choose one of the four supported Fast app funding routes (mainnet only)
-fast fund --amount 50
+fast fund --network mainnet --amount 50
 
 # Or choose a specific route directly
-fast fund card --amount 50
-fast fund usdc
-fast fund crypto --supplier coinbase
+fast fund card --network mainnet --amount 50
+fast fund usdc --network mainnet
+fast fund crypto --supplier coinbase --network mainnet
 
 # Pay an x402-protected API
 fast pay https://api.example.com/resource

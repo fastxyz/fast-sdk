@@ -7,7 +7,7 @@ import { Prompt } from '../../services/prompt.js';
 import { AccountStore } from '../../services/storage/account.js';
 import { ensureMultisigNetwork } from '../../services/signer-resolver.js';
 import type { Command } from '../index.js';
-import { FUND_METHODS, openFundAppLink, type FundMethod } from './app-link.js';
+import { FUND_METHODS, invalidFundAmount, openFundAppLink, type FundMethod } from './app-link.js';
 
 const parseMethod = (input: string): FundMethod | undefined => {
   const normalized = input.trim().toLowerCase();
@@ -31,6 +31,10 @@ export const chooseFundLink = (args: FundSelectorInput, deprecationMessage?: str
         }),
       );
     }
+
+    // The deprecated fastusd alias promised INVALID_AMOUNT even in JSON mode.
+    const legacyAmountError = deprecationMessage ? invalidFundAmount(args.amount) : undefined;
+    if (legacyAmountError) return yield* Effect.fail(legacyAmountError);
 
     if (config.nonInteractive || config.json) {
       return yield* Effect.fail(

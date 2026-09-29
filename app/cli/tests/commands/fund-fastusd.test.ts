@@ -57,14 +57,19 @@ describe('buildFundAppUrl', () => {
     ]);
   });
 
-  it('preserves INVALID_AMOUNT for malformed amounts through the deprecated alias', async () => {
+  it.each([
+    ['not-a-number', false, false],
+    ['not-a-number', true, false],
+    ['not-a-number', false, true],
+    [' 10 ', false, false],
+  ] as const)('preserves INVALID_AMOUNT for alias amount %j (JSON %j, non-interactive %j)', async (amount, json, nonInteractive) => {
     const address = toFastAddress(new Uint8Array(32).fill(1));
     const layer = Layer.mergeAll(
       Layer.succeed(AccountStore, { resolveAccount: () => Effect.die('unexpected account lookup') } as never),
       Layer.succeed(ClientConfig, {
-        json: false,
+        json,
         debug: false,
-        nonInteractive: false,
+        nonInteractive,
         network: 'mainnet',
         account: Option.none(),
         password: Option.none(),
@@ -83,9 +88,7 @@ describe('buildFundAppUrl', () => {
       } as never),
     );
 
-    const outcome = await Effect.runPromise(
-      Effect.either(fundFastUsd.handler({ to: address, amount: 'not-a-number' } as never)).pipe(Effect.provide(layer)),
-    );
+    const outcome = await Effect.runPromise(Effect.either(fundFastUsd.handler({ to: address, amount } as never)).pipe(Effect.provide(layer)));
     expect(outcome._tag).toBe('Left');
     if (outcome._tag === 'Left') expect(outcome.left.errorCode).toBe('INVALID_AMOUNT');
   });

@@ -23,7 +23,14 @@ export function buildFundAppUrl(method: FundMethod, address: string, amount?: st
   return `${APP_ORIGIN}/${path}?${params.toString()}`;
 }
 
-const isPositiveDecimal = (value: string): boolean => /^\d+(\.\d+)?$/.test(value.trim()) && Number.parseFloat(value) > 0;
+const isPositiveDecimal = (value: string): boolean => /^\d+(\.\d+)?$/.test(value) && Number.parseFloat(value) > 0;
+
+export function invalidFundAmount(amount: string | undefined): InvalidAmountError | undefined {
+  if (amount === undefined || isPositiveDecimal(amount)) return undefined;
+  return new InvalidAmountError({
+    message: `Invalid amount "${amount}". Expected a positive decimal (e.g. 10 or 1.5).`,
+  });
+}
 
 export interface FundAppLinkArgs {
   readonly address?: string;
@@ -64,13 +71,8 @@ export const openFundAppLink = (method: FundMethod, args: FundAppLinkArgs, depre
       address = account.fastAddress;
     }
 
-    if (args.amount !== undefined && !isPositiveDecimal(args.amount)) {
-      return yield* Effect.fail(
-        new InvalidAmountError({
-          message: `Invalid amount "${args.amount}". Expected a positive decimal (e.g. 10 or 1.5).`,
-        }),
-      );
-    }
+    const amountError = invalidFundAmount(args.amount);
+    if (amountError) return yield* Effect.fail(amountError);
     if (method === 'usdc' && args.amount !== undefined) {
       return yield* Effect.fail(
         new InvalidUsageError({

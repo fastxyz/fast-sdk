@@ -1,6 +1,6 @@
 import { parse } from '@optique/core/parser';
 import { describe, expect, it } from 'vitest';
-import { fundSelectorCommandParser, fundUsdcAppCommandParserWithOptions, parser } from '../../src/cli.js';
+import { bareFundCommand, fundSelectorCommandParser, fundUsdcAppCommandParserWithOptions, parser } from '../../src/cli.js';
 
 describe('fund command routing', () => {
   it.each([
@@ -29,5 +29,22 @@ describe('fund command routing', () => {
     const result = parse(fundUsdcAppCommandParserWithOptions, ['fund', 'usdc']);
     expect(result.success).toBe(true);
     if (result.success) expect(result.value.cmd).toBe('fund-usdc-app');
+  });
+
+  it.each([
+    [['--network', 'mainnet', 'fund'], 'selector', 'fund-selector'],
+    [['--json', 'fund', 'usdc'], 'usdc-app', 'fund-usdc-app'],
+    [['--network=mainnet', '--json', 'fund', 'usdc'], 'usdc-app', 'fund-usdc-app'],
+    [['fund', '--network', 'mainnet'], 'selector', 'fund-selector'],
+  ] as const)('routes %j with global options before or after the command', (argv, route, command) => {
+    expect(bareFundCommand(argv)).toBe(route);
+    const selectedParser = route === 'selector' ? fundSelectorCommandParser : fundUsdcAppCommandParserWithOptions;
+    const result = parse(selectedParser, [...argv]);
+    expect(result.success, JSON.stringify(result)).toBe(true);
+    if (result.success) expect(result.value.cmd).toBe(command);
+  });
+
+  it('leaves nested fund commands on the regular parser', () => {
+    expect(bareFundCommand(['--network', 'mainnet', 'fund', 'usdc', 'crypto', '5', '--chain', 'base'])).toBeNull();
   });
 });

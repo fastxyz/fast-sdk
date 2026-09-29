@@ -1,6 +1,6 @@
 import { fromFastAddress } from '@fastxyz/sdk';
 import { Effect } from 'effect';
-import { InvalidAddressError, InvalidUsageError } from '../../errors/index.js';
+import { InvalidAddressError, InvalidAmountError, InvalidUsageError } from '../../errors/index.js';
 import { ClientConfig } from '../../services/config/client.js';
 import { Output } from '../../services/output.js';
 import { AccountStore } from '../../services/storage/account.js';
@@ -66,7 +66,7 @@ export const openFundAppLink = (method: FundMethod, args: FundAppLinkArgs, depre
 
     if (args.amount !== undefined && !isPositiveDecimal(args.amount)) {
       return yield* Effect.fail(
-        new InvalidUsageError({
+        new InvalidAmountError({
           message: `Invalid amount "${args.amount}". Expected a positive decimal (e.g. 10 or 1.5).`,
         }),
       );

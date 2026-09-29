@@ -20,6 +20,8 @@ import { Effect, Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
 import {
+  argsWithoutGlobalOptions,
+  bareFundCommand,
   fundSelectorCommandParser,
   fundUsdcAppCommandParserWithOptions,
   globalPreParser,
@@ -99,13 +101,7 @@ for (let i = 0; i < process.argv.length - 2; i++) {
 }
 const pre = parse(globalPreParser, argv);
 const isJson = argv.includes("--json");
-
-const isBareFundSelector = (tokens: readonly string[]) =>
-  tokens[0] === "fund" && (tokens[1] === undefined || tokens[1].startsWith("-"));
-const isBareUsdcAppRoute = (tokens: readonly string[]) =>
-  tokens[0] === "fund" &&
-  tokens[1] === "usdc" &&
-  (tokens[2] === undefined || tokens[2].startsWith("-"));
+const fundRoute = bareFundCommand(argv);
 
 // ── Version ─────────────────────────────────────────────────────────────────
 
@@ -118,17 +114,23 @@ if (pre.success && pre.value.version) {
 
 if (argv.length === 0 || argv.includes("--help")) {
   const contextArgs = argv.filter((a) => a !== "--help" && a !== "--json");
-  const helpParser = isBareFundSelector(contextArgs)
+  const helpParser = fundRoute === "selector"
     ? fundSelectorCommandParser
-    : isBareUsdcAppRoute(contextArgs)
+    : fundRoute === "usdc-app"
       ? fundUsdcAppCommandParserWithOptions
       : parser;
-  const rawDoc = getDocPageSync(helpParser, contextArgs);
+  const helpArgs =
+    fundRoute === "selector"
+      ? ["fund"]
+      : fundRoute === "usdc-app"
+        ? ["fund", "usdc"]
+        : contextArgs;
+  const rawDoc = getDocPageSync(helpParser, helpArgs);
   if (rawDoc) {
     // For subcommands, use optique's output directly.
     // For top-level, split into "Commands" and "Global options" sections.
     const doc =
-      contextArgs.length > 0
+      helpArgs.length > 0
         ? rawDoc
         : {
             ...rawDoc,
@@ -544,14 +546,14 @@ const findUnknownFlag = (
   return null;
 };
 
-const result = isBareFundSelector(argv)
+const result = fundRoute === "selector"
   ? parse(fundSelectorCommandParser, argv)
-  : isBareUsdcAppRoute(argv)
+  : fundRoute === "usdc-app"
     ? parse(fundUsdcAppCommandParserWithOptions, argv)
     : parse(parser, argv);
 
 if (!result.success) {
-  const positionals = argv.filter((a) => !a.startsWith("-"));
+  const positionals = argsWithoutGlobalOptions(argv).filter((a) => !a.startsWith("-"));
   const firstToken = positionals[0];
   let msg = formatMessage(result.error);
 
@@ -563,7 +565,7 @@ if (!result.success) {
   } else if (
     firstToken &&
     firstToken in SUBCOMMANDS &&
-    !(firstToken === "fund" && isBareFundSelector(argv))
+    !(firstToken === "fund" && fundRoute === "selector")
   ) {
     const subs = SUBCOMMANDS[firstToken];
     const secondToken = positionals[1];

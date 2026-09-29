@@ -54,6 +54,34 @@ export const globalOptions = object({
   ),
 });
 
+const GLOBAL_OPTIONS_WITH_VALUES = new Set(['--network', '--account', '--password']);
+const GLOBAL_SWITCHES = new Set(['--json', '--debug', '--non-interactive', '--help', '--version']);
+
+/** Read the command path after consuming global options, wherever they appear. */
+export function argsWithoutGlobalOptions(argv: readonly string[]): string[] {
+  const remaining: string[] = [];
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index]!;
+    const equals = arg.indexOf('=');
+    const optionName = equals === -1 ? arg : arg.slice(0, equals);
+    if (GLOBAL_OPTIONS_WITH_VALUES.has(optionName)) {
+      if (equals === -1) index++;
+      continue;
+    }
+    if (GLOBAL_SWITCHES.has(arg)) continue;
+    remaining.push(arg);
+  }
+  return remaining;
+}
+
+export function bareFundCommand(argv: readonly string[]): 'selector' | 'usdc-app' | null {
+  const args = argsWithoutGlobalOptions(argv);
+  if (args[0] !== 'fund') return null;
+  if (args[1] === undefined || args[1].startsWith('-')) return 'selector';
+  if (args[1] === 'usdc' && (args[2] === undefined || args[2].startsWith('-'))) return 'usdc-app';
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Account commands
 // ---------------------------------------------------------------------------

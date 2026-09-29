@@ -56,4 +56,37 @@ describe('buildFundAppUrl', () => {
       },
     ]);
   });
+
+  it('preserves INVALID_AMOUNT for malformed amounts through the deprecated alias', async () => {
+    const address = toFastAddress(new Uint8Array(32).fill(1));
+    const layer = Layer.mergeAll(
+      Layer.succeed(AccountStore, { resolveAccount: () => Effect.die('unexpected account lookup') } as never),
+      Layer.succeed(ClientConfig, {
+        json: false,
+        debug: false,
+        nonInteractive: false,
+        network: 'mainnet',
+        account: Option.none(),
+        password: Option.none(),
+      }),
+      Layer.succeed(Output, {
+        humanLine: () => Effect.void,
+        ok: () => Effect.void,
+        fail: () => Effect.void,
+        humanTable: () => Effect.void,
+        debug: () => Effect.void,
+      }),
+      Layer.succeed(Prompt, {
+        input: () => Effect.succeed('1'),
+        password: () => Effect.die('unexpected password prompt'),
+        confirm: () => Effect.die('unexpected confirmation prompt'),
+      } as never),
+    );
+
+    const outcome = await Effect.runPromise(
+      Effect.either(fundFastUsd.handler({ to: address, amount: 'not-a-number' } as never)).pipe(Effect.provide(layer)),
+    );
+    expect(outcome._tag).toBe('Left');
+    if (outcome._tag === 'Left') expect(outcome.left.errorCode).toBe('INVALID_AMOUNT');
+  });
 });

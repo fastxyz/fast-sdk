@@ -1,5 +1,11 @@
 # @fastxyz/cli
 
+## 1.5.0
+
+### Minor Changes
+
+- c27e114: Add clear commands for the four supported Fast app funding routes and an interactive `fast fund` selector. Keep the older funding commands as deprecated aliases.
+
 ## 1.4.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 import { Effect, Layer, Option } from 'effect';
 import { describe, expect, it } from 'vitest';
-import { fundFastUsd } from '../../src/commands/fund/fastusd.js';
+import { fundCard } from '../../src/commands/fund/app-routes.js';
 import { fundUsdcFiat } from '../../src/commands/fund/usdc/fiat.js';
 import { WalletNetworkMismatchError } from '../../src/errors/index.js';
 import { ClientConfig } from '../../src/services/config/client.js';
@@ -44,8 +44,8 @@ const layer = Layer.mergeAll(
 );
 
 describe('funding account network validation', () => {
-  it('rejects a testnet multisig account when generating a mainnet fastUSD URL', async () => {
-    const exit = await Effect.runPromiseExit(fundFastUsd.handler({} as never).pipe(Effect.provide(layer)));
+  it('rejects a testnet multisig account when generating a mainnet Card URL', async () => {
+    const exit = await Effect.runPromiseExit(fundCard.handler({} as never).pipe(Effect.provide(layer)));
 
     expect(exit._tag).toBe('Failure');
     if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected typed failure');

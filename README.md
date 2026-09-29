@@ -126,8 +126,8 @@ fast info balance
 # Send tokens on Fast
 fast send fast1recipient... 1000 --token USDC
 
-# Fund via fiat on-ramp (delivers USDC to your Fast account)
-fast fund usdc fiat --network mainnet
+# Choose a supported way to add funds (credited as fastUSD)
+fast fund --network mainnet
 
 # Pay for x402-protected resource
 fast pay https://api.example.com/protected

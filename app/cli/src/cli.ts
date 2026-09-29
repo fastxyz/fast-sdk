@@ -495,7 +495,7 @@ const fundUsdcCryptoParser = command(
 );
 
 const fundUsdcGroup = command('usdc', or(fundUsdcFiatParser, fundUsdcCryptoParser), {
-  description: message`Open the USDC funding link or bridge USDC from an EVM chain; the Fast-side asset is fastUSD`,
+  description: message`Open a mainnet USDC funding link or bridge USDC from an EVM chain; the Fast-side asset depends on the route`,
 });
 
 const fundFastUsdParser = command(
@@ -519,7 +519,7 @@ const fundFastUsdParser = command(
 );
 
 const fundGroup = command('fund', or(fundCardParser, fundCryptoAppParser, fundUsdcGroup, fundFastUsdParser), {
-  description: message`Choose a supported funding method; funds are credited as fastUSD`,
+  description: message`Choose a hosted mainnet funding method or bridge USDC from EVM; the Fast-side asset depends on the route`,
 });
 
 // ---------------------------------------------------------------------------

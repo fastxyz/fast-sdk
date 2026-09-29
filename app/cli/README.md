@@ -1,6 +1,6 @@
 # fast CLI
 
-A command-line tool for the [Fast network](https://fast.xyz) — manage accounts, send USDC, bridge tokens between EVM chains and Fast, fund via fiat, and pay x402-protected APIs.
+A command-line tool for the [Fast network](https://fast.xyz) — manage accounts, send tokens, bridge assets between EVM chains and Fast, add fastUSD through supported funding routes, and pay x402-protected APIs.
 
 ## Installation
 
@@ -45,8 +45,13 @@ fast send fast1abc...xyz 10 --token USDC --memo "invoice-42"
 # mainnet because the network default — fastUSD — is not on EVM chains)
 fast fund usdc crypto 50 --chain arbitrum-sepolia --token USDC
 
-# Or get a unified Fast web-app URL to fund fastUSD (mainnet only)
-fast fund fastusd --amount 50
+# Choose one of the four supported Fast app funding routes (mainnet only)
+fast fund --amount 50
+
+# Or choose a specific route directly
+fast fund card --amount 50
+fast fund usdc
+fast fund crypto --supplier coinbase
 
 # Pay an x402-protected API
 fast pay https://api.example.com/resource
@@ -322,27 +327,47 @@ fast info bridge-tokens
 
 ---
 
-### `fast fund usdc fiat`
+### `fast fund` app funding routes
 
-Get a fiat on-ramp URL for funding a Fast address with USDC. The URL targets
-[ramp.fast.xyz](https://ramp.fast.xyz); the deposit lands on Fast as bridged
-USDC, distinct from the Fast-native `fastUSD`.
+`fast fund` interactively selects one of the four supported funding routes. All
+four routes credit the Fast account as **fastUSD**; USDC is an external source
+asset, not a separate native USDC balance on Fast.
 
 ```bash
-fast fund usdc fiat --network mainnet
+# Interactive selector
+fast fund --network mainnet
+
+# Direct routes
+fast fund card --network mainnet [--address fast1...] [--amount 25]
+fast fund usdc --network mainnet [--address fast1...]
+fast fund crypto --supplier coinbase --network mainnet [--address fast1...] [--amount 25]
+fast fund crypto --supplier swapper --network mainnet [--address fast1...] [--amount 25]
 ```
 
-**Requirements:**
+The URLs use only the currently supported app routes:
 
-- Mainnet only (Ramp does not support testnet).
-- Active account or `--address <fast1...>`.
+| Method | App URL |
+|---|---|
+| Card | `https://app.fast.xyz/card?to=<fast-address>` |
+| USDC from another network | `https://app.fast.xyz/usdc?to=<fast-address>` |
+| Coinbase | `https://app.fast.xyz/crypto?supplier=coinbase&to=<fast-address>` |
+| Swapper | `https://app.fast.xyz/crypto?supplier=swapper&to=<fast-address>` |
+
+Hosted links are mainnet-only. `--address` defaults to the active account;
+`--amount` optionally prefills the route when supported. In `--json` or
+`--non-interactive` mode, choose a method explicitly instead of invoking the
+interactive selector.
+
+`fast fund usdc fiat` remains as a deprecated alias for `fast fund card`.
+`fast fund fastusd` remains as a deprecated alias for the interactive selector.
 
 ---
 
-### `fast fund usdc crypto <amount>`
+### `fast fund usdc crypto <amount>` — EVM bridge
 
-Bridge USDC from an EVM chain to the Fast network. The deposit lands as
-bridged USDC on Fast (distinct from `fastUSD`).
+Bridge USDC from an EVM chain to the Fast network. USDC is the external source
+asset; the Fast-side asset is selected by the configured route (for example,
+fastUSD on mainnet and testUSDC on testnet).
 
 ```bash
 fast fund usdc crypto 10.5 --chain arbitrum-sepolia --token USDC
@@ -360,32 +385,11 @@ fast fund usdc crypto 10.5 --chain arbitrum-sepolia --token USDC
 
 ---
 
-### `fast fund fastusd`
+### Legacy `fast fund fastusd`
 
-Print an `app.fast.xyz/send` URL that opens the unified Fast web app to fund
-your account with **fastUSD** (a Fast-native token, separate from bridged USDC).
-The web app handles fiat-onramp, crypto-bridge, and wallet-to-wallet funding
-under the hood; the CLI's job is just to produce the URL.
-
-```bash
-fast fund fastusd
-# → https://app.fast.xyz/send?to=fast1...
-
-fast fund fastusd --amount 25
-# → https://app.fast.xyz/send?to=fast1...&amount=25
-
-fast fund fastusd --to fast1someoneelse --amount 10
-# → https://app.fast.xyz/send?to=fast1someoneelse&amount=10
-```
-
-**Options:**
-
-- `--to <fast1...>` — Recipient Fast address (default: active account).
-- `--amount <decimal>` — Optional amount; if omitted, the web app prompts.
-
-**Requirements:**
-
-- Mainnet only.
+This deprecated alias now opens the interactive funding-method selector. Prefer
+`fast fund` for the selector or an explicit route such as `fast fund card`.
+In JSON or non-interactive mode, specify a route directly.
 
 ---
 
@@ -583,11 +587,11 @@ The CLI stores data in `~/.fast/`:
 # 1. Create an account
 fast account create --name my-account
 
-# 2. Get a fiat on-ramp URL (delivers USDC to your Fast account)
-fast fund usdc fiat --network mainnet --address fast1...
+# 2. Choose a hosted funding method; all routes credit fastUSD
+fast fund --network mainnet --address fast1...
 
-# 2b. Or open the unified Fast web app to fund fastUSD
-fast fund fastusd --network mainnet
+# 2b. Or select the Card route directly
+fast fund card --network mainnet --address fast1...
 
 # 3. Check your balance
 fast info balance --account my-account

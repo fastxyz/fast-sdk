@@ -19,7 +19,12 @@ import { getDocPageSync, parse } from "@optique/core/parser";
 import { Effect, Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
-import { globalPreParser, parser } from "./cli.js";
+import {
+  fundSelectorCommandParser,
+  fundUsdcAppCommandParserWithOptions,
+  globalPreParser,
+  parser,
+} from "./cli.js";
 import { commands } from "./commands/index.js";
 import {
   type ClientError,
@@ -95,6 +100,13 @@ for (let i = 0; i < process.argv.length - 2; i++) {
 const pre = parse(globalPreParser, argv);
 const isJson = argv.includes("--json");
 
+const isBareFundSelector = (tokens: readonly string[]) =>
+  tokens[0] === "fund" && (tokens[1] === undefined || tokens[1].startsWith("-"));
+const isBareUsdcAppRoute = (tokens: readonly string[]) =>
+  tokens[0] === "fund" &&
+  tokens[1] === "usdc" &&
+  (tokens[2] === undefined || tokens[2].startsWith("-"));
+
 // ── Version ─────────────────────────────────────────────────────────────────
 
 if (pre.success && pre.value.version) {
@@ -106,7 +118,12 @@ if (pre.success && pre.value.version) {
 
 if (argv.length === 0 || argv.includes("--help")) {
   const contextArgs = argv.filter((a) => a !== "--help" && a !== "--json");
-  const rawDoc = getDocPageSync(parser, contextArgs);
+  const helpParser = isBareFundSelector(contextArgs)
+    ? fundSelectorCommandParser
+    : isBareUsdcAppRoute(contextArgs)
+      ? fundUsdcAppCommandParserWithOptions
+      : parser;
+  const rawDoc = getDocPageSync(helpParser, contextArgs);
   if (rawDoc) {
     // For subcommands, use optique's output directly.
     // For top-level, split into "Commands" and "Global options" sections.
@@ -165,7 +182,7 @@ const SUBCOMMANDS: Record<string, readonly string[]> = {
   account: ["create", "import", "list", "set-default", "export", "delete"],
   network: ["list", "add", "set-default", "remove"],
   info: ["status", "balance", "tx", "history", "bridge-tokens", "bridge-chains"],
-  fund: ["usdc", "fastusd"],
+  fund: ["card", "crypto", "usdc", "fastusd"],
   multisig: ["init", "export", "import", "pending", "vote"],
   token: ["create", "mint", "burn", "manage"],
   authorize: ["request", "complete"],
@@ -236,13 +253,12 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   },
   // ── Subcommands with required args/options ─────────────────────────────────
   "fund usdc": {
-    usage: "fast fund usdc <fiat|crypto>",
-    options: [],
+    usage: "fast fund usdc [--address <address>] | fast fund usdc <fiat|crypto>",
+    options: ["--address"],
     check: (positionals) => {
       const third = positionals[2];
-      if (!third) return "Missing subcommand. Available: fiat, crypto";
-      if (third !== "fiat" && third !== "crypto")
-        return `Unknown subcommand '${third}' for 'fund usdc'. Available: fiat, crypto`;
+      if (third && third !== "fiat" && third !== "crypto")
+        return `Unknown subcommand '${third}' for 'fund usdc'. Use no subcommand for the app USDC flow, or choose: fiat (deprecated), crypto`;
       return null;
     },
   },
@@ -258,6 +274,21 @@ const SUBCOMMAND_REQUIREMENTS: Record<
       if (positionals.length < 4) return "Missing required argument: <amount>";
       if (!allArgv.some((a) => a === "--chain" || a.startsWith("--chain=")))
         return "Missing required option: --chain <chain>";
+      return null;
+    },
+  },
+  "fund card": {
+    usage: "fast fund card [--address <address>] [--amount <amount>]",
+    options: ["--address", "--amount"],
+    check: () => null,
+  },
+  "fund crypto": {
+    usage: "fast fund crypto --supplier <coinbase|swapper> [--address <address>] [--amount <amount>]",
+    options: ["--supplier", "--address", "--amount"],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((arg) => arg === "--supplier" || arg.startsWith("--supplier="))) {
+        return "Missing required option: --supplier <coinbase|swapper>";
+      }
       return null;
     },
   },
@@ -513,7 +544,11 @@ const findUnknownFlag = (
   return null;
 };
 
-const result = parse(parser, argv);
+const result = isBareFundSelector(argv)
+  ? parse(fundSelectorCommandParser, argv)
+  : isBareUsdcAppRoute(argv)
+    ? parse(fundUsdcAppCommandParserWithOptions, argv)
+    : parse(parser, argv);
 
 if (!result.success) {
   const positionals = argv.filter((a) => !a.startsWith("-"));
@@ -525,7 +560,11 @@ if (!result.success) {
     msg = suggestion
       ? `Unknown command '${firstToken}'. Did you mean '${suggestion}'?`
       : `Unknown command '${firstToken}'. Available: ${KNOWN_COMMANDS.join(", ")}.`;
-  } else if (firstToken && firstToken in SUBCOMMANDS) {
+  } else if (
+    firstToken &&
+    firstToken in SUBCOMMANDS &&
+    !(firstToken === "fund" && isBareFundSelector(argv))
+  ) {
     const subs = SUBCOMMANDS[firstToken];
     const secondToken = positionals[1];
     if (!secondToken) {

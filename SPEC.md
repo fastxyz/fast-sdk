@@ -1158,61 +1158,26 @@ Supported bridge chains on mainnet:
 
 ### 6.18 `fast fund`
 
-Fund a Fast account via fiat on-ramp or crypto bridge.
+The app-funding routes add **fastUSD**, the native Fast asset. USDC is an
+external source asset and is not a separate native Fast balance. Four hosted
+routes are supported, all on mainnet:
 
-#### 6.18.1 `fast fund usdc fiat`
-
-**Synopsis**
-
-```text
-fast fund usdc fiat [--address <fast-address>]
-```
-
-**Description**
-
-Generate a funding URL where the user can acquire tokens on Fast via credit card
-or bank transfer (on-ramp).
-
-**Flags**
-
-| Flag | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `--address` | string | no | default account's Fast address | Fund to a specific Fast address. |
-
-The on-ramp provider and token are fixed (Ramp → USDC). If alternate
-providers or tokens become available, this section will gain `--provider`
-and `--token` flags.
-
-**Output (human)**
-
-```text
-Open this URL in your browser to fund your account:
-
-  https://ramp.fast.xyz/?to=fast1qw5...x9z
-```
-
-**Output (`--json`)**
-
-```json
-{
-  "ok": true,
-  "data": {
-    "url": "https://ramp.fast.xyz/?to=fast1qw5...x9z",
-    "address": "fast1qw5...x9z",
-    "tokenName": "USDC"
-  }
-}
-```
-
-**Errors**
-
-| Condition | Exit | Code |
+| Method | Direct command | App URL |
 |---|---|---|
-| No account and no `--address` | 3 | `NO_ACCOUNTS` |
-| Invalid address format | 2 | `INVALID_ADDRESS` |
-| Unsupported provider | 2 | `UNSUPPORTED_PROVIDER` |
+| Card | `fast fund card` | `https://app.fast.xyz/card?to=<fast-address>` |
+| USDC from another network | `fast fund usdc` | `https://app.fast.xyz/usdc?to=<fast-address>` |
+| Coinbase | `fast fund crypto --supplier coinbase` | `https://app.fast.xyz/crypto?supplier=coinbase&to=<fast-address>` |
+| Swapper | `fast fund crypto --supplier swapper` | `https://app.fast.xyz/crypto?supplier=swapper&to=<fast-address>` |
 
-#### 6.18.2 `fast fund usdc crypto`
+`fast fund` presents an interactive selector over those four methods. In JSON
+or non-interactive mode, specify a method directly. The direct commands accept
+`--address` (defaults to the active account); Card and crypto routes also accept
+an optional `--amount` prefill. The JSON response reports `asset: "fastUSD"`.
+
+The old `fast fund usdc fiat` command remains a deprecated alias for Card, and
+`fast fund fastusd` remains a deprecated alias for the selector.
+
+#### 6.18.1 `fast fund usdc crypto` (EVM bridge)
 
 **Synopsis**
 
@@ -1222,7 +1187,9 @@ fast fund usdc crypto <amount> --chain <chain> [--token <value>] [--eip-7702]
 
 **Description**
 
-Fund a Fast account by bridging tokens from an EVM chain.
+Fund a Fast account by bridging USDC from an EVM chain. USDC is the external
+source asset; the Fast-side asset is selected by the configured route (for
+example, fastUSD on mainnet and testUSDC on testnet).
 The CLI checks the EVM balance of the account's derived EVM address
 (same underlying key) on the specified chain.
 

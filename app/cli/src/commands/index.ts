@@ -9,9 +9,11 @@ import { accountList } from "./account/list.js";
 import { accountSetDefault } from "./account/set-default.js";
 import { authorizeComplete } from "./authorize/complete.js";
 import { authorizeRequest } from "./authorize/request.js";
+import { fundCard, fundCryptoApp, fundUsdcApp } from "./fund/app-routes.js";
 import { fundFastUsd } from "./fund/fastusd.js";
 import { fundUsdcCrypto } from "./fund/usdc/crypto.js";
 import { fundUsdcFiat } from "./fund/usdc/fiat.js";
+import { fundSelector } from "./fund/select.js";
 import { infoBalance } from "./info/balance.js";
 import { infoBridgeChains } from "./info/bridge-chains.js";
 import { infoBridgeTokens } from "./info/bridge-tokens.js";
@@ -42,6 +44,10 @@ export const commands = [
   accountImport,
   accountList,
   accountSetDefault,
+  fundSelector,
+  fundCard,
+  fundUsdcApp,
+  fundCryptoApp,
   fundFastUsd,
   fundUsdcCrypto,
   fundUsdcFiat,

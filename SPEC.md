@@ -1320,9 +1320,12 @@ deposit) are batched into a single UserOperation; gas is paid in token.
 
 **Fast ID recipients:**
 
-When `address` is neither `fast1...` nor `0x...` and, after trimming and
+When `address` is not a well-formed address (a bech32m `fast` address with a
+32-byte payload, or `0x` followed by 40 hex digits) and, after trimming and
 lowercasing, is a canonical Fast ID name (two labels of `[a-z0-9_]{1,15}`,
-not reserved), the CLI resolves it before any account, token or signing step:
+not reserved), the CLI resolves it before any account, token or signing step.
+Classification uses the full syntax, not the prefix: names always contain a
+dot and addresses never do, so `fast1alice.smith` and `0xabc.def` are names.
 
 1. The network's `networkId` must be `fast:mainnet` or `fast:testnet`; other
    networks exit 2 (`INVALID_USAGE`).

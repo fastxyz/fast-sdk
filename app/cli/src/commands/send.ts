@@ -23,7 +23,7 @@ import {
 import { InvalidUsageError } from '../errors/usage.js';
 import { makeHistoryEntry } from '../schemas/history.js';
 import { AllSet } from '../services/api/allset.js';
-import { asFastIdName, FastIdResolver } from '../services/api/fast-id.js';
+import { FastIdResolver, fastIdRecipient } from '../services/api/fast-id.js';
 import { ClientConfig } from '../services/config/client.js';
 import { Output } from '../services/output.js';
 import { Prompt } from '../services/prompt.js';
@@ -56,7 +56,7 @@ export const send: Command<SendArgs> = {
       // registry returns a matching, well-formed binding.
       let address = args.address;
       let recipientName: string | undefined;
-      const fastIdName = args.address.startsWith('fast1') || args.address.startsWith('0x') ? undefined : asFastIdName(args.address);
+      const fastIdName = fastIdRecipient(args.address);
       if (fastIdName !== undefined) {
         if (toChain) {
           return yield* Effect.fail(

@@ -1,4 +1,5 @@
 import { HttpError, IdReader, InvalidReadResponseError, isCanonicalName } from '@fastxyz/fastid-sdk';
+import { bech32m } from 'bech32';
 import { Context, Effect, Layer } from 'effect';
 import { FastIdResolutionError, InvalidAddressError } from '../../errors/index.js';
 
@@ -27,6 +28,31 @@ const RESOLVE_TIMEOUT_MS = 10_000;
 export const asFastIdName = (input: string): string | undefined => {
   const value = input.trim().toLowerCase();
   return isCanonicalName(value) ? value : undefined;
+};
+
+const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+const isFastAddressSyntax = (input: string): boolean => {
+  try {
+    const decoded = bech32m.decode(input);
+    return decoded.prefix === 'fast' && bech32m.fromWords(decoded.words).length === 32;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Decide whether a `send` recipient is a Fast ID name to resolve.
+ *
+ * Returns the canonical name, or `undefined` when the input is a well-formed
+ * `fast1…` / `0x…` address or is neither form. The decision uses the full
+ * syntax of each form rather than its prefix, so valid names that happen to
+ * start like an address (`fast1alice.smith`, `0xabc.def`) are still names.
+ * The two forms cannot overlap: names always contain a dot and addresses never do.
+ */
+export const fastIdRecipient = (input: string): string | undefined => {
+  if (EVM_ADDRESS.test(input) || isFastAddressSyntax(input)) return undefined;
+  return asFastIdName(input);
 };
 
 const withTimeout: typeof fetch = (input, init) => fetch(input, { ...init, signal: init?.signal ?? AbortSignal.timeout(RESOLVE_TIMEOUT_MS) });

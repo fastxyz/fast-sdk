@@ -5,7 +5,7 @@ import { send } from '../../src/commands/send.js';
 import { bundledNetworks } from '../../src/config/networks.js';
 import { FastIdResolutionError, InvalidAddressError, InvalidUsageError } from '../../src/errors/index.js';
 import { AllSet } from '../../src/services/api/allset.js';
-import { asFastIdName, FastIdResolver, type FastIdNetwork } from '../../src/services/api/fast-id.js';
+import { asFastIdName, FastIdResolver, fastIdRecipient, type FastIdNetwork } from '../../src/services/api/fast-id.js';
 import { FastRpc } from '../../src/services/api/fast.js';
 import { ClientConfig } from '../../src/services/config/client.js';
 import { Output } from '../../src/services/output.js';
@@ -120,7 +120,47 @@ describe('asFastIdName', () => {
   });
 });
 
+describe('fastIdRecipient', () => {
+  it('classifies by full address syntax, not by prefix', async () => {
+    const fastAddress = await new Signer(seed(3)).getFastAddress();
+
+    expect(fastIdRecipient('fast1alice.smith')).toBe('fast1alice.smith');
+    expect(fastIdRecipient('0xabc.def')).toBe('0xabc.def');
+    expect(fastIdRecipient('0XABC.Def')).toBe('0xabc.def');
+    expect(fastIdRecipient(fastAddress)).toBeUndefined();
+    expect(fastIdRecipient(`0x${'ab'.repeat(20)}`)).toBeUndefined();
+    expect(fastIdRecipient('fast1notanaddress')).toBeUndefined();
+    expect(fastIdRecipient('0x1234')).toBeUndefined();
+    expect(fastIdRecipient('ana')).toBeUndefined();
+  });
+});
+
 describe('send to a Fast ID name', () => {
+  it.each(['fast1alice.smith', '0xabc.def'])('resolves %s as a name even though it starts like an address', async (name) => {
+    const { h, run, recipient } = await setup({});
+
+    const exit = await run({ address: name });
+
+    expect(exit._tag).toBe('Success');
+    expect(h.resolveCalls).toEqual([{ name, network: 'fast:testnet' }]);
+    expect(h.submissions).toBe(1);
+    expect(h.recorded).toEqual([expect.objectContaining({ to: recipient })]);
+    expect(h.results).toEqual([expect.objectContaining({ to: recipient, toName: name, route: 'fast' })]);
+  });
+
+  it('keeps malformed fast1/0x input off the resolver with the existing address errors', async () => {
+    const { h, run } = await setup({});
+
+    const badFast = failureOf(await run({ address: 'fast1notanaddress' }));
+    const badEvm = failureOf(await run({ address: '0x1234' }));
+
+    expect(badFast).toBeInstanceOf(InvalidAddressError);
+    expect((badFast as InvalidAddressError).message).toContain('Invalid Fast recipient address');
+    expect(badEvm).toBeInstanceOf(InvalidAddressError);
+    expect((badEvm as InvalidAddressError).message).toContain('expected 42 characters');
+    expect(h.resolveCalls).toEqual([]);
+  });
+
   it('resolves the name on the current network and sends to the bound address', async () => {
     const { h, run, recipient } = await setup({});
 

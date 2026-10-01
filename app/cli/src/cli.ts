@@ -302,7 +302,7 @@ const sendParser = command(
   object({
     cmd: constant('send' as const),
     address: argument(string({ metavar: 'ADDRESS' }), {
-      description: message`Recipient address (fast1... for Fast, 0x... for EVM)`,
+      description: message`Recipient: fast1... (Fast), 0x... (EVM), or a Fast ID name like alice.smith`,
     }),
     amount: argument(string({ metavar: 'AMOUNT' }), {
       description: message`Human-readable amount (e.g., 10.5)`,

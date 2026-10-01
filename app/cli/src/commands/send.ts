@@ -23,6 +23,7 @@ import {
 import { InvalidUsageError } from '../errors/usage.js';
 import { makeHistoryEntry } from '../schemas/history.js';
 import { AllSet } from '../services/api/allset.js';
+import { asFastIdName, FastIdResolver } from '../services/api/fast-id.js';
 import { ClientConfig } from '../services/config/client.js';
 import { Output } from '../services/output.js';
 import { Prompt } from '../services/prompt.js';
@@ -49,14 +50,44 @@ export const send: Command<SendArgs> = {
       const fromChain = args.fromChain;
       const toChain = args.toChain;
 
+      // Recipient: a fast1… or 0x… address as given, or a Fast ID name
+      // (e.g. alice.smith) resolved to the fast1… address it is bound to on
+      // this network. Resolution fails closed: nothing is sent unless the
+      // registry returns a matching, well-formed binding.
+      let address = args.address;
+      let recipientName: string | undefined;
+      const fastIdName = args.address.startsWith('fast1') || args.address.startsWith('0x') ? undefined : asFastIdName(args.address);
+      if (fastIdName !== undefined) {
+        if (toChain) {
+          return yield* Effect.fail(
+            new InvalidAddressError({
+              message: `--to-chain is for Fast → EVM withdrawals and needs a 0x EVM recipient; "${fastIdName}" is a Fast ID, which resolves to a Fast address.`,
+            }),
+          );
+        }
+        const { networkId } = yield* networkConfig.resolve(config.network);
+        if (networkId !== 'fast:mainnet' && networkId !== 'fast:testnet') {
+          return yield* Effect.fail(
+            new InvalidUsageError({
+              message: `Fast ID names can only be resolved on mainnet or testnet (network "${config.network}" is ${networkId}). Use the recipient's fast1… address.`,
+            }),
+          );
+        }
+        const fastIds = yield* FastIdResolver;
+        const resolvedId = yield* fastIds.resolve(fastIdName, networkId);
+        address = resolvedId.address;
+        recipientName = resolvedId.name;
+      }
+      const recipientLabel = recipientName ? `${recipientName} (${address})` : address;
+
       // Determine route
-      const isFastAddress = args.address.startsWith('fast1');
-      const isEvmAddress = args.address.startsWith('0x') && args.address.length === 42;
+      const isFastAddress = address.startsWith('fast1');
+      const isEvmAddress = address.startsWith('0x') && address.length === 42;
 
       if (!isFastAddress && !isEvmAddress) {
-        const msg = args.address.startsWith('0x')
-          ? `Invalid EVM address "${args.address}": expected 42 characters (0x + 40 hex digits), got ${args.address.length}.`
-          : `Invalid recipient address "${args.address}". Must start with fast1 (Fast network) or 0x (EVM).`;
+        const msg = address.startsWith('0x')
+          ? `Invalid EVM address "${address}": expected 42 characters (0x + 40 hex digits), got ${address.length}.`
+          : `Invalid recipient "${address}". Use a fast1… address (Fast network), a 0x… address (EVM), or a Fast ID name such as alice.smith.`;
         return yield* Effect.fail(new InvalidAddressError({ message: msg }));
       }
 
@@ -80,7 +111,7 @@ export const send: Command<SendArgs> = {
       if (isEvmAddress && !toChain) {
         return yield* Effect.fail(
           new InvalidAddressError({
-            message: `EVM recipient requires --to-chain. Example: fast send ${args.address} ${args.amount} --to-chain arbitrum-sepolia`,
+            message: `EVM recipient requires --to-chain. Example: fast send ${address} ${args.amount} --to-chain arbitrum-sepolia`,
           }),
         );
       }
@@ -108,7 +139,7 @@ export const send: Command<SendArgs> = {
       if (route === 'fast') {
         recipientBytes = yield* Effect.try({
           try: () => {
-            const decoded = bech32m.decode(args.address);
+            const decoded = bech32m.decode(address);
             if (decoded.prefix !== 'fast') throw new Error('unexpected address prefix');
             const bytes = new Uint8Array(bech32m.fromWords(decoded.words));
             if (bytes.length !== 32) throw new Error('unexpected address length');
@@ -116,7 +147,7 @@ export const send: Command<SendArgs> = {
           },
           catch: () =>
             new InvalidAddressError({
-              message: `Invalid Fast recipient address "${args.address}".`,
+              message: `Invalid Fast recipient address "${address}".`,
             }),
         });
       }
@@ -226,7 +257,7 @@ export const send: Command<SendArgs> = {
 
         yield* output.humanLine(`Send ${args.amount} ${resolvedTokenName}`);
         yield* output.humanLine(`  From:  ${accountInfo.name} (${fromAddress})`);
-        yield* output.humanLine(`  To:    ${args.address}`);
+        yield* output.humanLine(`  To:    ${recipientLabel}`);
         yield* output.humanLine(`  Route: ${routeLabel}`);
         yield* output.humanLine(`  Token: ${resolvedTokenName}`);
         yield* output.humanLine('');
@@ -267,7 +298,7 @@ export const send: Command<SendArgs> = {
           const depositCalldata = encodeDepositCalldata({
             tokenAddress: tokenInfo.evmAddress!,
             amount: amountRaw,
-            receiverBytes32: fastAddressToBytes32(args.address),
+            receiverBytes32: fastAddressToBytes32(address),
           });
 
           const smartResult = yield* Effect.tryPromise({
@@ -305,7 +336,7 @@ export const send: Command<SendArgs> = {
             tokenAddress: tokenInfo.evmAddress! as `0x${string}`,
             isNative: false,
             amount: amountRaw.toString(),
-            receiverAddress: args.address,
+            receiverAddress: address,
             evmClients,
           });
 
@@ -346,7 +377,7 @@ export const send: Command<SendArgs> = {
           tokenEvmAddress: tokenInfo.evmAddress!,
           tokenFastTokenId: toHex(tokenInfo.fastTokenId).slice(2),
           amount: amountRaw.toString(),
-          receiverEvmAddress: args.address,
+          receiverEvmAddress: address,
           chainId: chainCfg.chainId,
           bridgeContract: chainCfg.bridgeContract,
           display: {
@@ -372,7 +403,7 @@ export const send: Command<SendArgs> = {
         });
 
         if (recipientBytes === null) {
-          return yield* Effect.fail(new InvalidAddressError({ message: `Invalid Fast recipient address "${args.address}".` }));
+          return yield* Effect.fail(new InvalidAddressError({ message: `Invalid Fast recipient address "${address}".` }));
         }
         const memoBytes = args.memo ? new TextEncoder().encode(args.memo) : null;
         if (memoBytes && memoBytes.length > 32) {
@@ -435,7 +466,7 @@ export const send: Command<SendArgs> = {
         hash: txHash,
         type: 'transfer',
         from: fromAddress,
-        to: args.address,
+        to: address,
         amount: amountRaw.toString(),
         formatted: args.amount,
         tokenName: resolvedTokenName,
@@ -459,12 +490,12 @@ export const send: Command<SendArgs> = {
       }
 
       if (estimatedTime) {
-        yield* output.humanLine(`Sent ${args.amount} ${resolvedTokenName} to ${args.address}`);
+        yield* output.humanLine(`Sent ${args.amount} ${resolvedTokenName} to ${recipientLabel}`);
         yield* output.humanLine(`  Transaction: ${txHash}`);
         yield* output.humanLine(`  Explorer:    ${explorerUrl}`);
         yield* output.humanLine(`  Estimated:   ${estimatedTime}`);
       } else {
-        yield* output.humanLine(`Sent ${args.amount} ${resolvedTokenName} to ${args.address}`);
+        yield* output.humanLine(`Sent ${args.amount} ${resolvedTokenName} to ${recipientLabel}`);
         yield* output.humanLine(`  Transaction: ${txHash}`);
         yield* output.humanLine(`  Explorer:    ${explorerUrl}`);
       }
@@ -472,7 +503,8 @@ export const send: Command<SendArgs> = {
       yield* output.ok({
         txHash,
         from: fromAddress,
-        to: args.address,
+        to: address,
+        ...(recipientName ? { toName: recipientName } : {}),
         amount: amountRaw.toString(),
         formatted: args.amount,
         tokenName: resolvedTokenName,

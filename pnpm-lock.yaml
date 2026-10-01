@@ -84,6 +84,9 @@ importers:
       '@fastxyz/allset-sdk':
         specifier: workspace:*
         version: link:../../packages/allset-sdk
+      '@fastxyz/fastid-sdk':
+        specifier: workspace:*
+        version: link:../../packages/fastid-sdk
       '@fastxyz/schema':
         specifier: workspace:*
         version: link:../../packages/fast-schema
@@ -6881,8 +6884,7 @@ snapshots:
 
   ws@8.20.0: {}
 
-  yaml@2.8.3:
-    optional: true
+  yaml@2.8.3: {}
 
   yocto-queue@0.1.0: {}
 

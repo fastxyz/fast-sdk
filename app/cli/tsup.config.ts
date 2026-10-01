@@ -11,6 +11,7 @@ export default defineConfig({
   // must remain external and are declared as real npm dependencies.
   noExternal: [
     '@fastxyz/allset-sdk',
+    '@fastxyz/fastid-sdk',
     '@fastxyz/schema',
     '@fastxyz/sdk',
     '@fastxyz/x402-client',

@@ -260,7 +260,7 @@ fast wait-for-payment --amount 25 --since 2026-10-02T12:00:00Z --timeout 600 --j
 ```
 
 - `info history` rows have `direction` (`in`/`out`/`self`) and `source` (`network` = read from the Fast explorer, `local` = sent by this CLI). For "what came in today?", keep rows with `direction: "in"` and a `timestamp` from today (UTC), and raise `--limit` if the page is full.
-- If `data.warnings` is non-empty, network history was **not** read (explorer unreachable or not configured). Say so; do not conclude that nothing arrived.
+- If `data.warnings` is non-empty, network history is **missing or incomplete**: either it was not read at all (explorer unreachable or not configured) or paging stopped before enough rows matched the filters. Say so, and do not conclude that nothing arrived.
 - `wait-for-payment` only matches the exact amount and token, sent at or after `--since` (default: when the command starts). If the payer may already have paid, pass `--since` with a time before they paid. On success, `data.hash` and `data.explorerUrl` identify the payment.
 - `PAYMENT_TIMEOUT` means no matching payment was seen in time (the message says if the explorer was failing). Report that; don't retry forever.
 - **Never tell the user a payment arrived unless `fast info history` or `fast wait-for-payment` shows it.** A sender's message, a balance you assume changed, or a link you were sent is not confirmation.

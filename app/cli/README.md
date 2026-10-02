@@ -311,7 +311,7 @@ fast info history --local
 - `--limit <n>` — Max number of records to return
 - `--offset <n>` — Number of records to skip
 
-Each row has the same fields as before plus `direction` (`in`, `out` or `self`, relative to the account) and `source` (`network` or `local`). A network transfer that this CLI also recorded locally (same Fast transaction hash) is shown once, as the local entry. `--json` output also includes `account` and a `warnings` array. If the explorer API is unreachable, or the network has no `explorerApiUrl`, the command still succeeds with local history only and reports why in `warnings` (and on stderr) — in that case, missing incoming payments do not mean nothing arrived. With no account at all, it lists the whole local log as before.
+Each row has the same fields as before plus `direction` (`in`, `out` or `self`, relative to the account) and `source` (`network` or `local`). A network transfer that this CLI also recorded locally (same Fast transaction hash) is shown once, as the local entry. `--json` output also includes `account` and a `warnings` array. If the explorer API is unreachable, or the network has no `explorerApiUrl`, the command still succeeds with local history only and reports why in `warnings` (and on stderr). A warning also appears if paging stopped before enough network rows matched the filters. Whenever `warnings` is non-empty, missing incoming payments do not mean nothing arrived. With no account at all, it lists the whole local log as before.
 
 ---
 

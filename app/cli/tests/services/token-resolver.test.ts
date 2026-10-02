@@ -244,6 +244,13 @@ describe("tokenIsKnownOnNetwork", () => {
 
   it("false for an unknown token", () => {
     expect(tokenIsKnownOnNetwork(mainnetCfg, "USDD")).toBe(false);
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "usdd")).toBe(false);
+  });
+
+  it("matches symbols in any case, like resolveToken", () => {
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "fastusd")).toBe(true);
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "FASTUSD")).toBe(true);
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "usdc")).toBe(true);
   });
 
   it("false when network has no defaultToken and token only appears as unknown", () => {

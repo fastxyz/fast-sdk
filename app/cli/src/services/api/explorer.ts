@@ -208,9 +208,16 @@ export const parseExplorerTransfersResponse = (body: unknown): ExplorerRowsPage 
   if (body === null || typeof body !== 'object') return 'response is not a JSON object';
   const b = body as Record<string, unknown>;
   if (!Array.isArray(b.transfers)) return 'response has no "transfers" array';
-  const rows = b.transfers.map(parseRow).filter((row): row is ExplorerTransferRow => row !== null);
+  // Paging metadata must be consistent: treating a broken "more pages" signal
+  // as the end of the feed would silently drop older transfers.
+  if (typeof b.has_more !== 'boolean') return 'response has no boolean "has_more"';
+  if (b.next_cursor !== undefined && b.next_cursor !== null && typeof b.next_cursor !== 'string') {
+    return 'response has a "next_cursor" that is not a string';
+  }
   const nextCursor = typeof b.next_cursor === 'string' && b.next_cursor.length > 0 ? b.next_cursor : null;
-  return { rows, hasMore: b.has_more === true && nextCursor !== null, nextCursor };
+  if (b.has_more && nextCursor === null) return 'response says "has_more" but has no "next_cursor"';
+  const rows = b.transfers.map(parseRow).filter((row): row is ExplorerTransferRow => row !== null);
+  return { rows, hasMore: b.has_more, nextCursor };
 };
 
 /**

@@ -423,6 +423,40 @@ describe('info history paging', () => {
     expect(warnings).toEqual([]);
   });
 
+  it('counts rows after de-duplication, so a locally recorded transaction does not end the feed early', async () => {
+    const at = (n: number, iso: string, op = 0) => transfersFor(ME, [rawTransfer({ hash: hashOf(n), op_index: op, submission_timestamp: iso })])[0]!;
+    // One local entry for a transaction with two value operations: the explorer
+    // returns both operations on the first page, the local log has one row.
+    const twin = entry({ hash: hashOf(71), from: LEO, to: ME, timestamp: '2026-10-02T05:00:00.000Z' });
+    const explorer = mockExplorer((params) => {
+      if (params.side === 'from') return Effect.succeed(page([]));
+      return params.cursor === null
+        ? Effect.succeed(page([at(71, '2026-10-02T05:00:00Z', 0), at(71, '2026-10-02T05:00:00Z', 1)], { hasMore: true, nextCursor: 'p2' }))
+        : Effect.succeed(page([at(73, '2026-10-02T04:58:00Z'), at(74, '2026-10-02T04:57:00Z')]));
+    });
+
+    const { hashes, calls } = await runHistory({ direction: 'in', limit: 2 }, { entries: [twin], explorer });
+
+    expect(hashes).toEqual([hashOf(71), hashOf(73)]);
+    expect(calls.filter((c) => c.side === 'to').map((c) => c.cursor)).toEqual([null, 'p2']);
+  });
+
+  it('takes a self transfer from the incoming feed only, so the outgoing feed keeps paging for real rows', async () => {
+    const self = (n: number, iso: string) => transfersFor(ME, [rawTransfer({ hash: hashOf(n), from: ME, to: ME, submission_timestamp: iso })])[0]!;
+    const out = (n: number, iso: string) => transfersFor(ME, [rawTransfer({ hash: hashOf(n), from: ME, to: OTHER, submission_timestamp: iso })])[0]!;
+    const explorer = mockExplorer((params) => {
+      if (params.side === 'to') return Effect.succeed(page([self(81, '2026-10-02T06:00:00Z'), self(82, '2026-10-02T05:59:00Z')]));
+      return params.cursor === null
+        ? Effect.succeed(page([self(81, '2026-10-02T06:00:00Z'), self(82, '2026-10-02T05:59:00Z')], { hasMore: true, nextCursor: 'p2' }))
+        : Effect.succeed(page([out(83, '2026-10-02T05:58:00Z'), out(84, '2026-10-02T05:57:00Z')]));
+    });
+
+    const { hashes, calls } = await runHistory({ limit: 4 }, { entries: [], explorer });
+
+    expect(hashes).toEqual([hashOf(81), hashOf(82), hashOf(83), hashOf(84)]);
+    expect(calls.filter((c) => c.side === 'from').map((c) => c.cursor)).toEqual([null, 'p2']);
+  });
+
   it('stops paging a filter that matches nothing after a bounded number of pages, and says so', async () => {
     const explorer = mockExplorer((params, call) =>
       Effect.succeed(

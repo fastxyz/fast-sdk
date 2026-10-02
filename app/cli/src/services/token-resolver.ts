@@ -122,14 +122,15 @@ export function tokenIsKnownOnNetwork(
   networkConfig: NetworkConfig,
   tokenName: string,
 ): boolean {
-  if (networkConfig.defaultToken?.symbol === tokenName) return true;
-  const allset = networkConfig.allSet;
-  if (allset) {
-    for (const chain of Object.values(allset.chains)) {
-      if (chain.tokens[tokenName]) return true;
-    }
+  // Same matching as resolveToken without chain context (exact, then
+  // case-insensitive), so a spelling that resolves on a Fast-only route is
+  // also recognised when a bridge route rejects it.
+  try {
+    resolveToken(tokenName, networkConfig);
+    return true;
+  } catch {
+    return false;
   }
-  return false;
 }
 
 /**

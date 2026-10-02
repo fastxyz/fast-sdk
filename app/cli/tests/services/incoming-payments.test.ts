@@ -128,6 +128,61 @@ describe('waitForIncoming', () => {
     expect(explorer.calls).toHaveLength(5);
   });
 
+  // Feed with newer unrelated rows on page 1 and older ones on pages 2-3. A
+  // payment at 03:05 shows up on page 2 only after the first poll, as if the
+  // indexer published it late (older than the incremental floor of 03:25).
+  const lateIndexedFeed = () => {
+    const noise = (n: number, at: string) => payment(n, at, { amount: '1' });
+    let firstPollDone = false;
+    return mockExplorer((params) => {
+      if (params.cursor === null) {
+        return Effect.succeed(page([noise(30, '2026-10-02T03:30:00Z'), noise(24, '2026-10-02T03:24:00Z')], { hasMore: true, nextCursor: 'c1' }));
+      }
+      if (params.cursor === 'c1') {
+        const late = firstPollDone ? [payment(1, '2026-10-02T03:05:00Z')] : [];
+        return Effect.succeed(page([noise(10, '2026-10-02T03:10:00Z'), ...late], { hasMore: true, nextCursor: 'c2' }));
+      }
+      firstPollDone = true;
+      return Effect.succeed(page([noise(2, '2026-10-02T02:59:00Z')], { hasMore: true, nextCursor: 'c3' }));
+    });
+  };
+
+  it('finds a payment the indexer published late, below the incremental floor, on the periodic full rescan', async () => {
+    const explorer = lateIndexedFeed();
+
+    const exit = await run(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(waitForIncoming({ ...criteria, timeoutMs: 300_000 }).pipe(Effect.provide(explorer.layer)));
+        yield* TestClock.adjust(Duration.seconds(29));
+        // Incremental polls stop on the first page, so the late row is not seen yet.
+        expect(explorer.calls.filter((c) => c.cursor === 'c1')).toHaveLength(1);
+        yield* TestClock.adjust(Duration.seconds(1));
+        return yield* Fiber.join(fiber);
+      }),
+    );
+
+    if (!Exit.isSuccess(exit)) throw new Error(String(exit.cause));
+    expect(exit.value.hash).toBe(hashOf(1));
+    expect(explorer.calls.filter((c) => c.cursor === 'c1')).toHaveLength(2);
+  });
+
+  it('reads back to `since` on every poll in the last 30 s before the timeout', async () => {
+    const explorer = lateIndexedFeed();
+
+    const exit = await run(
+      Effect.gen(function* () {
+        // A 20 s wait is entirely inside the final stretch: the second poll is already a full read.
+        const fiber = yield* Effect.fork(waitForIncoming({ ...criteria, timeoutMs: 20_000 }).pipe(Effect.provide(explorer.layer)));
+        yield* TestClock.adjust(Duration.seconds(2));
+        return yield* Fiber.join(fiber);
+      }),
+    );
+
+    if (!Exit.isSuccess(exit)) throw new Error(String(exit.cause));
+    expect(exit.value.hash).toBe(hashOf(1));
+    expect(explorer.calls.map((c) => c.cursor)).toEqual([null, 'c1', 'c2', null, 'c1', 'c2']);
+  });
+
   it('rescans from `since` after a failed poll instead of skipping rows', async () => {
     const explorer = mockExplorer((params, call) => {
       if (call === 1) return Effect.fail(new ExplorerUnavailableError({ reason: 'HTTP 502' }));

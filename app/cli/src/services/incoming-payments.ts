@@ -3,7 +3,7 @@
  * and meant to be shared with other commands that wait for a payment (e.g. a
  * payment request that blocks until it is paid).
  */
-import { Duration, Effect, Ref } from 'effect';
+import { Clock, Duration, Effect, Ref } from 'effect';
 import { type ExplorerNotConfiguredError, type ExplorerUnavailableError, PaymentTimeoutError } from '../errors/index.js';
 import { ExplorerApi, type ExplorerTransfersPage, type NetworkTransfer } from './api/explorer.js';
 
@@ -16,6 +16,13 @@ export const POLL_PAGE_SIZE = 50;
  * older submission time) are still read.
  */
 export const RESCAN_OVERLAP_MS = 5 * 60_000;
+/**
+ * At least this often, and on every poll in this last stretch before the
+ * timeout, a poll reads all the way back to `since` again. That catches a row
+ * the indexer publishes later than RESCAN_OVERLAP_MS with an older submission
+ * time, which an incremental poll would skip.
+ */
+export const FULL_RESCAN_INTERVAL_MS = 30_000;
 
 export interface IncomingPaymentCriteria {
   /** fast1… address that must receive the payment. */
@@ -110,13 +117,20 @@ export const findIncomingPayment = (
 
 /**
  * Poll the explorer until a payment matching the criteria arrives, or fail with
- * PAYMENT_TIMEOUT after `timeoutMs`. The first poll reads everything back to
- * `since`; once a poll has read back to its floor, later polls only read rows
- * newer than what it saw (minus RESCAN_OVERLAP_MS), so a payment buried under
- * many newer rows is still found and polls stay cheap. Transient explorer errors
- * are retried until the deadline; a network without an explorer API fails
- * immediately. Sleeping and the deadline use Effect's Clock, so tests can drive
- * this with TestClock.
+ * PAYMENT_TIMEOUT after `timeoutMs`.
+ *
+ * The first poll reads everything back to `since`. After a complete poll, later
+ * polls only read rows newer than what it saw (minus RESCAN_OVERLAP_MS), so a
+ * payment buried under many newer rows is still found and polls stay cheap. A
+ * full read back to `since` is repeated every FULL_RESCAN_INTERVAL_MS and on
+ * every poll in the last FULL_RESCAN_INTERVAL_MS before the deadline, so a row
+ * the indexer publishes late, with an older timestamp, is still found before
+ * the command gives up.
+ *
+ * Transient explorer errors are retried until the deadline (a failed poll keeps
+ * the previous floor); a network without an explorer API fails immediately.
+ * Sleeping and the deadline use Effect's Clock, so tests can drive this with
+ * TestClock.
  */
 export const waitForIncoming = (
   options: WaitForIncomingOptions,
@@ -124,21 +138,23 @@ export const waitForIncoming = (
   Effect.gen(function* () {
     const lastError = yield* Ref.make<string | undefined>(undefined);
     const sinceMs = options.since.getTime();
-    // Rows older than the floor were already read by a completed poll.
-    const floor = yield* Ref.make(sinceMs);
+    const deadlineMs = (yield* Clock.currentTimeMillis) + options.timeoutMs;
+    // floorMs: rows older than this were already read by a completed poll.
+    const progress = yield* Ref.make({ floorMs: sinceMs, lastFullScanMs: Number.NEGATIVE_INFINITY });
     const interval = Duration.millis(options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS);
 
-    const poll = Ref.get(floor).pipe(
-      Effect.flatMap((floorMs) => scanIncoming(options, floorMs)),
-      Effect.tap((scan) =>
-        Effect.all([
-          Ref.set(lastError, undefined),
-          scan.newestMs === null ? Effect.void : Ref.set(floor, Math.max(sinceMs, scan.newestMs - RESCAN_OVERLAP_MS)),
-        ]),
-      ),
-      Effect.map((scan) => scan.match),
-      Effect.catchTag('ExplorerUnavailableError', (error) => Ref.set(lastError, error.reason).pipe(Effect.as(undefined))),
-    );
+    const poll = Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis;
+      const state = yield* Ref.get(progress);
+      const full = now - state.lastFullScanMs >= FULL_RESCAN_INTERVAL_MS || deadlineMs - now <= FULL_RESCAN_INTERVAL_MS;
+      const scan = yield* scanIncoming(options, full ? sinceMs : state.floorMs);
+      yield* Ref.set(lastError, undefined);
+      yield* Ref.set(progress, {
+        floorMs: scan.newestMs === null ? state.floorMs : Math.max(sinceMs, scan.newestMs - RESCAN_OVERLAP_MS),
+        lastFullScanMs: full ? now : state.lastFullScanMs,
+      });
+      return scan.match;
+    }).pipe(Effect.catchTag('ExplorerUnavailableError', (error) => Ref.set(lastError, error.reason).pipe(Effect.as(undefined))));
 
     const loop = Effect.gen(function* () {
       while (true) {

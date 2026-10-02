@@ -273,7 +273,7 @@ Selected `errorCode` values used in the JSON envelope's `error.code` field
 | `FUNDING_REQUIRED`                | 4    | `fast fund usdc crypto`: derived EVM address has insufficient balance; the user must deposit before retrying.                     |
 | `TX_FAILED`                       | 6    | Transaction was rejected by the network.                                                                                          |
 | `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`: no matching payment arrived before `--timeout`.                                                          |
-| `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response). `fast info history` reports it as a warning instead. |
+| `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response, including inconsistent paging fields). `fast info history` reports it as a warning instead. |
 | `EXPLORER_NOT_CONFIGURED`         | 2    | The network has no `explorerApiUrl`, so network history is unavailable (`fast wait-for-payment`).                                 |
 | `USER_CANCELLED`                  | 7    | Interactive confirmation declined.                                                                                                |
 | `WRONG_PASSWORD` / `PASSWORD_REQUIRED` | 8 | Keystore password missing or incorrect.                                                                                           |
@@ -1038,9 +1038,14 @@ returned page are re-checked against the AllSet portal as before.
 Both sources are read newest-first and only as far as the page needs. Local
 entries are read in batches of 200 until `offset + limit` (plus 20, for
 de-duplication) have matched or the log ends. Each explorer feed is paged until
-`offset + limit` rows have matched, the feed ends, or it has read the pages
-`offset + limit` needs plus 20 more; in that last case a warning says older
-matching transfers may be missing.
+`offset + limit` rows that will be shown have matched, the feed ends, or it has
+read the pages `offset + limit` needs plus 20 more; in that last case a warning
+says older matching transfers may be missing. Rows are counted after
+de-duplication: a network row whose transaction this CLI recorded locally does
+not count, and when both feeds are read a self transfer is taken from the
+incoming feed only. A page whose `has_more` is true but has no `next_cursor`, or
+whose paging fields have the wrong type, is a malformed response
+(`EXPLORER_UNAVAILABLE`), never the end of the feed.
 
 If the explorer API cannot be read, or the network has no `explorerApiUrl`, the
 command still succeeds with local history only and explains why in `warnings`
@@ -1686,7 +1691,11 @@ The CLI polls the explorer API's incoming feed for the watched address
 following `next_cursor` back to `--since`) every 2 seconds. There is no page
 cap; the timeout bounds the work. After a poll has read back to its floor, the
 next poll only reads back to the newest row it saw minus 5 minutes (never before
-`--since`), so rows the indexer publishes slightly late are still read. A transfer matches
+`--since`), so rows the indexer publishes slightly late are still read. Every 30
+seconds, and on every poll in the last 30 seconds before the timeout, a poll
+reads back to `--since` again, so a payment the indexer publishes much later,
+with an older submission time, is still found before the command gives up. A
+transfer matches
 when all of these hold:
 
 - its type is `TokenTransfer` or `Mint` (an EVM → Fast deposit);

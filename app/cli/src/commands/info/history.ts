@@ -224,13 +224,24 @@ export const infoHistory: Command<InfoHistoryArgs> = {
         warnings.push(`Network "${config.network}" has no explorer API configured (explorerApiUrl); only local history is shown.`);
       } else if (needed > 0) {
         const address = account.value.fastAddress;
-        const keep = (t: NetworkTransfer) => wantDirection(t.direction) && matchesParty(t) && tokenMatches(t.tokenName, t.tokenId);
         const sides = (['from', 'to'] as const).filter((side) => {
           if (side === 'from') {
             return direction !== 'in' && (args.from === undefined || sameAddress(args.from, address));
           }
           return direction !== 'out' && (args.to === undefined || sameAddress(args.to, address));
         });
+        // Rows are de-duplicated while they are collected, so each feed stops
+        // only once it holds `offset + limit` rows that will actually be shown:
+        // a local entry with the same Fast transaction hash wins (it keeps the
+        // bridge route and status), and a self transfer, which both feeds
+        // return, is taken from the incoming feed only.
+        const localHashes = new Set(localRows.map((row) => normHex(row.hash)));
+        const keep = (side: 'from' | 'to') => (t: NetworkTransfer) =>
+          wantDirection(t.direction) &&
+          matchesParty(t) &&
+          tokenMatches(t.tokenName, t.tokenId) &&
+          !localHashes.has(normHex(t.hash)) &&
+          !(side === 'from' && sides.length === 2 && t.direction === 'self');
 
         // Enough pages to reach `offset + limit` rows, plus room for rows the
         // filters drop, so deep `--offset` values still reach older transfers.
@@ -248,7 +259,7 @@ export const infoHistory: Command<InfoHistoryArgs> = {
                 limit: pageSize,
                 cursor,
               });
-              kept.push(...result.transfers.filter(keep));
+              kept.push(...result.transfers.filter(keep(side)));
               if (kept.length >= needed || !result.hasMore || result.nextCursor === null) {
                 return { kept, truncated: false };
               }
@@ -266,15 +277,12 @@ export const infoHistory: Command<InfoHistoryArgs> = {
               `Network history was cut off after ${maxPages} pages per direction before enough transfers matched the filters; older matching transfers may be missing.`,
             );
           }
-          // A local entry with the same Fast transaction hash wins (it keeps the
-          // bridge route and status); the from/to feeds overlap on self transfers.
-          const localHashes = new Set(localRows.map((row) => normHex(row.hash)));
           const seen = new Set<string>();
           networkRows = fetched.right
             .flatMap((r) => r.kept)
             .filter((t) => {
               const key = `${normHex(t.hash)}-${t.opIndex}`;
-              if (localHashes.has(normHex(t.hash)) || seen.has(key)) return false;
+              if (seen.has(key)) return false;
               seen.add(key);
               return true;
             })

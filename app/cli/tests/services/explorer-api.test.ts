@@ -124,10 +124,31 @@ describe('parseExplorerTransfersResponse', () => {
     expect(page.rows[0]!.from).toBe(LEO);
   });
 
-  it('reports no more pages when the cursor is missing', () => {
-    const page = parseExplorerTransfersResponse({ transfers: [], has_more: true, next_cursor: null });
-    if (typeof page === 'string') throw new Error(page);
-    expect(page.hasMore).toBe(false);
+  it('rejects inconsistent paging metadata instead of treating it as the end of the feed', () => {
+    expect(parseExplorerTransfersResponse({ transfers: [], has_more: true, next_cursor: null })).toBe(
+      'response says "has_more" but has no "next_cursor"',
+    );
+    expect(parseExplorerTransfersResponse({ transfers: [], has_more: true, next_cursor: '' })).toBe(
+      'response says "has_more" but has no "next_cursor"',
+    );
+    expect(parseExplorerTransfersResponse({ transfers: [], has_more: true })).toBe('response says "has_more" but has no "next_cursor"');
+    expect(parseExplorerTransfersResponse({ transfers: [], has_more: 'yes', next_cursor: 'c' })).toBe('response has no boolean "has_more"');
+    expect(parseExplorerTransfersResponse({ transfers: [] })).toBe('response has no boolean "has_more"');
+    expect(parseExplorerTransfersResponse({ transfers: [], has_more: false, next_cursor: 42 })).toBe(
+      'response has a "next_cursor" that is not a string',
+    );
+  });
+
+  it('accepts the last page with or without a cursor', () => {
+    for (const body of [
+      { transfers: [], has_more: false, next_cursor: null },
+      { transfers: [], has_more: false },
+      { transfers: [], has_more: false, next_cursor: 'stale' },
+    ]) {
+      const page = parseExplorerTransfersResponse(body);
+      if (typeof page === 'string') throw new Error(page);
+      expect(page.hasMore).toBe(false);
+    }
   });
 });
 
@@ -188,7 +209,7 @@ describe('normalizeTransfer', () => {
   });
 
   it('returns undefined for an address it does not involve', () => {
-    const parsed = parseExplorerTransfersResponse({ transfers: [rawTransfer()] });
+    const parsed = parseExplorerTransfersResponse({ transfers: [rawTransfer()], has_more: false, next_cursor: null });
     if (typeof parsed === 'string') throw new Error(parsed);
     expect(normalizeTransfer(parsed.rows[0]!, OTHER, testnet)).toBeUndefined();
   });
@@ -272,6 +293,19 @@ describe('ExplorerApiLive', () => {
 
     if (exit._tag !== 'Success') throw new Error(String(exit.cause));
     expect(exit.value.transfers).toEqual([]);
+  });
+
+  it('reports a page with "has_more" but no cursor as EXPLORER_UNAVAILABLE', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => json({ transfers: [rawTransfer()], has_more: true, next_cursor: null })),
+    );
+
+    const exit = await run({ address: ME, side: 'to' });
+
+    if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected a typed failure');
+    expect(exit.cause.error).toBeInstanceOf(ExplorerUnavailableError);
+    expect((exit.cause.error as ExplorerUnavailableError).errorCode).toBe('EXPLORER_UNAVAILABLE');
   });
 
   it('uses the mainnet API for mainnet and clamps the page size to 100', async () => {

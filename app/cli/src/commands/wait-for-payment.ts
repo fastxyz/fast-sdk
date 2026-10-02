@@ -11,7 +11,7 @@ import {
   type UnsupportedChainError,
 } from '../errors/index.js';
 import { formatBaseUnits, parsePositiveAmount } from '../services/amount.js';
-import { historyTypeOf, parseIsoTimestamp } from '../services/api/explorer.js';
+import { historyTypeOf, nsToMs, parseIsoTimestampNs } from '../services/api/explorer.js';
 import { FastRpc } from '../services/api/fast.js';
 import { ClientConfig } from '../services/config/client.js';
 import { waitForIncoming } from '../services/incoming-payments.js';
@@ -50,8 +50,10 @@ export const waitForPayment: Command<WaitForPaymentArgs> = {
         return yield* Effect.fail(new InvalidUsageError({ message: '--timeout must be a positive whole number of seconds.' }));
       }
       let sinceMs = startedAt;
+      let sinceNs = BigInt(startedAt) * 1_000_000n;
       if (args.since !== undefined) {
-        const parsed = parseIsoTimestamp(args.since);
+        // Kept to the nanosecond: a payment earlier within the same millisecond must not match.
+        const parsed = parseIsoTimestampNs(args.since);
         if (parsed === null) {
           return yield* Effect.fail(
             new InvalidUsageError({
@@ -59,7 +61,8 @@ export const waitForPayment: Command<WaitForPaymentArgs> = {
             }),
           );
         }
-        sinceMs = parsed;
+        sinceNs = parsed;
+        sinceMs = nsToMs(parsed);
       }
 
       const network = yield* networkConfig.resolve(config.network);
@@ -115,7 +118,7 @@ export const waitForPayment: Command<WaitForPaymentArgs> = {
       const address = args.to !== undefined ? yield* parseFastAddress('--to', args.to) : (yield* accounts.resolveAccount(config.account)).fastAddress;
       const from = args.from !== undefined ? yield* parseFastAddress('--from', args.from) : undefined;
       const since = new Date(sinceMs);
-      const expected = `${amountLabel} to ${address}${from ? ` from ${from}` : ''} since ${since.toISOString()}`;
+      const expected = `${amountLabel} to ${address}${from ? ` from ${from}` : ''} since ${args.since?.trim() ?? since.toISOString()}`;
 
       yield* output.humanLine(`Waiting up to ${args.timeout}s for ${expected}...`);
 
@@ -125,6 +128,7 @@ export const waitForPayment: Command<WaitForPaymentArgs> = {
         tokenId,
         from,
         since,
+        sinceNs,
         timeoutMs: args.timeout * 1000,
         description: expected,
       });

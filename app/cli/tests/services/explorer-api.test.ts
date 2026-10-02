@@ -12,6 +12,7 @@ import {
   parseExplorerAmount,
   parseExplorerTransfersResponse,
   parseIsoTimestamp,
+  parseIsoTimestampNs,
 } from '../../src/services/api/explorer.js';
 import { ClientConfig } from '../../src/services/config/client.js';
 import { NetworkConfigService } from '../../src/services/storage/network.js';
@@ -63,6 +64,34 @@ describe('parseIsoTimestamp', () => {
     expect(parseIsoTimestamp('2026-10-01T23:30:00-03:00')).toBe(Date.UTC(2026, 9, 2, 2, 30));
     expect(parseIsoTimestamp('2026-10-02T12:00')).toBe(Date.UTC(2026, 9, 2, 12));
     expect(parseIsoTimestamp('2024-02-29T00:00:00Z')).toBe(Date.UTC(2024, 1, 29));
+  });
+
+  it('keeps the full fraction in nanoseconds, and floors it to milliseconds for the ms form', () => {
+    const base = BigInt(Date.UTC(2026, 9, 2, 3)) * 1_000_000n;
+    expect(parseIsoTimestampNs('2026-10-02T03:00:00.000500Z')).toBe(base + 500_000n);
+    expect(parseIsoTimestampNs('2026-10-02T03:00:00.000900Z')).toBe(base + 900_000n);
+    expect(parseIsoTimestampNs('2026-10-02T03:00:00.123456789Z')).toBe(base + 123_456_789n);
+    expect(parseIsoTimestampNs('2026-10-02T03:00:00.1234567891Z')).toBe(base + 123_456_789n);
+    expect(parseIsoTimestampNs('2026-10-02T06:00:00.5+03:00')).toBe(base + 500_000_000n);
+    // Both of the first two fall in the same millisecond, but stay ordered in nanoseconds.
+    expect(parseIsoTimestamp('2026-10-02T03:00:00.000500Z')).toBe(parseIsoTimestamp('2026-10-02T03:00:00.000900Z'));
+    expect(parseIsoTimestampNs('2026-10-02T03:00:00.000500Z')! < parseIsoTimestampNs('2026-10-02T03:00:00.000900Z')!).toBe(true);
+    // Before 1970 the millisecond form still floors (not truncates toward zero).
+    expect(parseIsoTimestamp('1969-12-31T23:59:59.9995Z')).toBe(-1);
+  });
+
+  it('keeps years 0000-0099 as written instead of remapping them to 1900-1999', () => {
+    const utc = (year: number, month: number, day: number) => {
+      const d = new Date(0);
+      d.setUTCFullYear(year, month - 1, day);
+      return d.getTime();
+    };
+    expect(parseIsoTimestamp('0099-01-01')).toBe(utc(99, 1, 1));
+    expect(new Date(parseIsoTimestamp('0099-01-01T00:00:00Z')!).getUTCFullYear()).toBe(99);
+    // Proleptic Gregorian leap rules: 0000 and 2000 are leap years, 1900 is not.
+    expect(parseIsoTimestamp('0000-02-29')).toBe(utc(0, 2, 29));
+    expect(parseIsoTimestamp('2000-02-29')).toBe(Date.UTC(2000, 1, 29));
+    expect(parseIsoTimestamp('1900-02-29')).toBeNull();
   });
 
   it('rejects impossible dates and times instead of rolling them over', () => {
@@ -187,6 +216,9 @@ describe('parseExplorerTransfersResponse', () => {
       'transfer row 1 is a TokenTransfer without a valid "amount" and "token_id"',
     );
     expect(at(rawTransfer({ type: 'Mint', token_id: 'xyz' }))).toBe('transfer row 1 is a Mint without a valid "amount" and "token_id"');
+    for (const opIndex of [undefined, null, -1, 1.5, '1', Number.MAX_SAFE_INTEGER + 1]) {
+      expect(at(rawTransfer({ op_index: opIndex })), String(opIndex)).toBe('transfer row 1 is a TokenTransfer without a valid "op_index"');
+    }
   });
 
   it('rejects rows without a 32-byte hash or with a sender/recipient that is not a Fast address', () => {
@@ -256,6 +288,7 @@ describe('normalizeTransfer', () => {
       decimals: 6,
       timestamp: '2026-10-02T02:59:49.705Z',
       timestampMs: Date.UTC(2026, 9, 2, 2, 59, 49, 705),
+      timestampNs: BigInt(Date.UTC(2026, 9, 2, 2, 59, 49)) * 1_000_000n + 705_580_000n,
       explorerUrl: `https://testnet.explorer.fast.xyz/txs/0x${'ab'.repeat(32)}`,
     });
   });
@@ -276,6 +309,7 @@ describe('normalizeTransfer', () => {
 
   it('skips rows that move no value, have unknown types, or do not involve the address', () => {
     const rows = [
+      rawTransfer({ type: 'ExternalClaim', op_index: undefined, amount: undefined, token_id: undefined }),
       rawTransfer({ type: 'ExternalClaim', from: ME, to: ME, amount: undefined, token_id: undefined }),
       rawTransfer({ type: 'ExternalClaim', amount: null, token_id: null }),
       rawTransfer({ type: 'TokenCreation', amount: undefined, token_id: undefined }),

@@ -74,6 +74,27 @@ describe('findIncomingPayment', () => {
   });
 });
 
+describe('sub-millisecond ordering', () => {
+  // Explorer timestamps have microseconds; these instants share one millisecond.
+  const SINCE_US = '2026-10-02T03:00:00.000900Z';
+  const sinceNs = BigInt(Date.UTC(2026, 9, 2, 3)) * 1_000_000n + 900_000n;
+  const exact = { ...criteria, since: new Date(Date.UTC(2026, 9, 2, 3)), sinceNs };
+
+  it('does not accept a payment earlier within the same millisecond as `since`', () => {
+    expect(matchesIncomingPayment(payment(1, '2026-10-02T03:00:00.000500Z'), exact)).toBe(false);
+    expect(matchesIncomingPayment(payment(1, SINCE_US), exact)).toBe(true);
+    expect(matchesIncomingPayment(payment(1, '2026-10-02T03:00:00.000901Z'), exact)).toBe(true);
+  });
+
+  it('returns the earliest payment even when two match within the same millisecond', async () => {
+    const explorer = mockExplorer(() => Effect.succeed(page([payment(2, '2026-10-02T03:00:05.000700Z'), payment(1, '2026-10-02T03:00:05.000300Z')])));
+
+    const found = await Effect.runPromise(findIncomingPayment(criteria).pipe(Effect.provide(explorer.layer)));
+
+    expect(found?.hash).toBe(hashOf(1));
+  });
+});
+
 describe('findIncomingPayment paging', () => {
   it('keeps paging past many newer rows until it reaches `since` (no page cap)', async () => {
     // 11 pages of unrelated newer rows, then the payment on page 12.

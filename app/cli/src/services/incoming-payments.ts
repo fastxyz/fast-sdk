@@ -38,7 +38,15 @@ export interface IncomingPaymentCriteria {
   readonly from?: string;
   /** Only payments submitted at or after this instant match. */
   readonly since: Date;
+  /**
+   * The same instant in epoch nanoseconds, when it has sub-millisecond
+   * precision (e.g. a `--since` with microseconds). Defaults to `since`.
+   */
+  readonly sinceNs?: bigint;
 }
+
+/** `since` in epoch nanoseconds, exact when `sinceNs` is given. */
+export const sinceNsOf = (criteria: IncomingPaymentCriteria): bigint => criteria.sinceNs ?? BigInt(criteria.since.getTime()) * 1_000_000n;
 
 export interface WaitForIncomingOptions extends IncomingPaymentCriteria {
   /** Give up after this long (milliseconds). */
@@ -64,7 +72,8 @@ export const matchesIncomingPayment = (transfer: NetworkTransfer, criteria: Inco
   transfer.amount === criteria.amountRaw &&
   sameHex(transfer.tokenId, criteria.tokenId) &&
   (criteria.from === undefined || sameAddress(transfer.from, criteria.from)) &&
-  transfer.timestampMs >= criteria.since.getTime();
+  // Exact comparison: two instants in the same millisecond are still ordered.
+  transfer.timestampNs >= sinceNsOf(criteria);
 
 interface IncomingScan {
   /** Earliest matching payment among the rows read, if any. */
@@ -97,7 +106,7 @@ const scanIncoming = (
         cursor,
       });
       for (const transfer of result.transfers) {
-        if (matchesIncomingPayment(transfer, criteria) && (earliest === undefined || transfer.timestampMs < earliest.timestampMs)) {
+        if (matchesIncomingPayment(transfer, criteria) && (earliest === undefined || transfer.timestampNs < earliest.timestampNs)) {
           earliest = transfer;
         }
       }

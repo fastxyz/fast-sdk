@@ -1028,7 +1028,7 @@ account), merging two sources:
   amount or token (e.g. `ExternalClaim`) are skipped. A row with no 32-byte
   `hash`, a `from`/`to` that is not a Fast address, no ISO 8601
   `submission_timestamp`, or (for `TokenTransfer`/`Mint`/`Burn`) no valid
-  `amount` and `token_id` makes the whole page a malformed response
+  `amount`, `token_id` and non-negative integer `op_index` makes the whole page a malformed response
   (`EXPLORER_UNAVAILABLE`); it is never dropped silently.
 - **Local** — transactions this CLI submitted and recorded under `~/.fast`
   (including bridge routes and token operations), limited to entries that
@@ -1728,7 +1728,7 @@ already have been sent.
 | `--token` | string | no | `network.defaultToken.symbol` | Token symbol or token ID. A token ID not in the network config gets its decimals from the Fast RPC. |
 | `--from` | string | no | — | Only accept a payment sent by this `fast1...` address. |
 | `--to` | string | no | active account | `fast1...` address to watch. |
-| `--since` | string | no | command start | ISO 8601 time (`YYYY-MM-DD`, optionally `THH:MM[:SS[.fff]]` and `Z` or `±HH:MM`); only payments submitted at or after it match. Times without a zone are UTC. Other formats and impossible dates (`2026-02-30`) are rejected with `INVALID_USAGE`. |
+| `--since` | string | no | command start | ISO 8601 time (`YYYY-MM-DD`, optionally `THH:MM[:SS[.fff]]` and `Z` or `±HH:MM`); only payments submitted at or after it match. Times without a zone are UTC. Other formats and impossible dates (`2026-02-30`) are rejected with `INVALID_USAGE`. The fraction is kept to the nanosecond and compared exactly with the explorer's microsecond submission times, so a payment earlier within the same millisecond does not match. |
 | `--timeout` | integer | no | `300` | Seconds to wait before failing with `PAYMENT_TIMEOUT`. |
 
 **Output (`--json`)**

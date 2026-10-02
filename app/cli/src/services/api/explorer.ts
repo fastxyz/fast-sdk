@@ -39,6 +39,8 @@ export interface ExplorerTransferRow {
   readonly amount: bigint | null;
   readonly opIndex: number;
   readonly timestampMs: number;
+  /** Exact submission time in epoch nanoseconds (the explorer reports microseconds). */
+  readonly timestampNs: bigint;
 }
 
 export interface ExplorerRowsPage {
@@ -70,6 +72,8 @@ export interface NetworkTransfer {
   /** Submission time, ISO 8601 UTC with millisecond precision. */
   readonly timestamp: string;
   readonly timestampMs: number;
+  /** Exact submission time in epoch nanoseconds; compare with this, not timestampMs. */
+  readonly timestampNs: bigint;
   /** Fast explorer page for the transaction. */
   readonly explorerUrl: string;
 }
@@ -142,12 +146,15 @@ export const parseExplorerAmount = (value: unknown): bigint | null => {
 const ISO_8601 = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?(Z|[+-]\d{2}:?\d{2})?$/i;
 
 /**
- * Parse an ISO 8601 timestamp (any fractional precision) to epoch ms; strings
- * without a zone are read as UTC. Strict: other formats (`10/02/2026`) and
- * impossible dates or times (`2026-02-30`, `24:00`) are rejected rather than
- * normalized, so a typo cannot silently shift the time.
+ * Parse an ISO 8601 timestamp to epoch **nanoseconds**, keeping the full
+ * fraction (the explorer reports microseconds; digits beyond nanoseconds are
+ * truncated). Strings without a zone are read as UTC. Strict: other formats
+ * (`10/02/2026`) and impossible dates or times (`2026-02-30`, `24:00`) are
+ * rejected rather than normalized, so a typo cannot silently shift the time.
+ * Use this, not the millisecond form, wherever times are compared: two
+ * instants in the same millisecond are still ordered correctly.
  */
-export const parseIsoTimestamp = (value: unknown): number | null => {
+export const parseIsoTimestampNs = (value: unknown): bigint | null => {
   if (typeof value !== 'string') return null;
   const m = ISO_8601.exec(value.trim());
   if (!m) return null;
@@ -159,10 +166,9 @@ export const parseIsoTimestamp = (value: unknown): number | null => {
     number,
     number,
   ];
-  const millis = Number((m[7] ?? '').slice(0, 3).padEnd(3, '0'));
   if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) return null;
   // Day must exist in that month (Date.UTC would roll 2026-02-30 over to March 2).
-  if (day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return null;
+  if (day > daysInMonth(year, month)) return null;
   let offsetMinutes = 0;
   const zone = m[8];
   if (zone !== undefined && zone.toUpperCase() !== 'Z') {
@@ -173,8 +179,36 @@ export const parseIsoTimestamp = (value: unknown): number | null => {
     if (zoneHours > 23 || zoneMinutes > 59) return null;
     offsetMinutes = sign * (zoneHours * 60 + zoneMinutes);
   }
-  const ms = Date.UTC(year, month - 1, day, hour, minute, second, millis) - offsetMinutes * 60_000;
-  return Number.isFinite(ms) ? ms : null;
+  // setUTCFullYear, unlike Date.UTC, does not remap years 0-99 to 1900-1999.
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, 0);
+  const wholeSecondsMs = date.getTime() - offsetMinutes * 60_000;
+  if (!Number.isFinite(wholeSecondsMs)) return null;
+  const fractionNs = BigInt((m[7] ?? '').slice(0, 9).padEnd(9, '0'));
+  return BigInt(wholeSecondsMs) * 1_000_000n + fractionNs;
+};
+
+/**
+ * Epoch milliseconds of an ISO 8601 timestamp (see parseIsoTimestampNs), with
+ * the fraction truncated to the millisecond. Fine for display and coarse
+ * windows; compare exact instants with the nanosecond form.
+ */
+export const parseIsoTimestamp = (value: unknown): number | null => {
+  const ns = parseIsoTimestampNs(value);
+  return ns === null ? null : nsToMs(ns);
+};
+
+/** Floor a nanosecond epoch to milliseconds (also correct before 1970). */
+export const nsToMs = (ns: bigint): number => {
+  const ms = ns / 1_000_000n;
+  return Number(ns < 0n && ns % 1_000_000n !== 0n ? ms - 1n : ms);
+};
+
+/** Proleptic Gregorian month length, valid for every four-digit year. */
+const daysInMonth = (year: number, month: number): number => {
+  if (month === 2) return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0 ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
 };
 
 const normalizeHex = (value: string): string => `0x${value.replace(/^0x/i, '').toLowerCase()}`;
@@ -192,14 +226,21 @@ const parseRow = (raw: unknown): ExplorerTransferRow | string => {
   if (typeof r.hash !== 'string' || !HEX_HASH.test(r.hash)) return 'has no 32-byte "hash"';
   if (!isFastAddress(r.from)) return 'has a "from" that is not a Fast address';
   if (!isFastAddress(r.to)) return 'has a "to" that is not a Fast address';
-  const timestampMs = parseIsoTimestamp(r.submission_timestamp);
-  if (timestampMs === null) return 'has no ISO 8601 "submission_timestamp"';
+  const timestampNs = parseIsoTimestampNs(r.submission_timestamp);
+  if (timestampNs === null) return 'has no ISO 8601 "submission_timestamp"';
+  const timestampMs = nsToMs(timestampNs);
   const type = typeof r.type === 'string' ? r.type : '';
   const tokenId = typeof r.token_id === 'string' && HEX_TOKEN_ID.test(r.token_id) ? normalizeHex(r.token_id) : null;
   const amount = parseExplorerAmount(r.amount);
-  if ((VALUE_TRANSFER_TYPES as readonly string[]).includes(type) && (amount === null || tokenId === null)) {
+  const isValueRow = (VALUE_TRANSFER_TYPES as readonly string[]).includes(type);
+  if (isValueRow && (amount === null || tokenId === null)) {
     return `is a ${type} without a valid "amount" and "token_id"`;
   }
+  // `hash-op_index` identifies a value operation (de-duplication relies on it),
+  // so a value row needs a real index; other rows are filtered out later.
+  const validIndex = typeof r.op_index === 'number' && Number.isSafeInteger(r.op_index) && r.op_index >= 0;
+  if (isValueRow && !validIndex) return `is a ${type} without a valid "op_index"`;
+  const opIndex = validIndex ? (r.op_index as number) : 0;
   return {
     hash: normalizeHex(r.hash),
     from: r.from,
@@ -207,8 +248,9 @@ const parseRow = (raw: unknown): ExplorerTransferRow | string => {
     type,
     tokenId,
     amount,
-    opIndex: typeof r.op_index === 'number' && Number.isInteger(r.op_index) ? r.op_index : 0,
+    opIndex,
     timestampMs,
+    timestampNs,
   };
 };
 
@@ -267,6 +309,7 @@ export const normalizeTransfer = (row: ExplorerTransferRow, address: string, net
     decimals: token?.decimals ?? null,
     timestamp: new Date(row.timestampMs).toISOString(),
     timestampMs: row.timestampMs,
+    timestampNs: row.timestampNs,
     explorerUrl: `${network.explorerUrl.replace(/\/+$/, '')}/txs/${row.hash}`,
   };
 };

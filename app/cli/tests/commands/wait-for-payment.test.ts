@@ -99,6 +99,19 @@ const failure = (exit: Exit.Exit<unknown, unknown>) => {
 };
 
 describe('fast wait-for-payment', () => {
+  it('honours a --since with microseconds: an earlier payment in the same millisecond does not count', async () => {
+    const explorer = mockExplorer((_params, call) =>
+      Effect.succeed(
+        page(call === 0 ? [at(1, '2026-10-02T03:00:00.000500Z')] : [at(2, '2026-10-02T03:00:00.000950Z'), at(1, '2026-10-02T03:00:00.000500Z')]),
+      ),
+    );
+
+    const { exit, results } = await run({ amount: '0.1', since: '2026-10-02T03:00:00.000900Z' }, { explorer, advance: Duration.seconds(2) });
+
+    if (!Exit.isSuccess(exit)) throw new Error(String(exit.cause));
+    expect(results).toEqual([expect.objectContaining({ hash: hashOf(2) })]);
+  });
+
   it("waits for the exact amount of the network's default token to the active account", async () => {
     const explorer = mockExplorer((_params, call) =>
       Effect.succeed(page(call === 0 ? [at(1, '2026-10-02T03:00:00Z', { amount: '186a1' })] : [at(2, '2026-10-02T03:00:02.5Z')])),

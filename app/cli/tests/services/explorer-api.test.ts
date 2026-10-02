@@ -104,6 +104,26 @@ describe('parseExplorerTransfersResponse', () => {
     expect(page.nextCursor).toBe('abc');
   });
 
+  it('drops rows without a 32-byte hash or with a sender/recipient that is not a Fast address', () => {
+    const evm = `0x${'aa'.repeat(20)}`;
+    const wrongPrefix = 'tfast1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsmkez2q';
+    const malformed = [
+      rawTransfer({ hash: '0x1' }),
+      rawTransfer({ hash: `0x${'ab'.repeat(31)}` }),
+      rawTransfer({ hash: `0x${'zz'.repeat(32)}` }),
+      rawTransfer({ from: '' }),
+      rawTransfer({ from: undefined }),
+      rawTransfer({ to: evm }),
+      rawTransfer({ from: wrongPrefix }),
+      rawTransfer({ from: `${LEO.slice(0, -1)}x` }), // bad checksum
+    ];
+    const page = parseExplorerTransfersResponse({ transfers: [...malformed, rawTransfer()], has_more: false, next_cursor: null });
+    if (typeof page === 'string') throw new Error(page);
+    expect(page.rows).toHaveLength(1);
+    expect(page.rows[0]!.hash).toBe(hashOf(1));
+    expect(page.rows[0]!.from).toBe(LEO);
+  });
+
   it('reports no more pages when the cursor is missing', () => {
     const page = parseExplorerTransfersResponse({ transfers: [], has_more: true, next_cursor: null });
     if (typeof page === 'string') throw new Error(page);
@@ -231,6 +251,27 @@ describe('ExplorerApiLive', () => {
     expect(`${url.origin}${url.pathname}`).toBe('https://testnet.api.fast.xyz/explorer/transfers');
     expect(Object.fromEntries(url.searchParams)).toEqual({ to: ME, limit: '20', order: 'desc', cursor: 'cursor-1' });
     expect(fetchMock.mock.calls[0]![1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('never turns a malformed row into a transfer, so it cannot be taken for a payment', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        json({
+          transfers: [
+            rawTransfer({ hash: '0x1', submission_timestamp: '2026-10-02T03:00:00Z' }),
+            rawTransfer({ hash: hashOf(4), from: '', submission_timestamp: '2026-10-02T03:00:00Z' }),
+          ],
+          has_more: false,
+          next_cursor: null,
+        }),
+      ),
+    );
+
+    const exit = await run({ address: ME, side: 'to' });
+
+    if (exit._tag !== 'Success') throw new Error(String(exit.cause));
+    expect(exit.value.transfers).toEqual([]);
   });
 
   it('uses the mainnet API for mainnet and clamps the page size to 100', async () => {

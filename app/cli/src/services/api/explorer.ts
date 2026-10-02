@@ -5,6 +5,7 @@
  * EVM → Fast deposits (which appear as `Mint` rows from the bridge account), so
  * it complements the local history store, which only knows what this CLI sent.
  */
+import { bech32m } from 'bech32';
 import { Context, Effect, Layer } from 'effect';
 import { ExplorerNotConfiguredError, ExplorerUnavailableError } from '../../errors/index.js';
 import type { NetworkConfig } from '../../schemas/networks.js';
@@ -112,7 +113,19 @@ export class ExplorerApi extends Context.Tag('ExplorerApi')<ExplorerApi, Explore
 
 const HEX_AMOUNT = /^(0x)?[0-9a-fA-F]+$/;
 const HEX_TOKEN_ID = /^(0x)?[0-9a-fA-F]{64}$/;
-const HEX_HASH = /^(0x)?[0-9a-fA-F]+$/;
+/** A Fast transaction hash: 32 bytes of hex. */
+const HEX_HASH = /^(0x)?[0-9a-fA-F]{64}$/;
+
+/** A well-formed Fast address: bech32m, `fast` prefix, 32-byte payload. */
+const isFastAddress = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false;
+  try {
+    const decoded = bech32m.decode(value);
+    return decoded.prefix === 'fast' && bech32m.fromWords(decoded.words).length === 32;
+  } catch {
+    return false;
+  }
+};
 
 /** Parse the explorer's amount encoding: hex base units, normally without a `0x` prefix (`186a0` = 100000). */
 export const parseExplorerAmount = (value: unknown): bigint | null => {
@@ -169,8 +182,10 @@ const normalizeHex = (value: string): string => `0x${value.replace(/^0x/i, '').t
 const parseRow = (raw: unknown): ExplorerTransferRow | null => {
   if (raw === null || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
+  // A row must carry a real transaction hash and real Fast addresses before it
+  // can be shown, let alone accepted as a payment; malformed rows are dropped.
   if (typeof r.hash !== 'string' || !HEX_HASH.test(r.hash)) return null;
-  if (typeof r.from !== 'string' || typeof r.to !== 'string') return null;
+  if (!isFastAddress(r.from) || !isFastAddress(r.to)) return null;
   const timestampMs = parseIsoTimestamp(r.submission_timestamp);
   if (timestampMs === null) return null;
   return {

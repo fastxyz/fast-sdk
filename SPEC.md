@@ -1053,7 +1053,8 @@ listed, as before network history: without `--account`, the whole local log
 for every local account (`account: null`); with `--account`, only that
 account's entries. `--direction` and the other filters still apply (a local
 entry's direction is read from the account that recorded it), and `warnings`
-stays empty.
+stays empty. `--local` skips only the explorer: pending bridge entries on the
+page are still re-checked against the AllSet portal, as before network history.
 
 **Flags**
 

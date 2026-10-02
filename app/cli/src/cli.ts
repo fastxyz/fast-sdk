@@ -275,7 +275,7 @@ const infoHistoryParser = command(
     ),
     local: withDefault(
       option('--local', {
-        description: message`Only what this CLI recorded locally, for every local account (no network lookup)`,
+        description: message`Only what this CLI recorded locally, for every local account (no explorer lookup)`,
       }),
       false,
     ),

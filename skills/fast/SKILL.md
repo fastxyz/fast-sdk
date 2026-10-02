@@ -52,7 +52,7 @@ Every supported subcommand is listed below. Use **exactly** these command names 
 |---|---|---|
 | `fast info status` | Show **network health status** for the current network | `--network <name>`, `--json` |
 | `fast info balance` | Show USDC balances on Fast and bridgeable EVM chains | `--json` |
-| `fast info history` | Show the account's transaction history: incoming and outgoing transfers from the network, plus what this CLI sent | `--direction in\|out\|all`, `--from <fast1...>`, `--limit <n>`, `--local` (only what this CLI sent, no network), `--json` |
+| `fast info history` | Show the account's transaction history: incoming and outgoing transfers from the network, plus what this CLI sent | `--direction in\|out\|all`, `--from <fast1...>`, `--limit <n>`, `--local` (only what this CLI sent, no explorer lookup), `--json` |
 | `fast info tx <hash>` | Look up details for a **specific transaction** by hash | `--json` |
 | `fast info bridge-chains` | List all **bridge-compatible EVM chains** | `--json` |
 | `fast info bridge-tokens` | List all **bridge-compatible tokens** | `--json` |

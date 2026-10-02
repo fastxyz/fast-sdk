@@ -297,14 +297,14 @@ fast info history --limit 20
 # Only incoming payments, e.g. "did Leo pay me?"
 fast info history --direction in --from fast1leo... --json
 
-# Only what this CLI recorded locally, for every local account (no network call)
+# Only what this CLI recorded locally, for every local account (no explorer lookup)
 fast info history --local
 ```
 
 **Options:**
 
 - `--direction <in|out|all>` — Only incoming (`in`), only outgoing (`out`), or everything (`all`, default). Self transfers only appear with `all`.
-- `--local` — Previous behaviour: list only the local log (what this CLI submitted), for every local account, without calling the explorer API. Add `--account <name>` to narrow it to one account. Received payments do not appear.
+- `--local` — Previous behaviour: list only the local log (what this CLI submitted), for every local account, without calling the explorer API. Add `--account <name>` to narrow it to one account. Received payments do not appear. As before, pending bridge entries are still re-checked against the AllSet portal, so the command is not fully offline.
 - `--from <address>` — Filter by sender address
 - `--to <address>` — Filter by recipient address
 - `--token <token>` — Filter by token name or token ID (a symbol also matches its token ID on the current network)

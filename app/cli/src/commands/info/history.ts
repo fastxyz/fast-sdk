@@ -216,7 +216,8 @@ export const infoHistory: Command<InfoHistoryArgs> = {
       // ── Network transfers (incoming and outgoing, from the explorer) ──────
       let networkRows: HistoryRow[] = [];
       if (localOnly) {
-        // --local: the network is not consulted.
+        // --local: the explorer is not consulted (pending bridge entries are still
+        // re-checked against the AllSet portal below, as before).
       } else if (Option.isNone(account)) {
         warnings.push('No account selected (create one or set a default), so only local history is shown.');
       } else if (!network.explorerApiUrl) {

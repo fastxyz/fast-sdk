@@ -1011,7 +1011,7 @@ the items in `fast info history`'s `transactions` array:
 **Synopsis**
 
 ```text
-fast info history [--direction <in|out|all>] [--from <name|address>]
+fast info history [--direction <in|out|all>] [--local] [--from <name|address>]
                   [--to <address>] [--source <chain>] [--dest <chain>]
                   [--token <value>] [--limit <n>] [--offset <n>]
 ```
@@ -1042,11 +1042,19 @@ command still succeeds with local history only and explains why in `warnings`
 payment as proof that nothing arrived while `warnings` is non-empty. When no
 account exists, the whole local log is listed, as before network history.
 
+With `--local`, the explorer API is not called and only local entries are
+listed, as before network history: without `--account`, the whole local log
+for every local account (`account: null`); with `--account`, only that
+account's entries. `--direction` and the other filters still apply (a local
+entry's direction is read from the account that recorded it), and `warnings`
+stays empty.
+
 **Flags**
 
 | Flag | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `--direction` | `in` \| `out` \| `all` | no | `all` | Relative to the account: `in` = sent to it by another address, `out` = sent by it to another address. Self transfers (`self`) are only listed with `all`. |
+| `--local` | boolean | no | `false` | List only local entries, without calling the explorer API; every local account unless `--account` is given. |
 | `--from` | string | no | — | Filter by sender address. |
 | `--to` | string | no | — | Filter by recipient (Fast or EVM address). |
 | `--source` | string | no | — | Filter by source network/chain. |

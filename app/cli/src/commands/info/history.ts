@@ -173,11 +173,17 @@ export const infoHistory: Command<InfoHistoryArgs> = {
         (args.from === undefined || sameAddress(row.from, args.from)) && (args.to === undefined || sameAddress(row.to, args.to));
 
       // History is shown for the selected account (--account, else the default).
-      // With no account at all, fall back to the full local log.
-      const account = yield* accounts.resolveAccount(config.account).pipe(
-        Effect.map(Option.some),
-        Effect.catchTag('NoDefaultAccountError', () => Effect.succeed(Option.none<AccountInfo>())),
-      );
+      // With no account at all, fall back to the full local log. `--local` keeps
+      // the pre-network behaviour: only the local log, for every local account,
+      // unless --account narrows it to one.
+      const localOnly = args.local === true;
+      const account =
+        localOnly && Option.isNone(config.account)
+          ? Option.none<AccountInfo>()
+          : yield* accounts.resolveAccount(config.account).pipe(
+              Effect.map(Option.some),
+              Effect.catchTag('NoDefaultAccountError', () => Effect.succeed(Option.none<AccountInfo>())),
+            );
       const network = yield* networkConfig.resolve(config.network);
       const tokenMatches = makeTokenMatcher(args.token, network);
 
@@ -192,7 +198,9 @@ export const infoHistory: Command<InfoHistoryArgs> = {
       // ── Network transfers (incoming and outgoing, from the explorer) ──────
       let networkRows: HistoryRow[] = [];
       const needed = offset + limit;
-      if (Option.isNone(account)) {
+      if (localOnly) {
+        // --local: the network is not consulted.
+      } else if (Option.isNone(account)) {
         warnings.push('No account selected (create one or set a default), so only local history is shown.');
       } else if (!network.explorerApiUrl) {
         warnings.push(`Network "${config.network}" has no explorer API configured (explorerApiUrl); only local history is shown.`);

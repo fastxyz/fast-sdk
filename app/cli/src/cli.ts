@@ -273,6 +273,12 @@ const infoHistoryParser = command(
       }),
       'all' as const,
     ),
+    local: withDefault(
+      option('--local', {
+        description: message`Only what this CLI recorded locally, for every local account (no network lookup)`,
+      }),
+      false,
+    ),
   }),
   { description: message`Show transaction history (network + local)` },
 );

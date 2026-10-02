@@ -109,9 +109,12 @@ const runHistory = async (
     network?: NetworkConfig;
     networkName?: string;
     explorer?: ReturnType<typeof mockExplorer>;
+    /** Value of the global --account flag. */
+    accountName?: string;
   } = {},
 ) => {
   const captured: Captured = { tables: [], results: [], warnings: [], statusUpdates: [] };
+  const accountLookups: Array<Option.Option<string>> = [];
   const explorer = opts.explorer ?? defaultFeed;
   const layer = Layer.mergeAll(
     Layer.succeed(HistoryStore, {
@@ -120,14 +123,17 @@ const runHistory = async (
     } as never),
     Layer.succeed(NetworkConfigService, { resolve: () => Effect.succeed(opts.network ?? testnet) } as never),
     Layer.succeed(AccountStore, {
-      resolveAccount: () => (opts.account === null ? Effect.fail(new NoDefaultAccountError()) : Effect.succeed(opts.account ?? account)),
+      resolveAccount: (name: Option.Option<string>) => {
+        accountLookups.push(name);
+        return opts.account === null ? Effect.fail(new NoDefaultAccountError()) : Effect.succeed(opts.account ?? account);
+      },
     } as never),
     Layer.succeed(ClientConfig, {
       json: true,
       debug: false,
       nonInteractive: true,
       network: opts.networkName ?? 'testnet',
-      account: Option.none(),
+      account: Option.fromNullable(opts.accountName),
       password: Option.none(),
     }),
     explorer.layer,
@@ -142,7 +148,7 @@ const runHistory = async (
   );
   await Effect.runPromise(infoHistory.handler({ limit: 20, offset: 0, direction: 'all', ...args } as never).pipe(Effect.provide(layer)));
   const result = captured.results[0]!;
-  return { ...captured, result, hashes: result.transactions.map((t) => t.hash), calls: explorer.calls };
+  return { ...captured, result, hashes: result.transactions.map((t) => t.hash), calls: explorer.calls, accountLookups };
 };
 
 beforeEach(() => {
@@ -353,6 +359,44 @@ describe('info history (network + local)', () => {
       '2026-10-02T03:00:00.123Z',
       'network',
     ]);
+  });
+});
+
+describe('info history --local', () => {
+  it('lists the whole local log for every local account, without the network or an account lookup', async () => {
+    const explorer = mockExplorer(() => Effect.succeed(page([incoming])));
+
+    const { result, hashes, calls, accountLookups, warnings } = await runHistory({ local: true }, { explorer });
+
+    expect(calls).toHaveLength(0);
+    expect(accountLookups).toHaveLength(0);
+    expect(hashes).toEqual([hashOf(11), hashOf(10), hashOf(12), `0x${'cd'.repeat(32)}`]);
+    expect(result.transactions.every((t) => t.source === 'local')).toBe(true);
+    expect(result.transactions.map((t) => t.direction)).toEqual(['out', 'out', 'out', 'in']);
+    expect(result.account).toBeNull();
+    expect(result.warnings).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('still applies --direction and the other filters to the local log', async () => {
+    const incomingOnly = await runHistory({ local: true, direction: 'in' }, { explorer: mockExplorer(() => Effect.succeed(page([]))) });
+    const toLeo = await runHistory({ local: true, to: LEO }, { explorer: mockExplorer(() => Effect.succeed(page([]))) });
+
+    expect(incomingOnly.hashes).toEqual([`0x${'cd'.repeat(32)}`]);
+    expect(toLeo.hashes).toEqual(expect.arrayContaining([hashOf(12)]));
+    expect(toLeo.result.transactions.every((t) => String(t.to).toLowerCase() === LEO.toLowerCase())).toBe(true);
+  });
+
+  it('with --account, narrows the local log to that account and still skips the network', async () => {
+    const explorer = mockExplorer(() => Effect.succeed(page([incoming])));
+
+    const { result, hashes, calls, accountLookups } = await runHistory({ local: true }, { explorer, accountName: 'agent' });
+
+    expect(calls).toHaveLength(0);
+    expect(accountLookups).toEqual([Option.some('agent')]);
+    expect(hashes).not.toContain(hashOf(12));
+    expect(result.account).toBe(ME);
+    expect(result.warnings).toEqual([]);
   });
 });
 

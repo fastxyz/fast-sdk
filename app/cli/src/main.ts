@@ -349,8 +349,8 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     check: () => null,
   },
   "info history": {
-    usage: "fast info history [--direction <in|out|all>] [--from <address>] [--to <address>] [--token <token>] [--limit <n>] [--offset <n>]",
-    options: ["--from", "--to", "--token", "--limit", "--offset", "--direction"],
+    usage: "fast info history [--direction <in|out|all>] [--local] [--from <address>] [--to <address>] [--token <token>] [--limit <n>] [--offset <n>]",
+    options: ["--from", "--to", "--token", "--limit", "--offset", "--direction", "--local"],
     check: () => null,
   },
   "wait-for-payment": {

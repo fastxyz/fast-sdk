@@ -273,7 +273,7 @@ Selected `errorCode` values used in the JSON envelope's `error.code` field
 | `FUNDING_REQUIRED`                | 4    | `fast fund usdc crypto`: derived EVM address has insufficient balance; the user must deposit before retrying.                     |
 | `TX_FAILED`                       | 6    | Transaction was rejected by the network.                                                                                          |
 | `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`: no matching payment arrived before `--timeout`.                                                          |
-| `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response, including inconsistent paging fields). `fast info history` reports it as a warning instead. |
+| `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response, including inconsistent paging fields or a malformed row). `fast info history` reports it as a warning instead. |
 | `EXPLORER_NOT_CONFIGURED`         | 2    | The network has no `explorerApiUrl`, so network history is unavailable (`fast wait-for-payment`).                                 |
 | `USER_CANCELLED`                  | 7    | Interactive confirmation declined.                                                                                                |
 | `WRONG_PASSWORD` / `PASSWORD_REQUIRED` | 8 | Keystore password missing or incorrect.                                                                                           |
@@ -1025,7 +1025,11 @@ account), merging two sources:
   (`GET {explorerApiUrl}/explorer/transfers?from=|to=<address>`). This includes
   payments received from other accounts and EVM → Fast deposits, which appear
   as `Mint` rows (`type: "token-mint"`) from the bridge account. Rows without an
-  amount or token (e.g. `ExternalClaim`) are skipped.
+  amount or token (e.g. `ExternalClaim`) are skipped. A row with no 32-byte
+  `hash`, a `from`/`to` that is not a Fast address, no ISO 8601
+  `submission_timestamp`, or (for `TokenTransfer`/`Mint`/`Burn`) no valid
+  `amount` and `token_id` makes the whole page a malformed response
+  (`EXPLORER_UNAVAILABLE`); it is never dropped silently.
 - **Local** — transactions this CLI submitted and recorded under `~/.fast`
   (including bridge routes and token operations), limited to entries that
   involve the account.
@@ -1708,7 +1712,10 @@ when all of these hold:
 - its `submission_timestamp` is at or after `--since`.
 
 If several match, the earliest is returned. Explorer errors during polling
-(timeout, HTTP error, malformed response) are retried until the deadline. The
+(timeout, HTTP error, malformed response) are retried until the deadline. If
+the last poll did not complete (it failed, or the deadline interrupted a request
+still in flight), the `PAYMENT_TIMEOUT` message says so, because a payment may
+then have arrived unseen. The
 `--since` default is the moment the command starts, compared with the
 explorer's submission time; pass an explicit `--since` when the payment may
 already have been sent.

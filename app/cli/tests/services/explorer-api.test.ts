@@ -94,19 +94,102 @@ describe('parseExplorerTransfersResponse', () => {
     expect(parseExplorerTransfersResponse({ data: [] })).toBe('response has no "transfers" array');
   });
 
-  it('drops malformed rows and keeps paging fields', () => {
+  it('keeps paging fields for a well-formed page', () => {
     const page = parseExplorerTransfersResponse({
-      transfers: [rawTransfer(), { hash: 'nope' }, rawTransfer({ submission_timestamp: 'never' }), 42],
+      transfers: [rawTransfer(), rawTransfer({ hash: hashOf(2), type: 'ExternalClaim', amount: undefined, token_id: undefined })],
       has_more: true,
       next_cursor: 'abc',
     });
     if (typeof page === 'string') throw new Error(page);
-    expect(page.rows).toHaveLength(1);
+    expect(page.rows).toHaveLength(2);
     expect(page.hasMore).toBe(true);
     expect(page.nextCursor).toBe('abc');
   });
 
-  it('drops rows without a 32-byte hash or with a sender/recipient that is not a Fast address', () => {
+  it('accepts real explorer rows of every type seen on mainnet (captured 2026-10-02)', () => {
+    const real = [
+      {
+        hash: '0x5ce61e871b65ca16ba0268033179bc97373800e37b00c92384ca190ff3911312',
+        from: 'fast19tmxy0pxjcz7qcf6ljh9qc774seg3vq4wwgmceutmy6el2pvehmsm9ju9y',
+        to: 'fast19tmxy0pxjcz7qcf6ljh9qc774seg3vq4wwgmceutmy6el2pvehmsm9ju9y',
+        nonce: 0,
+        submission_timestamp: '2026-03-21T07:07:54.690331Z',
+        type: 'TokenCreation',
+        op_index: 0,
+        token_id: '0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
+        amount: '0',
+      },
+      {
+        hash: '0x0bb6334ae98b9d6d97b52031785bd2036cc3096e17e4e1ca0c046becfcd19108',
+        from: 'fast19tmxy0pxjcz7qcf6ljh9qc774seg3vq4wwgmceutmy6el2pvehmsm9ju9y',
+        to: 'fast1chp8tv980ra7kjxttt5letd3rghfw3gkzdre9x9c73pkvg3gu5nqq5lhmp',
+        nonce: 2,
+        submission_timestamp: '2026-03-22T14:24:09.316189Z',
+        type: 'TokenTransfer',
+        op_index: 0,
+        token_id: '0x3dd3a74b4228142da11d308ccb52377f1b9e8c1e834ddf29b0eb6695c3616bdd',
+        amount: 'f4240',
+      },
+      {
+        hash: '0x3d704bbeb425f43fa6f7e510fb74fca3034f3e96fdd080e1931fd83137579887',
+        from: 'fast19tmxy0pxjcz7qcf6ljh9qc774seg3vq4wwgmceutmy6el2pvehmsm9ju9y',
+        to: 'fast19tmxy0pxjcz7qcf6ljh9qc774seg3vq4wwgmceutmy6el2pvehmsm9ju9y',
+        nonce: 5,
+        submission_timestamp: '2026-03-23T02:35:10.807534Z',
+        type: 'TokenManagement',
+        op_index: 0,
+        token_id: '0x3dd3a74b4228142da11d308ccb52377f1b9e8c1e834ddf29b0eb6695c3616bdd',
+      },
+      {
+        hash: '0xca23edc6e791dbbb820ffd172f37500d9afa0eef39ccc6f6a6fca0cc5e57728b',
+        from: 'fast1yvdnfx2c6urkp0dgq0cuxcl02lyvddw0crl96l7qvchka5nrqrksw88cnv',
+        to: 'fast1yvdnfx2c6urkp0dgq0cuxcl02lyvddw0crl96l7qvchka5nrqrksw88cnv',
+        nonce: 0,
+        submission_timestamp: '2026-03-23T03:54:58.858292Z',
+        type: 'ExternalClaim',
+        op_index: 0,
+      },
+      {
+        hash: '0x32f11982d409f3eb8d7ea96580c43c866e2d982a7b531155c42cb3659cf9bca8',
+        from: 'fast17lqf2st89vqwm9yrgv2nhzx0mznqe0uukglkcl55lmecsgq9247qej58nf',
+        to: 'fast1v4r7z3z5mfmaxqs7pwcy32dv0sdstdwajxkuezklvmx8zxjw4j8qjq3k8y',
+        nonce: 123,
+        submission_timestamp: '2026-09-30T16:56:18.638810Z',
+        type: 'Mint',
+        op_index: 0,
+        token_id: '0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
+        amount: '7a120',
+      },
+      {
+        hash: '0xf2ea8b520fc41243df67bee0f139a8e2889857bdf4486515b3fceedf53c9710b',
+        from: 'fast17lqf2st89vqwm9yrgv2nhzx0mznqe0uukglkcl55lmecsgq9247qej58nf',
+        to: 'fast17lqf2st89vqwm9yrgv2nhzx0mznqe0uukglkcl55lmecsgq9247qej58nf',
+        nonce: 122,
+        submission_timestamp: '2026-09-30T16:55:38.337474Z',
+        type: 'Burn',
+        op_index: 0,
+        token_id: '0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
+        amount: '7a120',
+      },
+    ];
+    const page = parseExplorerTransfersResponse({ transfers: real, has_more: false, next_cursor: null });
+    if (typeof page === 'string') throw new Error(page);
+    expect(page.rows.map((r) => r.type)).toEqual(['TokenCreation', 'TokenTransfer', 'TokenManagement', 'ExternalClaim', 'Mint', 'Burn']);
+    expect(page.rows[4]!.amount).toBe(500_000n);
+  });
+
+  it('rejects the whole page when any row is malformed, naming the row', () => {
+    const at = (bad: unknown) => parseExplorerTransfersResponse({ transfers: [rawTransfer(), bad], has_more: false, next_cursor: null });
+    expect(at(42)).toBe('transfer row 1 is not an object');
+    expect(at({ hash: 'nope' })).toBe('transfer row 1 has no 32-byte "hash"');
+    expect(at(rawTransfer({ submission_timestamp: 'never' }))).toBe('transfer row 1 has no ISO 8601 "submission_timestamp"');
+    expect(at(rawTransfer({ type: 'TokenTransfer', amount: undefined }))).toBe(
+      'transfer row 1 is a TokenTransfer without a valid "amount" and "token_id"',
+    );
+    expect(at(rawTransfer({ type: 'Mint', token_id: 'xyz' }))).toBe('transfer row 1 is a Mint without a valid "amount" and "token_id"');
+  });
+
+  it('rejects rows without a 32-byte hash or with a sender/recipient that is not a Fast address', () => {
     const evm = `0x${'aa'.repeat(20)}`;
     const wrongPrefix = 'tfast1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsmkez2q';
     const malformed = [
@@ -119,11 +202,13 @@ describe('parseExplorerTransfersResponse', () => {
       rawTransfer({ from: wrongPrefix }),
       rawTransfer({ from: `${LEO.slice(0, -1)}x` }), // bad checksum
     ];
-    const page = parseExplorerTransfersResponse({ transfers: [...malformed, rawTransfer()], has_more: false, next_cursor: null });
-    if (typeof page === 'string') throw new Error(page);
-    expect(page.rows).toHaveLength(1);
-    expect(page.rows[0]!.hash).toBe(hashOf(1));
-    expect(page.rows[0]!.from).toBe(LEO);
+    for (const row of malformed) {
+      const page = parseExplorerTransfersResponse({ transfers: [rawTransfer(), row], has_more: false, next_cursor: null });
+      expect(typeof page, JSON.stringify(row)).toBe('string');
+    }
+    const ok = parseExplorerTransfersResponse({ transfers: [rawTransfer()], has_more: false, next_cursor: null });
+    if (typeof ok === 'string') throw new Error(ok);
+    expect(ok.rows[0]!.from).toBe(LEO);
   });
 
   it('rejects inconsistent paging metadata instead of treating it as the end of the feed', () => {
@@ -193,7 +278,7 @@ describe('normalizeTransfer', () => {
     const rows = [
       rawTransfer({ type: 'ExternalClaim', from: ME, to: ME, amount: undefined, token_id: undefined }),
       rawTransfer({ type: 'ExternalClaim', amount: null, token_id: null }),
-      rawTransfer({ type: 'TokenTransfer', amount: undefined }),
+      rawTransfer({ type: 'TokenCreation', amount: undefined, token_id: undefined }),
       rawTransfer({ type: 'SomethingNew' }),
       rawTransfer({ from: LEO, to: OTHER }),
     ];
@@ -276,7 +361,7 @@ describe('ExplorerApiLive', () => {
     expect(fetchMock.mock.calls[0]![1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it('never turns a malformed row into a transfer, so it cannot be taken for a payment', async () => {
+  it('reports a page with a malformed row as EXPLORER_UNAVAILABLE, so it cannot be taken for a payment or a complete page', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -293,8 +378,9 @@ describe('ExplorerApiLive', () => {
 
     const exit = await run({ address: ME, side: 'to' });
 
-    if (exit._tag !== 'Success') throw new Error(String(exit.cause));
-    expect(exit.value.transfers).toEqual([]);
+    if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected a typed failure');
+    expect(exit.cause.error).toBeInstanceOf(ExplorerUnavailableError);
+    expect((exit.cause.error as ExplorerUnavailableError).reason).toBe('transfer row 0 has no 32-byte "hash"');
   });
 
   it('reports a page with "has_more" but no cursor as EXPLORER_UNAVAILABLE', async () => {

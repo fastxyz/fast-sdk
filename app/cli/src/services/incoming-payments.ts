@@ -24,6 +24,9 @@ export const RESCAN_OVERLAP_MS = 5 * 60_000;
  */
 export const FULL_RESCAN_INTERVAL_MS = 30_000;
 
+/** Reported when the wait times out while an explorer request is still in progress. */
+export const POLL_IN_FLIGHT = 'the explorer had not answered yet when the time ran out';
+
 export interface IncomingPaymentCriteria {
   /** fast1… address that must receive the payment. */
   readonly address: string;
@@ -146,6 +149,9 @@ export const waitForIncoming = (
     const interval = Duration.millis(options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS);
 
     const poll = Effect.gen(function* () {
+      // Marked before the requests: if the deadline interrupts them mid-flight,
+      // the timeout error says so instead of implying the explorer was read.
+      yield* Ref.set(lastError, POLL_IN_FLIGHT);
       const now = yield* Clock.currentTimeMillis;
       const state = yield* Ref.get(progress);
       const full = now - state.lastFullScanMs >= FULL_RESCAN_INTERVAL_MS || deadlineMs - now <= FULL_RESCAN_INTERVAL_MS;

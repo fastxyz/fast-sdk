@@ -179,22 +179,34 @@ export const parseIsoTimestamp = (value: unknown): number | null => {
 
 const normalizeHex = (value: string): string => `0x${value.replace(/^0x/i, '').toLowerCase()}`;
 
-const parseRow = (raw: unknown): ExplorerTransferRow | null => {
-  if (raw === null || typeof raw !== 'object') return null;
+/**
+ * Validate one row. Every row needs a 32-byte transaction hash, Fast addresses
+ * as sender and recipient, and an ISO 8601 submission time; a value-moving row
+ * (TokenTransfer, Mint, Burn) also needs a hex amount and a 32-byte token id.
+ * Returns the reason when the row is malformed. Rows of other types (e.g.
+ * `ExternalClaim`) need no amount and are filtered out later by normalizeTransfer.
+ */
+const parseRow = (raw: unknown): ExplorerTransferRow | string => {
+  if (raw === null || typeof raw !== 'object') return 'is not an object';
   const r = raw as Record<string, unknown>;
-  // A row must carry a real transaction hash and real Fast addresses before it
-  // can be shown, let alone accepted as a payment; malformed rows are dropped.
-  if (typeof r.hash !== 'string' || !HEX_HASH.test(r.hash)) return null;
-  if (!isFastAddress(r.from) || !isFastAddress(r.to)) return null;
+  if (typeof r.hash !== 'string' || !HEX_HASH.test(r.hash)) return 'has no 32-byte "hash"';
+  if (!isFastAddress(r.from)) return 'has a "from" that is not a Fast address';
+  if (!isFastAddress(r.to)) return 'has a "to" that is not a Fast address';
   const timestampMs = parseIsoTimestamp(r.submission_timestamp);
-  if (timestampMs === null) return null;
+  if (timestampMs === null) return 'has no ISO 8601 "submission_timestamp"';
+  const type = typeof r.type === 'string' ? r.type : '';
+  const tokenId = typeof r.token_id === 'string' && HEX_TOKEN_ID.test(r.token_id) ? normalizeHex(r.token_id) : null;
+  const amount = parseExplorerAmount(r.amount);
+  if ((VALUE_TRANSFER_TYPES as readonly string[]).includes(type) && (amount === null || tokenId === null)) {
+    return `is a ${type} without a valid "amount" and "token_id"`;
+  }
   return {
     hash: normalizeHex(r.hash),
     from: r.from,
     to: r.to,
-    type: typeof r.type === 'string' ? r.type : '',
-    tokenId: typeof r.token_id === 'string' && HEX_TOKEN_ID.test(r.token_id) ? normalizeHex(r.token_id) : null,
-    amount: parseExplorerAmount(r.amount),
+    type,
+    tokenId,
+    amount,
     opIndex: typeof r.op_index === 'number' && Number.isInteger(r.op_index) ? r.op_index : 0,
     timestampMs,
   };
@@ -202,7 +214,9 @@ const parseRow = (raw: unknown): ExplorerTransferRow | null => {
 
 /**
  * Validate a `/explorer/transfers` response body. Fails (returns a reason string)
- * when the envelope is not the documented shape; individual malformed rows are dropped.
+ * when the envelope or any row is malformed: a page with a broken row is not a
+ * complete answer (the broken row could be the payment being waited for), so it
+ * surfaces as EXPLORER_UNAVAILABLE rather than being silently shortened.
  */
 export const parseExplorerTransfersResponse = (body: unknown): ExplorerRowsPage | string => {
   if (body === null || typeof body !== 'object') return 'response is not a JSON object';
@@ -216,7 +230,12 @@ export const parseExplorerTransfersResponse = (body: unknown): ExplorerRowsPage 
   }
   const nextCursor = typeof b.next_cursor === 'string' && b.next_cursor.length > 0 ? b.next_cursor : null;
   if (b.has_more && nextCursor === null) return 'response says "has_more" but has no "next_cursor"';
-  const rows = b.transfers.map(parseRow).filter((row): row is ExplorerTransferRow => row !== null);
+  const rows: ExplorerTransferRow[] = [];
+  for (const [index, raw] of b.transfers.entries()) {
+    const row = parseRow(raw);
+    if (typeof row === 'string') return `transfer row ${index} ${row}`;
+    rows.push(row);
+  }
   return { rows, hasMore: b.has_more, nextCursor };
 };
 

@@ -1,7 +1,7 @@
 import { Duration, Effect, Exit, Fiber, TestClock, TestContext } from 'effect';
 import { describe, expect, it } from 'vitest';
 import { ExplorerNotConfiguredError, ExplorerUnavailableError, PaymentTimeoutError } from '../../src/errors/index.js';
-import { findIncomingPayment, matchesIncomingPayment, waitForIncoming } from '../../src/services/incoming-payments.js';
+import { findIncomingPayment, matchesIncomingPayment, POLL_IN_FLIGHT, waitForIncoming } from '../../src/services/incoming-payments.js';
 import {
   BRIDGE,
   hashOf,
@@ -314,6 +314,23 @@ describe('waitForIncoming', () => {
     expect(exit.cause.error).toBeInstanceOf(PaymentTimeoutError);
     expect(exit.cause.error.message).toContain('a payment may have arrived unseen: request timed out after 10s');
     expect(exit.cause.error.message).toContain(`${100_000n} base units of token ${TESTUSDC_ID} to ${ME} since ${SINCE.toISOString()}`);
+  });
+
+  it('says the explorer had not answered when the deadline interrupts a request in flight', async () => {
+    // The explorer never answers; the overall timeout (5 s) fires before the 10 s request timeout would.
+    const explorer = mockExplorer(() => Effect.never);
+
+    const exit = await run(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(waitForIncoming({ ...criteria, timeoutMs: 5_000 }).pipe(Effect.provide(explorer.layer)));
+        yield* TestClock.adjust(Duration.seconds(5));
+        return yield* Fiber.join(fiber);
+      }),
+    );
+
+    if (!Exit.isFailure(exit) || exit.cause._tag !== 'Fail') throw new Error('expected failure');
+    expect(exit.cause.error).toBeInstanceOf(PaymentTimeoutError);
+    expect(exit.cause.error.message).toContain(`The last explorer poll did not complete, so a payment may have arrived unseen: ${POLL_IN_FLIGHT}`);
   });
 
   it('only accepts payments at or after `since` and from the expected sender', async () => {

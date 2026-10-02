@@ -44,7 +44,7 @@ export class PaymentTimeoutError extends Data.TaggedError(
   /** Human description of the payment that was expected. */
   readonly expected: string;
   readonly timeoutSeconds: number;
-  /** Last explorer error seen while polling, when the final poll failed. */
+  /** Why the final explorer poll did not complete (an error, or still in flight at the deadline). */
   readonly lastError?: string;
 }> {
   readonly exitCode = 1 as const;
@@ -52,7 +52,7 @@ export class PaymentTimeoutError extends Data.TaggedError(
   get message() {
     const base = `No matching payment arrived within ${this.timeoutSeconds}s (expected ${this.expected}).`;
     return this.lastError
-      ? `${base} The last explorer poll failed, so a payment may have arrived unseen: ${this.lastError}`
+      ? `${base} The last explorer poll did not complete, so a payment may have arrived unseen: ${this.lastError}`
       : base;
   }
 }

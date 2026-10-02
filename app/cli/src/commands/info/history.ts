@@ -39,10 +39,19 @@ export type HistoryRow = HistoryEntry & {
   readonly source: 'network' | 'local';
 };
 
-/** Local history is small; read it whole and filter in memory so merged paging stays exact. */
-const LOCAL_SCAN_LIMIT = 1_000_000;
-/** Upper bound on explorer pages read per side, to keep one call bounded. */
-const MAX_NETWORK_PAGES = 10;
+/** Local entries are read newest-first in batches of this size, stopping once a page's worth has matched. */
+const LOCAL_BATCH = 200;
+/**
+ * Extra local matches read beyond `offset + limit`, so a network transfer near
+ * the page boundary still finds the local entry for the same transaction (their
+ * timestamps can differ slightly) and is shown once.
+ */
+const LOCAL_DEDUPE_SLACK = 20;
+/**
+ * Explorer pages read per side beyond the ones `offset + limit` needs, for rows
+ * the filters drop. Bounds a filter that matches nothing on a busy account.
+ */
+const EXTRA_NETWORK_PAGES = 20;
 
 function inferRoute(entry: { route: 'fast' | 'evm-to-fast' | 'fast-to-evm'; from: string; to: string }): 'fast' | 'evm-to-fast' | 'fast-to-evm' {
   if (entry.route !== 'fast') return entry.route;
@@ -187,17 +196,25 @@ export const infoHistory: Command<InfoHistoryArgs> = {
       const network = yield* networkConfig.resolve(config.network);
       const tokenMatches = makeTokenMatcher(args.token, network);
 
+      const needed = offset + limit;
+
       // ── Local entries (everything this CLI submitted) ─────────────────────
-      const localEntries = yield* history.list({ limit: LOCAL_SCAN_LIMIT, offset: 0 });
-      const localRows: HistoryRow[] = localEntries.flatMap((entry): HistoryRow[] => {
-        const d = Option.isSome(account) ? localDirection(entry, account.value) : recordedDirection(entry);
-        if (d === undefined || !wantDirection(d) || !matchesParty(entry) || !tokenMatches(entry.tokenName, entry.tokenId)) return [];
-        return [{ ...entry, direction: d, source: 'local' }];
-      });
+      // Read newest-first in batches and stop once enough have matched for this
+      // page (plus a little slack for de-duplication), instead of loading the
+      // whole log.
+      const localRows: HistoryRow[] = [];
+      for (let scanned = 0; ; scanned += LOCAL_BATCH) {
+        const batch = yield* history.list({ limit: LOCAL_BATCH, offset: scanned });
+        for (const entry of batch) {
+          const d = Option.isSome(account) ? localDirection(entry, account.value) : recordedDirection(entry);
+          if (d === undefined || !wantDirection(d) || !matchesParty(entry) || !tokenMatches(entry.tokenName, entry.tokenId)) continue;
+          localRows.push({ ...entry, direction: d, source: 'local' });
+        }
+        if (batch.length < LOCAL_BATCH || localRows.length >= needed + LOCAL_DEDUPE_SLACK) break;
+      }
 
       // ── Network transfers (incoming and outgoing, from the explorer) ──────
       let networkRows: HistoryRow[] = [];
-      const needed = offset + limit;
       if (localOnly) {
         // --local: the network is not consulted.
       } else if (Option.isNone(account)) {
@@ -214,16 +231,20 @@ export const infoHistory: Command<InfoHistoryArgs> = {
           return direction !== 'out' && (args.to === undefined || sameAddress(args.to, address));
         });
 
+        // Enough pages to reach `offset + limit` rows, plus room for rows the
+        // filters drop, so deep `--offset` values still reach older transfers.
+        const pageSize = Math.min(EXPLORER_MAX_PAGE_SIZE, Math.max(needed, 50));
+        const maxPages = Math.ceil(needed / pageSize) + EXTRA_NETWORK_PAGES;
         const collect = (side: 'from' | 'to') =>
           Effect.gen(function* () {
             const kept: NetworkTransfer[] = [];
             let cursor: string | null = null;
-            for (let page = 0; page < MAX_NETWORK_PAGES; page++) {
+            for (let page = 0; page < maxPages; page++) {
               const result: ExplorerTransfersPage = yield* explorer.listTransfers({
                 address,
                 side,
                 order: 'desc',
-                limit: Math.min(EXPLORER_MAX_PAGE_SIZE, Math.max(needed, 50)),
+                limit: pageSize,
                 cursor,
               });
               kept.push(...result.transfers.filter(keep));
@@ -240,7 +261,9 @@ export const infoHistory: Command<InfoHistoryArgs> = {
           warnings.push(`${fetched.left.message.replace(/\.$/, '')}. Showing local history only; incoming payments may be missing.`);
         } else {
           if (fetched.right.some((r) => r.truncated)) {
-            warnings.push(`Network history was cut off after ${MAX_NETWORK_PAGES} pages per direction; narrow the filters to see older transfers.`);
+            warnings.push(
+              `Network history was cut off after ${maxPages} pages per direction before enough transfers matched the filters; older matching transfers may be missing.`,
+            );
           }
           // A local entry with the same Fast transaction hash wins (it keeps the
           // bridge route and status); the from/to feeds overlap on self transfers.

@@ -55,7 +55,7 @@ export const waitForPayment: Command<WaitForPaymentArgs> = {
         if (parsed === null) {
           return yield* Effect.fail(
             new InvalidUsageError({
-              message: `--since "${args.since}" is not an ISO 8601 timestamp (e.g. 2026-10-02T12:00:00Z).`,
+              message: `--since "${args.since}" is not a valid ISO 8601 time (e.g. 2026-10-02T12:00:00Z; impossible dates such as 2026-02-30 are rejected).`,
             }),
           );
         }

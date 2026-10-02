@@ -9,11 +9,24 @@ export interface ResolvedToken {
 }
 
 /**
+ * Look a token symbol up in a `tokens` map: an exact key first, then a
+ * case-insensitive match (SPEC §7, e.g. "usdc" → "USDC").
+ */
+function findTokenKey(tokens: Record<string, unknown>, tokenName: string): string | undefined {
+  if (Object.hasOwn(tokens, tokenName)) return tokenName;
+  const wanted = tokenName.toLowerCase();
+  return Object.keys(tokens).find((key) => key.toLowerCase() === wanted);
+}
+
+/**
  * Map a token name to its on-Fast id, decimals, and (when bridging) EVM address.
  *
  * - With chain context (bridge route): only chain-scoped `allSet.chains[chain].tokens` is consulted.
  * - Without chain context (Fast→Fast): `network.defaultToken` is consulted first,
  *   then chain-scoped tokens.
+ *
+ * Symbols match exactly first; failing that, case-insensitively (SPEC §7), so
+ * `usdc` resolves like `USDC` and `fastusd` like `fastUSD`.
  */
 export function resolveToken(
   tokenName: string,
@@ -26,7 +39,8 @@ export function resolveToken(
     if (!allset) throw new TokenNotFoundError({ token: tokenName });
     const chainConfig = allset.chains[chain];
     if (!chainConfig) throw new UnsupportedChainError({ chain });
-    const token = chainConfig.tokens[tokenName];
+    const key = findTokenKey(chainConfig.tokens, tokenName);
+    const token = key === undefined ? undefined : chainConfig.tokens[key];
     if (!token) throw new TokenNotFoundError({ token: tokenName });
     return {
       fastTokenId: fromHex(token.fastTokenId),
@@ -35,21 +49,25 @@ export function resolveToken(
     };
   }
 
-  // No chain context (Fast → Fast):
-  // 1) Match against network.defaultToken (handles fastUSD on mainnet, testUSDC on testnet).
+  // No chain context (Fast → Fast). Exact matches win over case-insensitive ones.
   const def = networkConfig.defaultToken;
-  if (def && def.symbol === tokenName) {
-    return {
-      fastTokenId: fromHex(def.tokenId),
-      decimals: def.decimals,
-    };
-  }
+  const chains = Object.values(networkConfig.allSet?.chains ?? {});
+  for (const exact of [true, false]) {
+    const same = (symbol: string) =>
+      exact ? symbol === tokenName : symbol.toLowerCase() === tokenName.toLowerCase();
 
-  // 2) Fall back to scanning chain-scoped tokens (handles testUSDC, USDC, etc.).
-  const allset = networkConfig.allSet;
-  if (allset) {
-    for (const chainConfig of Object.values(allset.chains)) {
-      const token = chainConfig.tokens[tokenName];
+    // 1) network.defaultToken (fastUSD on mainnet, testUSDC on testnet).
+    if (def && same(def.symbol)) {
+      return {
+        fastTokenId: fromHex(def.tokenId),
+        decimals: def.decimals,
+      };
+    }
+
+    // 2) Chain-scoped tokens (testUSDC, USDC, etc.).
+    for (const chainConfig of chains) {
+      const key = Object.keys(chainConfig.tokens).find(same);
+      const token = key === undefined ? undefined : chainConfig.tokens[key];
       if (token) {
         return { fastTokenId: fromHex(token.fastTokenId), decimals: token.decimals };
       }

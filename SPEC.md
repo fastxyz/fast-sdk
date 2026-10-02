@@ -1012,8 +1012,7 @@ the items in `fast info history`'s `transactions` array:
 
 ```text
 fast info history [--direction <in|out|all>] [--local] [--from <name|address>]
-                  [--to <address>] [--source <chain>] [--dest <chain>]
-                  [--token <value>] [--limit <n>] [--offset <n>]
+                  [--to <address>] [--token <value>] [--limit <n>] [--offset <n>]
 ```
 
 **Description**
@@ -1036,6 +1035,13 @@ favour of the local entry. Results are ordered by timestamp descending; filters
 apply to both sources before `--offset`/`--limit`. Pending bridge entries on the
 returned page are re-checked against the AllSet portal as before.
 
+Both sources are read newest-first and only as far as the page needs. Local
+entries are read in batches of 200 until `offset + limit` (plus 20, for
+de-duplication) have matched or the log ends. Each explorer feed is paged until
+`offset + limit` rows have matched, the feed ends, or it has read the pages
+`offset + limit` needs plus 20 more; in that last case a warning says older
+matching transfers may be missing.
+
 If the explorer API cannot be read, or the network has no `explorerApiUrl`, the
 command still succeeds with local history only and explains why in `warnings`
 (human mode: `Warning: …` on stderr). Callers must not treat a missing incoming
@@ -1057,8 +1063,6 @@ stays empty.
 | `--local` | boolean | no | `false` | List only local entries, without calling the explorer API; every local account unless `--account` is given. |
 | `--from` | string | no | — | Filter by sender address. |
 | `--to` | string | no | — | Filter by recipient (Fast or EVM address). |
-| `--source` | string | no | — | Filter by source network/chain. |
-| `--dest` | string | no | — | Filter by destination network/chain. |
 | `--token` | string | no | — | Filter by token symbol (case-insensitive) or token ID; a symbol also matches the token ID it resolves to on the current network. See [Token Resolution](#7-token-resolution-rules). |
 | `--limit` | integer | no | `20` | Max number of records to return. |
 | `--offset` | integer | no | `0` | Number of records to skip. Use with `--limit` for pagination. |
@@ -1678,7 +1682,10 @@ print it. Read-only: no signing, no password.
 
 The CLI polls the explorer API's incoming feed for the watched address
 (`GET {explorerApiUrl}/explorer/transfers?to=<address>&order=desc&limit=50`,
-following `next_cursor` back to `--since`) every 2 seconds. A transfer matches
+following `next_cursor` back to `--since`) every 2 seconds. There is no page
+cap; the timeout bounds the work. After a poll has read back to its floor, the
+next poll only reads back to the newest row it saw minus 5 minutes (never before
+`--since`), so rows the indexer publishes slightly late are still read. A transfer matches
 when all of these hold:
 
 - its type is `TokenTransfer` or `Mint` (an EVM → Fast deposit);
@@ -1702,7 +1709,7 @@ already have been sent.
 | `--token` | string | no | `network.defaultToken.symbol` | Token symbol or token ID. A token ID not in the network config gets its decimals from the Fast RPC. |
 | `--from` | string | no | — | Only accept a payment sent by this `fast1...` address. |
 | `--to` | string | no | active account | `fast1...` address to watch. |
-| `--since` | string | no | command start | ISO 8601 time; only payments submitted at or after it match. Times without a zone are UTC. |
+| `--since` | string | no | command start | ISO 8601 time (`YYYY-MM-DD`, optionally `THH:MM[:SS[.fff]]` and `Z` or `±HH:MM`); only payments submitted at or after it match. Times without a zone are UTC. Other formats and impossible dates (`2026-02-30`) are rejected with `INVALID_USAGE`. |
 | `--timeout` | integer | no | `300` | Seconds to wait before failing with `PAYMENT_TIMEOUT`. |
 
 **Output (`--json`)**

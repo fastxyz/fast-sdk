@@ -210,7 +210,16 @@ describe('fast wait-for-payment', () => {
     [{ amount: 'ten' }, InvalidAmountError, 'Invalid amount "ten". Expected a positive number (e.g., 10 or 1.5).'],
     [{ amount: '1', from: 'fast1nope' }, InvalidAddressError, '--from "fast1nope" is not a valid fast1... address.'],
     [{ amount: '1', to: '0x1234' }, InvalidAddressError, '--to "0x1234" is not a valid fast1... address.'],
-    [{ amount: '1', since: 'yesterday' }, InvalidUsageError, '--since "yesterday" is not an ISO 8601 timestamp (e.g. 2026-10-02T12:00:00Z).'],
+    [
+      { amount: '1', since: 'yesterday' },
+      InvalidUsageError,
+      '--since "yesterday" is not a valid ISO 8601 time (e.g. 2026-10-02T12:00:00Z; impossible dates such as 2026-02-30 are rejected).',
+    ],
+    [
+      { amount: '1', since: '2026-02-30' },
+      InvalidUsageError,
+      '--since "2026-02-30" is not a valid ISO 8601 time (e.g. 2026-10-02T12:00:00Z; impossible dates such as 2026-02-30 are rejected).',
+    ],
     [{ amount: '1', timeout: 0 }, InvalidUsageError, '--timeout must be a positive whole number of seconds.'],
     [{ amount: '1', token: 'NOPE' }, TokenNotFoundError, 'Unknown token "NOPE"'],
   ])('rejects bad input %j before polling', async (args, errorClass, message) => {

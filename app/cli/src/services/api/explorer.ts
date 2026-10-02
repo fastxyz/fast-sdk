@@ -83,6 +83,8 @@ export interface ExplorerTransfersPage {
    * skipped (non-value types). Lets callers stop paging once they pass a cutoff.
    */
   readonly oldestTimestampMs: number | null;
+  /** Newest submission time among all rows of this page, including skipped rows. */
+  readonly newestTimestampMs: number | null;
 }
 
 export interface ListTransfersParams {
@@ -111,7 +113,6 @@ export class ExplorerApi extends Context.Tag('ExplorerApi')<ExplorerApi, Explore
 const HEX_AMOUNT = /^(0x)?[0-9a-fA-F]+$/;
 const HEX_TOKEN_ID = /^(0x)?[0-9a-fA-F]{64}$/;
 const HEX_HASH = /^(0x)?[0-9a-fA-F]+$/;
-const HAS_TIMEZONE = /(Z|[+-]\d{2}:?\d{2})$/i;
 
 /** Parse the explorer's amount encoding: hex base units, normally without a `0x` prefix (`186a0` = 100000). */
 export const parseExplorerAmount = (value: unknown): bigint | null => {
@@ -121,10 +122,45 @@ export const parseExplorerAmount = (value: unknown): bigint | null => {
   return BigInt(trimmed.startsWith('0x') ? trimmed : `0x${trimmed}`);
 };
 
-/** Parse an ISO 8601 timestamp (any fractional precision) to epoch ms; strings without a zone are read as UTC. */
+/**
+ * `YYYY-MM-DD`, optionally followed by `THH:MM`, `:SS`, a fraction of any
+ * precision, and a zone (`Z` or `±HH:MM` / `±HHMM`).
+ */
+const ISO_8601 = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?(Z|[+-]\d{2}:?\d{2})?$/i;
+
+/**
+ * Parse an ISO 8601 timestamp (any fractional precision) to epoch ms; strings
+ * without a zone are read as UTC. Strict: other formats (`10/02/2026`) and
+ * impossible dates or times (`2026-02-30`, `24:00`) are rejected rather than
+ * normalized, so a typo cannot silently shift the time.
+ */
 export const parseIsoTimestamp = (value: unknown): number | null => {
-  if (typeof value !== 'string' || value.length === 0) return null;
-  const ms = Date.parse(HAS_TIMEZONE.test(value) ? value : `${value}Z`);
+  if (typeof value !== 'string') return null;
+  const m = ISO_8601.exec(value.trim());
+  if (!m) return null;
+  const [year, month, day, hour, minute, second] = [m[1], m[2], m[3], m[4], m[5], m[6]].map((part) => Number(part ?? 0)) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  const millis = Number((m[7] ?? '').slice(0, 3).padEnd(3, '0'));
+  if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) return null;
+  // Day must exist in that month (Date.UTC would roll 2026-02-30 over to March 2).
+  if (day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return null;
+  let offsetMinutes = 0;
+  const zone = m[8];
+  if (zone !== undefined && zone.toUpperCase() !== 'Z') {
+    const sign = zone.startsWith('-') ? -1 : 1;
+    const digits = zone.slice(1).replace(':', '');
+    const zoneHours = Number(digits.slice(0, 2));
+    const zoneMinutes = Number(digits.slice(2, 4));
+    if (zoneHours > 23 || zoneMinutes > 59) return null;
+    offsetMinutes = sign * (zoneHours * 60 + zoneMinutes);
+  }
+  const ms = Date.UTC(year, month - 1, day, hour, minute, second, millis) - offsetMinutes * 60_000;
   return Number.isFinite(ms) ? ms : null;
 };
 
@@ -251,6 +287,7 @@ export const listTransfersOn = (
       hasMore: page.hasMore,
       nextCursor: page.nextCursor,
       oldestTimestampMs: page.rows.length === 0 ? null : Math.min(...page.rows.map((row) => row.timestampMs)),
+      newestTimestampMs: page.rows.length === 0 ? null : Math.max(...page.rows.map((row) => row.timestampMs)),
     })),
   );
 };

@@ -115,10 +115,17 @@ const runHistory = async (
 ) => {
   const captured: Captured = { tables: [], results: [], warnings: [], statusUpdates: [] };
   const accountLookups: Array<Option.Option<string>> = [];
+  const listCalls: Array<{ limit?: number; offset?: number }> = [];
   const explorer = opts.explorer ?? defaultFeed;
   const layer = Layer.mergeAll(
     Layer.succeed(HistoryStore, {
-      list: () => Effect.succeed(opts.entries ?? localEntries),
+      // Like the SQLite store: newest first, honouring limit/offset.
+      list: (filters: { limit?: number; offset?: number }) =>
+        Effect.sync(() => {
+          listCalls.push({ limit: filters.limit, offset: filters.offset });
+          const offset = filters.offset ?? 0;
+          return (opts.entries ?? localEntries).slice(offset, offset + (filters.limit ?? 20));
+        }),
       updateStatus: (hash: string, status: string) => Effect.sync(() => void captured.statusUpdates.push([hash, status])),
     } as never),
     Layer.succeed(NetworkConfigService, { resolve: () => Effect.succeed(opts.network ?? testnet) } as never),
@@ -148,7 +155,7 @@ const runHistory = async (
   );
   await Effect.runPromise(infoHistory.handler({ limit: 20, offset: 0, direction: 'all', ...args } as never).pipe(Effect.provide(layer)));
   const result = captured.results[0]!;
-  return { ...captured, result, hashes: result.transactions.map((t) => t.hash), calls: explorer.calls, accountLookups };
+  return { ...captured, result, hashes: result.transactions.map((t) => t.hash), calls: explorer.calls, accountLookups, listCalls };
 };
 
 beforeEach(() => {
@@ -359,6 +366,80 @@ describe('info history (network + local)', () => {
       '2026-10-02T03:00:00.123Z',
       'network',
     ]);
+  });
+});
+
+describe('info history paging', () => {
+  const manyLocal = (n: number, overrides: Partial<HistoryEntry> = {}) =>
+    Array.from({ length: n }, (_, i) =>
+      entry({ hash: hashOf(10_000 + i), timestamp: new Date(Date.parse('2026-10-01T00:00:00Z') - i * 1000).toISOString(), ...overrides }),
+    );
+
+  it('reads the local log in batches and stops once the page is covered', async () => {
+    const entries = manyLocal(1000);
+
+    const { hashes, listCalls } = await runHistory({}, { entries, explorer: mockExplorer(() => Effect.succeed(page([]))) });
+
+    expect(listCalls).toEqual([{ limit: 200, offset: 0 }]);
+    expect(hashes).toHaveLength(20);
+    expect(hashes[0]).toBe(hashOf(10_000));
+  });
+
+  it('keeps reading batches while the filters drop entries, and stops at the end of the log', async () => {
+    // 450 entries from another account (not shown for this account), then 5 of ours.
+    const entries = [
+      ...manyLocal(450, { from: OTHER, to: LEO }),
+      ...manyLocal(5).map((e, i) => ({ ...e, hash: hashOf(20_000 + i), timestamp: `2026-09-0${i + 1}T00:00:00.000Z` })),
+    ];
+
+    const { listCalls, result } = await runHistory({}, { entries, explorer: mockExplorer(() => Effect.succeed(page([]))) });
+
+    expect(listCalls).toEqual([
+      { limit: 200, offset: 0 },
+      { limit: 200, offset: 200 },
+      { limit: 200, offset: 400 },
+    ]);
+    expect(result.transactions.filter((t) => t.source === 'local')).toHaveLength(5);
+  });
+
+  it('pages the explorer deep enough for a large --offset', async () => {
+    const pages = 15;
+    const explorer = mockExplorer((params) => {
+      if (params.side === 'from') return Effect.succeed(page([]));
+      const n = params.cursor === null ? 0 : Number(params.cursor);
+      const rows = Array.from({ length: 100 }, (_, i) => {
+        const k = n * 100 + i;
+        return transfersFor(ME, [
+          rawTransfer({ hash: hashOf(50_000 + k), submission_timestamp: new Date(Date.parse('2026-10-02T00:00:00Z') - k * 1000).toISOString() }),
+        ])[0]!;
+      });
+      return Effect.succeed(page(rows, n + 1 < pages ? { hasMore: true, nextCursor: String(n + 1) } : {}));
+    });
+
+    const { hashes, warnings } = await runHistory({ offset: 1000, limit: 100, direction: 'in' }, { entries: [], explorer });
+
+    expect(hashes).toHaveLength(100);
+    expect(hashes[0]).toBe(hashOf(51_000));
+    expect(warnings).toEqual([]);
+  });
+
+  it('stops paging a filter that matches nothing after a bounded number of pages, and says so', async () => {
+    const explorer = mockExplorer((params, call) =>
+      Effect.succeed(
+        page(
+          params.side === 'to'
+            ? [transfersFor(ME, [rawTransfer({ hash: hashOf(60_000 + call), submission_timestamp: '2026-10-02T00:00:00Z' })])[0]!]
+            : [],
+          params.side === 'to' ? { hasMore: true, nextCursor: `c${call}` } : {},
+        ),
+      ),
+    );
+
+    const { result, calls } = await runHistory({ token: UNKNOWN_TOKEN_ID, direction: 'in' }, { entries: [], explorer });
+
+    // limit 20 → page size 50 → 1 page for the rows plus 20 extra.
+    expect(calls.filter((c) => c.side === 'to')).toHaveLength(21);
+    expect(result.warnings[0]).toContain('cut off after 21 pages');
   });
 });
 

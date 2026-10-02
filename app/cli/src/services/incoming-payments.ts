@@ -10,8 +10,12 @@ import { ExplorerApi, type ExplorerTransfersPage, type NetworkTransfer } from '.
 export const DEFAULT_POLL_INTERVAL_MS = 2_000;
 /** Page size for each poll of the recipient's `to=` feed (newest first). */
 export const POLL_PAGE_SIZE = 50;
-/** Upper bound on pages read per poll when walking back to `since`. */
-export const MAX_PAGES_PER_POLL = 10;
+/**
+ * After a complete scan, later polls only walk back to the newest row already
+ * seen minus this margin, so rows the indexer publishes a little late (with an
+ * older submission time) are still read.
+ */
+export const RESCAN_OVERLAP_MS = 5 * 60_000;
 
 export interface IncomingPaymentCriteria {
   /** fast1… address that must receive the payment. */
@@ -52,19 +56,29 @@ export const matchesIncomingPayment = (transfer: NetworkTransfer, criteria: Inco
   (criteria.from === undefined || sameAddress(transfer.from, criteria.from)) &&
   transfer.timestampMs >= criteria.since.getTime();
 
+interface IncomingScan {
+  /** Earliest matching payment among the rows read, if any. */
+  readonly match: NetworkTransfer | undefined;
+  /** Newest submission time among the rows read (null when the feed was empty). */
+  readonly newestMs: number | null;
+}
+
 /**
- * One poll: read the address's incoming feed newest-first, walking back page by
- * page until rows predate `since`, and return the earliest matching payment.
+ * Read the address's incoming feed newest-first, page by page, until rows are
+ * older than `floorMs` or the feed ends. There is no page cap: a busy address
+ * may need many pages to reach the floor, and the caller's timeout bounds the
+ * total work. Returns the earliest matching payment among the rows read.
  */
-export const findIncomingPayment = (
+const scanIncoming = (
   criteria: IncomingPaymentCriteria,
-): Effect.Effect<NetworkTransfer | undefined, ExplorerUnavailableError | ExplorerNotConfiguredError, ExplorerApi> =>
+  floorMs: number,
+): Effect.Effect<IncomingScan, ExplorerUnavailableError | ExplorerNotConfiguredError, ExplorerApi> =>
   Effect.gen(function* () {
     const explorer = yield* ExplorerApi;
-    const sinceMs = criteria.since.getTime();
     let cursor: string | null = null;
     let earliest: NetworkTransfer | undefined;
-    for (let page = 0; page < MAX_PAGES_PER_POLL; page++) {
+    let newestMs: number | null = null;
+    while (true) {
       const result: ExplorerTransfersPage = yield* explorer.listTransfers({
         address: criteria.address,
         side: 'to',
@@ -77,28 +91,52 @@ export const findIncomingPayment = (
           earliest = transfer;
         }
       }
-      const passedSince = result.oldestTimestampMs !== null && result.oldestTimestampMs < sinceMs;
-      if (passedSince || !result.hasMore || result.nextCursor === null) break;
+      if (newestMs === null) newestMs = result.newestTimestampMs;
+      const passedFloor = result.oldestTimestampMs !== null && result.oldestTimestampMs < floorMs;
+      if (passedFloor || !result.hasMore || result.nextCursor === null) break;
       cursor = result.nextCursor;
     }
-    return earliest;
+    return { match: earliest, newestMs };
   });
 
 /**
+ * One full poll: read the address's incoming feed back to `since` and return
+ * the earliest matching payment.
+ */
+export const findIncomingPayment = (
+  criteria: IncomingPaymentCriteria,
+): Effect.Effect<NetworkTransfer | undefined, ExplorerUnavailableError | ExplorerNotConfiguredError, ExplorerApi> =>
+  scanIncoming(criteria, criteria.since.getTime()).pipe(Effect.map((scan) => scan.match));
+
+/**
  * Poll the explorer until a payment matching the criteria arrives, or fail with
- * PAYMENT_TIMEOUT after `timeoutMs`. Transient explorer errors are retried until
- * the deadline; a network without an explorer API fails immediately. Sleeping and
- * the deadline use Effect's Clock, so tests can drive this with TestClock.
+ * PAYMENT_TIMEOUT after `timeoutMs`. The first poll reads everything back to
+ * `since`; once a poll has read back to its floor, later polls only read rows
+ * newer than what it saw (minus RESCAN_OVERLAP_MS), so a payment buried under
+ * many newer rows is still found and polls stay cheap. Transient explorer errors
+ * are retried until the deadline; a network without an explorer API fails
+ * immediately. Sleeping and the deadline use Effect's Clock, so tests can drive
+ * this with TestClock.
  */
 export const waitForIncoming = (
   options: WaitForIncomingOptions,
 ): Effect.Effect<NetworkTransfer, PaymentTimeoutError | ExplorerNotConfiguredError, ExplorerApi> =>
   Effect.gen(function* () {
     const lastError = yield* Ref.make<string | undefined>(undefined);
+    const sinceMs = options.since.getTime();
+    // Rows older than the floor were already read by a completed poll.
+    const floor = yield* Ref.make(sinceMs);
     const interval = Duration.millis(options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS);
 
-    const poll = findIncomingPayment(options).pipe(
-      Effect.tap(() => Ref.set(lastError, undefined)),
+    const poll = Ref.get(floor).pipe(
+      Effect.flatMap((floorMs) => scanIncoming(options, floorMs)),
+      Effect.tap((scan) =>
+        Effect.all([
+          Ref.set(lastError, undefined),
+          scan.newestMs === null ? Effect.void : Ref.set(floor, Math.max(sinceMs, scan.newestMs - RESCAN_OVERLAP_MS)),
+        ]),
+      ),
+      Effect.map((scan) => scan.match),
       Effect.catchTag('ExplorerUnavailableError', (error) => Ref.set(lastError, error.reason).pipe(Effect.as(undefined))),
     );
 

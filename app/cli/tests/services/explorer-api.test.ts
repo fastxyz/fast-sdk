@@ -55,6 +55,35 @@ describe('parseIsoTimestamp', () => {
     expect(parseIsoTimestamp('yesterday')).toBeNull();
     expect(parseIsoTimestamp(1790909989705)).toBeNull();
   });
+
+  it('accepts other ISO zone spellings and a minutes-only time', () => {
+    expect(parseIsoTimestamp('2026-10-02T05:00:00+0300')).toBe(Date.UTC(2026, 9, 2, 2));
+    expect(parseIsoTimestamp('2026-10-01T23:30:00-03:00')).toBe(Date.UTC(2026, 9, 2, 2, 30));
+    expect(parseIsoTimestamp('2026-10-02T12:00')).toBe(Date.UTC(2026, 9, 2, 12));
+    expect(parseIsoTimestamp('2024-02-29T00:00:00Z')).toBe(Date.UTC(2024, 1, 29));
+  });
+
+  it('rejects impossible dates and times instead of rolling them over', () => {
+    for (const value of [
+      '2026-02-30',
+      '2025-02-29',
+      '2026-13-01',
+      '2026-00-10',
+      '2026-04-31T00:00:00Z',
+      '2026-10-02T24:00:00Z',
+      '2026-10-02T12:60:00Z',
+      '2026-10-02T12:00:60Z',
+      '2026-10-02T12:00:00+25:00',
+    ]) {
+      expect(parseIsoTimestamp(value), value).toBeNull();
+    }
+  });
+
+  it('rejects non-ISO formats that Date.parse would accept', () => {
+    for (const value of ['10/02/2026', 'Oct 2, 2026', '2026/10/02', 'Fri, 02 Oct 2026 12:00:00 GMT', '2026-10-2', '']) {
+      expect(parseIsoTimestamp(value), value).toBeNull();
+    }
+  });
 });
 
 describe('parseExplorerTransfersResponse', () => {

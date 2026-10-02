@@ -74,8 +74,79 @@ describe('findIncomingPayment', () => {
   });
 });
 
+describe('findIncomingPayment paging', () => {
+  it('keeps paging past many newer rows until it reaches `since` (no page cap)', async () => {
+    // 11 pages of unrelated newer rows, then the payment on page 12.
+    const explorer = mockExplorer((params, call) => {
+      if (call < 11) {
+        const at = new Date(Date.parse('2026-10-02T04:00:00Z') - call * 60_000).toISOString();
+        return Effect.succeed(page([payment(100 + call, at, { amount: '1' })], { hasMore: true, nextCursor: `c${call + 1}` }));
+      }
+      expect(params.cursor).toBe('c11');
+      return Effect.succeed(page([payment(1, '2026-10-02T03:00:01Z')]));
+    });
+
+    const found = await Effect.runPromise(findIncomingPayment(criteria).pipe(Effect.provide(explorer.layer)));
+
+    expect(found?.hash).toBe(hashOf(1));
+    expect(explorer.calls).toHaveLength(12);
+  });
+});
+
 describe('waitForIncoming', () => {
   const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(Effect.exit(effect).pipe(Effect.provide(TestContext.TestContext)));
+
+  it('after a complete scan, later polls only read rows newer than what it saw (minus the overlap)', async () => {
+    const noise = (n: number, at: string) => payment(n, at, { amount: '1' });
+    const explorer = mockExplorer((params, call) => {
+      if (params.cursor === null) {
+        const fresh = call >= 4 ? [payment(1, '2026-10-02T03:31:00Z')] : [];
+        return Effect.succeed(
+          page([...fresh, noise(30, '2026-10-02T03:30:00Z'), noise(24, '2026-10-02T03:24:00Z')], { hasMore: true, nextCursor: 'c1' }),
+        );
+      }
+      if (params.cursor === 'c1') return Effect.succeed(page([noise(10, '2026-10-02T03:10:00Z')], { hasMore: true, nextCursor: 'c2' }));
+      return Effect.succeed(page([noise(2, '2026-10-02T02:59:00Z')], { hasMore: true, nextCursor: 'c3' }));
+    });
+
+    const exit = await run(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(waitForIncoming({ ...criteria, timeoutMs: 60_000 }).pipe(Effect.provide(explorer.layer)));
+        yield* TestClock.adjust(Duration.millis(1));
+        // First poll walks back to `since`: three pages.
+        expect(explorer.calls.map((c) => c.cursor)).toEqual([null, 'c1', 'c2']);
+        yield* TestClock.adjust(Duration.seconds(2));
+        // Second poll: the first page already reaches 03:25 (newest seen 03:30 minus 5 min).
+        expect(explorer.calls.map((c) => c.cursor)).toEqual([null, 'c1', 'c2', null]);
+        yield* TestClock.adjust(Duration.seconds(2));
+        return yield* Fiber.join(fiber);
+      }),
+    );
+
+    if (!Exit.isSuccess(exit)) throw new Error(String(exit.cause));
+    expect(exit.value.hash).toBe(hashOf(1));
+    expect(explorer.calls).toHaveLength(5);
+  });
+
+  it('rescans from `since` after a failed poll instead of skipping rows', async () => {
+    const explorer = mockExplorer((params, call) => {
+      if (call === 1) return Effect.fail(new ExplorerUnavailableError({ reason: 'HTTP 502' }));
+      if (params.cursor === null)
+        return Effect.succeed(page([payment(9, '2026-10-02T03:20:00Z', { amount: '1' })], { hasMore: true, nextCursor: 'c1' }));
+      return Effect.succeed(page(call >= 3 ? [payment(1, '2026-10-02T03:05:00Z')] : [], { hasMore: false }));
+    });
+
+    const exit = await run(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(waitForIncoming({ ...criteria, timeoutMs: 60_000 }).pipe(Effect.provide(explorer.layer)));
+        yield* TestClock.adjust(Duration.seconds(5));
+        return yield* Fiber.join(fiber);
+      }),
+    );
+
+    if (!Exit.isSuccess(exit)) throw new Error(String(exit.cause));
+    expect(exit.value.hash).toBe(hashOf(1));
+  });
 
   it('polls every 2 s until the payment arrives', async () => {
     const explorer = mockExplorer((_params, call) =>

@@ -53,6 +53,7 @@ export const page = (transfers: NetworkTransfer[], extra: Partial<ExplorerTransf
   hasMore: false,
   nextCursor: null,
   oldestTimestampMs: transfers.length === 0 ? null : Math.min(...transfers.map((t) => t.timestampMs)),
+  newestTimestampMs: transfers.length === 0 ? null : Math.max(...transfers.map((t) => t.timestampMs)),
   ...extra,
 });
 

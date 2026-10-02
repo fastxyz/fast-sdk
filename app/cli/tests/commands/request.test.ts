@@ -4,7 +4,7 @@ import path from 'node:path';
 import { parse } from '@optique/core/parser';
 import { Signer } from '@fastxyz/sdk';
 import { bech32, bech32m } from 'bech32';
-import { Effect, Exit, Layer, Option } from 'effect';
+import { Duration, Effect, Exit, Fiber, Layer, Option, TestClock, TestContext } from 'effect';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parser, type RequestArgs } from '../../src/cli.js';
 import { commands } from '../../src/commands/index.js';
@@ -14,6 +14,7 @@ import { ClientConfig } from '../../src/services/config/client.js';
 import { Output, OutputLive } from '../../src/services/output.js';
 import { type AccountInfo, AccountStore } from '../../src/services/storage/account.js';
 import { NetworkConfigService } from '../../src/services/storage/network.js';
+import { FASTUSD_ID, hashOf, LEO, mainnet, mockExplorer, page, rawTransfer, transfersFor } from '../fixtures/explorer.js';
 
 const seed = (value: number) => new Uint8Array(32).fill(value);
 const fastAddressOf = (value: number) => new Signer(seed(value)).getFastAddress();
@@ -397,5 +398,117 @@ describe('fast request registration', () => {
 
   it('is dispatched to the request handler', () => {
     expect(commands.find((c) => c.cmd === 'request')).toBe(request);
+  });
+});
+
+describe('fast request --wait', () => {
+  const REQUESTED_AT = Date.parse('2026-10-02T03:00:00Z');
+  const TEN_FASTUSD = (10_000_000).toString(16);
+
+  const runWait = async (args: Partial<RequestArgs>, opts: { explorer: ReturnType<typeof mockExplorer>; advance?: Duration.DurationInput }) => {
+    const account = await singleAccount();
+    const h: Harness = { lines: [], results: [], accountLookups: [] };
+    const layer = Layer.mergeAll(
+      serviceLayers(h, account),
+      clientConfig({ json: true }),
+      opts.explorer.layer,
+      Layer.succeed(Output, {
+        humanLine: (line: string) => Effect.sync(() => void h.lines.push(line)),
+        ok: (data: unknown) => Effect.sync(() => void h.results.push(data)),
+        fail: () => Effect.void,
+        humanTable: () => Effect.void,
+        debug: () => Effect.void,
+      } as never),
+    );
+    const exit = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(REQUESTED_AT);
+        const fiber = yield* Effect.fork(
+          request.handler({ cmd: 'request', amount: '10', qr: false, wait: true, ...args } as RequestArgs).pipe(Effect.provide(layer)),
+        );
+        if (opts.advance !== undefined) yield* TestClock.adjust(opts.advance);
+        return yield* Fiber.await(fiber);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+    return { exit, h, account };
+  };
+
+  const paymentTo = (address: string, n: number, iso: string, overrides: Record<string, unknown> = {}) =>
+    transfersFor(
+      address,
+      [rawTransfer({ hash: hashOf(n), to: address, token_id: FASTUSD_ID, amount: TEN_FASTUSD, submission_timestamp: iso, ...overrides })],
+      mainnet,
+    )[0]!;
+
+  it('prints the link, then returns it together with the matching payment', async () => {
+    const payee = await fastAddressOf(1);
+    const explorer = mockExplorer(() => Effect.succeed(page([paymentTo(payee, 1, '2026-10-02T03:00:04Z')])));
+
+    const { exit, h } = await runWait({}, { explorer });
+
+    expect(exit._tag).toBe('Success');
+    expect(explorer.calls[0]).toMatchObject({ address: payee, side: 'to', order: 'desc' });
+    const url = `https://app.fast.xyz/send?to=${payee}&amount=10`;
+    expect(h.lines.some((line) => line.includes(url))).toBe(true);
+    expect(h.results).toEqual([
+      {
+        url,
+        address: payee,
+        amount: '10',
+        token: 'fastUSD',
+        network: 'mainnet',
+        createdAt: '2026-10-02T03:00:00.000Z',
+        payment: {
+          hash: hashOf(1),
+          type: 'transfer',
+          from: LEO,
+          to: payee,
+          amount: '10000000',
+          formatted: '10',
+          tokenName: 'fastUSD',
+          tokenId: FASTUSD_ID,
+          timestamp: '2026-10-02T03:00:04.000Z',
+          explorerUrl: `https://explorer.fast.xyz/txs/${hashOf(1)}`,
+        },
+      },
+    ]);
+  });
+
+  it('ignores payments from before the request and other amounts, and keeps polling', async () => {
+    const payee = await fastAddressOf(1);
+    const stale = paymentTo(payee, 1, '2026-10-02T02:59:59Z');
+    const wrongAmount = paymentTo(payee, 2, '2026-10-02T03:00:01Z', { amount: (9_990_000).toString(16) });
+    const good = paymentTo(payee, 3, '2026-10-02T03:00:02Z');
+    const explorer = mockExplorer((_params, call) => Effect.succeed(page(call === 0 ? [wrongAmount, stale] : [good, wrongAmount, stale])));
+
+    const { exit, h } = await runWait({}, { explorer, advance: Duration.seconds(2) });
+
+    expect(exit._tag).toBe('Success');
+    expect(explorer.calls.length).toBe(2);
+    expect((h.results[0] as { payment: { hash: string } }).payment.hash).toBe(hashOf(3));
+  });
+
+  it('times out with PAYMENT_TIMEOUT and repeats the link in the error', async () => {
+    const explorer = mockExplorer(() => Effect.succeed(page([])));
+
+    const { exit, h, account } = await runWait({ timeout: 30 }, { explorer, advance: Duration.seconds(30) });
+
+    const error = failureOf(exit);
+    expect(error.errorCode).toBe('PAYMENT_TIMEOUT');
+    expect(error.message).toContain('within 30s');
+    expect(error.message).toContain(`https://app.fast.xyz/send?to=${account.fastAddress}&amount=10`);
+    expect(h.results).toEqual([]);
+  });
+
+  it('rejects --timeout without --wait, and a non-positive --timeout, before building anything', async () => {
+    const explorer = mockExplorer(() => Effect.succeed(page([])));
+
+    const noWait = await runWait({ wait: false, timeout: 30 }, { explorer });
+    const zero = await runWait({ timeout: 0 }, { explorer });
+
+    expect(failureOf(noWait.exit)).toMatchObject({ errorCode: 'INVALID_USAGE', message: '--timeout only applies with --wait.' });
+    expect(failureOf(zero.exit).errorCode).toBe('INVALID_USAGE');
+    expect(explorer.calls).toEqual([]);
+    expect(noWait.h.results).toEqual([]);
   });
 });

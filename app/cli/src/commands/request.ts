@@ -4,8 +4,18 @@ import { bech32m } from 'bech32';
 import { Clock, Effect, Option } from 'effect';
 import QRCode from 'qrcode';
 import type { RequestArgs } from '../cli.js';
-import { FileIOError, InternalError, InvalidAddressError, InvalidAmountError, InvalidUsageError } from '../errors/index.js';
+import {
+  ExplorerNotConfiguredError,
+  FileIOError,
+  InternalError,
+  InvalidAddressError,
+  InvalidAmountError,
+  InvalidUsageError,
+} from '../errors/index.js';
+import { formatBaseUnits, parsePositiveAmount } from '../services/amount.js';
+import { historyTypeOf } from '../services/api/explorer.js';
 import { ClientConfig } from '../services/config/client.js';
+import { waitForIncoming } from '../services/incoming-payments.js';
 import { Output } from '../services/output.js';
 import { ensureMultisigNetwork } from '../services/signer-resolver.js';
 import { AccountStore } from '../services/storage/account.js';
@@ -20,6 +30,9 @@ export const PAYMENT_REQUEST_BASE_URL = 'https://app.fast.xyz/send';
 
 /** app.fast.xyz runs on mainnet only, so a request link is only meaningful there. */
 const REQUEST_NETWORK = 'mainnet';
+
+/** How long `--wait` waits for the payment when `--timeout` is not given. */
+export const DEFAULT_WAIT_TIMEOUT_SECONDS = 300;
 
 /** What `fast request --json` returns (plus `qrFile` when `--qr-file` is set). */
 export interface PaymentRequest {
@@ -143,6 +156,14 @@ export const request: Command<RequestArgs> = {
 
       const qrFile = args.qrFile === undefined ? undefined : yield* resolveQrFilePath(args.qrFile);
 
+      if (args.timeout !== undefined && !args.wait) {
+        return yield* Effect.fail(new InvalidUsageError({ message: '--timeout only applies with --wait.' }));
+      }
+      const timeoutSeconds = args.timeout ?? DEFAULT_WAIT_TIMEOUT_SECONDS;
+      if (!Number.isInteger(timeoutSeconds) || timeoutSeconds <= 0) {
+        return yield* Effect.fail(new InvalidUsageError({ message: '--timeout must be a positive whole number of seconds.' }));
+      }
+
       if (config.network !== REQUEST_NETWORK) {
         return yield* Effect.fail(
           new InvalidUsageError({
@@ -157,6 +178,10 @@ export const request: Command<RequestArgs> = {
       const token = network.defaultToken;
       if (token === undefined) {
         return yield* Effect.fail(new InvalidUsageError({ message: `Network "${config.network}" has no default token configured.` }));
+      }
+
+      if (args.wait && !network.explorerApiUrl) {
+        return yield* Effect.fail(new ExplorerNotConfiguredError({ network: config.network }));
       }
 
       const amount = yield* normalizeRequestAmount(args.amount, token.decimals, token.symbol);
@@ -190,11 +215,55 @@ export const request: Command<RequestArgs> = {
         yield* output.humanLine(`QR code (SVG) written to ${qrFile}`);
       }
       yield* output.humanLine('Nothing has been paid yet: the payer still has to open the link and confirm the transfer.');
-      if (payee.ownAccount) {
-        const accountFlag = Option.match(config.account, { onNone: () => '', onSome: (name) => ` --account ${name}` });
-        yield* output.humanLine(`Check that it arrived with: fast info balance --network ${config.network}${accountFlag}`);
+
+      const result = qrFile === undefined ? paymentRequest : { ...paymentRequest, qrFile };
+
+      if (!args.wait) {
+        if (payee.ownAccount) {
+          const accountFlag = Option.match(config.account, { onNone: () => '', onSome: (name) => ` --account ${name}` });
+          yield* output.humanLine(`Check that it arrived with: fast info balance --network ${config.network}${accountFlag}`);
+        }
+        yield* output.ok(result);
+        return;
       }
 
-      yield* output.ok(qrFile === undefined ? paymentRequest : { ...paymentRequest, qrFile });
+      // --wait: watch the payee's incoming feed for exactly this amount, sent after
+      // the request was created. On timeout the error repeats the link, because in
+      // --json mode the error envelope replaces the result that would have carried it.
+      const amountRaw = yield* Effect.try({
+        try: () => parsePositiveAmount(amount, token.decimals, token.symbol),
+        catch: (e) => e as InvalidAmountError,
+      });
+      yield* output.humanLine('');
+      yield* output.humanLine(`Waiting up to ${timeoutSeconds}s for the payment (Ctrl-C stops waiting; the link stays valid)...`);
+      const payment = yield* waitForIncoming({
+        address: payee.address,
+        amountRaw,
+        tokenId: token.tokenId,
+        since: new Date(createdAt),
+        timeoutMs: timeoutSeconds * 1000,
+        description: `${amount} ${token.symbol} to ${payee.address} for the request ${paymentRequest.url}`,
+      });
+
+      const received = formatBaseUnits(payment.amount, token.decimals);
+      yield* output.humanLine(`Paid: ${received} ${token.symbol} from ${payment.from}`);
+      yield* output.humanLine(`  Transaction: ${payment.hash}`);
+      yield* output.humanLine(`  Time:        ${payment.timestamp}`);
+      yield* output.humanLine(`  Explorer:    ${payment.explorerUrl}`);
+      yield* output.ok({
+        ...result,
+        payment: {
+          hash: payment.hash,
+          type: historyTypeOf(payment.type),
+          from: payment.from,
+          to: payment.to,
+          amount: payment.amount.toString(),
+          formatted: received,
+          tokenName: token.symbol,
+          tokenId: payment.tokenId,
+          timestamp: payment.timestamp,
+          explorerUrl: payment.explorerUrl,
+        },
+      });
     }),
 };

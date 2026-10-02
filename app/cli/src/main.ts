@@ -229,11 +229,11 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     },
   },
   request: {
-    usage: "fast request <amount> [--to <fast1...>] [--qr] [--qr-file <path.svg>]",
-    options: ["--to", "--qr", "--qr-file"],
+    usage: "fast request <amount> [--to <fast1...>] [--qr] [--qr-file <path.svg>] [--wait [--timeout <seconds>]]",
+    options: ["--to", "--qr", "--qr-file", "--wait", "--timeout"],
     check: (_positionals, allArgv) => {
       // Skip option values (e.g. `--network mainnet`) so they aren't mistaken for <amount>.
-      const valueFlags = new Set(["--to", "--qr-file", "--network", "--account", "--password"]);
+      const valueFlags = new Set(["--to", "--qr-file", "--timeout", "--network", "--account", "--password"]);
       const operands = allArgv.filter((a, i) => !a.startsWith("-") && !valueFlags.has(allArgv[i - 1] ?? ""));
       if (operands.length < 2) {
         // A negative amount parses as an unknown option; say what is actually wrong.

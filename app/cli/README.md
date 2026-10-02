@@ -272,6 +272,9 @@ fast request 10 --network mainnet --qr-file request.svg --json
 
 # Ask for payment to another address you control
 fast request 2.50 --network mainnet --to fast1someoneelse...
+
+# Print the link, then block until the payment arrives (default timeout 300 s)
+fast request 10 --network mainnet --wait --json
 ```
 
 **Positional arguments:**
@@ -283,6 +286,8 @@ fast request 2.50 --network mainnet --to fast1someoneelse...
 - `--to <fast1...>` — Fast address to be paid (default: the active account; with a multisig wallet, the wallet address). Must be a valid `fast1...` address; Fast ID names are not accepted.
 - `--qr` — Also print the link as a QR code in the terminal. With `--json`, the QR code goes to stderr so stdout stays a single JSON document.
 - `--qr-file <path.svg>` — Write the link as an SVG QR code to this path (overwritten if it exists).
+- `--wait` — After printing the link, wait until the payee receives exactly this amount of fastUSD from another address, sent after the request was created (same matching as `fast wait-for-payment`). Fails with `PAYMENT_TIMEOUT` (exit 1) if nothing arrives in time; the error message repeats the link.
+- `--timeout <seconds>` — With `--wait`, how long to wait (default: 300). Rejected without `--wait`.
 
 **Output (`--json`):**
 
@@ -301,12 +306,16 @@ fast request 2.50 --network mainnet --to fast1someoneelse...
 }
 ```
 
-`qrFile` is present only with `--qr-file`. `createdAt` is when the request was made.
+`qrFile` is present only with `--qr-file`. `createdAt` is when the request was made;
+pass it as `--since` to `fast wait-for-payment` to wait for this request later.
+With `--wait`, `data` also has a `payment` object with the matching transfer
+(`hash`, `type`, `from`, `to`, `amount` in base units, `formatted`, `tokenName`,
+`tokenId`, `timestamp`, `explorerUrl`).
 
 **Requirements:**
 
 - Mainnet only (the Fast app runs on mainnet); other networks exit with `INVALID_USAGE`.
-- The link does not prove anything was paid. Check that the payment arrived with `fast info balance --network mainnet`.
+- The link does not prove anything was paid. Confirm the payment with `--wait`, `fast wait-for-payment --since <createdAt>`, or `fast info history --direction in`.
 
 ---
 

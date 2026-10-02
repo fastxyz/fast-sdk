@@ -428,6 +428,17 @@ const requestParser = command(
         description: message`Write the link as an SVG QR code to this .svg path`,
       }),
     ),
+    wait: withDefault(
+      option('--wait', {
+        description: message`After printing the link, wait until the payment arrives`,
+      }),
+      false,
+    ),
+    timeout: optional(
+      option('--timeout', integer({ metavar: 'SECONDS' }), {
+        description: message`With --wait: give up after this many seconds (default: 300)`,
+      }),
+    ),
   }),
   { description: message`Create a payment-request link someone can open to pay you (mainnet only)` },
 );

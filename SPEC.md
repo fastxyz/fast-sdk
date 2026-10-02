@@ -1773,6 +1773,7 @@ already have been sent.
 
 ```text
 fast request <amount> [--to <fast-address>] [--qr] [--qr-file <path.svg>]
+             [--wait [--timeout <seconds>]]
 ```
 
 **Description**
@@ -1780,8 +1781,9 @@ fast request <amount> [--to <fast-address>] [--qr] [--qr-file <path.svg>]
 Create a payment-request link: an `https://app.fast.xyz/send?to=<address>&amount=<amount>`
 URL that opens the Fast app's Send screen with the recipient and amount
 prefilled. The payer reviews and confirms the transfer in the app. The command
-only builds the link: it signs nothing, sends nothing, needs no password and
-makes no network calls.
+only builds the link: it signs nothing, sends nothing and needs no password.
+Without `--wait` it makes no network calls; with `--wait` it then watches the
+explorer API for the payment, like `fast wait-for-payment` (§6.21).
 
 **Arguments**
 
@@ -1800,6 +1802,8 @@ whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
 | `--to` | string | no | active account's Fast address | Fast address to be paid. Must be a bech32m `fast1...` address with a 32-byte payload (same rule as `fast send`). Fast ID names are not accepted. |
 | `--qr` | boolean | no | `false` | Also render the link as a terminal QR code: on stdout in human mode, on **stderr** with `--json` so stdout stays one JSON document. |
 | `--qr-file` | string | no | — | Write the link as an SVG QR code to this path (must end in `.svg`; an existing file is overwritten). The absolute path is returned as `qrFile`. |
+| `--wait` | boolean | no | `false` | After printing the link, wait until the payment arrives (see step 5). |
+| `--timeout` | integer | no | `300` | With `--wait`: seconds to wait before failing with `PAYMENT_TIMEOUT`. Must be a positive whole number; rejected without `--wait`. |
 
 **Behavior**
 
@@ -1811,6 +1815,12 @@ whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
    its wallet address and must belong to the active network
    (`WALLET_NETWORK_MISMATCH` otherwise).
 4. Build the URL, write the `--qr-file` SVG if requested, and print the result.
+5. With `--wait`: poll the payee's incoming feed as `fast wait-for-payment`
+   does, with `--amount` = the normalized amount, the network's default token,
+   `--to` = the payee and `--since` = `createdAt`. On a match, print it and
+   return the request with a `payment` object. On timeout, fail with
+   `PAYMENT_TIMEOUT`; the error message repeats the link, since in `--json`
+   mode the error envelope replaces the result.
 
 `createdAt` is taken when the command starts, before the link exists, so it is
 a safe lower bound for "payments received after this request".
@@ -1827,7 +1837,11 @@ Nothing has been paid yet: the payer still has to open the link and confirm the 
 Check that it arrived with: fast info balance --network mainnet
 ```
 
-The last line is printed only when the payee is the active account.
+The last line is printed only when the payee is the active account and
+`--wait` is not set. With `--wait`, the command instead prints
+`Waiting up to <n>s for the payment...` and, once it arrives,
+`Paid: <amount> fastUSD from <fast1...>` with the transaction hash, time and
+explorer link.
 
 **Output (`--json`)**
 
@@ -1847,7 +1861,10 @@ The last line is printed only when the payee is the active account.
 ```
 
 `amount` is the normalized decimal string. `qrFile` is present only with
-`--qr-file`.
+`--qr-file`. With `--wait`, `data` also contains `payment`, the matching
+transfer in the same shape as `fast wait-for-payment` returns (`hash`, `type`,
+`from`, `to`, `amount` in base units, `formatted`, `tokenName`, `tokenId`,
+`timestamp`, `explorerUrl`).
 
 **Errors**
 
@@ -1862,6 +1879,8 @@ The last line is printed only when the payee is the active account.
 | `--account` names an unknown account | 2 | `ACCOUNT_NOT_FOUND` |
 | Default multisig wallet belongs to another network | 2 | `WALLET_NETWORK_MISMATCH` |
 | `--qr-file` cannot be written | 1 | `FILE_IO_ERROR` |
+| `--timeout` without `--wait`, or not a positive whole number | 2 | `INVALID_USAGE` |
+| `--wait` and nothing matching arrives before the timeout | 1 | `PAYMENT_TIMEOUT` |
 
 ## 7. Token Resolution Rules
 

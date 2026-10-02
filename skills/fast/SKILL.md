@@ -106,7 +106,7 @@ fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chai
 ### `request` command
 
 ```sh
-fast request <amount> [--to <fast1...>] [--qr] [--qr-file <path.svg>] --network mainnet
+fast request <amount> [--to <fast1...>] [--qr] [--qr-file <path.svg>] [--wait [--timeout <seconds>]] --network mainnet
 ```
 
 | Argument / Flag | Description |
@@ -115,8 +115,10 @@ fast request <amount> [--to <fast1...>] [--qr] [--qr-file <path.svg>] --network 
 | `--to <fast1...>` | Address to be paid; defaults to the active account. `fast1...` only, no Fast ID names |
 | `--qr` | Also print a terminal QR code (goes to stderr with `--json`) |
 | `--qr-file <path.svg>` | Write an SVG QR code; its absolute path is returned as `qrFile` |
+| `--wait` | After printing the link, block until exactly this amount arrives from someone else; adds `payment` to the JSON |
+| `--timeout <seconds>` | With `--wait`: give up after this long (default 300) with `PAYMENT_TIMEOUT` |
 
-Mainnet only. It only builds a link (`https://app.fast.xyz/send?to=…&amount=…`); nothing is signed or sent. See workflow 9.
+Mainnet only. It only builds a link (`https://app.fast.xyz/send?to=…&amount=…`); nothing is signed or sent. With `--wait` it then watches for the payment. See workflow 9.
 
 ### `network` subcommands
 
@@ -394,9 +396,9 @@ fast pay https://api.example.com/resource --dry-run
 Use this when the user wants to be paid ("Leo owes me $10, ask him"):
 
 ```sh
-fast info balance --network mainnet --json   # note the current fastUSD balance first
 fast request 10 --network mainnet --json
 # → data.url: https://app.fast.xyz/send?to=<your-fast-address>&amount=10
+# → data.createdAt: when the request was made
 # Optional: also write a QR code image to share
 fast request 10 --network mainnet --qr-file request.svg --json
 # → data.qrFile: absolute path of the SVG
@@ -404,7 +406,13 @@ fast request 10 --network mainnet --qr-file request.svg --json
 
 1. Show the user `data.url` (and the QR image if you made one) and tell them to send it to the payer. Opening it shows the Fast app's Send screen with the amount and the user's address filled in; the payer confirms there.
 2. The payment goes to the active account unless you pass `--to <fast1...>`. Amounts are fastUSD on mainnet; the link carries no memo.
-3. **Never say the payment arrived because the link was created or shared.** Creating a request moves no money. Only report it as paid after checking on-chain: run `fast info balance --network mainnet --json` again and confirm the fastUSD balance went up by at least the amount since the first check. If you used `--to` with another address, `info balance` cannot confirm it; say so.
+3. **Never say the payment arrived because the link was created or shared.** Creating a request moves no money. Confirm it on the network first:
+   ```sh
+   fast wait-for-payment --amount 10 --since <data.createdAt> --network mainnet --json
+   # or, to print the link and wait in one step:
+   fast request 10 --network mainnet --wait --timeout 600 --json   # → data.payment
+   ```
+   Only report it as paid when one of these returns the payment (`data.hash`, `data.from`, `data.explorerUrl`). On `PAYMENT_TIMEOUT`, tell the user nothing matching has arrived yet; the link stays valid and you can wait again with the same `--since`.
 4. `INVALID_USAGE` mentioning `--network mainnet` means the command ran on another network; re-run with `--network mainnet`.
 
 ---

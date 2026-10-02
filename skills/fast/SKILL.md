@@ -3,7 +3,7 @@ name: fast
 description: >
   fast CLI for managing Fast network accounts, sending tokens, funding via bridge or fiat,
   and paying x402-protected APIs. Use when the user wants to run fast commands, create accounts,
-  check balances, send USDC, or interact with the Fast network from the terminal.
+  check balances, send USDC, request a payment (get paid), or interact with the Fast network from the terminal.
 ---
 
 # fast CLI
@@ -103,6 +103,21 @@ fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chai
 
 > **Always pass `--token USDC` explicitly** when bridging or sending USDC — do not rely on the default.
 
+### `request` command
+
+```sh
+fast request <amount> [--to <fast1...>] [--qr] [--qr-file <path.svg>] --network mainnet
+```
+
+| Argument / Flag | Description |
+|---|---|
+| `<amount>` | fastUSD amount to ask for, positive decimal with at most 6 decimal places |
+| `--to <fast1...>` | Address to be paid; defaults to the active account. `fast1...` only, no Fast ID names |
+| `--qr` | Also print a terminal QR code (goes to stderr with `--json`) |
+| `--qr-file <path.svg>` | Write an SVG QR code; its absolute path is returned as `qrFile` |
+
+Mainnet only. It only builds a link (`https://app.fast.xyz/send?to=…&amount=…`); nothing is signed or sent. See workflow 9.
+
 ### `network` subcommands
 
 | Command | Description |
@@ -138,6 +153,7 @@ Blocks until an incoming payment of **exactly** `<AMOUNT>` (default token: the n
 - Create or manage Fast accounts from the terminal
 - Check token balances on Fast or EVM chains
 - Send USDC between Fast addresses or bridge to/from EVM
+- Get paid: create a payment-request link for someone to pay the user
 - Fund a Fast account from crypto (bridge) or fiat (on-ramp)
 - Pay a payment-protected URL (x402) using a stored account
 - Configure networks or switch defaults
@@ -372,6 +388,24 @@ fast pay https://api.example.com/resource --method POST --body @request.json
 # Inspect without paying:
 fast pay https://api.example.com/resource --dry-run
 ```
+
+### 9. Get paid: request a payment
+
+Use this when the user wants to be paid ("Leo owes me $10, ask him"):
+
+```sh
+fast info balance --network mainnet --json   # note the current fastUSD balance first
+fast request 10 --network mainnet --json
+# → data.url: https://app.fast.xyz/send?to=<your-fast-address>&amount=10
+# Optional: also write a QR code image to share
+fast request 10 --network mainnet --qr-file request.svg --json
+# → data.qrFile: absolute path of the SVG
+```
+
+1. Show the user `data.url` (and the QR image if you made one) and tell them to send it to the payer. Opening it shows the Fast app's Send screen with the amount and the user's address filled in; the payer confirms there.
+2. The payment goes to the active account unless you pass `--to <fast1...>`. Amounts are fastUSD on mainnet; the link carries no memo.
+3. **Never say the payment arrived because the link was created or shared.** Creating a request moves no money. Only report it as paid after checking on-chain: run `fast info balance --network mainnet --json` again and confirm the fastUSD balance went up by at least the amount since the first check. If you used `--to` with another address, `info balance` cannot confirm it; say so.
+4. `INVALID_USAGE` mentioning `--network mainnet` means the command ran on another network; re-run with `--network mainnet`.
 
 ---
 

@@ -320,6 +320,7 @@ fast fund                    Fund fast account from crypto or fiat; may need hum
 fast send                    Send tokens between Fast and/or supported chains
 fast pay                     Pay via payment links/protocols (e.g., x402)
 fast wait-for-payment        Wait until a matching incoming payment arrives
+fast request                 Create a payment-request link for someone to pay you
 ```
 
 ### 6.1 `fast account create`
@@ -1765,6 +1766,102 @@ already have been sent.
 | No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
 | Network has no `explorerApiUrl` | 2 | `EXPLORER_NOT_CONFIGURED` |
 | Nothing matching arrived before `--timeout` (the message says if the last poll failed) | 1 | `PAYMENT_TIMEOUT` |
+
+### 6.22 `fast request`
+
+**Synopsis**
+
+```text
+fast request <amount> [--to <fast-address>] [--qr] [--qr-file <path.svg>]
+```
+
+**Description**
+
+Create a payment-request link: an `https://app.fast.xyz/send?to=<address>&amount=<amount>`
+URL that opens the Fast app's Send screen with the recipient and amount
+prefilled. The payer reviews and confirms the transfer in the app. The command
+only builds the link: it signs nothing, sends nothing, needs no password and
+makes no network calls.
+
+**Arguments**
+
+| Arg | Type | Required | Description |
+|---|---|---|---|
+| `amount` | string | yes | Amount of the network's default token (`fastUSD`) to request. A positive decimal (`10`, `2.50`, `.5`) with at most `defaultToken.decimals` (6) significant decimal places. |
+
+The amount is normalized before it goes into the link: leading zeros in the
+whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
+`.5` → `0.5`, `1.0000000` → `1`).
+
+**Flags**
+
+| Flag | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `--to` | string | no | active account's Fast address | Fast address to be paid. Must be a bech32m `fast1...` address with a 32-byte payload (same rule as `fast send`). Fast ID names are not accepted. |
+| `--qr` | boolean | no | `false` | Also render the link as a terminal QR code: on stdout in human mode, on **stderr** with `--json` so stdout stays one JSON document. |
+| `--qr-file` | string | no | — | Write the link as an SVG QR code to this path (must end in `.svg`; an existing file is overwritten). The absolute path is returned as `qrFile`. |
+
+**Behavior**
+
+1. The network must be `mainnet`, because app.fast.xyz is mainnet only; any
+   other network exits 2 (`INVALID_USAGE`) and asks for `--network mainnet`.
+2. Validate and normalize `amount` against `network.defaultToken`.
+3. Resolve the payee: `--to` if given (no local account is read), otherwise the
+   active account (`--account` or the default). A multisig wallet resolves to
+   its wallet address and must belong to the active network
+   (`WALLET_NETWORK_MISMATCH` otherwise).
+4. Build the URL, write the `--qr-file` SVG if requested, and print the result.
+
+`createdAt` is taken when the command starts, before the link exists, so it is
+a safe lower bound for "payments received after this request".
+
+**Output (human)**
+
+```text
+Payment request: 10 fastUSD to fast1qw5...x9z (mainnet).
+Share this link with the payer. It opens the Fast app with the recipient and amount filled in:
+
+  https://app.fast.xyz/send?to=fast1qw5...x9z&amount=10
+
+Nothing has been paid yet: the payer still has to open the link and confirm the transfer.
+Check that it arrived with: fast info balance --network mainnet
+```
+
+The last line is printed only when the payee is the active account.
+
+**Output (`--json`)**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "url": "https://app.fast.xyz/send?to=fast1qw5...x9z&amount=10",
+    "address": "fast1qw5...x9z",
+    "amount": "10",
+    "token": "fastUSD",
+    "network": "mainnet",
+    "createdAt": "2026-10-02T12:00:00.000Z",
+    "qrFile": "/home/user/request.svg"
+  }
+}
+```
+
+`amount` is the normalized decimal string. `qrFile` is present only with
+`--qr-file`.
+
+**Errors**
+
+| Condition | Exit | Code |
+|---|---|---|
+| Missing amount, or unknown flag | 2 | `INVALID_USAGE` |
+| Network is not `mainnet` | 2 | `INVALID_USAGE` |
+| `--qr-file` path does not end in `.svg` | 2 | `INVALID_USAGE` |
+| Amount is not a positive decimal, is zero/negative, or has more than 6 decimal places | 2 | `INVALID_AMOUNT` |
+| `--to` is not a valid Fast address | 2 | `INVALID_ADDRESS` |
+| No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
+| `--account` names an unknown account | 2 | `ACCOUNT_NOT_FOUND` |
+| Default multisig wallet belongs to another network | 2 | `WALLET_NETWORK_MISMATCH` |
+| `--qr-file` cannot be written | 1 | `FILE_IO_ERROR` |
 
 ## 7. Token Resolution Rules
 

@@ -154,6 +154,7 @@ const KNOWN_COMMANDS = [
   "network",
   "info",
   "send",
+  "request",
   "fund",
   "pay",
   "multisig",
@@ -224,6 +225,21 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     check: (positionals) => {
       if (positionals.length < 2) return "Missing required argument: <address>";
       if (positionals.length < 3) return "Missing required argument: <amount>";
+      return null;
+    },
+  },
+  request: {
+    usage: "fast request <amount> [--to <fast1...>] [--qr] [--qr-file <path.svg>]",
+    options: ["--to", "--qr", "--qr-file"],
+    check: (_positionals, allArgv) => {
+      // Skip option values (e.g. `--network mainnet`) so they aren't mistaken for <amount>.
+      const valueFlags = new Set(["--to", "--qr-file", "--network", "--account", "--password"]);
+      const operands = allArgv.filter((a, i) => !a.startsWith("-") && !valueFlags.has(allArgv[i - 1] ?? ""));
+      if (operands.length < 2) {
+        // A negative amount parses as an unknown option; say what is actually wrong.
+        const negative = allArgv.find((a) => /^-\d/.test(a));
+        return negative ? `Amount must be greater than zero (got "${negative}")` : "Missing required argument: <amount>";
+      }
       return null;
     },
   },

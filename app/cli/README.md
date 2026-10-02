@@ -41,6 +41,9 @@ fast send fast1abc...xyz 10 --token USDC
 # Attach a Fast UserData memo (32 UTF-8 bytes maximum)
 fast send fast1abc...xyz 10 --token USDC --memo "invoice-42"
 
+# Ask someone to pay you 10 fastUSD: prints an app.fast.xyz link to share (mainnet only)
+fast request 10 --network mainnet
+
 # Bridge USDC from Arbitrum Sepolia to Fast (--token USDC is required on
 # mainnet because the network default — fastUSD — is not on EVM chains)
 fast fund usdc crypto 50 --chain arbitrum-sepolia --token USDC
@@ -250,6 +253,60 @@ fast --network mainnet send 0x1234567890123456789012345678901234567890 0.01 --to
 - `--token <token>` — Token symbol or token ID. Defaults to the network's `defaultToken.symbol` (`fastUSD` on mainnet, `testUSDC` on testnet). Bridge routes require the resolved token to be available on the target chain; otherwise the command errors with `CommandUnsupportedForTokenError`.
 - `--eip-7702` — Use the smart deposit flow for EVM → Fast transfers
 - `--account <name>` — Sender account (defaults to the configured default)
+
+---
+
+### `fast request <amount>`
+
+Create a payment-request link: a URL that opens the Fast app's Send screen
+with the recipient and amount filled in. Share it with whoever should pay you;
+they review and confirm the transfer in the app. Nothing is signed or sent by
+this command, and no password is needed.
+
+```bash
+fast request 10 --network mainnet
+# → https://app.fast.xyz/send?to=fast1...&amount=10
+
+# Machine-readable, with a QR code image to share
+fast request 10 --network mainnet --qr-file request.svg --json
+
+# Ask for payment to another address you control
+fast request 2.50 --network mainnet --to fast1someoneelse...
+```
+
+**Positional arguments:**
+
+- `<amount>` — Amount of fastUSD to request: a positive decimal with at most 6 decimal places (`10`, `2.50`, `.5`). It is normalized (`010.50` → `10.5`) before going into the link.
+
+**Options:**
+
+- `--to <fast1...>` — Fast address to be paid (default: the active account; with a multisig wallet, the wallet address). Must be a valid `fast1...` address; Fast ID names are not accepted.
+- `--qr` — Also print the link as a QR code in the terminal. With `--json`, the QR code goes to stderr so stdout stays a single JSON document.
+- `--qr-file <path.svg>` — Write the link as an SVG QR code to this path (overwritten if it exists).
+
+**Output (`--json`):**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "url": "https://app.fast.xyz/send?to=fast1...&amount=10",
+    "address": "fast1...",
+    "amount": "10",
+    "token": "fastUSD",
+    "network": "mainnet",
+    "createdAt": "2026-10-02T12:00:00.000Z",
+    "qrFile": "/abs/path/request.svg"
+  }
+}
+```
+
+`qrFile` is present only with `--qr-file`. `createdAt` is when the request was made.
+
+**Requirements:**
+
+- Mainnet only (the Fast app runs on mainnet); other networks exit with `INVALID_USAGE`.
+- The link does not prove anything was paid. Check that the payment arrived with `fast info balance --network mainnet`.
 
 ---
 

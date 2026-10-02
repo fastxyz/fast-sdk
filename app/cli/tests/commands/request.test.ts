@@ -1,0 +1,401 @@
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { parse } from '@optique/core/parser';
+import { Signer } from '@fastxyz/sdk';
+import { bech32, bech32m } from 'bech32';
+import { Effect, Exit, Layer, Option } from 'effect';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { parser, type RequestArgs } from '../../src/cli.js';
+import { commands } from '../../src/commands/index.js';
+import { buildPaymentRequestUrl, normalizeRequestAmount, PAYMENT_REQUEST_BASE_URL, parseFastAddress, request } from '../../src/commands/request.js';
+import { bundledNetworks } from '../../src/config/networks.js';
+import { ClientConfig } from '../../src/services/config/client.js';
+import { Output, OutputLive } from '../../src/services/output.js';
+import { type AccountInfo, AccountStore } from '../../src/services/storage/account.js';
+import { NetworkConfigService } from '../../src/services/storage/network.js';
+
+const seed = (value: number) => new Uint8Array(32).fill(value);
+const fastAddressOf = (value: number) => new Signer(seed(value)).getFastAddress();
+
+const singleAccount = async (): Promise<AccountInfo> => ({
+  kind: 'single',
+  name: 'agent',
+  fastAddress: await fastAddressOf(1),
+  evmAddress: '0x0000000000000000000000000000000000000000',
+  isDefault: true,
+  encrypted: false,
+  createdAt: new Date(0).toISOString(),
+});
+
+const multisigAccount = async (network: string): Promise<AccountInfo> => {
+  const fastAddress = await fastAddressOf(9);
+  return {
+    kind: 'multisig',
+    name: 'treasury',
+    fastAddress,
+    multisigConfig: {
+      version: 1,
+      name: 'treasury',
+      signers: [await fastAddressOf(1), await fastAddressOf(2)],
+      quorum: 2,
+      configNonce: '0',
+      fastAddress,
+      network,
+    },
+    isDefault: true,
+    createdAt: new Date(0).toISOString(),
+  };
+};
+
+interface Harness {
+  lines: string[];
+  results: unknown[];
+  accountLookups: Array<Option.Option<string>>;
+}
+
+const clientConfig = (opts: { network?: string; json?: boolean; account?: string }) =>
+  Layer.succeed(ClientConfig, {
+    json: opts.json ?? true,
+    debug: false,
+    nonInteractive: true,
+    network: opts.network ?? 'mainnet',
+    account: Option.fromNullable(opts.account),
+    password: Option.none(),
+  });
+
+const serviceLayers = (h: Harness, account: AccountInfo | undefined) =>
+  Layer.mergeAll(
+    Layer.succeed(AccountStore, {
+      resolveAccount: (name: Option.Option<string>) => {
+        if (account === undefined) return Effect.die('the active account must not be looked up');
+        return Effect.sync(() => (h.accountLookups.push(name), account));
+      },
+    } as never),
+    Layer.succeed(NetworkConfigService, {
+      resolve: (name: string) => Effect.succeed(bundledNetworks[name]!),
+    } as never),
+  );
+
+const setup = (opts: { network?: string; json?: boolean; account?: AccountInfo; accountName?: string } = {}) => {
+  const h: Harness = { lines: [], results: [], accountLookups: [] };
+  const layer = Layer.mergeAll(
+    serviceLayers(h, opts.account),
+    clientConfig({ network: opts.network, json: opts.json, account: opts.accountName }),
+    Layer.succeed(Output, {
+      humanLine: (line: string) => Effect.sync(() => void h.lines.push(line)),
+      ok: (data: unknown) => Effect.sync(() => void h.results.push(data)),
+      fail: () => Effect.void,
+      humanTable: () => Effect.void,
+      debug: () => Effect.void,
+    }),
+  );
+  const run = (args: Partial<RequestArgs>) =>
+    Effect.runPromiseExit(request.handler({ cmd: 'request', amount: '10', qr: false, ...args } as RequestArgs).pipe(Effect.provide(layer)));
+  return { h, run };
+};
+
+/** Run the handler against the real Output service, capturing what reaches stdout and stderr. */
+const runWithRealOutput = async (json: boolean, account: AccountInfo, args: Partial<RequestArgs>) => {
+  const h: Harness = { lines: [], results: [], accountLookups: [] };
+  const config = clientConfig({ json });
+  const layer = Layer.mergeAll(serviceLayers(h, account), config, OutputLive.pipe(Layer.provide(config)));
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const out = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => (stdout.push(String(chunk)), true));
+  const err = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => (stderr.push(String(chunk)), true));
+  try {
+    const exit = await Effect.runPromiseExit(
+      request.handler({ cmd: 'request', amount: '10', qr: false, ...args } as RequestArgs).pipe(Effect.provide(layer)),
+    );
+    return { exit, stdout: stdout.join(''), stderr: stderr.join('') };
+  } finally {
+    out.mockRestore();
+    err.mockRestore();
+  }
+};
+
+const failureOf = (exit: Exit.Exit<void, unknown>) => {
+  if (exit._tag !== 'Failure' || exit.cause._tag !== 'Fail') throw new Error('expected a typed failure');
+  return exit.cause.error as { errorCode: string; message: string };
+};
+
+const tempDir = () => mkdtempSync(path.join(tmpdir(), 'fast-request-'));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('buildPaymentRequestUrl', () => {
+  it('points the Fast app Send screen at the recipient and amount', () => {
+    expect(PAYMENT_REQUEST_BASE_URL).toBe('https://app.fast.xyz/send');
+    expect(buildPaymentRequestUrl('fast1abc', '10')).toBe('https://app.fast.xyz/send?to=fast1abc&amount=10');
+    expect(buildPaymentRequestUrl('fast1abc', '0.000001')).toBe('https://app.fast.xyz/send?to=fast1abc&amount=0.000001');
+  });
+
+  it('URL-encodes both parameters', () => {
+    const url = buildPaymentRequestUrl('fast1a&b=c d', '1#2');
+    expect(url).toBe('https://app.fast.xyz/send?to=fast1a%26b%3Dc+d&amount=1%232');
+    const params = new URL(url).searchParams;
+    expect(params.get('to')).toBe('fast1a&b=c d');
+    expect(params.get('amount')).toBe('1#2');
+  });
+});
+
+describe('normalizeRequestAmount', () => {
+  const normalize = (raw: string) => Effect.runSync(Effect.either(normalizeRequestAmount(raw, 6, 'fastUSD')));
+
+  it.each([
+    ['10', '10'],
+    ['10.5', '10.5'],
+    ['10.50', '10.5'],
+    ['010', '10'],
+    ['0.5', '0.5'],
+    ['.5', '0.5'],
+    ['1.000000', '1'],
+    ['1.0000000', '1'],
+    ['0.000001', '0.000001'],
+    [' 2.25 ', '2.25'],
+    ['123456789012345678901234567890', '123456789012345678901234567890'],
+  ])('accepts %j as %j', (raw, expected) => {
+    const result = normalize(raw);
+    if (result._tag !== 'Right') throw new Error(`expected "${raw}" to be accepted: ${result.left.message}`);
+    expect(result.right).toBe(expected);
+  });
+
+  it.each([
+    ['0', /greater than zero/],
+    ['0.0', /greater than zero/],
+    ['000', /greater than zero/],
+    ['-1', /greater than zero/],
+    ['-0.5', /greater than zero/],
+    ['1.1234567', /too many decimal places for fastUSD \(max 6\)/],
+    ['0.0000001', /too many decimal places/],
+    ['abc', /Invalid amount "abc"/],
+    ['1e3', /Invalid amount/],
+    ['1,5', /Invalid amount/],
+    ['10.', /Invalid amount/],
+    ['.', /Invalid amount/],
+    ['', /Invalid amount/],
+    ['$10', /Invalid amount/],
+    ['Infinity', /Invalid amount/],
+  ])('rejects %j', (raw, message) => {
+    const result = normalize(raw);
+    if (result._tag !== 'Left') throw new Error(`expected "${raw}" to be rejected`);
+    expect(result.left.errorCode).toBe('INVALID_AMOUNT');
+    expect(result.left.message).toMatch(message);
+  });
+});
+
+describe('parseFastAddress', () => {
+  const parseAddress = (raw: string) => Effect.runSync(Effect.either(parseFastAddress(raw)));
+
+  it('accepts a bech32m fast address with a 32-byte payload', async () => {
+    const address = await fastAddressOf(3);
+    for (const input of [address, address.toUpperCase(), ` ${address} `]) {
+      const result = parseAddress(input);
+      if (result._tag !== 'Right') throw new Error(`expected "${input}" to be accepted`);
+      expect(result.right).toBe(address);
+    }
+  });
+
+  it.each([
+    ['truncated', 'fast1abc'],
+    ['EVM address', '0x1234567890123456789012345678901234567890'],
+    ['Fast ID name', 'alice.smith'],
+    ['wrong prefix', bech32m.encode('tfast', bech32m.toWords(seed(4)))],
+    ['wrong payload length', bech32m.encode('fast', bech32m.toWords(new Uint8Array(20)))],
+    ['bech32 (not bech32m) checksum', bech32.encode('fast', bech32.toWords(seed(4)))],
+  ])('rejects a %s', (_label, raw) => {
+    const result = parseAddress(raw);
+    if (result._tag !== 'Left') throw new Error(`expected "${raw}" to be rejected`);
+    expect(result.left.errorCode).toBe('INVALID_ADDRESS');
+  });
+
+  it('points Fast ID names at the fast1 address', () => {
+    const result = parseAddress('alice.smith');
+    if (result._tag !== 'Left') throw new Error('expected a failure');
+    expect(result.left.message).toContain('Fast ID names are not accepted here');
+  });
+});
+
+describe('fast request', () => {
+  it('defaults --to to the active account and returns the documented JSON shape', async () => {
+    const account = await singleAccount();
+    const { h, run } = setup({ account });
+    const before = Date.now();
+    const exit = await run({ amount: '10.50' });
+    const after = Date.now();
+
+    expect(Exit.isSuccess(exit)).toBe(true);
+    expect(h.accountLookups).toEqual([Option.none()]);
+    expect(h.results).toHaveLength(1);
+    const data = h.results[0] as Record<string, string>;
+    expect(Object.keys(data).sort()).toEqual(['address', 'amount', 'createdAt', 'network', 'token', 'url']);
+    expect(data).toMatchObject({
+      url: `https://app.fast.xyz/send?to=${account.fastAddress}&amount=10.5`,
+      address: account.fastAddress,
+      amount: '10.5',
+      token: 'fastUSD',
+      network: 'mainnet',
+    });
+    expect(new Date(data.createdAt!).toISOString()).toBe(data.createdAt);
+    expect(Date.parse(data.createdAt!)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(data.createdAt!)).toBeLessThanOrEqual(after);
+  });
+
+  it('uses the --account override to pick the default payee', async () => {
+    const account = await singleAccount();
+    const { h, run } = setup({ account, accountName: 'agent', json: false });
+    expect(Exit.isSuccess(await run({}))).toBe(true);
+    expect(h.accountLookups).toEqual([Option.some('agent')]);
+    expect(h.lines).toContain('Check that it arrived with: fast info balance --network mainnet --account agent');
+  });
+
+  it('prints the link and a verification hint in human mode', async () => {
+    const account = await singleAccount();
+    const { h, run } = setup({ account, json: false });
+    expect(Exit.isSuccess(await run({ amount: '25' }))).toBe(true);
+    const url = `https://app.fast.xyz/send?to=${account.fastAddress}&amount=25`;
+    expect(h.lines).toContain(`  ${url}`);
+    expect(h.lines.join('\n')).toContain('Share this link with the payer');
+    expect(h.lines.join('\n')).toContain('Nothing has been paid yet');
+    expect(h.lines).toContain('Check that it arrived with: fast info balance --network mainnet');
+  });
+
+  it('uses an explicit --to without touching local accounts', async () => {
+    const payee = await fastAddressOf(5);
+    const { h, run } = setup({ account: undefined, json: false });
+    const exit = await run({ to: payee, amount: '3' });
+    expect(Exit.isSuccess(exit)).toBe(true);
+    expect((h.results[0] as { address: string; url: string }).address).toBe(payee);
+    expect((h.results[0] as { url: string }).url).toBe(`https://app.fast.xyz/send?to=${payee}&amount=3`);
+    // The balance hint only makes sense for the caller's own account.
+    expect(h.lines.some((line) => line.includes('fast info balance'))).toBe(false);
+  });
+
+  it('rejects an invalid explicit --to with INVALID_ADDRESS', async () => {
+    const { h, run } = setup({ account: undefined });
+    const error = failureOf(await run({ to: 'fast1notreal' }));
+    expect(error.errorCode).toBe('INVALID_ADDRESS');
+    expect(h.results).toEqual([]);
+  });
+
+  it.each([
+    ['0', /greater than zero/],
+    ['-5', /greater than zero/],
+    ['1.1234567', /too many decimal places for fastUSD \(max 6\)/],
+    ['ten', /Invalid amount "ten"/],
+  ])('rejects amount %j with INVALID_AMOUNT', async (amount, message) => {
+    const { h, run } = setup({ account: await singleAccount() });
+    const error = failureOf(await run({ amount }));
+    expect(error.errorCode).toBe('INVALID_AMOUNT');
+    expect(error.message).toMatch(message);
+    expect(h.results).toEqual([]);
+  });
+
+  it.each(['testnet', 'devnet'])('rejects the %s network with INVALID_USAGE', async (network) => {
+    const { h, run } = setup({ account: await singleAccount(), network });
+    const error = failureOf(await run({}));
+    expect(error.errorCode).toBe('INVALID_USAGE');
+    expect(error.message).toContain('--network mainnet');
+    expect(error.message).toContain(`Current network: ${network}`);
+    expect(h.accountLookups).toEqual([]);
+    expect(h.results).toEqual([]);
+  });
+
+  it("defaults --to to a mainnet multisig wallet's address", async () => {
+    const account = await multisigAccount('mainnet');
+    const { h, run } = setup({ account });
+    expect(Exit.isSuccess(await run({}))).toBe(true);
+    expect((h.results[0] as { address: string }).address).toBe(account.fastAddress);
+  });
+
+  it('rejects a default multisig wallet that belongs to another network', async () => {
+    const { h, run } = setup({ account: await multisigAccount('testnet') });
+    const error = failureOf(await run({}));
+    expect(error.errorCode).toBe('WALLET_NETWORK_MISMATCH');
+    expect(h.results).toEqual([]);
+  });
+
+  it('--qr-file writes an SVG QR code and reports its absolute path', async () => {
+    const file = path.join(tempDir(), 'request.svg');
+    const { h, run } = setup({ account: await singleAccount() });
+    // A relative path is resolved against the working directory.
+    expect(Exit.isSuccess(await run({ qrFile: path.relative(process.cwd(), file) }))).toBe(true);
+
+    const data = h.results[0] as { qrFile: string };
+    expect(data.qrFile).toBe(file);
+    const svg = readFileSync(file, 'utf8');
+    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true);
+    expect(svg).toMatch(/viewBox="0 0 \d+ \d+"/);
+    expect(svg).toMatch(/<path [^>]*d="M[^"]+"\/>/);
+    expect(svg.trimEnd().endsWith('</svg>')).toBe(true);
+  });
+
+  it('--qr-file overwrites an existing file and mentions it in human mode', async () => {
+    const file = path.join(tempDir(), 'request.svg');
+    const { h, run } = setup({ account: await singleAccount(), json: false });
+    expect(Exit.isSuccess(await run({ qrFile: file }))).toBe(true);
+    expect(Exit.isSuccess(await run({ qrFile: file, amount: '11' }))).toBe(true);
+    expect(h.lines).toContain(`QR code (SVG) written to ${file}`);
+  });
+
+  it('--qr-file rejects a non-.svg path before writing anything', async () => {
+    const file = path.join(tempDir(), 'request.png');
+    const { h, run } = setup({ account: await singleAccount() });
+    const error = failureOf(await run({ qrFile: file }));
+    expect(error.errorCode).toBe('INVALID_USAGE');
+    expect(existsSync(file)).toBe(false);
+    expect(h.results).toEqual([]);
+  });
+
+  it('--qr-file reports FILE_IO_ERROR when the file cannot be written', async () => {
+    const file = path.join(tempDir(), 'missing-dir', 'request.svg');
+    const { h, run } = setup({ account: await singleAccount() });
+    const error = failureOf(await run({ qrFile: file }));
+    expect(error.errorCode).toBe('FILE_IO_ERROR');
+    expect(h.results).toEqual([]);
+  });
+
+  it('--qr keeps stdout a single JSON document in --json mode (the QR goes to stderr)', async () => {
+    const account = await singleAccount();
+    const { exit, stdout, stderr } = await runWithRealOutput(true, account, { qr: true });
+    expect(Exit.isSuccess(exit)).toBe(true);
+    const parsed = JSON.parse(stdout) as { ok: boolean; data: Record<string, string> };
+    expect(parsed.ok).toBe(true);
+    expect(parsed.data.url).toBe(`https://app.fast.xyz/send?to=${account.fastAddress}&amount=10`);
+    expect(stdout).not.toMatch(/[▀▄█]/);
+    expect(stderr).toMatch(/[▀▄█]/);
+  });
+
+  it('--qr prints a terminal QR code on stdout in human mode', async () => {
+    const account = await singleAccount();
+    const { exit, stdout, stderr } = await runWithRealOutput(false, account, { qr: true });
+    expect(Exit.isSuccess(exit)).toBe(true);
+    expect(stdout).toContain(`https://app.fast.xyz/send?to=${account.fastAddress}&amount=10`);
+    expect(stdout).toMatch(/[▀▄█]/);
+    expect(stderr).toBe('');
+  });
+});
+
+describe('fast request registration', () => {
+  it('parses `request <amount>` with its options', async () => {
+    const payee = await fastAddressOf(6);
+    const result = parse(parser, ['request', '10', '--to', payee, '--qr', '--qr-file', 'out.svg', '--network', 'mainnet']);
+    if (!result.success) throw new Error('expected the request command to parse');
+    expect(result.value).toMatchObject({ cmd: 'request', amount: '10', to: payee, qr: true, qrFile: 'out.svg', network: 'mainnet' });
+  });
+
+  it('defaults --qr to false and leaves --to and --qr-file unset', () => {
+    const result = parse(parser, ['request', '5']);
+    if (!result.success) throw new Error('expected the request command to parse');
+    expect(result.value).toMatchObject({ cmd: 'request', amount: '5', qr: false });
+    expect((result.value as { to?: string }).to).toBeUndefined();
+    expect((result.value as { qrFile?: string }).qrFile).toBeUndefined();
+  });
+
+  it('is dispatched to the request handler', () => {
+    expect(commands.find((c) => c.cmd === 'request')).toBe(request);
+  });
+});

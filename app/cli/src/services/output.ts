@@ -51,6 +51,11 @@ export interface OutputShape {
     rows: string[][],
   ) => Effect.Effect<void>;
   readonly debug: (message: string) => Effect.Effect<void>;
+  /**
+   * Human-mode warning on stderr (stdout stays clean for tables). Silent in
+   * --json mode: commands that warn also report it in their JSON data.
+   */
+  readonly warn: (text: string) => Effect.Effect<void>;
 }
 
 export class Output extends Context.Tag("Output")<Output, OutputShape>() {}
@@ -86,6 +91,13 @@ export const OutputLive = Layer.effect(
         Effect.sync(() => {
           if (config.debug) {
             process.stderr.write(`[debug] ${message}\n`);
+          }
+        }),
+
+      warn: (text) =>
+        Effect.sync(() => {
+          if (!config.json) {
+            process.stderr.write(`Warning: ${text}\n`);
           }
         }),
     };

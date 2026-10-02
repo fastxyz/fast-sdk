@@ -31,6 +31,7 @@ import {
 } from "./multisig/index.js";
 import { pay } from "./pay.js";
 import { send } from "./send.js";
+import { waitForPayment } from "./wait-for-payment.js";
 import { tokenBurn, tokenCreate, tokenManage, tokenMint } from "./token/index.js";
 
 export const commands = [
@@ -66,6 +67,7 @@ export const commands = [
   tokenCreate,
   tokenManage,
   tokenMint,
+  waitForPayment,
 ];
 
 /**

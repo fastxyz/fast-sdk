@@ -1,0 +1,5 @@
+---
+"@fastxyz/cli": minor
+---
+
+`fast info history` now shows payments received from other accounts and EVM → Fast deposits: it reads the selected account's transfers from the network's explorer API (`explorerApiUrl`, bundled for mainnet and testnet) and merges them with the local history, newest first. New `--direction in|out|all`; each row gains `direction` (`in`/`out`/`self`) and `source` (`network`/`local`), and `--json` adds `account` and `warnings`. When the explorer cannot be read, the command still returns local history and reports why in `warnings`. New `fast wait-for-payment --amount <x> [--token] [--from] [--to] [--since] [--timeout]` blocks until a matching incoming payment arrives (exact amount and token), or exits with `PAYMENT_TIMEOUT`. Closes #162.

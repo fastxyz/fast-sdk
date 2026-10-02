@@ -1,6 +1,7 @@
 import { Effect, Layer, type Option } from "effect";
 import { type ClientError, InternalError } from "./errors/index.js";
 import { AllSetLive } from "./services/api/allset.js";
+import { ExplorerApiLive } from "./services/api/explorer.js";
 import { FastIdResolverLive } from "./services/api/fast-id.js";
 import { FastRpcLive } from "./services/api/fast.js";
 import { X402Service } from "./services/api/x402.js";
@@ -47,7 +48,7 @@ export const makeAppLayer = (opts: GlobalOptions) => {
   ).pipe(Layer.provide(foundation));
 
   // Services that depend on tier1
-  const tier2 = Layer.mergeAll(FastRpcLive).pipe(
+  const tier2 = Layer.mergeAll(FastRpcLive, ExplorerApiLive).pipe(
     Layer.provide(Layer.merge(foundation, tier1)),
   );
 

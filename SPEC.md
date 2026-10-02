@@ -203,6 +203,12 @@ refer to config files at `~/.fast/networks/<name>.json`.
 `--token` for `fast send` and `fast fund usdc crypto`; when absent, commands
 that accept `--token` require the flag to be specified explicitly.
 
+`explorerApiUrl` is optional: the base URL of the explorer indexer API that
+serves `GET /explorer/transfers` (bundled: `https://api.fast.xyz` on mainnet,
+`https://testnet.api.fast.xyz` on testnet). It enables network-backed
+`fast info history` and `fast wait-for-payment`; without it, history is local
+only and `wait-for-payment` exits with `EXPLORER_NOT_CONFIGURED`.
+
 ### 3.6 Auto-naming
 
 When a command creates an account without an explicit name, the CLI assigns
@@ -266,6 +272,9 @@ Selected `errorCode` values used in the JSON envelope's `error.code` field
 | `INSUFFICIENT_BALANCE`            | 4    | Funding source (Fast or EVM) lacks enough balance to cover the requested amount.                                                  |
 | `FUNDING_REQUIRED`                | 4    | `fast fund usdc crypto`: derived EVM address has insufficient balance; the user must deposit before retrying.                     |
 | `TX_FAILED`                       | 6    | Transaction was rejected by the network.                                                                                          |
+| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`: no matching payment arrived before `--timeout`.                                                          |
+| `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response). `fast info history` reports it as a warning instead. |
+| `EXPLORER_NOT_CONFIGURED`         | 2    | The network has no `explorerApiUrl`, so network history is unavailable (`fast wait-for-payment`).                                 |
 | `USER_CANCELLED`                  | 7    | Interactive confirmation declined.                                                                                                |
 | `WRONG_PASSWORD` / `PASSWORD_REQUIRED` | 8 | Keystore password missing or incorrect.                                                                                           |
 
@@ -303,13 +312,14 @@ fast network remove          Remove a custom network
 fast info status             Health check for current network
 fast info balance            Show token balances for an address
 fast info tx                 Look up a transaction by hash
-fast info history            Show transaction history
+fast info history            Show transaction history (network + local)
 fast info bridge-tokens      List tokens available for Fast-EVM transfers (only USDC for now)
 fast info bridge-chains      List chains available for Fast-EVM transfers
 
 fast fund                    Fund fast account from crypto or fiat; may need human intervention
 fast send                    Send tokens between Fast and/or supported chains
 fast pay                     Pay via payment links/protocols (e.g., x402)
+fast wait-for-payment        Wait until a matching incoming payment arrives
 ```
 
 ### 6.1 `fast account create`
@@ -1001,29 +1011,57 @@ the items in `fast info history`'s `transactions` array:
 **Synopsis**
 
 ```text
-fast info history [--from <name|address>] [--to <address>] [--source <chain>]
-                  [--dest <chain>] [--token <value>] [--limit <n>]
-                  [--offset <n>]
+fast info history [--direction <in|out|all>] [--from <name|address>]
+                  [--to <address>] [--source <chain>] [--dest <chain>]
+                  [--token <value>] [--limit <n>] [--offset <n>]
 ```
 
 **Description**
 
-Show transaction history, merging Fast-native transfers and AllSet bridge
-operations. Results are ordered by timestamp descending.
+Show the selected account's transaction history (`--account`, else the default
+account), merging two sources:
+
+- **Network** — Fast-side `TokenTransfer`, `Mint` and `Burn` rows that touch the
+  account, read from the network's explorer API
+  (`GET {explorerApiUrl}/explorer/transfers?from=|to=<address>`). This includes
+  payments received from other accounts and EVM → Fast deposits, which appear
+  as `Mint` rows (`type: "token-mint"`) from the bridge account. Rows without an
+  amount or token (e.g. `ExternalClaim`) are skipped.
+- **Local** — transactions this CLI submitted and recorded under `~/.fast`
+  (including bridge routes and token operations), limited to entries that
+  involve the account.
+
+A network row whose Fast transaction hash matches a local entry is dropped in
+favour of the local entry. Results are ordered by timestamp descending; filters
+apply to both sources before `--offset`/`--limit`. Pending bridge entries on the
+returned page are re-checked against the AllSet portal as before.
+
+If the explorer API cannot be read, or the network has no `explorerApiUrl`, the
+command still succeeds with local history only and explains why in `warnings`
+(human mode: `Warning: …` on stderr). Callers must not treat a missing incoming
+payment as proof that nothing arrived while `warnings` is non-empty. When no
+account exists, the whole local log is listed, as before network history.
 
 **Flags**
 
 | Flag | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `--from` | string | no | all accounts | Filter by sender account name or address. |
+| `--direction` | `in` \| `out` \| `all` | no | `all` | Relative to the account: `in` = sent to it by another address, `out` = sent by it to another address. Self transfers (`self`) are only listed with `all`. |
+| `--from` | string | no | — | Filter by sender address. |
 | `--to` | string | no | — | Filter by recipient (Fast or EVM address). |
 | `--source` | string | no | — | Filter by source network/chain. |
 | `--dest` | string | no | — | Filter by destination network/chain. |
-| `--token` | string | no | — | Filter by token. See [Token Resolution](#7-token-resolution-rules). |
+| `--token` | string | no | — | Filter by token symbol (case-insensitive) or token ID; a symbol also matches the token ID it resolves to on the current network. See [Token Resolution](#7-token-resolution-rules). |
 | `--limit` | integer | no | `20` | Max number of records to return. |
 | `--offset` | integer | no | `0` | Number of records to skip. Use with `--limit` for pagination. |
 
 **Output (`--json`)**
+
+Every row keeps the local-entry fields and adds `direction` (`in`, `out` or
+`self`) and `source` (`network` or `local`). Network rows use base-unit
+`amount` decoded from the explorer's hex encoding, `status: "confirmed"`,
+`route: "fast"`, and the token symbol from the network config (the token ID
+when the token is not configured, with `formatted` then in base units).
 
 ```json
 {
@@ -1031,21 +1069,44 @@ operations. Results are ordered by timestamp descending.
   "data": {
     "transactions": [
       {
+        "hash": "0x5f1c...",
+        "type": "transfer",
+        "from": "fast1leo...",
+        "to": "fast1qw5...x9z",
+        "amount": "100000",
+        "formatted": "0.1",
+        "tokenName": "fastUSD",
+        "tokenId": "0xc655a123...",
+        "network": "mainnet",
+        "status": "confirmed",
+        "timestamp": "2026-10-02T02:59:49.705Z",
+        "explorerUrl": "https://explorer.fast.xyz/txs/0x5f1c...",
+        "route": "fast",
+        "chainId": null,
+        "direction": "in",
+        "source": "network"
+      },
+      {
         "hash": "0xabc123...",
         "type": "transfer",
         "from": "fast1qw5...x9z",
         "to": "fast1ab2...y3w",
         "amount": "10000000",
-        "formatted": "10.00",
-        "tokenName": "USDC",
+        "formatted": "10",
+        "tokenName": "fastUSD",
         "tokenId": "0xc655a123...",
-        "sourceChain": "fast",
-        "destChain": "fast",
+        "network": "mainnet",
         "status": "confirmed",
-        "timestamp": "2026-03-31T12:00:00Z",
-        "explorerUrl": "https://explorer.fast.xyz/tx/0xabc123..."
+        "timestamp": "2026-10-01T12:00:00.000Z",
+        "explorerUrl": "https://explorer.fast.xyz/txs/0xabc123...",
+        "route": "fast",
+        "chainId": null,
+        "direction": "out",
+        "source": "local"
       }
-    ]
+    ],
+    "account": "fast1qw5...x9z",
+    "warnings": []
   }
 }
 ```
@@ -1054,10 +1115,9 @@ operations. Results are ordered by timestamp descending.
 
 | Condition | Exit | Code |
 |---|---|---|
-| Account alias not found (`--from`) | 3 | `ACCOUNT_NOT_FOUND` |
-| Invalid address format (`--from` and `--to`) | 2 | `INVALID_ADDRESS` |
-| Token not found (`--token`) | 2 | `TOKEN_NOT_FOUND` |
-| RPC unreachable | 5 | `NETWORK_ERROR` |
+| Account alias not found (`--account`) | 2 | `ACCOUNT_NOT_FOUND` |
+| Invalid `--direction`, `--limit` or `--offset` | 2 | `INVALID_USAGE` |
+| Explorer API unreachable / not configured | 0 | — (local history plus a `warnings` entry) |
 
 ### 6.16 `fast info bridge-tokens`
 
@@ -1593,6 +1653,84 @@ logic above). The `accepts` array shows all payment options from the merchant.
 | No password in `--non-interactive` mode | 8 | `PASSWORD_REQUIRED` |
 | User declines confirmation | 7 | `USER_CANCELLED` |
 | RPC unreachable | 5 | `NETWORK_ERROR` |
+
+### 6.21 `fast wait-for-payment`
+
+**Synopsis**
+
+```text
+fast wait-for-payment --amount <amount> [--token <value>] [--from <fast1...>]
+                      [--to <fast1...>] [--since <iso-time>] [--timeout <seconds>]
+```
+
+**Description**
+
+Block until a matching incoming payment arrives on the current network, then
+print it. Read-only: no signing, no password.
+
+The CLI polls the explorer API's incoming feed for the watched address
+(`GET {explorerApiUrl}/explorer/transfers?to=<address>&order=desc&limit=50`,
+following `next_cursor` back to `--since`) every 2 seconds. A transfer matches
+when all of these hold:
+
+- its type is `TokenTransfer` or `Mint` (an EVM → Fast deposit);
+- `to` is the watched address and `from` is a different address;
+- its token is the requested token and its amount equals `--amount` exactly, in
+  base units;
+- `from` equals `--from`, when given;
+- its `submission_timestamp` is at or after `--since`.
+
+If several match, the earliest is returned. Explorer errors during polling
+(timeout, HTTP error, malformed response) are retried until the deadline. The
+`--since` default is the moment the command starts, compared with the
+explorer's submission time; pass an explicit `--since` when the payment may
+already have been sent.
+
+**Flags**
+
+| Flag | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `--amount` | string | yes | — | Exact human-readable amount (e.g. `10.5`), converted with the token's decimals as in `fast send`. More decimal places than the token supports, zero, or a non-number exits with `INVALID_AMOUNT`. |
+| `--token` | string | no | `network.defaultToken.symbol` | Token symbol or token ID. A token ID not in the network config gets its decimals from the Fast RPC. |
+| `--from` | string | no | — | Only accept a payment sent by this `fast1...` address. |
+| `--to` | string | no | active account | `fast1...` address to watch. |
+| `--since` | string | no | command start | ISO 8601 time; only payments submitted at or after it match. Times without a zone are UTC. |
+| `--timeout` | integer | no | `300` | Seconds to wait before failing with `PAYMENT_TIMEOUT`. |
+
+**Output (`--json`)**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "hash": "0x5f1c...",
+    "type": "transfer",
+    "from": "fast1leo...",
+    "to": "fast1qw5...x9z",
+    "amount": "25000000",
+    "formatted": "25",
+    "tokenName": "fastUSD",
+    "tokenId": "0xc655a123...",
+    "timestamp": "2026-10-02T12:03:41.512Z",
+    "explorerUrl": "https://explorer.fast.xyz/txs/0x5f1c...",
+    "network": "mainnet"
+  }
+}
+```
+
+`type` is `transfer` for a Fast transfer and `token-mint` for a deposit.
+
+**Errors**
+
+| Condition | Exit | Code |
+|---|---|---|
+| `--amount` missing, invalid `--since` or `--timeout` | 2 | `INVALID_USAGE` |
+| Amount malformed, zero, or too precise | 2 | `INVALID_AMOUNT` |
+| `--from` / `--to` not a valid `fast1...` address | 2 | `INVALID_ADDRESS` |
+| Token not found | 2 | `TOKEN_NOT_FOUND` |
+| No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
+| Network has no `explorerApiUrl` | 2 | `EXPLORER_NOT_CONFIGURED` |
+| Nothing matching arrived before `--timeout` (the message says if the last poll failed) | 1 | `PAYMENT_TIMEOUT` |
 
 ## 7. Token Resolution Rules
 

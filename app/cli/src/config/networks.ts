@@ -5,6 +5,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
   testnet: {
     url: sdkTestnet.url,
     explorerUrl: sdkTestnet.explorerUrl,
+    explorerApiUrl: "https://testnet.api.fast.xyz",
     networkId: sdkTestnet.networkId,
     defaultToken: sdkTestnet.defaultToken,
     allSet: {
@@ -47,6 +48,7 @@ export const bundledNetworks: Record<string, NetworkConfig> = {
   mainnet: {
     url: sdkMainnet.url,
     explorerUrl: sdkMainnet.explorerUrl,
+    explorerApiUrl: "https://api.fast.xyz",
     networkId: sdkMainnet.networkId,
     defaultToken: sdkMainnet.defaultToken,
     allSet: {

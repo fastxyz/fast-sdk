@@ -113,3 +113,32 @@ export function tokenIsKnownOnNetwork(
   }
   return false;
 }
+
+/**
+ * Label and decimals of a Fast-side token id, from the network's known tokens.
+ *
+ * Unlike `lookupTokenNameById` (which prefers chain-scoped bridge names), the
+ * network's `defaultToken` wins here, matching how `fast info balance` and
+ * `fast send` label the Fast-side asset (e.g. `fastUSD` rather than `USDC` on
+ * mainnet). Chain-scoped names are the fallback. Returns undefined for tokens
+ * the network config does not know.
+ */
+export function lookupFastTokenById(
+  networkConfig: NetworkConfig,
+  fastTokenId: string,
+): { readonly name: string; readonly decimals: number } | undefined {
+  const target = norm(fastTokenId);
+  const def = networkConfig.defaultToken;
+  if (def && norm(def.tokenId) === target) {
+    return { name: def.symbol, decimals: def.decimals };
+  }
+  const name = lookupTokenNameById(networkConfig, fastTokenId);
+  if (name === undefined) return undefined;
+  for (const chain of Object.values(networkConfig.allSet?.chains ?? {})) {
+    const entry = chain.tokens[name];
+    if (entry && norm(entry.fastTokenId) === target) {
+      return { name, decimals: entry.decimals };
+    }
+  }
+  return undefined;
+}

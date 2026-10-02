@@ -52,7 +52,7 @@ Every supported subcommand is listed below. Use **exactly** these command names 
 |---|---|---|
 | `fast info status` | Show **network health status** for the current network | `--network <name>`, `--json` |
 | `fast info balance` | Show USDC balances on Fast and bridgeable EVM chains | `--json` |
-| `fast info history` | Show transaction history | `--limit <n>` (number of records), `--json` |
+| `fast info history` | Show the account's transaction history: incoming and outgoing transfers from the network, plus what this CLI sent | `--direction in\|out\|all`, `--from <fast1...>`, `--limit <n>`, `--json` |
 | `fast info tx <hash>` | Look up details for a **specific transaction** by hash | `--json` |
 | `fast info bridge-chains` | List all **bridge-compatible EVM chains** | `--json` |
 | `fast info bridge-tokens` | List all **bridge-compatible tokens** | `--json` |
@@ -120,6 +120,14 @@ fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chai
 ```sh
 fast pay <url> [--method <METHOD>] [--body <data|@file>] [--dry-run]
 ```
+
+### `wait-for-payment` command
+
+```sh
+fast wait-for-payment --amount <AMOUNT> [--token <TOKEN>] [--from <fast1...>] [--to <fast1...>] [--since <ISO time>] [--timeout <seconds>]
+```
+
+Blocks until an incoming payment of **exactly** `<AMOUNT>` (default token: the network's) reaches the active account (or `--to`), then prints it. Exits 1 with `PAYMENT_TIMEOUT` if nothing matching arrives within `--timeout` (default 300 s).
 
 ---
 
@@ -236,6 +244,26 @@ fast info tx 0xabc123def456        # ← use THIS for a specific tx hash
 fast info history                  # ← use THIS for recent tx list
 fast info history --limit 10       # last 10 records
 ```
+
+### Check incoming payments ("did Leo pay me?", "what came in today?")
+
+```sh
+# Everything received recently (other accounts' payments and EVM → Fast deposits)
+fast info history --direction in --json
+
+# Only payments from one sender
+fast info history --direction in --from fast1leo... --json
+
+# Block until a specific payment arrives (exact amount; default token unless --token)
+fast wait-for-payment --amount 25 --from fast1leo... --json
+fast wait-for-payment --amount 25 --since 2026-10-02T12:00:00Z --timeout 600 --json
+```
+
+- `info history` rows have `direction` (`in`/`out`/`self`) and `source` (`network` = read from the Fast explorer, `local` = sent by this CLI). For "what came in today?", keep rows with `direction: "in"` and a `timestamp` from today (UTC), and raise `--limit` if the page is full.
+- If `data.warnings` is non-empty, network history was **not** read (explorer unreachable or not configured). Say so; do not conclude that nothing arrived.
+- `wait-for-payment` only matches the exact amount and token, sent at or after `--since` (default: when the command starts). If the payer may already have paid, pass `--since` with a time before they paid. On success, `data.hash` and `data.explorerUrl` identify the payment.
+- `PAYMENT_TIMEOUT` means no matching payment was seen in time (the message says if the explorer was failing). Report that; don't retry forever.
+- **Never tell the user a payment arrived unless `fast info history` or `fast wait-for-payment` shows it.** A sender's message, a balance you assume changed, or a link you were sent is not confirmation.
 
 ### List bridge-compatible chains and tokens
 

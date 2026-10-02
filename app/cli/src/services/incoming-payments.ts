@@ -125,7 +125,9 @@ export const findIncomingPayment = (
  * full read back to `since` is repeated every FULL_RESCAN_INTERVAL_MS and on
  * every poll in the last FULL_RESCAN_INTERVAL_MS before the deadline, so a row
  * the indexer publishes late, with an older timestamp, is still found before
- * the command gives up.
+ * the command gives up. When an incremental poll finds a match, the whole
+ * window back to `since` is read once more before it is returned, so the result
+ * is always the earliest matching payment in the window.
  *
  * Transient explorer errors are retried until the deadline (a failed poll keeps
  * the previous floor); a network without an explorer API fails immediately.
@@ -148,12 +150,16 @@ export const waitForIncoming = (
       const state = yield* Ref.get(progress);
       const full = now - state.lastFullScanMs >= FULL_RESCAN_INTERVAL_MS || deadlineMs - now <= FULL_RESCAN_INTERVAL_MS;
       const scan = yield* scanIncoming(options, full ? sinceMs : state.floorMs);
+      // An incremental poll only sees rows above the floor. Before reporting a
+      // match, read the whole window back to `since` so the earliest matching
+      // payment wins, including one the indexer published late below the floor.
+      const confirmed = !full && scan.match !== undefined ? yield* scanIncoming(options, sinceMs) : undefined;
       yield* Ref.set(lastError, undefined);
       yield* Ref.set(progress, {
         floorMs: scan.newestMs === null ? state.floorMs : Math.max(sinceMs, scan.newestMs - RESCAN_OVERLAP_MS),
-        lastFullScanMs: full ? now : state.lastFullScanMs,
+        lastFullScanMs: full || confirmed !== undefined ? now : state.lastFullScanMs,
       });
-      return scan.match;
+      return confirmed?.match ?? scan.match;
     }).pipe(Effect.catchTag('ExplorerUnavailableError', (error) => Ref.set(lastError, error.reason).pipe(Effect.as(undefined))));
 
     const loop = Effect.gen(function* () {

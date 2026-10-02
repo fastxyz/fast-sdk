@@ -122,7 +122,8 @@ describe('fast wait-for-payment', () => {
         network: 'testnet',
       },
     ]);
-    expect(calls).toHaveLength(2);
+    // Poll 1 (full) finds nothing; poll 2 finds it and re-reads the window to confirm it is the earliest.
+    expect(calls).toHaveLength(3);
     expect(calls[0]).toMatchObject({ address: ME, side: 'to', order: 'desc' });
     expect(lines[0]).toBe(`Waiting up to 300s for 0.1 testUSDC to ${ME} since 1970-01-01T00:00:00.000Z...`);
     expect(lines).toContain(`Payment received: 0.1 testUSDC from ${LEO}`);

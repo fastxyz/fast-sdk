@@ -1694,8 +1694,10 @@ next poll only reads back to the newest row it saw minus 5 minutes (never before
 `--since`), so rows the indexer publishes slightly late are still read. Every 30
 seconds, and on every poll in the last 30 seconds before the timeout, a poll
 reads back to `--since` again, so a payment the indexer publishes much later,
-with an older submission time, is still found before the command gives up. A
-transfer matches
+with an older submission time, is still found before the command gives up.
+When an incremental poll finds a match, the whole window back to `--since` is
+read once more before the result is returned, so it is always the earliest
+matching payment in the window. A transfer matches
 when all of these hold:
 
 - its type is `TokenTransfer` or `Mint` (an EVM → Fast deposit);

@@ -1,10 +1,12 @@
-import { Effect, Layer, Option } from 'effect';
+import { Effect, Fiber, Layer, Option } from 'effect';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ExplorerNotConfiguredError, ExplorerUnavailableError } from '../../src/errors/index.js';
 import type { NetworkConfig } from '../../src/schemas/networks.js';
 import {
+  anySignal,
   ExplorerApi,
   ExplorerApiLive,
+  fetchExplorerRows,
   type ListTransfersParams,
   normalizeTransfer,
   parseExplorerAmount,
@@ -347,5 +349,59 @@ describe('ExplorerApiLive', () => {
     expect(exit.cause.error).toBeInstanceOf(ExplorerNotConfiguredError);
     expect(exit.cause.error.message).toContain('"devnet"');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('anySignal', () => {
+  /** Run `fn` as if on a Node release without AbortSignal.any (before 18.17 / 20.3). */
+  const withoutAbortSignalAny = async (fn: () => Promise<void> | void) => {
+    const original = AbortSignal.any;
+    Object.defineProperty(AbortSignal, 'any', { value: undefined, configurable: true, writable: true });
+    try {
+      await fn();
+    } finally {
+      Object.defineProperty(AbortSignal, 'any', { value: original, configurable: true, writable: true });
+    }
+  };
+
+  it('aborts when any input aborts, with or without AbortSignal.any', async () => {
+    const check = () => {
+      for (const which of [0, 1]) {
+        const inputs = [new AbortController(), new AbortController()];
+        const combined = anySignal(inputs.map((c) => c.signal));
+        expect(combined.aborted).toBe(false);
+        inputs[which]!.abort(new Error(`stop ${which}`));
+        expect(combined.aborted).toBe(true);
+        expect((combined.reason as Error).message).toBe(`stop ${which}`);
+      }
+      const already = new AbortController();
+      already.abort('done');
+      expect(anySignal([new AbortController().signal, already.signal]).aborted).toBe(true);
+    };
+    check();
+    await withoutAbortSignalAny(check);
+  });
+
+  it('cancels an in-flight explorer request when the command is interrupted, even without AbortSignal.any', async () => {
+    await withoutAbortSignalAny(async () => {
+      let seen: AbortSignal | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_input: unknown, init?: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              seen = init?.signal ?? undefined;
+              seen?.addEventListener('abort', () => reject(seen?.reason), { once: true });
+            }),
+        ),
+      );
+
+      const fiber = Effect.runFork(fetchExplorerRows('https://api.fast.xyz', { address: ME, side: 'to' }));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(seen?.aborted).toBe(false);
+      await Effect.runPromise(Fiber.interrupt(fiber));
+
+      expect(seen?.aborted).toBe(true);
+    });
   });
 });

@@ -261,10 +261,26 @@ const describeFailure = (cause: unknown): string => {
   return cause instanceof Error ? cause.message : String(cause);
 };
 
-const requestSignal = (interrupt: AbortSignal): AbortSignal => {
-  const timeout = AbortSignal.timeout(EXPLORER_REQUEST_TIMEOUT_MS);
-  return typeof AbortSignal.any === 'function' ? AbortSignal.any([interrupt, timeout]) : timeout;
+/**
+ * Abort when either signal aborts. `AbortSignal.any` only exists from Node
+ * 18.17 / 20.3; on older runtimes the two signals are combined by hand, so an
+ * interrupted command (timeout, Ctrl-C, a failed sibling request) still
+ * cancels the in-flight fetch instead of waiting for the request timeout.
+ */
+export const anySignal = (signals: readonly AbortSignal[]): AbortSignal => {
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([...signals]);
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
 };
+
+const requestSignal = (interrupt: AbortSignal): AbortSignal => anySignal([interrupt, AbortSignal.timeout(EXPLORER_REQUEST_TIMEOUT_MS)]);
 
 /** Fetch and validate one page of raw rows. */
 export const fetchExplorerRows = (baseUrl: string, params: ListTransfersParams): Effect.Effect<ExplorerRowsPage, ExplorerUnavailableError> => {

@@ -125,7 +125,8 @@ describe('waitForIncoming', () => {
 
     if (!Exit.isSuccess(exit)) throw new Error(String(exit.cause));
     expect(exit.value.hash).toBe(hashOf(1));
-    expect(explorer.calls).toHaveLength(5);
+    // Third poll: the incremental read (1 page) finds it, then the full window is re-read to confirm.
+    expect(explorer.calls.map((c) => c.cursor)).toEqual([null, 'c1', 'c2', null, null, null, 'c1', 'c2']);
   });
 
   // Feed with newer unrelated rows on page 1 and older ones on pages 2-3. A
@@ -183,6 +184,38 @@ describe('waitForIncoming', () => {
     expect(explorer.calls.map((c) => c.cursor)).toEqual([null, 'c1', 'c2', null, 'c1', 'c2']);
   });
 
+  it('returns the earliest match in the whole window when an incremental poll finds a newer one', async () => {
+    const noise = (n: number, at: string) => payment(n, at, { amount: '1' });
+    let firstPollDone = false;
+    const explorer = mockExplorer((params) => {
+      if (params.cursor === null) {
+        // After the first poll a new matching payment arrives at the top...
+        const fresh = firstPollDone ? [payment(2, '2026-10-02T03:31:00Z')] : [];
+        return Effect.succeed(
+          page([...fresh, noise(30, '2026-10-02T03:30:00Z'), noise(24, '2026-10-02T03:24:00Z')], { hasMore: true, nextCursor: 'c1' }),
+        );
+      }
+      if (params.cursor === 'c1') {
+        // ...and an earlier one shows up late, below the incremental floor (03:25).
+        const late = firstPollDone ? [payment(1, '2026-10-02T03:05:00Z')] : [];
+        return Effect.succeed(page([noise(10, '2026-10-02T03:10:00Z'), ...late], { hasMore: true, nextCursor: 'c2' }));
+      }
+      firstPollDone = true;
+      return Effect.succeed(page([noise(3, '2026-10-02T02:59:00Z')], { hasMore: true, nextCursor: 'c3' }));
+    });
+
+    const exit = await run(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(waitForIncoming({ ...criteria, timeoutMs: 300_000 }).pipe(Effect.provide(explorer.layer)));
+        yield* TestClock.adjust(Duration.seconds(2));
+        return yield* Fiber.join(fiber);
+      }),
+    );
+
+    if (!Exit.isSuccess(exit)) throw new Error(String(exit.cause));
+    expect(exit.value.hash).toBe(hashOf(1));
+  });
+
   it('rescans from `since` after a failed poll instead of skipping rows', async () => {
     const explorer = mockExplorer((params, call) => {
       if (call === 1) return Effect.fail(new ExplorerUnavailableError({ reason: 'HTTP 502' }));
@@ -222,7 +255,8 @@ describe('waitForIncoming', () => {
 
     if (!Exit.isSuccess(exit)) throw new Error(String(exit.cause));
     expect(exit.value.hash).toBe(hashOf(1));
-    expect(explorer.calls).toHaveLength(3);
+    // The third poll finds it incrementally and confirms it with one full read.
+    expect(explorer.calls).toHaveLength(4);
   });
 
   it('fails with PAYMENT_TIMEOUT when nothing matching arrives', async () => {
@@ -303,7 +337,7 @@ describe('waitForIncoming', () => {
 
     if (!Exit.isSuccess(exit)) throw new Error(String(exit.cause));
     expect(exit.value.hash).toBe(hashOf(3));
-    expect(explorer.calls).toHaveLength(2);
+    expect(explorer.calls).toHaveLength(3);
   });
 
   it('fails immediately when the network has no explorer API', async () => {

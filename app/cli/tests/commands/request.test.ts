@@ -486,7 +486,8 @@ describe('fast request --wait', () => {
     const { exit, h } = await runWait({}, { explorer, advance: Duration.seconds(2) });
 
     expect(exit._tag).toBe('Success');
-    expect(explorer.calls.length).toBe(2);
+    // Poll 1 sees only the stale and wrong-amount rows; poll 2 finds the payment and re-reads the window to confirm it.
+    expect(explorer.calls.length).toBe(3);
     expect((h.results[0] as { payment: { hash: string } }).payment.hash).toBe(hashOf(3));
   });
 

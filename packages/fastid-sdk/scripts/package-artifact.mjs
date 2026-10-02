@@ -22,6 +22,7 @@ const modules = [
   "profile",
   "proofs",
   "reads",
+  "reader",
   "report-wire",
   "report",
   "share",

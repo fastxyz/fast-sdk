@@ -36,6 +36,19 @@ const client = new IdClient({ network: 'fast:testnet', signer });
 const availability = await client.availability('agent.sdk');
 ```
 
+For lookups only (for example, turning `alice.smith` into the `fast1...` address
+to pay), use `IdReader`, which needs no signer and applies the same response
+checks (network and name binding) as `IdClient`:
+
+```ts
+import { IdReader, isCanonicalName } from '@fastxyz/fastid-sdk';
+
+const reader = new IdReader({ network: 'fast:mainnet' });
+if (isCanonicalName('alice.smith')) {
+  const { address } = await reader.resolve('alice.smith'); // fast1...
+}
+```
+
 The client supports public identity reads, name/website/GitHub/ORCID/X claims,
 DOI imports, profile updates, revocation, sealed reports and sharing URLs. Use
 `fast:mainnet` when intending to use production. Paid operations use the supplied

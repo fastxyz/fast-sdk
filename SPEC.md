@@ -1282,7 +1282,7 @@ and chain flags.
 
 | Arg | Type | Required | Description |
 |---|---|---|---|
-| `address` | string | yes | Recipient address (`fast1...` for Fast, `0x...` for EVM). |
+| `address` | string | yes | Recipient: `fast1...` (Fast), `0x...` (EVM), or a Fast ID name (`label.label`, e.g. `alice.smith`; see **Fast ID recipients**). |
 | `amount` | string | yes | Human-readable amount (e.g., `10.5`). Converted to smallest units using the token's decimals. |
 
 If the amount has more decimal places than the token supports, the CLI exits
@@ -1317,6 +1317,30 @@ needed, (3) submit the bridge deposit. The user sees a single confirmation
 prompt; the CLI manages the underlying transactions.
 With `--eip-7702`, all three operations (approve paymaster, approve bridge,
 deposit) are batched into a single UserOperation; gas is paid in token.
+
+**Fast ID recipients:**
+
+When `address` is not a well-formed address (a bech32m `fast` address with a
+32-byte payload, or `0x` followed by 40 hex digits) and, after trimming and
+lowercasing, is a canonical Fast ID name (two labels of `[a-z0-9_]{1,15}`,
+not reserved), the CLI resolves it before any account, token or signing step.
+Classification uses the full syntax, not the prefix: names always contain a
+dot and addresses never do, so `fast1alice.smith` and `0xabc.def` are names.
+
+1. The network's `networkId` must be `fast:mainnet` or `fast:testnet`; other
+   networks exit 2 (`INVALID_USAGE`).
+2. `--to-chain` with a name exits 2 (`INVALID_ADDRESS`): names resolve to Fast
+   addresses, and bridge-out needs a `0x...` recipient. `--from-chain` is allowed.
+3. The name is read from the Fast ID registry for that network
+   (`https://id.fast.xyz/<name>/id.json` on mainnet) with a 10 s timeout, via
+   `IdReader.resolve()` from `@fastxyz/fastid-sdk`, which checks that the
+   document's network and name binding match.
+4. Not registered (HTTP 404): exit 2, `INVALID_ADDRESS`. Any other failure
+   (timeout, transport error, inconsistent document): exit 1,
+   `FAST_ID_RESOLUTION_FAILED`. Nothing is signed or sent in either case.
+5. On success the resolved `fast1...` address is used for routing, signing,
+   history and `to`; the confirmation reads `To: alice.smith (fast1...)` and the
+   JSON output adds `"toName": "alice.smith"`.
 
 **Address validation rules:**
 

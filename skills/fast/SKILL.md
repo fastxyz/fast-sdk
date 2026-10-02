@@ -94,7 +94,7 @@ fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chai
 
 | Argument / Flag | Description | Allowed values |
 |---|---|---|
-| `<address>` | Recipient address | `fast1...` (Fast network) or `0x...` (EVM) |
+| `<address>` | Recipient | `fast1...` (Fast network), `0x...` (EVM), or a Fast ID name like `alice.smith` (resolved to its `fast1...` address on the current network) |
 | `<amount>` | Amount to send | numeric string, e.g. `"20"` |
 | `--token <TOKEN>` | Defaults to `network.defaultToken.symbol` (`fastUSD` on mainnet, `testUSDC` on testnet) when omitted. Bridge routes (`--from-chain` / `--to-chain`) require the resolved token to be available on the target chain; otherwise the command errors with `CommandUnsupportedForTokenError`. | `USDC`, `fastUSD`, `testUSDC` |
 | `--from-chain <chain>` | Bridge from this EVM chain into Fast | e.g. `arbitrum-sepolia`, `base` |
@@ -271,6 +271,18 @@ fast send fast1ab2...y3w 10.5
 # To send USDC explicitly, pass --token:
 fast send fast1ab2...y3w 10.5 --token USDC
 ```
+
+### Send to a Fast ID name
+
+```sh
+fast send alice.smith 10 --json
+# → data.to is the resolved fast1... address, data.toName is "alice.smith"
+```
+
+- Names are two lowercase labels (`alice.smith`). A bare first name (`alice`) is not a Fast ID; ask the user for the full name or a `fast1...` address.
+- Sends are irreversible. Before the first send to a new recipient, tell the user the name **and** the resolved `fast1...` address and get a yes.
+- `INVALID_ADDRESS` with "not registered" means the name doesn't exist on this network; `FAST_ID_RESOLUTION_FAILED` means the registry couldn't be read. In both cases nothing was sent; don't guess an address.
+- Names can't be used with `--to-chain` (bridge-out needs a `0x...` address).
 
 ### 4. Fund from EVM → Fast (`fast fund usdc crypto`)
 

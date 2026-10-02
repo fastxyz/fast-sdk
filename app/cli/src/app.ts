@@ -1,6 +1,7 @@
 import { Effect, Layer, type Option } from "effect";
 import { type ClientError, InternalError } from "./errors/index.js";
 import { AllSetLive } from "./services/api/allset.js";
+import { FastIdResolverLive } from "./services/api/fast-id.js";
 import { FastRpcLive } from "./services/api/fast.js";
 import { X402Service } from "./services/api/x402.js";
 import { AppConfigLive } from "./services/config/app.js";
@@ -33,7 +34,7 @@ export const makeAppLayer = (opts: GlobalOptions) => {
   });
 
   // Foundation: database + config
-  const foundation = Layer.mergeAll(DatabaseLive, cliConfigLayer, AllSetLive, AppConfigLive);
+  const foundation = Layer.mergeAll(DatabaseLive, cliConfigLayer, AllSetLive, FastIdResolverLive, AppConfigLive);
 
   // Services that depend only on foundation
   const tier1 = Layer.mergeAll(

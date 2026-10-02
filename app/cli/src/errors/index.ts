@@ -59,6 +59,7 @@ import type {
   TransactionFailedError,
   TransactionSubmissionUnknownError,
   TxNotFoundError,
+  FastIdResolutionError,
 } from "./transaction.js";
 import type {
   InvalidUsageError,
@@ -84,6 +85,7 @@ export type ClientError =
   | InvalidNetworkConfigError
   | DatabaseError
   | InvalidAddressError
+  | FastIdResolutionError
   | InvalidAmountError
   | CommandUnsupportedForTokenError
   | TokenNotFoundError

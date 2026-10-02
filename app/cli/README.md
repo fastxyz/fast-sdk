@@ -231,13 +231,16 @@ Send tokens between Fast and supported EVM chains.
 ```bash
 fast send fast1recipient... 10.5 --token USDC
 
+# Send to a Fast ID name; the CLI resolves it to the bound fast1... address first
+fast --network mainnet send alice.smith 10
+
 # Withdraw USDC from Fast mainnet to Polygon mainnet
 fast --network mainnet send 0x1234567890123456789012345678901234567890 0.01 --to-chain polygon --token USDC
 ```
 
 **Positional arguments:**
 
-- `<address>` — Recipient address (`fast1...` for Fast, `0x...` for EVM)
+- `<address>` — Recipient: a `fast1...` address (Fast), a `0x...` address (EVM), or a [Fast ID](https://id.fast.xyz) name such as `alice.smith`. Names are resolved on the current network (mainnet or testnet) before anything is signed; the confirmation shows `alice.smith (fast1...)`, and `--json` output adds `toName`. Resolution fails closed: an unregistered name exits with `INVALID_ADDRESS`, and an unreachable or inconsistent registry exits with `FAST_ID_RESOLUTION_FAILED`, in both cases without sending. Names can't be used with `--to-chain`, which needs a `0x...` recipient.
 - `<amount>` — Human-readable amount (for example, `10` or `1.5`)
 
 **Options:**

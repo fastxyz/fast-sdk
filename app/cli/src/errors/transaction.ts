@@ -49,6 +49,20 @@ export class TransactionSubmissionUnknownError extends Data.TaggedError(
   }
 }
 
+export class FastIdResolutionError extends Data.TaggedError(
+  "FastIdResolutionError",
+)<{
+  readonly fastId: string;
+  readonly reason: string;
+  readonly cause?: unknown;
+}> {
+  readonly exitCode = 1 as const;
+  readonly errorCode = "FAST_ID_RESOLUTION_FAILED" as const;
+  get message() {
+    return `Could not resolve Fast ID "${this.fastId}": ${this.reason}. Nothing was sent; retry, or use the recipient's fast1… address.`;
+  }
+}
+
 export class InvalidAddressError extends Data.TaggedError(
   "InvalidAddressError",
 )<{

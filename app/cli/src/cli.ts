@@ -414,7 +414,7 @@ const requestParser = command(
     }),
     to: optional(
       option('--to', string({ metavar: 'ADDRESS' }), {
-        description: message`Fast address (fast1...) to be paid (default: active account)`,
+        description: message`Who is to be paid: a fast1... address or a Fast ID name like alice.smith (default: active account)`,
       }),
     ),
     qr: withDefault(

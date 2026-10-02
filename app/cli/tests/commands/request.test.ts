@@ -14,6 +14,8 @@ import { ClientConfig } from '../../src/services/config/client.js';
 import { Output, OutputLive } from '../../src/services/output.js';
 import { type AccountInfo, AccountStore } from '../../src/services/storage/account.js';
 import { NetworkConfigService } from '../../src/services/storage/network.js';
+import { FastIdResolutionError, InvalidAddressError } from '../../src/errors/index.js';
+import { FastIdResolver } from '../../src/services/api/fast-id.js';
 import { FASTUSD_ID, hashOf, LEO, mainnet, mockExplorer, page, rawTransfer, transfersFor } from '../fixtures/explorer.js';
 
 const seed = (value: number) => new Uint8Array(32).fill(value);
@@ -213,10 +215,10 @@ describe('parseFastAddress', () => {
     expect(result.left.errorCode).toBe('INVALID_ADDRESS');
   });
 
-  it('points Fast ID names at the fast1 address', () => {
-    const result = parseAddress('alice.smith');
+  it('names both accepted forms in the error', () => {
+    const result = parseAddress('alice');
     if (result._tag !== 'Left') throw new Error('expected a failure');
-    expect(result.left.message).toContain('Fast ID names are not accepted here');
+    expect(result.left.message).toContain('Expected a Fast address (fast1…) or a Fast ID name such as alice.smith.');
   });
 });
 
@@ -510,5 +512,104 @@ describe('fast request --wait', () => {
     expect(failureOf(zero.exit).errorCode).toBe('INVALID_USAGE');
     expect(explorer.calls).toEqual([]);
     expect(noWait.h.results).toEqual([]);
+  });
+});
+
+describe('fast request --to <Fast ID>', () => {
+  const runWithName = async (
+    args: Partial<RequestArgs>,
+    resolve: (name: string, network: string) => Effect.Effect<{ name: string; address: string }, unknown>,
+    opts: { json?: boolean; network?: string } = {},
+  ) => {
+    const h: Harness = { lines: [], results: [], accountLookups: [] };
+    const resolveCalls: Array<[string, string]> = [];
+    const layer = Layer.mergeAll(
+      serviceLayers(h, undefined),
+      clientConfig({ json: opts.json, network: opts.network }),
+      Layer.succeed(FastIdResolver, {
+        resolve: (name: string, network: string) => {
+          resolveCalls.push([name, network]);
+          return resolve(name, network);
+        },
+      } as never),
+      Layer.succeed(Output, {
+        humanLine: (line: string) => Effect.sync(() => void h.lines.push(line)),
+        ok: (data: unknown) => Effect.sync(() => void h.results.push(data)),
+        fail: () => Effect.void,
+        humanTable: () => Effect.void,
+        debug: () => Effect.void,
+      }),
+    );
+    const exit = await Effect.runPromiseExit(
+      request.handler({ cmd: 'request', amount: '10', qr: false, ...args } as RequestArgs).pipe(Effect.provide(layer)),
+    );
+    return { exit, h, resolveCalls };
+  };
+
+  it('resolves the name on mainnet, keeps the name in the link and returns the bound address', async () => {
+    const bound = await fastAddressOf(5);
+
+    const { exit, h, resolveCalls } = await runWithName({ to: 'Alice.Smith' }, (name) => Effect.succeed({ name, address: bound }));
+
+    expect(Exit.isSuccess(exit)).toBe(true);
+    expect(resolveCalls).toEqual([['alice.smith', 'fast:mainnet']]);
+    expect(h.accountLookups).toEqual([]);
+    expect(h.results).toEqual([
+      expect.objectContaining({
+        url: 'https://app.fast.xyz/send?to=alice.smith&amount=10',
+        address: bound,
+        toName: 'alice.smith',
+        amount: '10',
+      }),
+    ]);
+  });
+
+  it('names both the Fast ID and the address in human output', async () => {
+    const bound = await fastAddressOf(5);
+
+    const { h } = await runWithName({ to: 'alice.smith' }, (name) => Effect.succeed({ name, address: bound }), { json: false });
+
+    expect(h.lines).toContain(`Payment request: 10 fastUSD to alice.smith (${bound}) (mainnet).`);
+    expect(h.lines).toContain('  https://app.fast.xyz/send?to=alice.smith&amount=10');
+  });
+
+  it('treats a valid name that starts like an address as a name', async () => {
+    const bound = await fastAddressOf(5);
+
+    const { resolveCalls } = await runWithName({ to: 'fast1alice.smith' }, (name) => Effect.succeed({ name, address: bound }));
+
+    expect(resolveCalls).toEqual([['fast1alice.smith', 'fast:mainnet']]);
+  });
+
+  it('does not call the registry for a fast1 address', async () => {
+    const address = await fastAddressOf(6);
+
+    const { exit, h, resolveCalls } = await runWithName({ to: address }, () => Effect.die('must not resolve'));
+
+    expect(Exit.isSuccess(exit)).toBe(true);
+    expect(resolveCalls).toEqual([]);
+    expect(Object.keys(h.results[0] as object)).not.toContain('toName');
+  });
+
+  it('fails closed when the name is not registered or the registry cannot be read', async () => {
+    const unregistered = await runWithName({ to: 'nobody.here' }, (name) =>
+      Effect.fail(new InvalidAddressError({ message: `Fast ID "${name}" is not registered on fast:mainnet.` })),
+    );
+    const unreachable = await runWithName({ to: 'alice.smith' }, (name) =>
+      Effect.fail(new FastIdResolutionError({ fastId: name, reason: 'request timed out' })),
+    );
+
+    expect(failureOf(unregistered.exit).errorCode).toBe('INVALID_ADDRESS');
+    expect(failureOf(unreachable.exit).errorCode).toBe('FAST_ID_RESOLUTION_FAILED');
+    expect(unregistered.h.results).toEqual([]);
+    expect(unreachable.h.results).toEqual([]);
+    expect(unreachable.h.lines).toEqual([]);
+  });
+
+  it('still rejects input that is neither an address nor a name', async () => {
+    const { exit, resolveCalls } = await runWithName({ to: 'alice' }, () => Effect.die('must not resolve'));
+
+    expect(failureOf(exit)).toMatchObject({ errorCode: 'INVALID_ADDRESS' });
+    expect(resolveCalls).toEqual([]);
   });
 });

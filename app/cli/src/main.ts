@@ -229,7 +229,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     },
   },
   request: {
-    usage: "fast request <amount> [--to <fast1...>] [--qr] [--qr-file <path.svg>] [--wait [--timeout <seconds>]]",
+    usage: "fast request <amount> [--to <fast1...|name>] [--qr] [--qr-file <path.svg>] [--wait [--timeout <seconds>]]",
     options: ["--to", "--qr", "--qr-file", "--wait", "--timeout"],
     check: (_positionals, allArgv) => {
       // Skip option values (e.g. `--network mainnet`) so they aren't mistaken for <amount>.

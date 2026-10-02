@@ -1772,7 +1772,7 @@ already have been sent.
 **Synopsis**
 
 ```text
-fast request <amount> [--to <fast-address>] [--qr] [--qr-file <path.svg>]
+fast request <amount> [--to <fast-address|fast-id>] [--qr] [--qr-file <path.svg>]
              [--wait [--timeout <seconds>]]
 ```
 
@@ -1799,7 +1799,7 @@ whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
 
 | Flag | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `--to` | string | no | active account's Fast address | Fast address to be paid. Must be a bech32m `fast1...` address with a 32-byte payload (same rule as `fast send`). Fast ID names are not accepted. |
+| `--to` | string | no | active account's Fast address | Who is to be paid: a bech32m `fast1...` address with a 32-byte payload, or a Fast ID name such as `alice.smith` (classified as in `fast send`, by full syntax). |
 | `--qr` | boolean | no | `false` | Also render the link as a terminal QR code: on stdout in human mode, on **stderr** with `--json` so stdout stays one JSON document. |
 | `--qr-file` | string | no | — | Write the link as an SVG QR code to this path (must end in `.svg`; an existing file is overwritten). The absolute path is returned as `qrFile`. |
 | `--wait` | boolean | no | `false` | After printing the link, wait until the payment arrives (see step 5). |
@@ -1813,8 +1813,16 @@ whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
 3. Resolve the payee: `--to` if given (no local account is read), otherwise the
    active account (`--account` or the default). A multisig wallet resolves to
    its wallet address and must belong to the active network
-   (`WALLET_NETWORK_MISMATCH` otherwise).
-4. Build the URL, write the `--qr-file` SVG if requested, and print the result.
+   (`WALLET_NETWORK_MISMATCH` otherwise). A Fast ID name is resolved on the
+   network's Fast ID registry exactly as `fast send` does (see **Fast ID
+   recipients** in §6.19) and fails closed: an unregistered name exits 2
+   (`INVALID_ADDRESS`), an unreachable or inconsistent registry exits 1
+   (`FAST_ID_RESOLUTION_FAILED`), and no link is printed.
+4. Build the URL. For a Fast ID payee the link carries the name
+   (`?to=alice.smith`), as the app's own links do: the payer sees the name, and
+   the app resolves it again when they send. `address` is the address the name
+   resolved to, and `--wait` watches that address. Then write the `--qr-file`
+   SVG if requested, and print the result.
 5. With `--wait`: poll the payee's incoming feed as `fast wait-for-payment`
    does, with `--amount` = the normalized amount, the network's default token,
    `--to` = the payee and `--since` = `createdAt`. On a match, print it and
@@ -1860,6 +1868,10 @@ explorer link.
 }
 ```
 
+With `--to alice.smith`, `url` is `https://app.fast.xyz/send?to=alice.smith&amount=10`,
+`address` is the resolved `fast1...` address, and `data` also has
+`"toName": "alice.smith"`.
+
 `amount` is the normalized decimal string. `qrFile` is present only with
 `--qr-file`. With `--wait`, `data` also contains `payment`, the matching
 transfer in the same shape as `fast wait-for-payment` returns (`hash`, `type`,
@@ -1874,7 +1886,8 @@ transfer in the same shape as `fast wait-for-payment` returns (`hash`, `type`,
 | Network is not `mainnet` | 2 | `INVALID_USAGE` |
 | `--qr-file` path does not end in `.svg` | 2 | `INVALID_USAGE` |
 | Amount is not a positive decimal, is zero/negative, or has more than 6 decimal places | 2 | `INVALID_AMOUNT` |
-| `--to` is not a valid Fast address | 2 | `INVALID_ADDRESS` |
+| `--to` is neither a valid Fast address nor a Fast ID name, or the name is not registered | 2 | `INVALID_ADDRESS` |
+| `--to` is a Fast ID name and the registry cannot be read or answers inconsistently | 1 | `FAST_ID_RESOLUTION_FAILED` |
 | No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
 | `--account` names an unknown account | 2 | `ACCOUNT_NOT_FOUND` |
 | Default multisig wallet belongs to another network | 2 | `WALLET_NETWORK_MISMATCH` |

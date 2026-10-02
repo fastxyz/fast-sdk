@@ -14,6 +14,7 @@ import {
 } from '../errors/index.js';
 import { formatBaseUnits, parsePositiveAmount } from '../services/amount.js';
 import { historyTypeOf } from '../services/api/explorer.js';
+import { FastIdResolver, fastIdRecipient } from '../services/api/fast-id.js';
 import { ClientConfig } from '../services/config/client.js';
 import { waitForIncoming } from '../services/incoming-payments.js';
 import { Output } from '../services/output.js';
@@ -37,7 +38,10 @@ export const DEFAULT_WAIT_TIMEOUT_SECONDS = 300;
 /** What `fast request --json` returns (plus `qrFile` when `--qr-file` is set). */
 export interface PaymentRequest {
   readonly url: string;
+  /** fast1… address to be paid (for a Fast ID payee, the address the name resolved to). */
   readonly address: string;
+  /** The Fast ID name, when `--to` was one. */
+  readonly toName?: string;
   readonly amount: string;
   readonly token: string;
   readonly network: string;
@@ -95,16 +99,39 @@ export const parseFastAddress = (raw: string): Effect.Effect<string, InvalidAddr
     },
     catch: () =>
       new InvalidAddressError({
-        message:
-          `Invalid --to address "${raw}". Expected a Fast address (fast1…).` +
-          (raw.includes('.') ? ' Fast ID names are not accepted here; pass the fast1… address instead.' : ''),
+        message: `Invalid --to "${raw}". Expected a Fast address (fast1…) or a Fast ID name such as alice.smith.`,
       }),
   });
 
-const resolvePayee = (to: string | undefined) =>
+interface Payee {
+  readonly address: string;
+  /** Canonical Fast ID name when the payee was given as one. */
+  readonly name?: string;
+  readonly ownAccount: boolean;
+}
+
+/**
+ * `--to` as a fast1… address, or a Fast ID name resolved on the network's
+ * registry (fails closed: an unregistered name or an unreadable registry stops
+ * the command before a link exists). Without `--to`, the active account.
+ */
+const resolvePayee = (to: string | undefined, networkId: string | undefined) =>
   Effect.gen(function* () {
     if (to !== undefined) {
-      return { address: yield* parseFastAddress(to), ownAccount: false };
+      const name = fastIdRecipient(to);
+      if (name === undefined) {
+        const payee: Payee = { address: yield* parseFastAddress(to), ownAccount: false };
+        return payee;
+      }
+      if (networkId !== 'fast:mainnet' && networkId !== 'fast:testnet') {
+        return yield* Effect.fail(
+          new InvalidUsageError({ message: `Fast ID names can only be resolved on mainnet or testnet; use the payee's fast1… address.` }),
+        );
+      }
+      const fastIds = yield* FastIdResolver;
+      const resolved = yield* fastIds.resolve(name, networkId);
+      const payee: Payee = { address: resolved.address, name: resolved.name, ownAccount: false };
+      return payee;
     }
     const accounts = yield* AccountStore;
     const config = yield* ClientConfig;
@@ -112,7 +139,8 @@ const resolvePayee = (to: string | undefined) =>
     if (account.kind === 'multisig') {
       yield* ensureMultisigNetwork(account, config.network);
     }
-    return { address: account.fastAddress, ownAccount: true };
+    const payee: Payee = { address: account.fastAddress, ownAccount: true };
+    return payee;
   });
 
 const resolveQrFilePath = (file: string) =>
@@ -185,11 +213,15 @@ export const request: Command<RequestArgs> = {
       }
 
       const amount = yield* normalizeRequestAmount(args.amount, token.decimals, token.symbol);
-      const payee = yield* resolvePayee(args.to);
+      const payee = yield* resolvePayee(args.to, network.networkId);
+      const payeeLabel = payee.name === undefined ? payee.address : `${payee.name} (${payee.address})`;
 
+      // A Fast ID payee goes into the link as the name, as the app's own links do:
+      // the payer sees the name, and the app resolves it again when they send.
       const paymentRequest: PaymentRequest = {
-        url: buildPaymentRequestUrl(payee.address, amount),
+        url: buildPaymentRequestUrl(payee.name ?? payee.address, amount),
         address: payee.address,
+        ...(payee.name === undefined ? {} : { toName: payee.name }),
         amount,
         token: token.symbol,
         network: config.network,
@@ -201,7 +233,7 @@ export const request: Command<RequestArgs> = {
       }
       const terminalQr = args.qr ? trimTrailingBlankLines(yield* renderQr(paymentRequest.url, { type: 'terminal', small: true })) : undefined;
 
-      yield* output.humanLine(`Payment request: ${amount} ${token.symbol} to ${payee.address} (${config.network}).`);
+      yield* output.humanLine(`Payment request: ${amount} ${token.symbol} to ${payeeLabel} (${config.network}).`);
       yield* output.humanLine('Share this link with the payer. It opens the Fast app with the recipient and amount filled in:');
       yield* output.humanLine('');
       yield* output.humanLine(`  ${paymentRequest.url}`);
@@ -242,7 +274,7 @@ export const request: Command<RequestArgs> = {
         tokenId: token.tokenId,
         since: new Date(createdAt),
         timeoutMs: timeoutSeconds * 1000,
-        description: `${amount} ${token.symbol} to ${payee.address} for the request ${paymentRequest.url}`,
+        description: `${amount} ${token.symbol} to ${payeeLabel} for the request ${paymentRequest.url}`,
       });
 
       const received = formatBaseUnits(payment.amount, token.decimals);

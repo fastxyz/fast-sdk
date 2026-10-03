@@ -3,6 +3,7 @@ import path from 'node:path';
 import { bech32m } from 'bech32';
 import { Clock, Effect, Option } from 'effect';
 import QRCode from 'qrcode';
+import { tokenizeArgv } from '../argv.js';
 import type { RequestArgs } from '../cli.js';
 import {
   ExplorerNotConfiguredError,
@@ -85,6 +86,26 @@ export const normalizeRequestAmount = (raw: string, decimals: number, symbol: st
     return Effect.fail(new InvalidAmountError({ message: `Amount must be greater than zero (got "${raw}").` }));
   }
   return Effect.succeed(fraction === '' ? whole : `${whole}.${fraction}`);
+};
+
+/** `fast request`'s own value-taking options, whose values are not operands. */
+const REQUEST_VALUE_FLAGS = ['--to', '--qr-file', '--timeout'];
+
+/**
+ * Explain a `fast request` command line the parser rejected, when argv shows the
+ * real mistake. A negative whole amount (`fast request -5`) looks like an unknown
+ * option to the parser and never reaches the handler, so it is reported here as
+ * the same INVALID_AMOUNT the handler gives `0` or `-0.5`; a missing amount gets
+ * a usage hint. Undefined when argv does have an amount, so the parser's own
+ * message stands.
+ */
+export const diagnoseRequestArgv = (argv: readonly string[]): InvalidAmountError | string | undefined => {
+  const { operands, negativeNumbers } = tokenizeArgv(argv, REQUEST_VALUE_FLAGS);
+  if (operands.length >= 2) return undefined; // `request <amount>`
+  const negative = negativeNumbers[0];
+  return negative === undefined
+    ? 'Missing required argument: <amount>'
+    : new InvalidAmountError({ message: `Amount must be greater than zero (got "${negative}").` });
 };
 
 /** Accept only a well-formed Fast address: bech32m, `fast` prefix, 32-byte payload. */
@@ -260,8 +281,9 @@ export const request: Command<RequestArgs> = {
       }
 
       // --wait: watch the payee's incoming feed for exactly this amount, sent after
-      // the request was created. On timeout the error repeats the link, because in
-      // --json mode the error envelope replaces the result that would have carried it.
+      // the request was created. On timeout the error repeats the link and createdAt,
+      // because in --json mode the error envelope replaces the result that carried
+      // them, and createdAt is the --since for waiting again with wait-for-payment.
       const amountRaw = yield* Effect.try({
         try: () => parsePositiveAmount(amount, token.decimals, token.symbol),
         catch: (e) => e as InvalidAmountError,
@@ -274,7 +296,7 @@ export const request: Command<RequestArgs> = {
         tokenId: token.tokenId,
         since: new Date(createdAt),
         timeoutMs: timeoutSeconds * 1000,
-        description: `${amount} ${token.symbol} to ${payeeLabel} for the request ${paymentRequest.url}`,
+        description: `${amount} ${token.symbol} to ${payeeLabel} for the request ${paymentRequest.url} created ${createdAt}`,
       });
 
       const received = formatBaseUnits(payment.amount, token.decimals);

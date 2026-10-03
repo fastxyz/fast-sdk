@@ -272,7 +272,7 @@ Selected `errorCode` values used in the JSON envelope's `error.code` field
 | `INSUFFICIENT_BALANCE`            | 4    | Funding source (Fast or EVM) lacks enough balance to cover the requested amount.                                                  |
 | `FUNDING_REQUIRED`                | 4    | `fast fund usdc crypto`: derived EVM address has insufficient balance; the user must deposit before retrying.                     |
 | `TX_FAILED`                       | 6    | Transaction was rejected by the network.                                                                                          |
-| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`: no matching payment arrived before `--timeout`.                                                          |
+| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`, `fast request --wait`: no matching payment arrived before `--timeout`.                                   |
 | `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response, including inconsistent paging fields or a malformed row). `fast info history` reports it as a warning instead. |
 | `EXPLORER_NOT_CONFIGURED`         | 2    | The network has no `explorerApiUrl`, so network history is unavailable (`fast wait-for-payment`).                                 |
 | `USER_CANCELLED`                  | 7    | Interactive confirmation declined.                                                                                                |
@@ -1829,8 +1829,10 @@ whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
    does, with `--amount` = the normalized amount, the network's default token,
    `--to` = the payee and `--since` = `createdAt`. On a match, print it and
    return the request with a `payment` object. On timeout, fail with
-   `PAYMENT_TIMEOUT`; the error message repeats the link, since in `--json`
-   mode the error envelope replaces the result.
+   `PAYMENT_TIMEOUT`; the error message repeats the link and `createdAt`
+   (`… for the request <url> created <createdAt>`), since in `--json` mode the
+   error envelope replaces the result. That `createdAt` is the `--since` for
+   waiting again with `fast wait-for-payment`.
 
 `createdAt` is taken when the command starts, before the link exists, so it is
 a safe lower bound for "payments received after this request".

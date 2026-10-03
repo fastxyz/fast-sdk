@@ -289,7 +289,7 @@ fast request 10 --network mainnet --wait --json
 - `--to <fast1...|name>` — Who is to be paid (default: the active account; with a multisig wallet, the wallet address): a valid `fast1...` address or a [Fast ID](https://id.fast.xyz) name such as `alice.smith`. A name is resolved on mainnet first and fails closed like in `fast send` (`INVALID_ADDRESS` if unregistered, `FAST_ID_RESOLUTION_FAILED` if the registry can't be read). The link then carries the name (`?to=alice.smith`), so the payer sees it and the app resolves it again at payment time; `--json` returns the resolved `address` plus `toName`.
 - `--qr` — Also print the link as a QR code in the terminal. With `--json`, the QR code goes to stderr so stdout stays a single JSON document.
 - `--qr-file <path.svg>` — Write the link as an SVG QR code to this path (overwritten if it exists).
-- `--wait` — After printing the link, wait until the payee receives exactly this amount of fastUSD from another address, sent after the request was created (same matching as `fast wait-for-payment`). Fails with `PAYMENT_TIMEOUT` (exit 1) if nothing arrives in time; the error message repeats the link.
+- `--wait` — After printing the link, wait until the payee receives exactly this amount of fastUSD from another address, sent after the request was created (same matching as `fast wait-for-payment`). Fails with `PAYMENT_TIMEOUT` (exit 1) if nothing arrives in time; the error message repeats the link and when the request was created (`created <createdAt>`), the `--since` for waiting again with `fast wait-for-payment`.
 - `--timeout <seconds>` — With `--wait`, how long to wait (default: 300). Rejected without `--wait`.
 
 **Output (`--json`):**

@@ -406,14 +406,14 @@ fast request 10 --network mainnet --qr-file request.svg --json
 
 1. Show the user `data.url` (and the QR image if you made one) and tell them to send it to the payer. Opening it shows the Fast app's Send screen with the amount and the user's address filled in; the payer confirms there.
 2. The payment goes to the active account unless you pass `--to <fast1...>` or `--to <name>` (a Fast ID such as `alice.smith`; an unregistered name fails with `INVALID_ADDRESS` and no link). Amounts are fastUSD on mainnet; the link carries no memo.
-3. **Never say the payment arrived because the link was created or shared.** Creating a request moves no money. Confirm it on the network first:
+3. **Never say the payment arrived because the link was created or shared.** Creating a request moves no money. Once the payer has the link, confirm the payment on the network:
    ```sh
    fast wait-for-payment --amount 10 --since <data.createdAt> --network mainnet --json
-   # or, to print the link and wait in one step:
-   fast request 10 --network mainnet --wait --timeout 600 --json   # → data.payment
+   # → data.hash, data.from, data.explorerUrl
    ```
-   Only report it as paid when one of these returns the payment (`data.hash`, `data.from`, `data.explorerUrl`). On `PAYMENT_TIMEOUT`, tell the user nothing matching has arrived yet; the link stays valid and you can wait again with the same `--since`.
-4. `INVALID_USAGE` mentioning `--network mainnet` means the command ran on another network; re-run with `--network mainnet`.
+   Add `--to <data.address>` when the request was for someone other than the active account. Only report it as paid when this returns the payment. On `PAYMENT_TIMEOUT`, tell the user nothing matching has arrived yet; the link stays valid, and you can wait again with the same `--since`.
+4. `fast request 10 --network mainnet --wait --timeout 600 --json` does both in one command, but with `--json` it prints nothing until it finishes, so use it only when the payer already has the link (the same `--to` and amount always give the same link). Its result nests the payment: report it as paid only from `data.payment.hash`, `data.payment.from`, `data.payment.explorerUrl`. On `PAYMENT_TIMEOUT`, its error message includes `for the request <url> created <time>`; to keep waiting, pass that time as `--since` to `fast wait-for-payment`.
+5. `INVALID_USAGE` mentioning `--network mainnet` means the command ran on another network; re-run with `--network mainnet`.
 
 ---
 

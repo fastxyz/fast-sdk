@@ -8,13 +8,20 @@ import { Duration, Effect, Exit, Fiber, Layer, Option, TestClock, TestContext } 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parser, type RequestArgs } from '../../src/cli.js';
 import { commands } from '../../src/commands/index.js';
-import { buildPaymentRequestUrl, normalizeRequestAmount, PAYMENT_REQUEST_BASE_URL, parseFastAddress, request } from '../../src/commands/request.js';
+import {
+  buildPaymentRequestUrl,
+  diagnoseRequestArgv,
+  normalizeRequestAmount,
+  PAYMENT_REQUEST_BASE_URL,
+  parseFastAddress,
+  request,
+} from '../../src/commands/request.js';
 import { bundledNetworks } from '../../src/config/networks.js';
 import { ClientConfig } from '../../src/services/config/client.js';
 import { Output, OutputLive } from '../../src/services/output.js';
 import { type AccountInfo, AccountStore } from '../../src/services/storage/account.js';
 import { NetworkConfigService } from '../../src/services/storage/network.js';
-import { FastIdResolutionError, InvalidAddressError } from '../../src/errors/index.js';
+import { FastIdResolutionError, InvalidAddressError, InvalidAmountError } from '../../src/errors/index.js';
 import { FastIdResolver } from '../../src/services/api/fast-id.js';
 import { FASTUSD_ID, hashOf, LEO, mainnet, mockExplorer, page, rawTransfer, transfersFor } from '../fixtures/explorer.js';
 
@@ -403,6 +410,42 @@ describe('fast request registration', () => {
   });
 });
 
+describe('diagnoseRequestArgv (command lines the parser rejects)', () => {
+  it('reports a negative whole amount, which the parser reads as an unknown option, as INVALID_AMOUNT', () => {
+    // (`-0.5` does parse as <amount>, and the handler rejects it with the same message.)
+    for (const argv of [
+      ['request', '-5', '--json'],
+      ['--network', 'mainnet', 'request', '-12'],
+    ]) {
+      expect(parse(parser, argv).success).toBe(false);
+      const problem = diagnoseRequestArgv(argv);
+      expect(problem).toBeInstanceOf(InvalidAmountError);
+      expect(problem).toMatchObject({
+        errorCode: 'INVALID_AMOUNT',
+        message: `Amount must be greater than zero (got "${argv.find((a) => /^-\.?\d/.test(a))}").`,
+      });
+    }
+  });
+
+  it('skips global and request option values, so they are neither the command, the amount, nor a negative amount', () => {
+    // `--timeout -3` and `--to -5` are option values the parser consumes, not a negative <amount>.
+    for (const argv of [
+      ['--network', 'mainnet', 'request'],
+      ['--account', 'agent', '--password', 'pw', 'request', '--json'],
+      ['request', '--to', 'alice.smith', '--qr-file', 'out.svg'],
+      ['request', '--timeout', '-3', '--wait'],
+      ['request', '--to', '-5'],
+    ]) {
+      expect(parse(parser, argv).success).toBe(false);
+      expect(diagnoseRequestArgv(argv)).toBe('Missing required argument: <amount>');
+    }
+  });
+
+  it('leaves the parser message alone when the amount is there', () => {
+    expect(diagnoseRequestArgv(['--network', 'mainnet', 'request', '5', '--bogus'])).toBeUndefined();
+  });
+});
+
 describe('fast request --wait', () => {
   const REQUESTED_AT = Date.parse('2026-10-02T03:00:00Z');
   const TEN_FASTUSD = (10_000_000).toString(16);
@@ -491,7 +534,7 @@ describe('fast request --wait', () => {
     expect((h.results[0] as { payment: { hash: string } }).payment.hash).toBe(hashOf(3));
   });
 
-  it('times out with PAYMENT_TIMEOUT and repeats the link in the error', async () => {
+  it('times out with PAYMENT_TIMEOUT and repeats the link and createdAt in the error', async () => {
     const explorer = mockExplorer(() => Effect.succeed(page([])));
 
     const { exit, h, account } = await runWait({ timeout: 30 }, { explorer, advance: Duration.seconds(30) });
@@ -499,7 +542,8 @@ describe('fast request --wait', () => {
     const error = failureOf(exit);
     expect(error.errorCode).toBe('PAYMENT_TIMEOUT');
     expect(error.message).toContain('within 30s');
-    expect(error.message).toContain(`https://app.fast.xyz/send?to=${account.fastAddress}&amount=10`);
+    // createdAt is what `fast wait-for-payment --since` needs to keep waiting for this request.
+    expect(error.message).toContain(`for the request https://app.fast.xyz/send?to=${account.fastAddress}&amount=10 created 2026-10-02T03:00:00.000Z`);
     expect(h.results).toEqual([]);
   });
 

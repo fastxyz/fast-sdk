@@ -1,6 +1,7 @@
 import { parse } from '@optique/core/parser';
 import { describe, expect, it } from 'vitest';
 import { bareFundCommand, fundSelectorCommandParser, fundUsdcAppCommandParserWithOptions, parser } from '../../src/cli.js';
+import { diagnoseFundUsdcArgv } from '../../src/commands/fund/app-routes.js';
 
 describe('fund command routing', () => {
   it.each([
@@ -46,5 +47,24 @@ describe('fund command routing', () => {
 
   it('leaves nested fund commands on the regular parser', () => {
     expect(bareFundCommand(['--network', 'mainnet', 'fund', 'usdc', 'crypto', '5', '--chain', 'base'])).toBeNull();
+  });
+});
+
+describe('diagnoseFundUsdcArgv (command lines the parser rejects)', () => {
+  const ADDRESS = 'fast1ncwsez3lu627e404k5kn4dnsuyggz5fddvy4zsxd5nm9ulf68hhsh9at23';
+
+  it('does not report an option value as an unknown subcommand', () => {
+    // The app USDC route takes no --amount, so this fails to parse; the message must be about
+    // --amount, not "Unknown subcommand 'fast1...'".
+    const argv = ['fund', 'usdc', '--address', ADDRESS, '--amount', '1'];
+    expect(parse(fundUsdcAppCommandParserWithOptions, argv).success).toBe(false);
+    expect(diagnoseFundUsdcArgv(argv)).toBeUndefined();
+    expect(diagnoseFundUsdcArgv(['--network', 'mainnet', 'fund', 'usdc', 'crypto', '5', '--chain', 'base', '--token', 'USDC'])).toBeUndefined();
+  });
+
+  it('reports a real unknown subcommand', () => {
+    expect(diagnoseFundUsdcArgv(['fund', 'usdc', '--address', ADDRESS, 'bogus'])).toBe(
+      "Unknown subcommand 'bogus' for 'fund usdc'. Use no subcommand for the app USDC flow, or choose: fiat (deprecated), crypto",
+    );
   });
 });

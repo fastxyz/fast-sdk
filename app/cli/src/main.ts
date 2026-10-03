@@ -28,6 +28,7 @@ import {
   parser,
 } from "./cli.js";
 import { commands } from "./commands/index.js";
+import { diagnoseFundUsdcArgv } from "./commands/fund/app-routes.js";
 import { diagnoseRequestArgv } from "./commands/request.js";
 import {
   type ClientError,
@@ -270,12 +271,8 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   "fund usdc": {
     usage: "fast fund usdc [--address <address>] | fast fund usdc <fiat|crypto>",
     options: ["--address"],
-    check: (positionals) => {
-      const third = positionals[2];
-      if (third && third !== "fiat" && third !== "crypto")
-        return `Unknown subcommand '${third}' for 'fund usdc'. Use no subcommand for the app USDC flow, or choose: fiat (deprecated), crypto`;
-      return null;
-    },
+    // Skips option values, so `--address fast1...` isn't read as a subcommand.
+    check: (_positionals, allArgv) => diagnoseFundUsdcArgv(allArgv) ?? null,
   },
   "fund usdc fiat": {
     usage: "fast fund usdc fiat [--address <address>]",

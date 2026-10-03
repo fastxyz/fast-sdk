@@ -3,7 +3,7 @@ name: fast
 description: >
   fast CLI for managing Fast network accounts, sending tokens, funding via bridge or fiat,
   and paying x402-protected APIs. Use when the user wants to run fast commands, create accounts,
-  check balances, send USDC, or interact with the Fast network from the terminal.
+  check balances, send USDC, request a payment (get paid), or interact with the Fast network from the terminal.
 ---
 
 # fast CLI
@@ -103,6 +103,23 @@ fast send <address> <amount> [--token <TOKEN>] [--from-chain <chain>] [--to-chai
 
 > **Always pass `--token USDC` explicitly** when bridging or sending USDC — do not rely on the default.
 
+### `request` command
+
+```sh
+fast request <amount> [--to <fast1...|name>] [--qr] [--qr-file <path.svg>] [--wait [--timeout <seconds>]] --network mainnet
+```
+
+| Argument / Flag | Description |
+|---|---|
+| `<amount>` | fastUSD amount to ask for, positive decimal with at most 6 decimal places |
+| `--to <fast1...\|name>` | Who is to be paid; defaults to the active account. A `fast1...` address or a Fast ID name (`alice.smith`), resolved first; the link keeps the name and `--json` adds `toName` |
+| `--qr` | Also print a terminal QR code (goes to stderr with `--json`) |
+| `--qr-file <path.svg>` | Write an SVG QR code; its absolute path is returned as `qrFile` |
+| `--wait` | After printing the link, block until exactly this amount arrives from someone else; adds `payment` to the JSON |
+| `--timeout <seconds>` | With `--wait`: give up after this long (default 300, max 2147483) with `PAYMENT_TIMEOUT` |
+
+Mainnet only. It only builds a link (`https://app.fast.xyz/send?to=…&amount=…`); nothing is signed or sent. A Fast ID `--to` is looked up on the registry first (network call); with `--wait` it then watches for the payment. See workflow 9.
+
 ### `network` subcommands
 
 | Command | Description |
@@ -127,7 +144,7 @@ fast pay <url> [--method <METHOD>] [--body <data|@file>] [--dry-run]
 fast wait-for-payment --amount <AMOUNT> [--token <TOKEN>] [--from <fast1...>] [--to <fast1...>] [--since <ISO time>] [--timeout <seconds>]
 ```
 
-Blocks until an incoming payment of **exactly** `<AMOUNT>` (default token: the network's) reaches the active account (or `--to`), then prints it. Exits 1 with `PAYMENT_TIMEOUT` if nothing matching arrives within `--timeout` (default 300 s).
+Blocks until an incoming payment of **exactly** `<AMOUNT>` (default token: the network's) reaches the active account (or `--to`), then prints it. Exits 1 with `PAYMENT_TIMEOUT` if nothing matching arrives within `--timeout` (default 300 s, max 2147483 s).
 
 ---
 
@@ -138,6 +155,7 @@ Blocks until an incoming payment of **exactly** `<AMOUNT>` (default token: the n
 - Create or manage Fast accounts from the terminal
 - Check token balances on Fast or EVM chains
 - Send USDC between Fast addresses or bridge to/from EVM
+- Get paid: create a payment-request link for someone to pay the user
 - Fund a Fast account from crypto (bridge) or fiat (on-ramp)
 - Pay a payment-protected URL (x402) using a stored account
 - Configure networks or switch defaults
@@ -372,6 +390,30 @@ fast pay https://api.example.com/resource --method POST --body @request.json
 # Inspect without paying:
 fast pay https://api.example.com/resource --dry-run
 ```
+
+### 9. Get paid: request a payment
+
+Use this when the user wants to be paid ("Leo owes me $10, ask him"):
+
+```sh
+fast request 10 --network mainnet --json
+# → data.url: https://app.fast.xyz/send?to=<your-fast-address>&amount=10
+# → data.createdAt: when the request was made
+# Optional: also write a QR code image to share
+fast request 10 --network mainnet --qr-file request.svg --json
+# → data.qrFile: absolute path of the SVG
+```
+
+1. Show the user `data.url` (and the QR image if you made one) and tell them to send it to the payer. Opening it shows the Fast app's Send screen with the amount and the user's address filled in; the payer confirms there.
+2. The payment goes to the active account unless you pass `--to <fast1...>` or `--to <name>` (a Fast ID such as `alice.smith`; an unregistered name fails with `INVALID_ADDRESS` and no link). Amounts are fastUSD on mainnet; the link carries no memo.
+3. **Never say the payment arrived because the link was created or shared.** Creating a request moves no money. Once the payer has the link, confirm the payment on the network:
+   ```sh
+   fast wait-for-payment --amount 10 --since <data.createdAt> --network mainnet --json
+   # → data.hash, data.from, data.explorerUrl
+   ```
+   Add `--to <data.address>` when the request was for someone other than the active account. Only report it as paid when this returns the payment. On `PAYMENT_TIMEOUT`, tell the user nothing matching has arrived yet; the link stays valid, and you can wait again with the same `--since`.
+4. `fast request 10 --network mainnet --wait --timeout 600 --json` does both in one command, but with `--json` it prints nothing until it finishes, so use it only when the payer already has the link (the same `--to` and amount always give the same link). Its result nests the payment: report it as paid only from `data.payment.hash`, `data.payment.from`, `data.payment.explorerUrl`. On `PAYMENT_TIMEOUT`, its error message includes `for the request <url> created <time>`; to keep waiting, pass that time as `--since` to `fast wait-for-payment`.
+5. `INVALID_USAGE` mentioning `--network mainnet` means the command ran on another network; re-run with `--network mainnet`.
 
 ---
 

@@ -19,8 +19,10 @@ import { getDocPageSync, parse } from "@optique/core/parser";
 import { Effect, Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
+import { tokenizeArgv } from "./argv.js";
 import { globalPreParser, parser } from "./cli.js";
 import { commands } from "./commands/index.js";
+import { diagnoseRequestArgv } from "./commands/request.js";
 import {
   type ClientError,
   InternalError,
@@ -154,6 +156,7 @@ const KNOWN_COMMANDS = [
   "network",
   "info",
   "send",
+  "request",
   "fund",
   "pay",
   "multisig",
@@ -213,7 +216,11 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     usage: string;
     /** Valid command-specific option flags (excluding globals). Used to detect unknown flags. */
     options?: readonly string[];
-    check: (positionals: string[], allArgv: string[]) => string | null;
+    /**
+     * Inspect a rejected command line: a hint for the usage message, a more
+     * specific error to report instead of INVALID_USAGE, or null when neither applies.
+     */
+    check: (positionals: string[], allArgv: string[]) => string | ClientError | null;
   }
 > = {
   // ── Top-level commands with required args ──────────────────────────────────
@@ -226,6 +233,12 @@ const SUBCOMMAND_REQUIREMENTS: Record<
       if (positionals.length < 3) return "Missing required argument: <amount>";
       return null;
     },
+  },
+  request: {
+    usage: "fast request <amount> [--to <fast1...|name>] [--qr] [--qr-file <path.svg>] [--wait [--timeout <seconds>]]",
+    options: ["--to", "--qr", "--qr-file", "--wait", "--timeout"],
+    // A negative whole amount (`-5`) parses as an unknown option; report it as INVALID_AMOUNT.
+    check: (_positionals, allArgv) => diagnoseRequestArgv(allArgv) ?? null,
   },
   pay: {
     usage: "fast pay <url> [--dry-run] [--method <method>] [--header <key:value>] [--body <data>]",
@@ -527,9 +540,24 @@ const findUnknownFlag = (
 const result = parse(parser, argv);
 
 if (!result.success) {
-  const positionals = argv.filter((a) => !a.startsWith("-"));
+  // Skip global option values, so `fast --network mainnet request` finds `request`, not `mainnet`.
+  const positionals = [...tokenizeArgv(argv).operands];
   const firstToken = positionals[0];
   let msg = formatMessage(result.error);
+  /** A more specific error than INVALID_USAGE, when a command's check finds one. */
+  let specific: ClientError | undefined;
+
+  const applyRequirement = (req: (typeof SUBCOMMAND_REQUIREMENTS)[string]) => {
+    const problem = req.check(positionals, argv);
+    if (typeof problem === "string") {
+      msg = `${problem}\n  Usage: ${req.usage}`;
+    } else if (problem) {
+      specific = problem;
+    } else if (req.options) {
+      const unknown = findUnknownFlag(argv, req.options);
+      if (unknown) msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
+    }
+  };
 
   if (firstToken && !KNOWN_COMMANDS.includes(firstToken as never)) {
     const suggestion = suggest(firstToken, KNOWN_COMMANDS);
@@ -555,32 +583,17 @@ if (!result.success) {
       const key =
         deepKey && deepKey in SUBCOMMAND_REQUIREMENTS ? deepKey : shallowKey;
       const req = SUBCOMMAND_REQUIREMENTS[key];
-      if (req) {
-        const hint = req.check(positionals, argv);
-        if (hint) {
-          msg = `${hint}\n  Usage: ${req.usage}`;
-        } else if (req.options) {
-          const unknown = findUnknownFlag(argv, req.options);
-          if (unknown) msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
-        }
-      }
+      if (req) applyRequirement(req);
     }
   } else if (firstToken && KNOWN_COMMANDS.includes(firstToken as never)) {
     // Top-level command (send, pay) with missing required args
     const req = SUBCOMMAND_REQUIREMENTS[firstToken];
-    if (req) {
-      const hint = req.check(positionals, argv);
-      if (hint) {
-        msg = `${hint}\n  Usage: ${req.usage}`;
-      } else if (req.options) {
-        const unknown = findUnknownFlag(argv, req.options);
-        if (unknown) msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
-      }
-    }
+    if (req) applyRequirement(req);
   }
 
-  writeFail(new InvalidUsageError({ message: msg }), isJson);
-  process.exit(2);
+  const failure = specific ?? new InvalidUsageError({ message: msg });
+  writeFail(failure, isJson);
+  process.exit(failure.exitCode);
 }
 
 const parsed = result.value;

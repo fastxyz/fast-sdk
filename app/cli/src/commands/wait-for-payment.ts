@@ -14,7 +14,7 @@ import { formatBaseUnits, parsePositiveAmount } from '../services/amount.js';
 import { historyTypeOf, nsToMs, parseIsoTimestampNs } from '../services/api/explorer.js';
 import { FastRpc } from '../services/api/fast.js';
 import { ClientConfig } from '../services/config/client.js';
-import { waitForIncoming } from '../services/incoming-payments.js';
+import { validateWaitTimeoutSeconds, waitForIncoming } from '../services/incoming-payments.js';
 import { Output } from '../services/output.js';
 import { AccountStore } from '../services/storage/account.js';
 import { NetworkConfigService } from '../services/storage/network.js';
@@ -46,9 +46,7 @@ export const waitForPayment: Command<WaitForPaymentArgs> = {
 
       const startedAt = yield* Clock.currentTimeMillis;
 
-      if (!Number.isInteger(args.timeout) || args.timeout <= 0) {
-        return yield* Effect.fail(new InvalidUsageError({ message: '--timeout must be a positive whole number of seconds.' }));
-      }
+      const timeoutSeconds = yield* validateWaitTimeoutSeconds(args.timeout);
       let sinceMs = startedAt;
       let sinceNs = BigInt(startedAt) * 1_000_000n;
       if (args.since !== undefined) {
@@ -120,7 +118,7 @@ export const waitForPayment: Command<WaitForPaymentArgs> = {
       const since = new Date(sinceMs);
       const expected = `${amountLabel} to ${address}${from ? ` from ${from}` : ''} since ${args.since?.trim() ?? since.toISOString()}`;
 
-      yield* output.humanLine(`Waiting up to ${args.timeout}s for ${expected}...`);
+      yield* output.humanLine(`Waiting up to ${timeoutSeconds}s for ${expected}...`);
 
       const payment = yield* waitForIncoming({
         address,
@@ -129,7 +127,7 @@ export const waitForPayment: Command<WaitForPaymentArgs> = {
         from,
         since,
         sinceNs,
-        timeoutMs: args.timeout * 1000,
+        timeoutMs: timeoutSeconds * 1000,
         description: expected,
       });
 

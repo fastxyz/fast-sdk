@@ -41,6 +41,9 @@ fast send fast1abc...xyz 10 --token USDC
 # Attach a Fast UserData memo (32 UTF-8 bytes maximum)
 fast send fast1abc...xyz 10 --token USDC --memo "invoice-42"
 
+# Ask someone to pay you 10 fastUSD: prints an app.fast.xyz link to share (mainnet only)
+fast request 10 --network mainnet
+
 # Bridge USDC from Arbitrum Sepolia to Fast (--token USDC is required on
 # mainnet because the network default — fastUSD — is not on EVM chains)
 fast fund usdc crypto 50 --chain arbitrum-sepolia --token USDC
@@ -253,6 +256,72 @@ fast --network mainnet send 0x1234567890123456789012345678901234567890 0.01 --to
 
 ---
 
+### `fast request <amount>`
+
+Create a payment-request link: a URL that opens the Fast app's Send screen
+with the recipient and amount filled in. Share it with whoever should pay you;
+they review and confirm the transfer in the app. Nothing is signed or sent by
+this command, and no password is needed. It works offline unless `--to` is a
+Fast ID name (resolved on the Fast ID registry first) or `--wait` is set
+(watches the explorer for the payment).
+
+```bash
+fast request 10 --network mainnet
+# → https://app.fast.xyz/send?to=fast1...&amount=10
+
+# Machine-readable, with a QR code image to share
+fast request 10 --network mainnet --qr-file request.svg --json
+
+# Ask for payment to another address you control, or to a Fast ID name
+fast request 2.50 --network mainnet --to fast1someoneelse...
+fast request 2.50 --network mainnet --to alice.smith
+
+# Print the link, then block until the payment arrives (default timeout 300 s)
+fast request 10 --network mainnet --wait --json
+```
+
+**Positional arguments:**
+
+- `<amount>` — Amount of fastUSD to request: a positive decimal with at most 6 decimal places (`10`, `2.50`, `.5`). It is normalized (`010.50` → `10.5`) before going into the link.
+
+**Options:**
+
+- `--to <fast1...|name>` — Who is to be paid (default: the active account; with a multisig wallet, the wallet address): a valid `fast1...` address or a [Fast ID](https://id.fast.xyz) name such as `alice.smith`. A name is resolved on mainnet first and fails closed like in `fast send` (`INVALID_ADDRESS` if unregistered, `FAST_ID_RESOLUTION_FAILED` if the registry can't be read). The link then carries the name (`?to=alice.smith`), so the payer sees it and the app resolves it again at payment time; `--json` returns the resolved `address` plus `toName`.
+- `--qr` — Also print the link as a QR code in the terminal. With `--json`, the QR code goes to stderr so stdout stays a single JSON document.
+- `--qr-file <path.svg>` — Write the link as an SVG QR code to this path (overwritten if it exists).
+- `--wait` — After printing the link, wait until the payee receives exactly this amount of fastUSD from another address, sent after the request was created (same matching as `fast wait-for-payment`). Fails with `PAYMENT_TIMEOUT` (exit 1) if nothing arrives in time; the error message repeats the link and when the request was created (`created <createdAt>`), the `--since` for waiting again with `fast wait-for-payment`.
+- `--timeout <seconds>` — With `--wait`, how long to wait (default: 300, at most 2147483, about 24 days). Rejected without `--wait`.
+
+**Output (`--json`):**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "url": "https://app.fast.xyz/send?to=fast1...&amount=10",
+    "address": "fast1...",
+    "amount": "10",
+    "token": "fastUSD",
+    "network": "mainnet",
+    "createdAt": "2026-10-02T12:00:00.000Z",
+    "qrFile": "/abs/path/request.svg"
+  }
+}
+```
+
+`qrFile` is present only with `--qr-file`. `createdAt` is when the request was made;
+pass it as `--since` to `fast wait-for-payment` to wait for this request later.
+With `--wait`, `data` also has a `payment` object with the matching transfer
+(`hash`, `type`, `from`, `to`, `amount` in base units, `formatted`, `tokenName`,
+`tokenId`, `timestamp`, `explorerUrl`).
+
+**Requirements:**
+
+- Mainnet only (the Fast app runs on mainnet); other networks exit with `INVALID_USAGE`.
+- The link does not prove anything was paid. Confirm the payment with `--wait`, `fast wait-for-payment --since <createdAt>`, or `fast info history --direction in`.
+
+---
+
 ### `fast info balance`
 
 Check balances for the current account or a named account.
@@ -334,7 +403,7 @@ fast wait-for-payment --amount 0.5 --to fast1... --since 2026-10-02T12:00:00Z --
 - `--from <fast1...>` — Only accept a payment from this sender
 - `--to <fast1...>` — Address to watch (default: the active account)
 - `--since <iso-time>` — Only accept payments submitted at or after this time (default: when the command starts). Times without a zone are read as UTC.
-- `--timeout <seconds>` — Give up after this many seconds (default: 300)
+- `--timeout <seconds>` — Give up after this many seconds (default: 300, at most 2147483, about 24 days)
 
 `--json` returns `{ ok: true, data: { hash, type, from, to, amount, formatted, tokenName, tokenId, timestamp, explorerUrl, network } }`. If nothing matching arrives in time, it exits 1 with `PAYMENT_TIMEOUT`; explorer errors while polling are retried until then, and the timeout message says if the last poll failed. Networks without an explorer API fail with `EXPLORER_NOT_CONFIGURED`.
 

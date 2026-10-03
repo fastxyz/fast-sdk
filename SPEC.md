@@ -272,7 +272,7 @@ Selected `errorCode` values used in the JSON envelope's `error.code` field
 | `INSUFFICIENT_BALANCE`            | 4    | Funding source (Fast or EVM) lacks enough balance to cover the requested amount.                                                  |
 | `FUNDING_REQUIRED`                | 4    | `fast fund usdc crypto`: derived EVM address has insufficient balance; the user must deposit before retrying.                     |
 | `TX_FAILED`                       | 6    | Transaction was rejected by the network.                                                                                          |
-| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`: no matching payment arrived before `--timeout`.                                                          |
+| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`, `fast request --wait`: no matching payment arrived before `--timeout`.                                   |
 | `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response, including inconsistent paging fields or a malformed row). `fast info history` reports it as a warning instead. |
 | `EXPLORER_NOT_CONFIGURED`         | 2    | The network has no `explorerApiUrl`, so network history is unavailable (`fast wait-for-payment`).                                 |
 | `USER_CANCELLED`                  | 7    | Interactive confirmation declined.                                                                                                |
@@ -320,6 +320,7 @@ fast fund                    Fund fast account from crypto or fiat; may need hum
 fast send                    Send tokens between Fast and/or supported chains
 fast pay                     Pay via payment links/protocols (e.g., x402)
 fast wait-for-payment        Wait until a matching incoming payment arrives
+fast request                 Create a payment-request link for someone to pay you
 ```
 
 ### 6.1 `fast account create`
@@ -1729,7 +1730,7 @@ already have been sent.
 | `--from` | string | no | — | Only accept a payment sent by this `fast1...` address. |
 | `--to` | string | no | active account | `fast1...` address to watch. |
 | `--since` | string | no | command start | ISO 8601 time (`YYYY-MM-DD`, optionally `THH:MM[:SS[.fff]]` and `Z` or `±HH:MM`); only payments submitted at or after it match. Times without a zone are UTC. Other formats and impossible dates (`2026-02-30`) are rejected with `INVALID_USAGE`. The fraction is kept to the nanosecond and compared exactly with the explorer's microsecond submission times, so a payment earlier within the same millisecond does not match. |
-| `--timeout` | integer | no | `300` | Seconds to wait before failing with `PAYMENT_TIMEOUT`. |
+| `--timeout` | integer | no | `300` | Seconds to wait before failing with `PAYMENT_TIMEOUT`: a whole number from 1 to 2147483 (about 24 days, the longest delay the runtime's timers support; a longer one would never fire). |
 
 **Output (`--json`)**
 
@@ -1765,6 +1766,138 @@ already have been sent.
 | No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
 | Network has no `explorerApiUrl` | 2 | `EXPLORER_NOT_CONFIGURED` |
 | Nothing matching arrived before `--timeout` (the message says if the last poll failed) | 1 | `PAYMENT_TIMEOUT` |
+
+### 6.22 `fast request`
+
+**Synopsis**
+
+```text
+fast request <amount> [--to <fast-address|fast-id>] [--qr] [--qr-file <path.svg>]
+             [--wait [--timeout <seconds>]]
+```
+
+**Description**
+
+Create a payment-request link: an `https://app.fast.xyz/send?to=<address>&amount=<amount>`
+URL that opens the Fast app's Send screen with the recipient and amount
+prefilled. The payer reviews and confirms the transfer in the app. The command
+only builds the link: it signs nothing, sends nothing and needs no password.
+Network access: when `--to` is a Fast ID name, the name is first resolved on
+the network's Fast ID registry (an HTTP lookup), with or without `--wait`.
+Otherwise, without `--wait` it makes no network calls; with `--wait` it then
+watches the explorer API for the payment, like `fast wait-for-payment` (§6.21).
+
+**Arguments**
+
+| Arg | Type | Required | Description |
+|---|---|---|---|
+| `amount` | string | yes | Amount of the network's default token (`fastUSD`) to request. A positive decimal (`10`, `2.50`, `.5`) with at most `defaultToken.decimals` (6) significant decimal places. |
+
+The amount is normalized before it goes into the link: leading zeros in the
+whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
+`.5` → `0.5`, `1.0000000` → `1`).
+
+**Flags**
+
+| Flag | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `--to` | string | no | active account's Fast address | Who is to be paid: a bech32m `fast1...` address with a 32-byte payload, or a Fast ID name such as `alice.smith` (classified as in `fast send`, by full syntax). |
+| `--qr` | boolean | no | `false` | Also render the link as a terminal QR code: on stdout in human mode, on **stderr** with `--json` so stdout stays one JSON document. |
+| `--qr-file` | string | no | — | Write the link as an SVG QR code to this path (must end in `.svg`; an existing file is overwritten). The absolute path is returned as `qrFile`. |
+| `--wait` | boolean | no | `false` | After printing the link, wait until the payment arrives (see step 5). |
+| `--timeout` | integer | no | `300` | With `--wait`: seconds to wait before failing with `PAYMENT_TIMEOUT`. A whole number from 1 to 2147483 (about 24 days), as for `fast wait-for-payment`; rejected without `--wait`. |
+
+**Behavior**
+
+1. The network must be `mainnet`, because app.fast.xyz is mainnet only; any
+   other network exits 2 (`INVALID_USAGE`) and asks for `--network mainnet`.
+2. Validate and normalize `amount` against `network.defaultToken`.
+3. Resolve the payee: `--to` if given (no local account is read), otherwise the
+   active account (`--account` or the default). A multisig wallet resolves to
+   its wallet address and must belong to the active network
+   (`WALLET_NETWORK_MISMATCH` otherwise). A Fast ID name is resolved on the
+   network's Fast ID registry exactly as `fast send` does (see **Fast ID
+   recipients** in §6.19) and fails closed: an unregistered name exits 2
+   (`INVALID_ADDRESS`), an unreachable or inconsistent registry exits 1
+   (`FAST_ID_RESOLUTION_FAILED`), and no link is printed.
+4. Build the URL. For a Fast ID payee the link carries the name
+   (`?to=alice.smith`), as the app's own links do: the payer sees the name, and
+   the app resolves it again when they send. `address` is the address the name
+   resolved to, and `--wait` watches that address. Then write the `--qr-file`
+   SVG if requested, and print the result.
+5. With `--wait`: poll the payee's incoming feed as `fast wait-for-payment`
+   does, with `--amount` = the normalized amount, the network's default token,
+   `--to` = the payee and `--since` = `createdAt`. On a match, print it and
+   return the request with a `payment` object. On timeout, fail with
+   `PAYMENT_TIMEOUT`; the error message repeats the link and `createdAt`
+   (`… for the request <url> created <createdAt>`), since in `--json` mode the
+   error envelope replaces the result. That `createdAt` is the `--since` for
+   waiting again with `fast wait-for-payment`.
+
+`createdAt` is taken when the command starts, before the link exists, so it is
+a safe lower bound for "payments received after this request".
+
+**Output (human)**
+
+```text
+Payment request: 10 fastUSD to fast1qw5...x9z (mainnet).
+Share this link with the payer. It opens the Fast app with the recipient and amount filled in:
+
+  https://app.fast.xyz/send?to=fast1qw5...x9z&amount=10
+
+Nothing has been paid yet: the payer still has to open the link and confirm the transfer.
+Check that it arrived with: fast info balance --network mainnet
+```
+
+The last line is printed only when the payee is the active account and
+`--wait` is not set. With `--wait`, the command instead prints
+`Waiting up to <n>s for the payment...` and, once it arrives,
+`Paid: <amount> fastUSD from <fast1...>` with the transaction hash, time and
+explorer link.
+
+**Output (`--json`)**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "url": "https://app.fast.xyz/send?to=fast1qw5...x9z&amount=10",
+    "address": "fast1qw5...x9z",
+    "amount": "10",
+    "token": "fastUSD",
+    "network": "mainnet",
+    "createdAt": "2026-10-02T12:00:00.000Z",
+    "qrFile": "/home/user/request.svg"
+  }
+}
+```
+
+With `--to alice.smith`, `url` is `https://app.fast.xyz/send?to=alice.smith&amount=10`,
+`address` is the resolved `fast1...` address, and `data` also has
+`"toName": "alice.smith"`.
+
+`amount` is the normalized decimal string. `qrFile` is present only with
+`--qr-file`. With `--wait`, `data` also contains `payment`, the matching
+transfer in the same shape as `fast wait-for-payment` returns (`hash`, `type`,
+`from`, `to`, `amount` in base units, `formatted`, `tokenName`, `tokenId`,
+`timestamp`, `explorerUrl`).
+
+**Errors**
+
+| Condition | Exit | Code |
+|---|---|---|
+| Missing amount, or unknown flag | 2 | `INVALID_USAGE` |
+| Network is not `mainnet` | 2 | `INVALID_USAGE` |
+| `--qr-file` path does not end in `.svg` | 2 | `INVALID_USAGE` |
+| Amount is not a positive decimal, is zero/negative, or has more than 6 decimal places | 2 | `INVALID_AMOUNT` |
+| `--to` is neither a valid Fast address nor a Fast ID name, or the name is not registered | 2 | `INVALID_ADDRESS` |
+| `--to` is a Fast ID name and the registry cannot be read or answers inconsistently | 1 | `FAST_ID_RESOLUTION_FAILED` |
+| No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
+| `--account` names an unknown account | 2 | `ACCOUNT_NOT_FOUND` |
+| Default multisig wallet belongs to another network | 2 | `WALLET_NETWORK_MISMATCH` |
+| `--qr-file` cannot be written | 1 | `FILE_IO_ERROR` |
+| `--timeout` without `--wait`, or not a whole number from 1 to 2147483 | 2 | `INVALID_USAGE` |
+| `--wait` and nothing matching arrives before the timeout | 1 | `PAYMENT_TIMEOUT` |
 
 ## 7. Token Resolution Rules
 

@@ -402,6 +402,48 @@ const waitForPaymentParser = command(
 );
 
 // ---------------------------------------------------------------------------
+// Request command (top-level)
+// ---------------------------------------------------------------------------
+
+const requestParser = command(
+  'request',
+  object({
+    cmd: constant('request' as const),
+    amount: argument(string({ metavar: 'AMOUNT' }), {
+      description: message`Amount to request in fastUSD (e.g., 10 or 2.50)`,
+    }),
+    to: optional(
+      option('--to', string({ metavar: 'ADDRESS' }), {
+        description: message`Who is to be paid: a fast1... address or a Fast ID name like alice.smith (default: active account)`,
+      }),
+    ),
+    qr: withDefault(
+      option('--qr', {
+        description: message`Also print the link as a QR code in the terminal (stderr with --json)`,
+      }),
+      false,
+    ),
+    qrFile: optional(
+      option('--qr-file', string({ metavar: 'PATH' }), {
+        description: message`Write the link as an SVG QR code to this .svg path`,
+      }),
+    ),
+    wait: withDefault(
+      option('--wait', {
+        description: message`After printing the link, wait until the payment arrives`,
+      }),
+      false,
+    ),
+    timeout: optional(
+      option('--timeout', integer({ metavar: 'SECONDS' }), {
+        description: message`With --wait: give up after this many seconds (default: 300)`,
+      }),
+    ),
+  }),
+  { description: message`Create a payment-request link someone can open to pay you (mainnet only)` },
+);
+
+// ---------------------------------------------------------------------------
 // Fund commands
 // ---------------------------------------------------------------------------
 
@@ -844,18 +886,11 @@ const authorizeGroup = command('authorize', or(authorizeRequestParser, authorize
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
-const commands = or(
-  accountGroup,
-  networkGroup,
-  infoGroup,
-  sendParser,
-  fundGroup,
-  payParser,
-  multisigGroup,
-  tokenGroup,
-  authorizeGroup,
-  waitForPaymentParser,
-);
+// optique's `or` keeps precise types for at most 10 alternatives, so the
+// payment commands are grouped into one alternative.
+const paymentCommands = or(sendParser, requestParser, waitForPaymentParser);
+
+const commands = or(accountGroup, networkGroup, infoGroup, paymentCommands, fundGroup, payParser, multisigGroup, tokenGroup, authorizeGroup);
 
 export const parser = merge(globalOptions, commands);
 
@@ -884,6 +919,7 @@ export type InfoBridgeChainsArgs = InferValue<typeof infoBridgeChainsParser>;
 
 export type SendArgs = InferValue<typeof sendParser>;
 export type WaitForPaymentArgs = InferValue<typeof waitForPaymentParser>;
+export type RequestArgs = InferValue<typeof requestParser>;
 
 export type FundUsdcFiatArgs = InferValue<typeof fundUsdcFiatParser>;
 export type FundUsdcCryptoArgs = InferValue<typeof fundUsdcCryptoParser>;

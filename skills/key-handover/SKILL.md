@@ -26,8 +26,9 @@ If a global install isn't allowed, run the commands below through
 
 ## Flow
 
+### 1. Generate the request
+
 ```bash
-# 1. Generate the request.
 fast authorize request --requester "my-agent" --json
 # → { "auth_url": "...", "request_fingerprint": "123456", "request_expires_at": "..." }
 ```
@@ -42,32 +43,51 @@ approve, then paste back the encrypted handover code.
 **STOP and wait.** Do not fabricate or guess the handover code. It can only
 come from the user after they approve in their wallet.
 
+### 2. Decrypt the code (run exactly one of these)
+
+`fast authorize complete` consumes the pending request: a second run fails
+with `NO_PENDING_REQUEST`, and the user has to approve again. So pick one
+form and run it once.
+
+**To use the wallet with the `fast` CLI** (the usual case). `authorize
+complete` only decrypts the key; it doesn't add an account, so `fast send`
+and `fast info balance` would keep using the CLI's own account. Decrypt
+straight into a key file and import it, so the key never appears in your
+output, the shell history or the process list. Pick an account name that
+isn't in `fast account list` yet (the import fails with `ACCOUNT_EXISTS`
+otherwise), and set `FAST_PASSWORD` first if the key should be stored
+encrypted.
+
 ```bash
-# 2. Once the user pastes the code, decrypt it.
+KEYFILE=$(mktemp)   # created with mode 0600
+if ! fast authorize complete --message '<the code they pasted>' --json \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);if(!r.private_key){process.stderr.write(s);process.exit(1)}process.stdout.write(JSON.stringify({privateKey:r.private_key}))})' \
+  > "$KEYFILE"; then
+  rm -f "$KEYFILE"; false   # nothing was decrypted; the error is on stderr
+elif fast account import --name app-wallet --key-file "$KEYFILE" --json; then
+  rm -f "$KEYFILE"
+else
+  echo "Import failed. The decrypted key is kept in $KEYFILE (mode 0600): fix the error, retry the import with --key-file, then delete the file." >&2
+  false
+fi
+```
+
+If the import fails, the request is already consumed, so don't run
+`authorize complete` again: fix the cause (for example, choose another
+`--name`), rerun only `fast account import --key-file "$KEYFILE"`, then
+`rm -f "$KEYFILE"`.
+
+Then pass `--account app-wallet` to the commands that should use it, or run
+`fast account set-default app-wallet` if the user wants it as the default.
+Don't use `fast account import --private-key`: it puts the key on the
+command line.
+
+**When the key is needed outside the CLI** (for example, your own SDK code):
+
+```bash
 fast authorize complete --message '<the code they pasted>' --json
 # → { "private_key": "0x..." }   (a bare object, not the usual { "ok": true, "data": ... })
 ```
 
 After success, confirm to the user that the key was received. **Do not echo
 the private key back to them** — they already have it in their wallet.
-
-`authorize complete` only decrypts the key; it doesn't add an account to the
-CLI, so `fast send` and `fast info balance` keep using the CLI's own account.
-To use the handed-over wallet with the CLI, decrypt it straight into a key
-file and import that, so the key never appears in your output, the shell
-history or the process list:
-
-```bash
-# Set FAST_PASSWORD first if the key should be stored encrypted.
-KEYFILE=$(mktemp)   # created with mode 0600
-fast authorize complete --message '<the code they pasted>' --json \
-  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);if(!r.private_key){process.stderr.write(s);process.exit(1)}process.stdout.write(JSON.stringify({privateKey:r.private_key}))})' \
-  > "$KEYFILE" \
-  && fast account import --name app-wallet --key-file "$KEYFILE" --json
-rm -f "$KEYFILE"
-```
-
-Then pass `--account app-wallet` to the commands that should use it, or run
-`fast account set-default app-wallet` if the user wants it as the default.
-Don't use `fast account import --private-key`: it puts the key on the
-command line.

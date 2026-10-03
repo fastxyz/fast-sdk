@@ -1782,8 +1782,10 @@ Create a payment-request link: an `https://app.fast.xyz/send?to=<address>&amount
 URL that opens the Fast app's Send screen with the recipient and amount
 prefilled. The payer reviews and confirms the transfer in the app. The command
 only builds the link: it signs nothing, sends nothing and needs no password.
-Without `--wait` it makes no network calls; with `--wait` it then watches the
-explorer API for the payment, like `fast wait-for-payment` (§6.21).
+Network access: when `--to` is a Fast ID name, the name is first resolved on
+the network's Fast ID registry (an HTTP lookup), with or without `--wait`.
+Otherwise, without `--wait` it makes no network calls; with `--wait` it then
+watches the explorer API for the payment, like `fast wait-for-payment` (§6.21).
 
 **Arguments**
 

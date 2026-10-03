@@ -118,7 +118,7 @@ fast request <amount> [--to <fast1...|name>] [--qr] [--qr-file <path.svg>] [--wa
 | `--wait` | After printing the link, block until exactly this amount arrives from someone else; adds `payment` to the JSON |
 | `--timeout <seconds>` | With `--wait`: give up after this long (default 300) with `PAYMENT_TIMEOUT` |
 
-Mainnet only. It only builds a link (`https://app.fast.xyz/send?to=…&amount=…`); nothing is signed or sent. With `--wait` it then watches for the payment. See workflow 9.
+Mainnet only. It only builds a link (`https://app.fast.xyz/send?to=…&amount=…`); nothing is signed or sent. A Fast ID `--to` is looked up on the registry first (network call); with `--wait` it then watches for the payment. See workflow 9.
 
 ### `network` subcommands
 

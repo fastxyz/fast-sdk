@@ -261,7 +261,9 @@ fast --network mainnet send 0x1234567890123456789012345678901234567890 0.01 --to
 Create a payment-request link: a URL that opens the Fast app's Send screen
 with the recipient and amount filled in. Share it with whoever should pay you;
 they review and confirm the transfer in the app. Nothing is signed or sent by
-this command, and no password is needed.
+this command, and no password is needed. It works offline unless `--to` is a
+Fast ID name (resolved on the Fast ID registry first) or `--wait` is set
+(watches the explorer for the payment).
 
 ```bash
 fast request 10 --network mainnet

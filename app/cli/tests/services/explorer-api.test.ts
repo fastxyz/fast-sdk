@@ -502,6 +502,23 @@ describe('anySignal', () => {
     await withoutAbortSignalAny(check);
   });
 
+  it('without AbortSignal.any, detaches from every input once one aborts', async () => {
+    await withoutAbortSignalAny(() => {
+      const interrupt = new AbortController();
+      const timeout = new AbortController();
+      const added = vi.spyOn(interrupt.signal, 'addEventListener');
+      const removed = vi.spyOn(interrupt.signal, 'removeEventListener');
+
+      const combined = anySignal([interrupt.signal, timeout.signal]);
+      timeout.abort(new Error('request timed out'));
+
+      expect(combined.aborted).toBe(true);
+      // The long-lived interruption signal keeps no listener from this request.
+      expect(added).toHaveBeenCalledTimes(1);
+      expect(removed).toHaveBeenCalledWith('abort', added.mock.calls[0]![1]);
+    });
+  });
+
   it('cancels an in-flight explorer request when the command is interrupted, even without AbortSignal.any', async () => {
     await withoutAbortSignalAny(async () => {
       let seen: AbortSignal | undefined;

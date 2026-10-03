@@ -332,12 +332,26 @@ const describeFailure = (cause: unknown): string => {
 export const anySignal = (signals: readonly AbortSignal[]): AbortSignal => {
   if (typeof AbortSignal.any === 'function') return AbortSignal.any([...signals]);
   const controller = new AbortController();
+  // Once any input aborts, detach from all of them, so a long-lived input (the
+  // command's interruption signal) does not collect a listener per request.
+  // Requests always pair it with a timeout signal, which aborts within 10 s.
+  const listeners: Array<readonly [AbortSignal, () => void]> = [];
+  const detach = () => {
+    for (const [signal, listener] of listeners) signal.removeEventListener('abort', listener);
+    listeners.length = 0;
+  };
   for (const signal of signals) {
     if (signal.aborted) {
+      detach();
       controller.abort(signal.reason);
       break;
     }
-    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+    const listener = () => {
+      detach();
+      controller.abort(signal.reason);
+    };
+    listeners.push([signal, listener]);
+    signal.addEventListener('abort', listener, { once: true });
   }
   return controller.signal;
 };

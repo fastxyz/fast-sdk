@@ -441,6 +441,21 @@ describe('info history paging', () => {
     expect(calls.filter((c) => c.side === 'to').map((c) => c.cursor)).toEqual([null, 'p2']);
   });
 
+  it('orders rows from the two feeds by exact time, even within one millisecond', async () => {
+    // Same millisecond: the outgoing row is 0.6 ms older than the incoming one.
+    const outRow = transfersFor(ME, [
+      rawTransfer({ hash: hashOf(91), from: ME, to: OTHER, submission_timestamp: '2026-10-02T07:00:00.000300Z' }),
+    ])[0]!;
+    const inRow = transfersFor(ME, [rawTransfer({ hash: hashOf(92), submission_timestamp: '2026-10-02T07:00:00.000900Z' })])[0]!;
+    const explorer = mockExplorer((params) => Effect.succeed(page(params.side === 'from' ? [outRow] : [inRow])));
+
+    const all = await runHistory({}, { entries: [], explorer });
+    const first = await runHistory({ limit: 1 }, { entries: [], explorer });
+
+    expect(all.hashes).toEqual([hashOf(92), hashOf(91)]);
+    expect(first.hashes).toEqual([hashOf(92)]);
+  });
+
   it('takes a self transfer from the incoming feed only, so the outgoing feed keeps paging for real rows', async () => {
     const self = (n: number, iso: string) => transfersFor(ME, [rawTransfer({ hash: hashOf(n), from: ME, to: ME, submission_timestamp: iso })])[0]!;
     const out = (n: number, iso: string) => transfersFor(ME, [rawTransfer({ hash: hashOf(n), from: ME, to: OTHER, submission_timestamp: iso })])[0]!;

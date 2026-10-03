@@ -11,6 +11,7 @@ import {
   type ExplorerTransfersPage,
   historyTypeOf,
   type NetworkTransfer,
+  parseIsoTimestampNs,
   type TransferDirection,
 } from '../../services/api/explorer.js';
 import { ClientConfig } from '../../services/config/client.js';
@@ -141,10 +142,13 @@ const makeTokenMatcher = (token: string | undefined, network: NetworkConfig | un
     tokenName.toLowerCase() === wanted || normHex(tokenId) === normHex(token) || (resolvedId !== undefined && normHex(tokenId) === resolvedId);
 };
 
-const timeMs = (timestamp: string): number => {
-  const ms = Date.parse(timestamp);
-  return Number.isFinite(ms) ? ms : 0;
-};
+/** Newest first by exact time; equal times keep their order (Array.prototype.sort is stable). */
+const byTimeDesc =
+  (keyOf: (row: HistoryRow) => bigint) =>
+  (a: HistoryRow, b: HistoryRow): number => {
+    const d = keyOf(b) - keyOf(a);
+    return d > 0n ? 1 : d < 0n ? -1 : 0;
+  };
 
 export const infoHistory: Command<InfoHistoryArgs> = {
   cmd: 'info-history',
@@ -215,6 +219,9 @@ export const infoHistory: Command<InfoHistoryArgs> = {
 
       // ── Network transfers (incoming and outgoing, from the explorer) ──────
       let networkRows: HistoryRow[] = [];
+      // Exact (nanosecond) times of network rows; their `timestamp` field only
+      // keeps milliseconds, which would leave same-millisecond rows unordered.
+      const exactTime = new Map<HistoryRow, bigint>();
       if (localOnly) {
         // --local: the explorer is not consulted (pending bridge entries are still
         // re-checked against the AllSet portal below, as before).
@@ -286,11 +293,17 @@ export const infoHistory: Command<InfoHistoryArgs> = {
               seen.add(key);
               return true;
             })
-            .map((t) => networkRow(t, config.network));
+            .map((t) => {
+              const row = networkRow(t, config.network);
+              exactTime.set(row, t.timestampNs);
+              return row;
+            });
         }
       }
 
-      const rows = [...networkRows, ...localRows].sort((a, b) => timeMs(b.timestamp) - timeMs(a.timestamp)).slice(offset, offset + limit);
+      // Local entries carry their recorded ISO time; network rows their exact explorer time.
+      const keyOf = (row: HistoryRow): bigint => exactTime.get(row) ?? parseIsoTimestampNs(row.timestamp) ?? 0n;
+      const rows = [...networkRows, ...localRows].sort(byTimeDesc(keyOf)).slice(offset, offset + limit);
 
       // Refresh pending bridge entries on this page against the AllSet portal.
       const pendingBridge = rows.filter((e) => {

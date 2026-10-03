@@ -54,7 +54,8 @@ export const openFundAppLink = (method: FundMethod, args: FundAppLinkArgs, depre
     let address: string;
     if (args.address !== undefined) {
       try {
-        fromFastAddress(args.address);
+        // A checksummed fast1... of another length is not an account address.
+        if (fromFastAddress(args.address).length !== 32) throw new Error('unexpected address length');
         address = args.address;
       } catch {
         return yield* Effect.fail(

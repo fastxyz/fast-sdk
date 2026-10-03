@@ -15,8 +15,8 @@ description: >
 You may install or upgrade the CLI yourself; tell the user in one line first ("Installing the Fast CLI, `@fastxyz/cli`."). Don't use `sudo`: if a global install isn't allowed, run every command through `npx -y @fastxyz/cli@latest` instead. The `key-handover` skill follows the same rule.
 
 ```sh
-# 1. Require Node.js ≥ 20 (the CLI's SQLite dependency, better-sqlite3, does not support Node 18)
-node --version   # must be v20 or higher; stop and inform the user if not
+# 1. Require Node.js 20, 22 or newer (the CLI's SQLite dependency, better-sqlite3, supports neither 18 nor 21)
+node --version   # must be v20, v22 or higher; stop and inform the user if not
 
 # 2. Check the latest version and what's installed
 LATEST=$(npm show @fastxyz/cli version)
@@ -96,11 +96,11 @@ Create a request link, then confirm the payment on the network: workflow 9 (`fas
 
 - **Shopping.** Physical products are bought through Fast Shop (shop.fast.xyz) with the `fast-shop` skill or the Fast Shop MCP tools. Fast Shop currently pays from its own wallet, not from this CLI's account (fastxyz/fast-mcp#23), so its balance says nothing about the user's CLI balance. To spend CLI funds there, send fastUSD to the shop wallet's `fast1...` address (a new recipient, so confirm first). Don't create another wallet without telling the user.
 - **Fast Card** (via Pulsar, live since 2026-09-30). The CLI has no card commands. Don't claim you can order or top up the card; send to a card top-up address only when the user gives you the address and chain, and confirm it like any bridge-out.
-- **Paid APIs (x402).** `fast pay <url>` (workflow 8). Run it with `--dry-run` first, and confirm the price with the user before paying.
+- **Paid APIs (x402).** `fast pay <url>` (workflow 8). Run it with `--dry-run` first and confirm the price with the user. The paid run then pays whatever the server asks at that moment, with no cap, so use it only with servers the user trusts.
 
 ### The user's own Fast app wallet
 
-To act on the wallet the user already has in the Fast app instead of a new CLI account, use the `key-handover` skill (`fast authorize request`, the user approves in their wallet, then `fast authorize complete`). Never ask the user to paste a private key into the chat.
+To act on the wallet the user already has in the Fast app instead of a new CLI account, use the `key-handover` skill: `fast authorize request`, the user approves in their wallet and pastes back an encrypted code, then `fast authorize complete`. That command only decrypts the key; it doesn't add an account, so import it as the skill shows (`fast account import --key-file`) and then pass `--account <name>`, or make it the default with `fast account set-default <name>` if the user wants that. Never ask the user to paste a private key into the chat.
 
 ---
 
@@ -192,10 +192,10 @@ Mainnet only. It only builds a link (`https://app.fast.xyz/send?to=…&amount=�
 |---|---|
 | `fast network list` | List configured networks |
 | `fast network set-default <name>` | Set the default network (`testnet` or `mainnet`) |
-| `fast network add <file> --name <name>` | Add a custom network from a JSON config file; **`--name` is required** |
+| `fast network add <name> --config <path>` | Add a custom network from a JSON config file; **`--config` is required** |
 | `fast network remove <name>` | Remove a custom network by name |
 
-> **`network add` requires both arguments:** the config file path (positional) AND `--name <name>` (named flag). Omitting `--name` will fail.
+> **`network add` requires both arguments:** the network name (positional) AND `--config <path>` (named flag). Omitting `--config` will fail.
 > **`network remove` is the correct command** to delete a network — do NOT use `network delete` or `network list`.
 
 ### `pay` command
@@ -279,7 +279,7 @@ fast network set-default testnet
 Mainnet balances are real money; testnet tokens have no value. Check the
 current default with `fast network list --json` (`isDefault: true`).
 
-Custom networks can be added from a JSON config file via `fast network add <file> --name <name>`. Both arguments are required. Remove a custom network with `fast network remove <name>`.
+Custom networks can be added from a JSON config file via `fast network add <name> --config <path>`. Both arguments are required. Remove a custom network with `fast network remove <name>`.
 
 ### Password
 
@@ -289,8 +289,10 @@ The keystore password can be provided as:
 2. `FAST_PASSWORD` environment variable (**preferred** — avoids shell history exposure)
 3. Interactive prompt (interactive mode only)
 
-Accounts created in `--non-interactive` mode with no password are stored
-unencrypted (file permission `0600` only, like an SSH key without a passphrase).
+Accounts created or imported without a password (for example in `--non-interactive`
+or `--json` mode with no `FAST_PASSWORD`) are stored unencrypted in `~/.fast/fast.db`,
+protected only by the `~/.fast` directory's `0700` permissions, like an SSH key
+without a passphrase.
 
 ---
 
@@ -363,8 +365,8 @@ fast info bridge-tokens    # ← lists which tokens can be bridged
 ### Add and remove custom networks
 
 ```sh
-# Add — BOTH the file path AND --name are required:
-fast network add /etc/fast/custom-net.json --name custom-testnet
+# Add — BOTH the name AND --config are required:
+fast network add custom-testnet --config /etc/fast/custom-net.json
 
 # Remove — use 'network remove', NOT 'network delete':
 fast network remove custom-testnet

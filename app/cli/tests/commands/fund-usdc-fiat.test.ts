@@ -1,14 +1,44 @@
-import { describe, expect, it } from "vitest";
-import { buildRampUrl } from "../../src/commands/fund/usdc/fiat-url.js";
+import { Effect, Layer, Option } from 'effect';
+import { describe, expect, it } from 'vitest';
+import { toFastAddress } from '@fastxyz/sdk';
+import { fundUsdcFiat } from '../../src/commands/fund/usdc/fiat.js';
+import { ClientConfig } from '../../src/services/config/client.js';
+import { Output } from '../../src/services/output.js';
+import { AccountStore } from '../../src/services/storage/account.js';
 
-describe("buildRampUrl", () => {
-  it("encodes a plain fast address as the to= query param", () => {
-    expect(buildRampUrl("fast1abc")).toBe("https://ramp.fast.xyz/?to=fast1abc");
-  });
-
-  it("encodes special characters so an injected `&to=` cannot smuggle a second param", () => {
-    expect(buildRampUrl("fast1x&to=fast1attacker")).toBe(
-      "https://ramp.fast.xyz/?to=fast1x%26to%3Dfast1attacker",
+describe('legacy fund usdc fiat alias', () => {
+  it('routes to Card and says the Fast-side asset is fastUSD', async () => {
+    const address = toFastAddress(new Uint8Array(32).fill(1));
+    const lines: string[] = [];
+    const results: unknown[] = [];
+    const layer = Layer.mergeAll(
+      Layer.succeed(AccountStore, { resolveAccount: () => Effect.die('unexpected account lookup') } as never),
+      Layer.succeed(ClientConfig, {
+        json: false,
+        debug: false,
+        nonInteractive: true,
+        network: 'mainnet',
+        account: Option.none(),
+        password: Option.none(),
+      }),
+      Layer.succeed(Output, {
+        humanLine: (line: string) => Effect.sync(() => void lines.push(line)),
+        ok: (value: unknown) => Effect.sync(() => void results.push(value)),
+        fail: () => Effect.void,
+        humanTable: () => Effect.void,
+        debug: () => Effect.void,
+      }),
     );
+
+    await Effect.runPromise(fundUsdcFiat.handler({ address } as never).pipe(Effect.provide(layer)));
+
+    expect(lines.join('\n')).toContain('Deprecated: `fast fund usdc fiat` now opens the Card flow.');
+    expect(results).toEqual([
+      {
+        url: `https://app.fast.xyz/card?to=${address}`,
+        address,
+        asset: 'fastUSD',
+      },
+    ]);
   });
 });

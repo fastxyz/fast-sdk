@@ -1,7 +1,7 @@
 ---
 name: fast
 description: >
-  fast CLI for managing Fast network accounts, sending tokens, funding via bridge or fiat,
+  fast CLI for managing Fast network accounts, sending tokens, funding via bridge or supported app routes,
   and paying x402-protected APIs. Use when the user wants to run fast commands, create accounts,
   check balances, send USDC, request a payment (get paid), or interact with the Fast network from the terminal.
 ---
@@ -82,9 +82,13 @@ Every supported subcommand is listed below. Use **exactly** these command names 
 
 | Command | Description | Key flags |
 |---|---|---|
-| `fast fund usdc fiat` | Print a Ramp on-ramp URL for funding with USDC (mainnet only). | `--network mainnet`, `--address` |
-| `fast fund usdc crypto <amount>` | Bridge USDC from an EVM chain into the Fast account. Defaults `--token` to `network.defaultToken.symbol` when omitted. On mainnet that's `fastUSD`, which is not on EVM chains by default — pass `--token USDC` for the bridge case. The command errors with `CommandUnsupportedForTokenError` otherwise. | `--chain <chain>` (required), `--token`, `--eip-7702` (gasless) |
-| `fast fund fastusd` | Print an `app.fast.xyz/send` URL that opens the unified Fast funding page (mainnet only). Funds **fastUSD** (Fast-native, distinct from bridged USDC). | `--to <fast1...>`, `--amount <decimal>` |
+| `fast fund` | Interactively choose Card, external USDC, Coinbase, or Swapper. All hosted routes credit **fastUSD** (mainnet only). | `--address`, `--amount` |
+| `fast fund card` | Print the supported Card funding URL. | `--network mainnet`, `--address`, `--amount` |
+| `fast fund usdc` | Print the supported external-USDC funding URL; the Fast-side asset is **fastUSD**. | `--network mainnet`, `--address` |
+| `fast fund crypto --supplier coinbase\|swapper` | Print the selected supported crypto-supplier URL; credits **fastUSD**. | `--network mainnet`, `--address`, `--amount` |
+| `fast fund usdc crypto <amount>` | Bridge external USDC from an EVM chain; the configured route selects the Fast-side asset (e.g. fastUSD on mainnet, testUSDC on testnet). | `--chain <chain>` (required), `--token`, `--eip-7702` (gasless) |
+| `fast fund usdc fiat` | Deprecated alias for `fast fund card`. | `--network mainnet`, `--address` |
+| `fast fund fastusd` | Deprecated alias for the interactive method selector. | `--to <fast1...>`, `--amount <decimal>` |
 
 ### `send` command
 
@@ -360,24 +364,32 @@ UserOperation via the AllSet Portal and Pimlico.
 fast send 0xYourEvmAddress 25 --token USDC --to-chain arbitrum-sepolia
 ```
 
-### 6. Fund via fiat (mainnet only)
+### 6. Add fastUSD through the hosted funding app (mainnet only)
 
 ```sh
-fast fund usdc fiat --network mainnet
-# → prints a Ramp on-ramp URL for funding with USDC
+# Interactive selector over the four supported routes
+fast fund --network mainnet
+
+# Or choose a route explicitly
+fast fund card --network mainnet
+fast fund usdc --network mainnet
+fast fund crypto --supplier coinbase --network mainnet
+fast fund crypto --supplier swapper --network mainnet
 ```
 
-### 7. Fund fastUSD via the unified Fast web app
+The supported routes are Card (`/card`), USDC from another network (`/usdc`),
+and Crypto via Coinbase or Swapper (`/crypto?supplier=...`). All credit the
+Fast-native asset **fastUSD**. USDC is an external input asset, not a separate
+native USDC balance on Fast. The CLI prints the link; it does not submit a
+payment itself. Hosted links are mainnet-only. In JSON or non-interactive mode,
+select a method explicitly instead of using the interactive command.
 
 ```sh
-fast fund fastusd --network mainnet
-# → prints app.fast.xyz/send?to=<your-fast-address>
-fast fund fastusd --network mainnet --amount 25
-# → adds &amount=25
+fast fund crypto --supplier coinbase --network mainnet --address fast1...
 ```
 
-This URL is mainnet-only and funds **fastUSD** (a Fast-native token, separate
-from bridged USDC).
+The old `fast fund usdc fiat` command is a deprecated alias for Card;
+`fast fund fastusd` is a deprecated alias for the method selector.
 
 ### 8. Pay an x402-protected URL
 

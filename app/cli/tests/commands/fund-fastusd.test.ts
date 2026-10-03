@@ -1,28 +1,95 @@
-import { describe, expect, it } from "vitest";
-import { buildFundFastUsdUrl } from "../../src/commands/fund/fastusd-url.js";
+import { toFastAddress } from '@fastxyz/sdk';
+import { Effect, Layer, Option } from 'effect';
+import { describe, expect, it } from 'vitest';
+import { fundFastUsd } from '../../src/commands/fund/fastusd.js';
+import { buildFundAppUrl } from '../../src/commands/fund/app-link.js';
+import { ClientConfig } from '../../src/services/config/client.js';
+import { Output } from '../../src/services/output.js';
+import { Prompt } from '../../src/services/prompt.js';
+import { AccountStore } from '../../src/services/storage/account.js';
 
-describe("buildFundFastUsdUrl", () => {
-  it("emits to= when only address is provided", () => {
-    expect(buildFundFastUsdUrl("fast1abc", undefined)).toBe(
-      "https://app.fast.xyz/send?to=fast1abc",
-    );
+describe('buildFundAppUrl', () => {
+  it('builds the supported Card route and preserves a prefilled amount', () => {
+    expect(buildFundAppUrl('card', 'fast1abc', '10.5')).toBe('https://app.fast.xyz/card?to=fast1abc&amount=10.5');
   });
 
-  it("emits both to= and amount= when both are provided", () => {
-    expect(buildFundFastUsdUrl("fast1abc", "10")).toBe(
-      "https://app.fast.xyz/send?to=fast1abc&amount=10",
-    );
+  it('URL-encodes the destination address', () => {
+    expect(buildFundAppUrl('card', 'fast1abc&to=fast1attacker')).toBe('https://app.fast.xyz/card?to=fast1abc%26to%3Dfast1attacker');
   });
 
-  it("preserves a decimal amount unchanged", () => {
-    expect(buildFundFastUsdUrl("fast1abc", "10.5")).toBe(
-      "https://app.fast.xyz/send?to=fast1abc&amount=10.5",
+  it('keeps fastusd as a deprecated alias for the selector', async () => {
+    const address = toFastAddress(new Uint8Array(32).fill(1));
+    const lines: string[] = [];
+    const results: unknown[] = [];
+    const layer = Layer.mergeAll(
+      Layer.succeed(AccountStore, { resolveAccount: () => Effect.die('unexpected account lookup') } as never),
+      Layer.succeed(ClientConfig, {
+        json: false,
+        debug: false,
+        nonInteractive: false,
+        network: 'mainnet',
+        account: Option.none(),
+        password: Option.none(),
+      }),
+      Layer.succeed(Output, {
+        humanLine: (line: string) => Effect.sync(() => void lines.push(line)),
+        ok: (value: unknown) => Effect.sync(() => void results.push(value)),
+        fail: () => Effect.void,
+        humanTable: () => Effect.void,
+        debug: () => Effect.void,
+      }),
+      Layer.succeed(Prompt, {
+        input: () => Effect.succeed('1'),
+        password: () => Effect.die('unexpected password prompt'),
+        confirm: () => Effect.die('unexpected confirmation prompt'),
+      } as never),
     );
+
+    await Effect.runPromise(fundFastUsd.handler({ to: address, amount: '10' } as never).pipe(Effect.provide(layer)));
+
+    expect(lines.join('\n')).toContain('Deprecated: `fast fund fastusd`');
+    expect(results).toEqual([
+      {
+        url: `https://app.fast.xyz/card?to=${address}&amount=10`,
+        address,
+        asset: 'fastUSD',
+      },
+    ]);
   });
 
-  it("URL-encodes special characters in the address", () => {
-    expect(buildFundFastUsdUrl("fast1abc def", "10")).toBe(
-      "https://app.fast.xyz/send?to=fast1abc+def&amount=10",
+  it.each([
+    ['not-a-number', false, false],
+    ['not-a-number', true, false],
+    ['not-a-number', false, true],
+    [' 10 ', false, false],
+  ] as const)('preserves INVALID_AMOUNT for alias amount %j (JSON %j, non-interactive %j)', async (amount, json, nonInteractive) => {
+    const address = toFastAddress(new Uint8Array(32).fill(1));
+    const layer = Layer.mergeAll(
+      Layer.succeed(AccountStore, { resolveAccount: () => Effect.die('unexpected account lookup') } as never),
+      Layer.succeed(ClientConfig, {
+        json,
+        debug: false,
+        nonInteractive,
+        network: 'mainnet',
+        account: Option.none(),
+        password: Option.none(),
+      }),
+      Layer.succeed(Output, {
+        humanLine: () => Effect.void,
+        ok: () => Effect.void,
+        fail: () => Effect.void,
+        humanTable: () => Effect.void,
+        debug: () => Effect.void,
+      }),
+      Layer.succeed(Prompt, {
+        input: () => Effect.succeed('1'),
+        password: () => Effect.die('unexpected password prompt'),
+        confirm: () => Effect.die('unexpected confirmation prompt'),
+      } as never),
     );
+
+    const outcome = await Effect.runPromise(Effect.either(fundFastUsd.handler({ to: address, amount } as never)).pipe(Effect.provide(layer)));
+    expect(outcome._tag).toBe('Left');
+    if (outcome._tag === 'Left') expect(outcome.left.errorCode).toBe('INVALID_AMOUNT');
   });
 });

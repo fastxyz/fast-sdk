@@ -17,7 +17,7 @@ import { formatBaseUnits, parsePositiveAmount } from '../services/amount.js';
 import { historyTypeOf } from '../services/api/explorer.js';
 import { FastIdResolver, fastIdRecipient } from '../services/api/fast-id.js';
 import { ClientConfig } from '../services/config/client.js';
-import { waitForIncoming } from '../services/incoming-payments.js';
+import { validateWaitTimeoutSeconds, waitForIncoming } from '../services/incoming-payments.js';
 import { Output } from '../services/output.js';
 import { ensureMultisigNetwork } from '../services/signer-resolver.js';
 import { AccountStore } from '../services/storage/account.js';
@@ -208,10 +208,7 @@ export const request: Command<RequestArgs> = {
       if (args.timeout !== undefined && !args.wait) {
         return yield* Effect.fail(new InvalidUsageError({ message: '--timeout only applies with --wait.' }));
       }
-      const timeoutSeconds = args.timeout ?? DEFAULT_WAIT_TIMEOUT_SECONDS;
-      if (!Number.isInteger(timeoutSeconds) || timeoutSeconds <= 0) {
-        return yield* Effect.fail(new InvalidUsageError({ message: '--timeout must be a positive whole number of seconds.' }));
-      }
+      const timeoutSeconds = yield* validateWaitTimeoutSeconds(args.timeout ?? DEFAULT_WAIT_TIMEOUT_SECONDS);
 
       if (config.network !== REQUEST_NETWORK) {
         return yield* Effect.fail(

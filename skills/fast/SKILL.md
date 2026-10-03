@@ -116,7 +116,7 @@ fast request <amount> [--to <fast1...|name>] [--qr] [--qr-file <path.svg>] [--wa
 | `--qr` | Also print a terminal QR code (goes to stderr with `--json`) |
 | `--qr-file <path.svg>` | Write an SVG QR code; its absolute path is returned as `qrFile` |
 | `--wait` | After printing the link, block until exactly this amount arrives from someone else; adds `payment` to the JSON |
-| `--timeout <seconds>` | With `--wait`: give up after this long (default 300) with `PAYMENT_TIMEOUT` |
+| `--timeout <seconds>` | With `--wait`: give up after this long (default 300, max 2147483) with `PAYMENT_TIMEOUT` |
 
 Mainnet only. It only builds a link (`https://app.fast.xyz/send?to=…&amount=…`); nothing is signed or sent. A Fast ID `--to` is looked up on the registry first (network call); with `--wait` it then watches for the payment. See workflow 9.
 
@@ -144,7 +144,7 @@ fast pay <url> [--method <METHOD>] [--body <data|@file>] [--dry-run]
 fast wait-for-payment --amount <AMOUNT> [--token <TOKEN>] [--from <fast1...>] [--to <fast1...>] [--since <ISO time>] [--timeout <seconds>]
 ```
 
-Blocks until an incoming payment of **exactly** `<AMOUNT>` (default token: the network's) reaches the active account (or `--to`), then prints it. Exits 1 with `PAYMENT_TIMEOUT` if nothing matching arrives within `--timeout` (default 300 s).
+Blocks until an incoming payment of **exactly** `<AMOUNT>` (default token: the network's) reaches the active account (or `--to`), then prints it. Exits 1 with `PAYMENT_TIMEOUT` if nothing matching arrives within `--timeout` (default 300 s, max 2147483 s).
 
 ---
 

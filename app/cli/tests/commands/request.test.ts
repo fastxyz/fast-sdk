@@ -547,16 +547,30 @@ describe('fast request --wait', () => {
     expect(h.results).toEqual([]);
   });
 
-  it('rejects --timeout without --wait, and a non-positive --timeout, before building anything', async () => {
+  it('rejects --timeout without --wait, and a --timeout out of range, before building anything', async () => {
     const explorer = mockExplorer(() => Effect.succeed(page([])));
 
     const noWait = await runWait({ wait: false, timeout: 30 }, { explorer });
     const zero = await runWait({ timeout: 0 }, { explorer });
+    // One second past what the runtime timers support: Effect would never fire the timeout.
+    const tooLong = await runWait({ timeout: 2_147_484 }, { explorer });
 
     expect(failureOf(noWait.exit)).toMatchObject({ errorCode: 'INVALID_USAGE', message: '--timeout only applies with --wait.' });
-    expect(failureOf(zero.exit).errorCode).toBe('INVALID_USAGE');
+    const range = '--timeout must be a whole number of seconds from 1 to 2147483 (about 24 days).';
+    expect(failureOf(zero.exit)).toMatchObject({ errorCode: 'INVALID_USAGE', message: range });
+    expect(failureOf(tooLong.exit)).toMatchObject({ errorCode: 'INVALID_USAGE', message: range });
     expect(explorer.calls).toEqual([]);
-    expect(noWait.h.results).toEqual([]);
+    expect([noWait, zero, tooLong].flatMap(({ h }) => h.results)).toEqual([]);
+  });
+
+  it('accepts the longest supported --timeout', async () => {
+    const payee = await fastAddressOf(1);
+    const explorer = mockExplorer(() => Effect.succeed(page([paymentTo(payee, 1, '2026-10-02T03:00:04Z')])));
+
+    const { exit, h } = await runWait({ timeout: 2_147_483 }, { explorer });
+
+    expect(exit._tag).toBe('Success');
+    expect((h.results[0] as { payment: { hash: string } }).payment.hash).toBe(hashOf(1));
   });
 });
 

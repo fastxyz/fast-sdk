@@ -290,7 +290,7 @@ fast request 10 --network mainnet --wait --json
 - `--qr` — Also print the link as a QR code in the terminal. With `--json`, the QR code goes to stderr so stdout stays a single JSON document.
 - `--qr-file <path.svg>` — Write the link as an SVG QR code to this path (overwritten if it exists).
 - `--wait` — After printing the link, wait until the payee receives exactly this amount of fastUSD from another address, sent after the request was created (same matching as `fast wait-for-payment`). Fails with `PAYMENT_TIMEOUT` (exit 1) if nothing arrives in time; the error message repeats the link and when the request was created (`created <createdAt>`), the `--since` for waiting again with `fast wait-for-payment`.
-- `--timeout <seconds>` — With `--wait`, how long to wait (default: 300). Rejected without `--wait`.
+- `--timeout <seconds>` — With `--wait`, how long to wait (default: 300, at most 2147483, about 24 days). Rejected without `--wait`.
 
 **Output (`--json`):**
 
@@ -403,7 +403,7 @@ fast wait-for-payment --amount 0.5 --to fast1... --since 2026-10-02T12:00:00Z --
 - `--from <fast1...>` — Only accept a payment from this sender
 - `--to <fast1...>` — Address to watch (default: the active account)
 - `--since <iso-time>` — Only accept payments submitted at or after this time (default: when the command starts). Times without a zone are read as UTC.
-- `--timeout <seconds>` — Give up after this many seconds (default: 300)
+- `--timeout <seconds>` — Give up after this many seconds (default: 300, at most 2147483, about 24 days)
 
 `--json` returns `{ ok: true, data: { hash, type, from, to, amount, formatted, tokenName, tokenId, timestamp, explorerUrl, network } }`. If nothing matching arrives in time, it exits 1 with `PAYMENT_TIMEOUT`; explorer errors while polling are retried until then, and the timeout message says if the last poll failed. Networks without an explorer API fail with `EXPLORER_NOT_CONFIGURED`.
 

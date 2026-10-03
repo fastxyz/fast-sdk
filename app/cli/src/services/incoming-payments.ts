@@ -4,10 +4,30 @@
  * payment request that blocks until it is paid).
  */
 import { Clock, Duration, Effect, Ref } from 'effect';
-import { type ExplorerNotConfiguredError, type ExplorerUnavailableError, PaymentTimeoutError } from '../errors/index.js';
+import { type ExplorerNotConfiguredError, type ExplorerUnavailableError, InvalidUsageError, PaymentTimeoutError } from '../errors/index.js';
 import { ExplorerApi, type ExplorerTransfersPage, type NetworkTransfer } from './api/explorer.js';
 
 export const DEFAULT_POLL_INTERVAL_MS = 2_000;
+
+/**
+ * The longest wait supported: the largest delay the JS timers behind Effect's
+ * Clock accept (2^31 - 1 ms, about 24.8 days). Effect treats a longer delay as
+ * infinite, so a wait that long would never time out.
+ */
+export const MAX_WAIT_TIMEOUT_MS = 2 ** 31 - 1;
+/** The largest valid `--timeout`: MAX_WAIT_TIMEOUT_MS in whole seconds (2147483). */
+export const MAX_WAIT_TIMEOUT_SECONDS = Math.floor(MAX_WAIT_TIMEOUT_MS / 1000);
+
+/** Check a `--timeout` in seconds: a whole number from 1 to MAX_WAIT_TIMEOUT_SECONDS. */
+export const validateWaitTimeoutSeconds = (seconds: number): Effect.Effect<number, InvalidUsageError> =>
+  Number.isInteger(seconds) && seconds > 0 && seconds <= MAX_WAIT_TIMEOUT_SECONDS
+    ? Effect.succeed(seconds)
+    : Effect.fail(
+        new InvalidUsageError({
+          message: `--timeout must be a whole number of seconds from 1 to ${MAX_WAIT_TIMEOUT_SECONDS} (about 24 days).`,
+        }),
+      );
+
 /** Page size for each poll of the recipient's `to=` feed (newest first). */
 export const POLL_PAGE_SIZE = 50;
 /**
@@ -49,7 +69,7 @@ export interface IncomingPaymentCriteria {
 export const sinceNsOf = (criteria: IncomingPaymentCriteria): bigint => criteria.sinceNs ?? BigInt(criteria.since.getTime()) * 1_000_000n;
 
 export interface WaitForIncomingOptions extends IncomingPaymentCriteria {
-  /** Give up after this long (milliseconds). */
+  /** Give up after this long (milliseconds, at most MAX_WAIT_TIMEOUT_MS). */
   readonly timeoutMs: number;
   /** Delay between polls (default 2 s). */
   readonly pollIntervalMs?: number;
@@ -144,12 +164,17 @@ export const findIncomingPayment = (
  * Transient explorer errors are retried until the deadline (a failed poll keeps
  * the previous floor); a network without an explorer API fails immediately.
  * Sleeping and the deadline use Effect's Clock, so tests can drive this with
- * TestClock.
+ * TestClock. A `timeoutMs` outside (0, MAX_WAIT_TIMEOUT_MS] is a caller bug
+ * (commands check `--timeout` with validateWaitTimeoutSeconds) and dies rather
+ * than waiting forever.
  */
 export const waitForIncoming = (
   options: WaitForIncomingOptions,
 ): Effect.Effect<NetworkTransfer, PaymentTimeoutError | ExplorerNotConfiguredError, ExplorerApi> =>
   Effect.gen(function* () {
+    if (!(options.timeoutMs > 0 && options.timeoutMs <= MAX_WAIT_TIMEOUT_MS)) {
+      return yield* Effect.dieMessage(`waitForIncoming: timeoutMs must be > 0 and <= ${MAX_WAIT_TIMEOUT_MS}, got ${options.timeoutMs}`);
+    }
     const lastError = yield* Ref.make<string | undefined>(undefined);
     const sinceMs = options.since.getTime();
     const deadlineMs = (yield* Clock.currentTimeMillis) + options.timeoutMs;

@@ -234,7 +234,9 @@ describe('fast wait-for-payment', () => {
       InvalidUsageError,
       '--since "2026-02-30" is not a valid ISO 8601 time (e.g. 2026-10-02T12:00:00Z; impossible dates such as 2026-02-30 are rejected).',
     ],
-    [{ amount: '1', timeout: 0 }, InvalidUsageError, '--timeout must be a positive whole number of seconds.'],
+    [{ amount: '1', timeout: 0 }, InvalidUsageError, '--timeout must be a whole number of seconds from 1 to 2147483'],
+    // One second past what the runtime timers support: Effect would never fire the timeout.
+    [{ amount: '1', timeout: 2_147_484 }, InvalidUsageError, '--timeout must be a whole number of seconds from 1 to 2147483'],
     [{ amount: '1', token: 'NOPE' }, TokenNotFoundError, 'Unknown token "NOPE"'],
   ])('rejects bad input %j before polling', async (args, errorClass, message) => {
     const { exit, calls } = await run(args);

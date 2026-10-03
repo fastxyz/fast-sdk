@@ -1,7 +1,15 @@
 import { Duration, Effect, Exit, Fiber, TestClock, TestContext } from 'effect';
 import { describe, expect, it } from 'vitest';
-import { ExplorerNotConfiguredError, ExplorerUnavailableError, PaymentTimeoutError } from '../../src/errors/index.js';
-import { findIncomingPayment, matchesIncomingPayment, POLL_IN_FLIGHT, waitForIncoming } from '../../src/services/incoming-payments.js';
+import { ExplorerNotConfiguredError, ExplorerUnavailableError, InvalidUsageError, PaymentTimeoutError } from '../../src/errors/index.js';
+import {
+  findIncomingPayment,
+  MAX_WAIT_TIMEOUT_MS,
+  MAX_WAIT_TIMEOUT_SECONDS,
+  matchesIncomingPayment,
+  POLL_IN_FLIGHT,
+  validateWaitTimeoutSeconds,
+  waitForIncoming,
+} from '../../src/services/incoming-payments.js';
 import {
   BRIDGE,
   hashOf,
@@ -386,5 +394,38 @@ describe('waitForIncoming', () => {
     if (!Exit.isFailure(exit) || exit.cause._tag !== 'Fail') throw new Error('expected failure');
     expect(exit.cause.error).toBeInstanceOf(ExplorerNotConfiguredError);
     expect(explorer.calls).toHaveLength(1);
+  });
+
+  it('dies instead of waiting forever when timeoutMs is longer than the runtime timers support', async () => {
+    // Effect's Clock never fires a delay over 2^31 - 1 ms, so such a wait would never time out.
+    for (const timeoutMs of [MAX_WAIT_TIMEOUT_MS + 1, 0, Number.NaN]) {
+      const explorer = mockExplorer(() => Effect.succeed(page([])));
+
+      const exit = await run(waitForIncoming({ ...criteria, timeoutMs }).pipe(Effect.provide(explorer.layer)));
+
+      if (!Exit.isFailure(exit) || exit.cause._tag !== 'Die') throw new Error(`expected a defect for ${timeoutMs}`);
+      expect(explorer.calls).toHaveLength(0);
+    }
+  });
+});
+
+describe('validateWaitTimeoutSeconds', () => {
+  it('accepts whole seconds from 1 to the longest delay the runtime timers support', async () => {
+    expect(MAX_WAIT_TIMEOUT_SECONDS).toBe(2_147_483);
+    expect(MAX_WAIT_TIMEOUT_SECONDS * 1000).toBeLessThanOrEqual(MAX_WAIT_TIMEOUT_MS);
+    for (const seconds of [1, 300, MAX_WAIT_TIMEOUT_SECONDS]) {
+      expect(await Effect.runPromise(validateWaitTimeoutSeconds(seconds))).toBe(seconds);
+    }
+  });
+
+  it('rejects a timeout the runtime would treat as infinite, and non-positive or fractional ones', async () => {
+    // 2147484 s is the first whole second past 2^31 - 1 ms; 1e20 is what `--timeout 99999999999999999999` parses to.
+    for (const seconds of [MAX_WAIT_TIMEOUT_SECONDS + 1, 1e20, 0, -1, 1.5, Number.NaN]) {
+      const exit = await Effect.runPromise(Effect.exit(validateWaitTimeoutSeconds(seconds)));
+
+      if (!Exit.isFailure(exit) || exit.cause._tag !== 'Fail') throw new Error(`expected ${seconds} to be rejected`);
+      expect(exit.cause.error).toBeInstanceOf(InvalidUsageError);
+      expect(exit.cause.error.message).toBe('--timeout must be a whole number of seconds from 1 to 2147483 (about 24 days).');
+    }
   });
 });

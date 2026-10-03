@@ -1730,7 +1730,7 @@ already have been sent.
 | `--from` | string | no | — | Only accept a payment sent by this `fast1...` address. |
 | `--to` | string | no | active account | `fast1...` address to watch. |
 | `--since` | string | no | command start | ISO 8601 time (`YYYY-MM-DD`, optionally `THH:MM[:SS[.fff]]` and `Z` or `±HH:MM`); only payments submitted at or after it match. Times without a zone are UTC. Other formats and impossible dates (`2026-02-30`) are rejected with `INVALID_USAGE`. The fraction is kept to the nanosecond and compared exactly with the explorer's microsecond submission times, so a payment earlier within the same millisecond does not match. |
-| `--timeout` | integer | no | `300` | Seconds to wait before failing with `PAYMENT_TIMEOUT`. |
+| `--timeout` | integer | no | `300` | Seconds to wait before failing with `PAYMENT_TIMEOUT`: a whole number from 1 to 2147483 (about 24 days, the longest delay the runtime's timers support; a longer one would never fire). |
 
 **Output (`--json`)**
 
@@ -1805,7 +1805,7 @@ whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
 | `--qr` | boolean | no | `false` | Also render the link as a terminal QR code: on stdout in human mode, on **stderr** with `--json` so stdout stays one JSON document. |
 | `--qr-file` | string | no | — | Write the link as an SVG QR code to this path (must end in `.svg`; an existing file is overwritten). The absolute path is returned as `qrFile`. |
 | `--wait` | boolean | no | `false` | After printing the link, wait until the payment arrives (see step 5). |
-| `--timeout` | integer | no | `300` | With `--wait`: seconds to wait before failing with `PAYMENT_TIMEOUT`. Must be a positive whole number; rejected without `--wait`. |
+| `--timeout` | integer | no | `300` | With `--wait`: seconds to wait before failing with `PAYMENT_TIMEOUT`. A whole number from 1 to 2147483 (about 24 days), as for `fast wait-for-payment`; rejected without `--wait`. |
 
 **Behavior**
 
@@ -1896,7 +1896,7 @@ transfer in the same shape as `fast wait-for-payment` returns (`hash`, `type`,
 | `--account` names an unknown account | 2 | `ACCOUNT_NOT_FOUND` |
 | Default multisig wallet belongs to another network | 2 | `WALLET_NETWORK_MISMATCH` |
 | `--qr-file` cannot be written | 1 | `FILE_IO_ERROR` |
-| `--timeout` without `--wait`, or not a positive whole number | 2 | `INVALID_USAGE` |
+| `--timeout` without `--wait`, or not a whole number from 1 to 2147483 | 2 | `INVALID_USAGE` |
 | `--wait` and nothing matching arrives before the timeout | 1 | `PAYMENT_TIMEOUT` |
 
 ## 7. Token Resolution Rules

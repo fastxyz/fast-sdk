@@ -1894,8 +1894,9 @@ Input value
 `--network <name>` selects which network configuration to use. Resolution:
 
 1. If `--network` is provided, use that name.
-2. Otherwise, use the default from `~/.fast/networks.json`.
-3. If no `networks.json` exists, default is `testnet`.
+2. Otherwise, use the default stored in `~/.fast/fast.db`, set with
+   `fast network set-default <name>`.
+3. A fresh install seeds that default as `mainnet`.
 
 Each network name maps to a complete configuration bundle covering:
 

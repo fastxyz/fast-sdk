@@ -13,12 +13,16 @@ Check if fast-cli is installed:
 fast --version
 ```
 
-If it's not installed, ask the user to install it and wait for them to confirm
-— **do not install it yourself**. Show them this command:
+If it's not installed, install it yourself, as the `fast` skill's Agent
+Bootstrap does: tell the user in one line first ("Installing the Fast CLI,
+`@fastxyz/cli`."), and don't use `sudo`. It needs Node.js 20 or newer.
 
 ```bash
-npm install -g @fastxyz/cli
+npm install -g @fastxyz/cli@latest
 ```
+
+If a global install isn't allowed, run the commands below through
+`npx -y @fastxyz/cli@latest` instead of `fast`.
 
 ## Flow
 

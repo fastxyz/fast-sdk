@@ -4,7 +4,7 @@ A command-line tool for the [Fast network](https://fast.xyz) — manage accounts
 
 ## Installation
 
-**Requires Node.js 18+**
+**Requires Node.js 20, 22 or newer**
 
 ```bash
 pnpm install -g @fastxyz/cli

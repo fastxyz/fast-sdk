@@ -9,7 +9,7 @@ import { message, optionName } from '@optique/core/message';
 import { multiple, optional, withDefault } from '@optique/core/modifiers';
 import type { InferValue } from '@optique/core/parser';
 import { argument, command, constant, option, passThrough } from '@optique/core/primitives';
-import { integer, string } from '@optique/core/valueparser';
+import { choice, integer, string } from '@optique/core/valueparser';
 
 // ---------------------------------------------------------------------------
 // Global options (shared by every leaf command)
@@ -267,8 +267,20 @@ const infoHistoryParser = command(
       }),
       0,
     ),
+    direction: withDefault(
+      option('--direction', choice(['in', 'out', 'all'] as const, { metavar: 'in|out|all' }), {
+        description: message`Only incoming (in), only outgoing (out), or all transfers`,
+      }),
+      'all' as const,
+    ),
+    local: withDefault(
+      option('--local', {
+        description: message`Only what this CLI recorded locally, for every local account (no explorer lookup)`,
+      }),
+      false,
+    ),
   }),
-  { description: message`Show transaction history` },
+  { description: message`Show transaction history (network + local)` },
 );
 
 const infoBridgeTokensParser = command(
@@ -346,6 +358,47 @@ const sendParser = command(
     ),
   }),
   { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
+);
+
+// ---------------------------------------------------------------------------
+// Wait-for-payment command (top-level)
+// ---------------------------------------------------------------------------
+
+const waitForPaymentParser = command(
+  'wait-for-payment',
+  object({
+    cmd: constant('wait-for-payment' as const),
+    amount: option('--amount', string({ metavar: 'AMOUNT' }), {
+      description: message`Exact amount expected, human-readable (e.g., 10.5)`,
+    }),
+    token: optional(
+      option('--token', string({ metavar: 'TOKEN' }), {
+        description: message`Token symbol or token ID (default: the network's default token)`,
+      }),
+    ),
+    from: optional(
+      option('--from', string({ metavar: 'ADDRESS' }), {
+        description: message`Only accept a payment sent by this fast1... address`,
+      }),
+    ),
+    to: optional(
+      option('--to', string({ metavar: 'ADDRESS' }), {
+        description: message`fast1... address to watch (default: the active account)`,
+      }),
+    ),
+    since: optional(
+      option('--since', string({ metavar: 'TIMESTAMP' }), {
+        description: message`Only accept payments at or after this ISO 8601 time (default: now)`,
+      }),
+    ),
+    timeout: withDefault(
+      option('--timeout', integer({ metavar: 'SECONDS' }), {
+        description: message`Give up after this many seconds`,
+      }),
+      300,
+    ),
+  }),
+  { description: message`Wait until a matching incoming payment arrives` },
 );
 
 // ---------------------------------------------------------------------------
@@ -791,7 +844,18 @@ const authorizeGroup = command('authorize', or(authorizeRequestParser, authorize
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
-const commands = or(accountGroup, networkGroup, infoGroup, sendParser, fundGroup, payParser, multisigGroup, tokenGroup, authorizeGroup);
+const commands = or(
+  accountGroup,
+  networkGroup,
+  infoGroup,
+  sendParser,
+  fundGroup,
+  payParser,
+  multisigGroup,
+  tokenGroup,
+  authorizeGroup,
+  waitForPaymentParser,
+);
 
 export const parser = merge(globalOptions, commands);
 
@@ -819,6 +883,7 @@ export type InfoBridgeTokensArgs = InferValue<typeof infoBridgeTokensParser>;
 export type InfoBridgeChainsArgs = InferValue<typeof infoBridgeChainsParser>;
 
 export type SendArgs = InferValue<typeof sendParser>;
+export type WaitForPaymentArgs = InferValue<typeof waitForPaymentParser>;
 
 export type FundUsdcFiatArgs = InferValue<typeof fundUsdcFiatParser>;
 export type FundUsdcCryptoArgs = InferValue<typeof fundUsdcCryptoParser>;

@@ -159,6 +159,7 @@ const KNOWN_COMMANDS = [
   "multisig",
   "token",
   "authorize",
+  "wait-for-payment",
 ] as const;
 
 const SUBCOMMANDS: Record<string, readonly string[]> = {
@@ -348,9 +349,19 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     check: () => null,
   },
   "info history": {
-    usage: "fast info history [--from <address>] [--to <address>] [--token <token>] [--limit <n>] [--offset <n>]",
-    options: ["--from", "--to", "--token", "--limit", "--offset"],
+    usage: "fast info history [--direction <in|out|all>] [--local] [--from <address>] [--to <address>] [--token <token>] [--limit <n>] [--offset <n>]",
+    options: ["--from", "--to", "--token", "--limit", "--offset", "--direction", "--local"],
     check: () => null,
+  },
+  "wait-for-payment": {
+    usage:
+      "fast wait-for-payment --amount <amount> [--token <token>] [--from <fast1...>] [--to <fast1...>] [--since <iso-time>] [--timeout <seconds>]",
+    options: ["--amount", "--token", "--from", "--to", "--since", "--timeout"],
+    check: (_positionals, allArgv) => {
+      if (!allArgv.some((a) => a === "--amount" || a.startsWith("--amount=")))
+        return "Missing required option: --amount <amount>";
+      return null;
+    },
   },
   "multisig init": {
     usage:

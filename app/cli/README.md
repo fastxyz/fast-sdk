@@ -289,19 +289,54 @@ fast info tx 0xabc123...
 
 ### `fast info history`
 
-Show recent locally recorded transaction history.
+Show the selected account's transaction history (`--account`, else the default account): transfers read from the network's explorer API, including payments received from other accounts and EVM → Fast deposits, merged with the transactions this CLI recorded locally. Newest first.
 
 ```bash
-fast info history --from fast1... --limit 20
+fast info history --limit 20
+
+# Only incoming payments, e.g. "did Leo pay me?"
+fast info history --direction in --from fast1leo... --json
+
+# Only what this CLI recorded locally, for every local account (no explorer lookup)
+fast info history --local
 ```
 
 **Options:**
 
+- `--direction <in|out|all>` — Only incoming (`in`), only outgoing (`out`), or everything (`all`, default). Self transfers only appear with `all`.
+- `--local` — Previous behaviour: list only the local log (what this CLI submitted), for every local account, without calling the explorer API. Add `--account <name>` to narrow it to one account. Received payments do not appear. As before, pending bridge entries are still re-checked against the AllSet portal, so the command is not fully offline.
 - `--from <address>` — Filter by sender address
 - `--to <address>` — Filter by recipient address
-- `--token <token>` — Filter by token name or token ID
+- `--token <token>` — Filter by token name or token ID (a symbol also matches its token ID on the current network)
 - `--limit <n>` — Max number of records to return
 - `--offset <n>` — Number of records to skip
+
+Each row has the same fields as before plus `direction` (`in`, `out` or `self`, relative to the account) and `source` (`network` or `local`). A network transfer that this CLI also recorded locally (same Fast transaction hash) is shown once, as the local entry. `--json` output also includes `account` and a `warnings` array. If the explorer API is unreachable, or the network has no `explorerApiUrl`, the command still succeeds with local history only and reports why in `warnings` (and on stderr). A warning also appears if paging stopped before enough network rows matched the filters. Whenever `warnings` is non-empty, missing incoming payments do not mean nothing arrived. With no account at all, it lists the whole local log as before.
+
+---
+
+### `fast wait-for-payment`
+
+Block until a matching incoming payment arrives, then print it. It polls the network's explorer API every 2 seconds and matches an incoming Fast transfer or EVM → Fast deposit (`Mint`) to the watched address with exactly the given amount and token, sent at or after `--since`.
+
+```bash
+# Wait up to 5 minutes for exactly 25 fastUSD from a specific sender
+fast --network mainnet wait-for-payment --amount 25 --from fast1leo... --json
+
+# Watch another address for 0.5 testUSDC sent since 12:00 UTC, for 10 minutes
+fast wait-for-payment --amount 0.5 --to fast1... --since 2026-10-02T12:00:00Z --timeout 600
+```
+
+**Options:**
+
+- `--amount <amount>` — Exact amount expected, human-readable (required). Converted with the token's decimals; the payment must match to the base unit.
+- `--token <token>` — Token symbol or token ID. Defaults to the network's `defaultToken.symbol`.
+- `--from <fast1...>` — Only accept a payment from this sender
+- `--to <fast1...>` — Address to watch (default: the active account)
+- `--since <iso-time>` — Only accept payments submitted at or after this time (default: when the command starts). Times without a zone are read as UTC.
+- `--timeout <seconds>` — Give up after this many seconds (default: 300)
+
+`--json` returns `{ ok: true, data: { hash, type, from, to, amount, formatted, tokenName, tokenId, timestamp, explorerUrl, network } }`. If nothing matching arrives in time, it exits 1 with `PAYMENT_TIMEOUT`; explorer errors while polling are retried until then, and the timeout message says if the last poll failed. Networks without an explorer API fail with `EXPLORER_NOT_CONFIGURED`.
 
 ---
 
@@ -540,6 +575,8 @@ fast network add my-custom-net --config ./network-config.json
   "chainType": "fast"
 }
 ```
+
+Add `"explorerApiUrl"` (the explorer indexer API base, e.g. `https://testnet.api.fast.xyz`) to enable network history and `fast wait-for-payment` on a custom network; without it, `fast info history` shows local history only.
 
 ---
 

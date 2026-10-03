@@ -86,6 +86,13 @@ describe("send --from-chain rewrap", () => {
     expect(r.err.message).not.toContain("Pass --token explicitly.");
   });
 
+  it("explicit --token fastusd (any case) on arbitrum → CommandUnsupportedForTokenError, like fastUSD", () => {
+    for (const token of ["fastusd", "FASTUSD"]) {
+      const r = classify(token, mainnetCfg, "arbitrum", `send --from-chain arbitrum`);
+      expect(r.kind).toBe("command-unsupported");
+    }
+  });
+
   it("typo --token USDD on arbitrum → TokenNotFoundError (no rewrap)", () => {
     const r = classify(
       "USDD",

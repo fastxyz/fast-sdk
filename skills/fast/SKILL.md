@@ -80,7 +80,7 @@ How to act when you manage a person's money with this CLI. The command reference
    fast fund usdc --network mainnet --json                          # USDC from another network (no amount prefill)
    fast fund crypto --supplier coinbase --network mainnet --json    # or --supplier swapper
    ```
-   Ask which method the user prefers if it isn't clear. You can't complete card entry, KYC or the purchase for them. Opening the link moves nothing: when the user says they're done, check `fast info balance --json` before continuing.
+   Ask which method the user prefers if it isn't clear. You can't complete card entry, KYC or the purchase for them. Opening the link moves nothing: when the user says they're done, check the same account on mainnet (`fast info balance --network mainnet --json`) before continuing.
 
 ### Getting paid
 

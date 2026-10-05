@@ -62,9 +62,18 @@ describe('diagnoseFundUsdcArgv (command lines the parser rejects)', () => {
     expect(diagnoseFundUsdcArgv(['--network', 'mainnet', 'fund', 'usdc', 'crypto', '5', '--chain', 'base', '--token', 'USDC'])).toBeUndefined();
   });
 
+  it('leaves the value of an unknown option to the unknown-option message', () => {
+    // `--bogus value`: `value` is most likely --bogus's value, not a subcommand.
+    expect(diagnoseFundUsdcArgv(['fund', 'usdc', '--bogus', 'value'])).toBeUndefined();
+    expect(diagnoseFundUsdcArgv(['--network', 'mainnet', 'fund', 'usdc', '--address', ADDRESS, '--bogus', 'value'])).toBeUndefined();
+  });
+
   it('reports a real unknown subcommand', () => {
-    expect(diagnoseFundUsdcArgv(['fund', 'usdc', '--address', ADDRESS, 'bogus'])).toBe(
-      "Unknown subcommand 'bogus' for 'fund usdc'. Use no subcommand for the app USDC flow, or choose: fiat (deprecated), crypto",
-    );
+    const message = "Unknown subcommand 'bogus' for 'fund usdc'. Use no subcommand for the app USDC flow, or choose: fiat (deprecated), crypto";
+    expect(diagnoseFundUsdcArgv(['fund', 'usdc', '--address', ADDRESS, 'bogus'])).toBe(message);
+    // Known switches take no value, so what follows them is still an operand.
+    expect(diagnoseFundUsdcArgv(['fund', 'usdc', '--json', 'bogus'])).toBe(message);
+    expect(diagnoseFundUsdcArgv(['fund', 'usdc', '--eip-7702', 'bogus'])).toBe(message);
+    expect(diagnoseFundUsdcArgv(['fund', 'usdc', '--bogus=1', 'bogus'])).toBe(message);
   });
 });

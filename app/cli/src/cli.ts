@@ -10,7 +10,7 @@ import { multiple, optional, withDefault } from '@optique/core/modifiers';
 import type { InferValue } from '@optique/core/parser';
 import { argument, command, constant, option, passThrough } from '@optique/core/primitives';
 import { choice, integer, string } from '@optique/core/valueparser';
-import { GLOBAL_VALUE_FLAGS } from './argv.js';
+import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS } from './argv.js';
 
 // ---------------------------------------------------------------------------
 // Global options (shared by every leaf command)
@@ -56,7 +56,7 @@ export const globalOptions = object({
 });
 
 const GLOBAL_OPTIONS_WITH_VALUES = new Set<string>(GLOBAL_VALUE_FLAGS);
-const GLOBAL_SWITCHES = new Set(['--json', '--debug', '--non-interactive', '--help', '--version']);
+const GLOBAL_SWITCH_SET = new Set<string>(GLOBAL_SWITCHES);
 
 /** Read the command path after consuming global options, wherever they appear. */
 export function argsWithoutGlobalOptions(argv: readonly string[]): string[] {
@@ -69,7 +69,7 @@ export function argsWithoutGlobalOptions(argv: readonly string[]): string[] {
       if (equals === -1) index++;
       continue;
     }
-    if (GLOBAL_SWITCHES.has(arg)) continue;
+    if (GLOBAL_SWITCH_SET.has(arg)) continue;
     remaining.push(arg);
   }
   return remaining;

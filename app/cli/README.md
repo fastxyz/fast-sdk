@@ -284,10 +284,13 @@ fast request 2.50 --network mainnet --to alice.smith
 # Print the link, then block until the payment arrives (default timeout 300 s)
 fast request 10 --network mainnet --wait
 
-# With --json, stdout stays empty until the payment arrives or the wait times out,
-# so share the link first: from an earlier `fast request 10 --network mainnet --json`
-# (the same --to and amount give the same link), or from a QR code written before the wait
+# With --json, stdout stays empty until the payment arrives or the wait times out, so
+# share the QR code this same command writes before it starts waiting
 fast request 10 --network mainnet --wait --qr-file request.svg --json
+
+# If the link was shared from an earlier `fast request ... --json`, wait on that request:
+# a new `request --wait` only counts payments made after it starts
+fast wait-for-payment --amount 10 --to <data.address> --since <data.createdAt> --network mainnet --json
 ```
 
 **Positional arguments:**

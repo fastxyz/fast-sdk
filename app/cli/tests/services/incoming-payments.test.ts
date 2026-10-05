@@ -310,6 +310,27 @@ describe('waitForIncoming', () => {
     expect(explorer.calls.length).toBeGreaterThanOrEqual(5);
   });
 
+  it('calls a timeout incomplete when a matching first page was seen but an older page never answered', async () => {
+    const explorer = mockExplorer((params) =>
+      params.cursor === null ? Effect.succeed(page([payment(1, '2026-10-02T03:05:00Z')], { hasMore: true, nextCursor: 'older' })) : Effect.never,
+    );
+
+    const exit = await run(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(waitForIncoming({ ...criteria, timeoutMs: 5_000 }).pipe(Effect.provide(explorer.layer)));
+        yield* TestClock.adjust(Duration.seconds(5));
+        return yield* Fiber.join(fiber);
+      }),
+    );
+
+    if (!Exit.isFailure(exit) || exit.cause._tag !== 'Fail') throw new Error('expected timeout');
+    const error = exit.cause.error as PaymentTimeoutError;
+    expect(error).toBeInstanceOf(PaymentTimeoutError);
+    expect(error.message).toContain('Payment verification did not complete within 5s');
+    expect(error.message).not.toContain('No matching payment was observed');
+    expect(explorer.calls.map((call) => call.cursor)).toEqual([null, 'older']);
+  });
+
   it('retries transient explorer errors until a poll succeeds', async () => {
     const explorer = mockExplorer((_params, call) =>
       call < 2 ? Effect.fail(new ExplorerUnavailableError({ reason: 'HTTP 503' })) : Effect.succeed(page([payment(1, '2026-10-02T03:00:01Z')])),
@@ -341,8 +362,8 @@ describe('waitForIncoming', () => {
 
     if (!Exit.isFailure(exit) || exit.cause._tag !== 'Fail') throw new Error('expected failure');
     expect(exit.cause.error).toBeInstanceOf(PaymentTimeoutError);
-    expect(exit.cause.error.message).toContain('No matching payment was observed within 5s');
-    expect(exit.cause.error.message).toContain('a payment may have arrived unseen: request timed out after 10s');
+    expect(exit.cause.error.message).toContain('Payment verification did not complete within 5s');
+    expect(exit.cause.error.message).toContain('the earliest matching payment could not be confirmed: request timed out after 10s');
     expect(exit.cause.error.message).toContain(`${100_000n} base units of token ${TESTUSDC_ID} to ${ME} since ${SINCE.toISOString()}`);
   });
 
@@ -360,7 +381,9 @@ describe('waitForIncoming', () => {
 
     if (!Exit.isFailure(exit) || exit.cause._tag !== 'Fail') throw new Error('expected failure');
     expect(exit.cause.error).toBeInstanceOf(PaymentTimeoutError);
-    expect(exit.cause.error.message).toContain(`The last explorer poll did not complete, so a payment may have arrived unseen: ${POLL_IN_FLIGHT}`);
+    expect(exit.cause.error.message).toContain(
+      `The last explorer poll did not complete, so the earliest matching payment could not be confirmed: ${POLL_IN_FLIGHT}`,
+    );
   });
 
   it('only accepts payments at or after `since` and from the expected sender', async () => {

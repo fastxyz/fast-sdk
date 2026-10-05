@@ -57,7 +57,7 @@ export interface NetworkTransfer {
   readonly type: ValueTransferType;
   readonly from: string;
   readonly to: string;
-  /** Relative to the queried address: `in` (to it), `out` (from it), `self` (both). */
+  /** Relative to the queried address: `in` (to it), `out` (from it, including Burn), `self` (both, except Burn). */
   readonly direction: TransferDirection;
   /** The other side of the transfer (the address itself for `self`). */
   readonly counterparty: string;
@@ -293,7 +293,7 @@ export const normalizeTransfer = (row: ExplorerTransferRow, address: string, net
   const isFrom = row.from.toLowerCase() === self;
   const isTo = row.to.toLowerCase() === self;
   if (!isFrom && !isTo) return undefined;
-  const direction: TransferDirection = isFrom && isTo ? 'self' : isTo ? 'in' : 'out';
+  const direction: TransferDirection = row.type === 'Burn' && isFrom ? 'out' : isFrom && isTo ? 'self' : isTo ? 'in' : 'out';
   const token = lookupFastTokenById(network, row.tokenId);
   return {
     hash: row.hash,

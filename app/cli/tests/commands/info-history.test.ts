@@ -236,6 +236,16 @@ describe('info history (network + local)', () => {
     expect(calls.map((c) => c.side)).toEqual(['from']);
   });
 
+  it('--direction out includes an explorer Burn with the same sender and recipient', async () => {
+    const burn = transfersFor(ME, [rawTransfer({ hash: hashOf(86), type: 'Burn', from: ME, to: ME })])[0]!;
+    const explorer = mockExplorer((params) => Effect.succeed(page(params.side === 'from' ? [burn] : [])));
+    const { result, hashes, calls } = await runHistory({ direction: 'out' }, { entries: [], explorer });
+
+    expect(hashes).toEqual([hashOf(86)]);
+    expect(result.transactions[0]).toMatchObject({ type: 'token-burn', direction: 'out', source: 'network' });
+    expect(calls.map((c) => c.side)).toEqual(['from']);
+  });
+
   it('--from filters by sender and skips the outgoing feed when the sender is someone else', async () => {
     const { hashes, calls } = await runHistory({ from: LEO });
 

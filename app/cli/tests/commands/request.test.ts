@@ -1,6 +1,9 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { formatMessage } from '@optique/core/message';
 import { parse } from '@optique/core/parser';
 import { Signer } from '@fastxyz/sdk';
 import { bech32, bech32m } from 'bech32';
@@ -466,6 +469,23 @@ describe('diagnoseRequestArgv (command lines the parser rejects)', () => {
     expect(parse(parser, terminator).success).toBe(false);
     expect(diagnoseRequestArgv(terminator)).toBe('Missing required argument: <amount>');
     expect(diagnoseRequestArgv(['request', '--', '--bogus'])).toBeUndefined();
+  });
+
+  it.each([
+    ['request', '--qr-file', '--receipt.svg', '-x', '-5', '--json'],
+    ['request', '--json', '--', '-5', '-6'],
+  ])('preserves the parser diagnostic when request diagnosis delegates for %j', (...argv) => {
+    const parsed = parse(parser, argv);
+    if (parsed.success) throw new Error('expected a rejected request');
+    const entry = fileURLToPath(new URL('../../src/main.ts', import.meta.url));
+    const run = spawnSync(process.execPath, ['--import', 'tsx', entry, ...argv], { encoding: 'utf8', timeout: 10_000 });
+
+    expect(run.error).toBeUndefined();
+    expect(run.status).toBe(2);
+    expect(JSON.parse(run.stdout)).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_USAGE', message: formatMessage(parsed.error) },
+    });
   });
 });
 

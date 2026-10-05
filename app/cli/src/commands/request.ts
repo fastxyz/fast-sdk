@@ -3,7 +3,7 @@ import path from 'node:path';
 import { bech32m } from 'bech32';
 import { Clock, Effect, Option } from 'effect';
 import QRCode from 'qrcode';
-import { tokenizeArgv } from '../argv.js';
+import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS, REQUEST_SWITCHES, REQUEST_VALUE_FLAGS } from '../argv.js';
 import type { RequestArgs } from '../cli.js';
 import {
   ExplorerNotConfiguredError,
@@ -88,21 +88,40 @@ export const normalizeRequestAmount = (raw: string, decimals: number, symbol: st
   return Effect.succeed(fraction === '' ? whole : `${whole}.${fraction}`);
 };
 
-/** `fast request`'s own value-taking options, whose values are not operands. */
-const REQUEST_VALUE_FLAGS = ['--to', '--qr-file', '--timeout'];
+const REQUEST_TAKES_VALUE = new Set<string>([...GLOBAL_VALUE_FLAGS, ...REQUEST_VALUE_FLAGS]);
+const REQUEST_FLAGS = new Set<string>([...GLOBAL_SWITCHES, ...GLOBAL_VALUE_FLAGS, ...REQUEST_VALUE_FLAGS, ...REQUEST_SWITCHES]);
 
 /**
  * Explain a `fast request` command line the parser rejected, when argv shows the
  * real mistake. A negative whole amount (`fast request -5`) looks like an unknown
  * option to the parser and never reaches the handler, so it is reported here as
  * the same INVALID_AMOUNT the handler gives `0` or `-0.5`; a missing amount gets
- * a usage hint. Undefined when argv does have an amount, so the parser's own
- * message stands.
+ * a usage hint. Unknown long options are identified here, while option values
+ * and the `--` terminator retain their meaning. Undefined leaves other parse
+ * errors to the parser.
  */
 export const diagnoseRequestArgv = (argv: readonly string[]): InvalidAmountError | string | undefined => {
-  const { operands, negativeNumbers } = tokenizeArgv(argv, REQUEST_VALUE_FLAGS);
-  if (operands.length >= 2) return undefined; // `request <amount>`
-  const negative = negativeNumbers[0];
+  let operandCount = 0;
+  let negative: string | undefined;
+  let positionalOnly = false;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (!positionalOnly && arg === '--') {
+      positionalOnly = true;
+    } else if (!positionalOnly && REQUEST_TAKES_VALUE.has(arg)) {
+      if (i + 1 >= argv.length) return undefined; // Let the parser explain the missing option value.
+      i++;
+    } else if (!positionalOnly && arg.startsWith('--')) {
+      const flag = arg.split('=')[0]!;
+      if (!REQUEST_FLAGS.has(flag)) return `Unknown option '${flag}'.`;
+    } else if (!positionalOnly && arg.startsWith('-')) {
+      if (!/^-\.?\d/.test(arg)) return undefined;
+      negative ??= arg;
+    } else {
+      operandCount++;
+    }
+  }
+  if (operandCount >= 2) return undefined; // `request <amount>`
   return negative === undefined
     ? 'Missing required argument: <amount>'
     : new InvalidAmountError({ message: `Amount must be greater than zero (got "${negative}").` });
@@ -199,10 +218,6 @@ export const request: Command<RequestArgs> = {
       const config = yield* ClientConfig;
       const networkConfig = yield* NetworkConfigService;
 
-      // Taken before the link exists, so it is a safe lower bound for
-      // "payments received since this request", even if the payer acts at once.
-      const createdAt = new Date(yield* Clock.currentTimeMillis).toISOString();
-
       const qrFile = args.qrFile === undefined ? undefined : yield* resolveQrFilePath(args.qrFile);
 
       if (args.timeout !== undefined && !args.wait) {
@@ -233,6 +248,11 @@ export const request: Command<RequestArgs> = {
       const amount = yield* normalizeRequestAmount(args.amount, token.decimals, token.symbol);
       const payee = yield* resolvePayee(args.to, network.networkId);
       const payeeLabel = payee.name === undefined ? payee.address : `${payee.name} (${payee.address})`;
+
+      // Start the matching window after payee resolution, immediately before
+      // constructing the link; resolution may take time and unrelated payments
+      // received during it must not satisfy this request.
+      const createdAt = new Date(yield* Clock.currentTimeMillis).toISOString();
 
       // A Fast ID payee goes into the link as the name, as the app's own links do:
       // the payer sees the name, and the app resolves it again when they send.

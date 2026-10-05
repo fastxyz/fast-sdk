@@ -1,11 +1,15 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { formatMessage } from '@optique/core/message';
 import { parse } from '@optique/core/parser';
 import { Signer } from '@fastxyz/sdk';
 import { bech32, bech32m } from 'bech32';
 import { Duration, Effect, Exit, Fiber, Layer, Option, TestClock, TestContext } from 'effect';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { REQUEST_OPTION, REQUEST_SWITCHES, REQUEST_VALUE_FLAGS } from '../../src/argv.js';
 import { parser, type RequestArgs } from '../../src/cli.js';
 import { commands } from '../../src/commands/index.js';
 import {
@@ -390,6 +394,20 @@ describe('fast request', () => {
 });
 
 describe('fast request registration', () => {
+  it('keeps shared request option arity aligned with the parser', () => {
+    const sampleValues = {
+      [REQUEST_OPTION.to]: 'alice.smith',
+      [REQUEST_OPTION.qrFile]: 'request.svg',
+      [REQUEST_OPTION.timeout]: '30',
+    } satisfies Record<(typeof REQUEST_VALUE_FLAGS)[number], string>;
+    expect(new Set([...REQUEST_VALUE_FLAGS, ...REQUEST_SWITCHES])).toEqual(new Set(Object.values(REQUEST_OPTION)));
+    for (const flag of REQUEST_VALUE_FLAGS) {
+      expect(parse(parser, ['request', '5', flag]).success).toBe(false);
+      expect(parse(parser, ['request', '5', flag, sampleValues[flag]]).success).toBe(true);
+    }
+    for (const flag of REQUEST_SWITCHES) expect(parse(parser, ['request', '5', flag]).success).toBe(true);
+  });
+
   it('parses `request <amount>` with its options', async () => {
     const payee = await fastAddressOf(6);
     const result = parse(parser, ['request', '10', '--to', payee, '--qr', '--qr-file', 'out.svg', '--network', 'mainnet']);
@@ -441,9 +459,56 @@ describe('diagnoseRequestArgv (command lines the parser rejects)', () => {
     }
   });
 
-  it('leaves the parser message alone when the amount is there', () => {
-    expect(diagnoseRequestArgv(['--network', 'mainnet', 'request', '5', '--bogus'])).toBeUndefined();
+  it('reports the actual unknown option even when the amount is present', () => {
+    expect(diagnoseRequestArgv(['--network', 'mainnet', 'request', '5', '--bogus'])).toBe("Unknown option '--bogus'.");
   });
+
+  it('does not mistake a negative token after an unknown option for the request amount', () => {
+    for (const argv of [
+      ['request', '--bogus', '-5'],
+      ['request', '--bogus=1', '-5'],
+      ['request', '-5', '--bogus'],
+    ]) {
+      expect(parse(parser, argv).success).toBe(false);
+      expect(diagnoseRequestArgv(argv)).toBe("Unknown option '--bogus'.");
+    }
+    expect(diagnoseRequestArgv(['request', '-x', '-5'])).toBeUndefined();
+  });
+
+  it('retains consumed option values and the end-of-options marker when diagnosing a rejected request', () => {
+    const withFilename = ['request', '--qr-file', '--receipt.svg', '--bogus', '-5', '--json'];
+    expect(parse(parser, withFilename).success).toBe(false);
+    expect(diagnoseRequestArgv(withFilename)).toBe("Unknown option '--bogus'.");
+
+    const terminator = ['request', '--json', '--'];
+    expect(parse(parser, terminator).success).toBe(false);
+    expect(diagnoseRequestArgv(terminator)).toBe('Missing required argument: <amount>');
+    expect(diagnoseRequestArgv(['request', '--', '--bogus'])).toBeUndefined();
+  });
+
+  it.each([
+    ['request', '--qr-file', '--receipt.svg', '-x', '-5', '--json'],
+    ['request', '--json', '--', '-5', '-6'],
+    ['request', '--json', '--qr-file'],
+    ['request', '--json', '--network'],
+  ])(
+    'preserves the parser diagnostic when request diagnosis delegates for %j',
+    (...argv) => {
+      const parsed = parse(parser, argv);
+      if (parsed.success) throw new Error('expected a rejected request');
+      expect(diagnoseRequestArgv(argv)).toBeUndefined();
+      const entry = fileURLToPath(new URL('../../src/main.ts', import.meta.url));
+      const run = spawnSync(process.execPath, ['--import', 'tsx', entry, ...argv], { encoding: 'utf8', timeout: 10_000 });
+
+      expect(run.error).toBeUndefined();
+      expect(run.status).toBe(2);
+      expect(JSON.parse(run.stdout)).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_USAGE', message: formatMessage(parsed.error) },
+      });
+    },
+    15_000,
+  );
 });
 
 describe('fast request --wait', () => {
@@ -619,6 +684,77 @@ describe('fast request --to <Fast ID>', () => {
         address: bound,
         toName: 'alice.smith',
         amount: '10',
+      }),
+    ]);
+  });
+
+  it('starts the payment window after Fast ID resolution, not when the command starts', async () => {
+    const bound = await fastAddressOf(5);
+    const h: Harness = { lines: [], results: [], accountLookups: [] };
+    const beforeResolution = Date.parse('2026-10-02T03:00:00Z');
+    const unrelated = transfersFor(
+      bound,
+      [
+        rawTransfer({
+          hash: hashOf(1),
+          to: bound,
+          token_id: FASTUSD_ID,
+          amount: (10_000_000).toString(16),
+          submission_timestamp: '2026-10-02T03:00:05Z',
+        }),
+      ],
+      mainnet,
+    )[0]!;
+    const expected = transfersFor(
+      bound,
+      [
+        rawTransfer({
+          hash: hashOf(2),
+          to: bound,
+          token_id: FASTUSD_ID,
+          amount: (10_000_000).toString(16),
+          submission_timestamp: '2026-10-02T03:00:11Z',
+        }),
+      ],
+      mainnet,
+    )[0]!;
+    const explorer = mockExplorer(() => Effect.succeed(page([expected, unrelated])));
+    const layer = Layer.mergeAll(
+      serviceLayers(h, undefined),
+      clientConfig({ json: true }),
+      explorer.layer,
+      Layer.succeed(FastIdResolver, {
+        resolve: () =>
+          Effect.gen(function* () {
+            yield* TestClock.adjust(Duration.seconds(10));
+            return { name: 'alice.smith', address: bound };
+          }),
+      } as never),
+      Layer.succeed(Output, {
+        humanLine: (line: string) => Effect.sync(() => void h.lines.push(line)),
+        ok: (data: unknown) => Effect.sync(() => void h.results.push(data)),
+        fail: () => Effect.void,
+        humanTable: () => Effect.void,
+        debug: () => Effect.void,
+      } as never),
+    );
+
+    const exit = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(beforeResolution);
+        return yield* Fiber.await(
+          yield* Effect.fork(
+            request.handler({ cmd: 'request', amount: '10', to: 'alice.smith', qr: false, wait: true } as RequestArgs).pipe(Effect.provide(layer)),
+          ),
+        );
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+
+    expect(exit._tag).toBe('Success');
+    expect(h.results).toEqual([
+      expect.objectContaining({
+        createdAt: '2026-10-02T03:00:10.000Z',
+        payment: expect.objectContaining({ hash: hashOf(2) }),
       }),
     ]);
   });

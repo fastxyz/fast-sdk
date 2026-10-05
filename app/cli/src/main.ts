@@ -19,7 +19,7 @@ import { getDocPageSync, parse } from "@optique/core/parser";
 import { Effect, Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
-import { tokenizeArgv } from "./argv.js";
+import { REQUEST_OPTION, tokenizeArgv } from "./argv.js";
 import {
   bareFundCommand,
   fundSelectorCommandParser,
@@ -235,6 +235,8 @@ const SUBCOMMAND_REQUIREMENTS: Record<
     usage: string;
     /** Valid command-specific option flags (excluding globals). Used to detect unknown flags. */
     options?: readonly string[];
+    /** The command check preserves option values and `--`; do not rescan its raw argv. */
+    skipUnknownFlagRescan?: boolean;
     /**
      * Inspect a rejected command line: a hint for the usage message, a more
      * specific error to report instead of INVALID_USAGE, or null when neither applies.
@@ -255,7 +257,8 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   },
   request: {
     usage: "fast request <amount> [--to <fast1...|name>] [--qr] [--qr-file <path.svg>] [--wait [--timeout <seconds>]]",
-    options: ["--to", "--qr", "--qr-file", "--wait", "--timeout"],
+    options: Object.values(REQUEST_OPTION),
+    skipUnknownFlagRescan: true,
     // A negative whole amount (`-5`) parses as an unknown option; report it as INVALID_AMOUNT.
     check: (_positionals, allArgv) => diagnoseRequestArgv(allArgv) ?? null,
   },
@@ -586,7 +589,7 @@ if (!result.success) {
       msg = `${problem}\n  Usage: ${req.usage}`;
     } else if (problem) {
       specific = problem;
-    } else if (req.options) {
+    } else if (req.options && !req.skipUnknownFlagRescan) {
       const unknown = findUnknownFlag(argv, req.options);
       if (unknown) msg = `Unknown option '${unknown}'.\n  Usage: ${req.usage}`;
     }

@@ -10,7 +10,7 @@ import { multiple, optional, withDefault } from '@optique/core/modifiers';
 import type { InferValue } from '@optique/core/parser';
 import { argument, command, constant, option, passThrough } from '@optique/core/primitives';
 import { choice, integer, string } from '@optique/core/valueparser';
-import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS } from './argv.js';
+import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS, REQUEST_OPTION } from './argv.js';
 
 // ---------------------------------------------------------------------------
 // Global options (shared by every leaf command)
@@ -442,29 +442,29 @@ const requestParser = command(
       description: message`Amount to request in fastUSD (e.g., 10 or 2.50)`,
     }),
     to: optional(
-      option('--to', string({ metavar: 'ADDRESS' }), {
+      option(REQUEST_OPTION.to, string({ metavar: 'ADDRESS' }), {
         description: message`Who is to be paid: a fast1... address or a Fast ID name like alice.smith (default: active account)`,
       }),
     ),
     qr: withDefault(
-      option('--qr', {
+      option(REQUEST_OPTION.qr, {
         description: message`Also print the link as a QR code in the terminal (stderr with --json)`,
       }),
       false,
     ),
     qrFile: optional(
-      option('--qr-file', string({ metavar: 'PATH' }), {
+      option(REQUEST_OPTION.qrFile, string({ metavar: 'PATH' }), {
         description: message`Write the link as an SVG QR code to this .svg path`,
       }),
     ),
     wait: withDefault(
-      option('--wait', {
+      option(REQUEST_OPTION.wait, {
         description: message`Wait until the payment arrives (human output prints the link first; --json prints only the final result)`,
       }),
       false,
     ),
     timeout: optional(
-      option('--timeout', integer({ metavar: 'SECONDS' }), {
+      option(REQUEST_OPTION.timeout, integer({ metavar: 'SECONDS' }), {
         description: message`With --wait: give up after this many seconds (default: 300)`,
       }),
     ),

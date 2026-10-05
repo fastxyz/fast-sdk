@@ -1801,8 +1801,10 @@ whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
    error envelope replaces the result. That `createdAt` is the `--since` for
    waiting again with `fast wait-for-payment`.
 
-`createdAt` is taken when the command starts, before the link exists, so it is
-a safe lower bound for "payments received after this request".
+`createdAt` is taken after payee resolution, immediately before the link is
+constructed. Payments received while resolving a Fast ID cannot satisfy the
+request. The amount, recipient, and time window identify candidate payments;
+they do not prove that a payer used this particular link.
 
 **Output (human)**
 

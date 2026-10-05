@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner, x64]
     strategy:
       fail-fast: false
       matrix:

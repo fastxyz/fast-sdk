@@ -210,7 +210,7 @@ fast pay <url> [--method <METHOD>] [--body <data|@file>] [--dry-run]
 fast wait-for-payment --amount <AMOUNT> [--token <TOKEN>] [--from <fast1...>] [--to <fast1...>] [--since <ISO time>] [--timeout <seconds>]
 ```
 
-Blocks until an incoming payment of **exactly** `<AMOUNT>` (default token: the network's) reaches the active account (or `--to`), then prints it. Exits 1 with `PAYMENT_TIMEOUT` if nothing matching arrives within `--timeout` (default 300 s, max 2147483 s).
+Blocks until an incoming payment of **exactly** `<AMOUNT>` (default token: the network's) reaches the active account (or `--to`), then prints it. Exits 1 with `PAYMENT_TIMEOUT` if no matching payment is observed within `--timeout` (default 300 s, max 2147483 s).
 
 ---
 
@@ -495,7 +495,7 @@ fast request 10 --network mainnet --qr-file request.svg --json
    fast wait-for-payment --amount 10 --since <data.createdAt> --network mainnet --json
    # → data.hash, data.from, data.explorerUrl
    ```
-   Add `--to <data.address>` when the request was for someone other than the active account. Only report it as paid when this returns the payment. On `PAYMENT_TIMEOUT`, tell the user nothing matching has arrived yet; the link stays valid, and you can wait again with the same `--since`.
+   Add `--to <data.address>` when the request was for someone other than the active account. Only report it as paid when this returns the payment. On `PAYMENT_TIMEOUT`, tell the user no matching payment was observed before the timeout, not that none was sent or arrived; the explorer may have failed. The link stays valid, and you can wait again with the same `--since`.
 4. `fast request 10 --network mainnet --wait --timeout 600 --qr-file request.svg --json` does both in one command, but with `--json` it prints nothing until it finishes, and it only counts payments made after it starts (its own `createdAt`). Use it only when the payer gets the link from that same run, through `--qr-file` (written before the wait). If you shared the link from an earlier `fast request`, wait with `fast wait-for-payment --since <that data.createdAt>` as in step 3 instead: a fresh `request --wait` would miss a payment made in between. Its result nests the payment: report it as paid only from `data.payment.hash`, `data.payment.from`, `data.payment.explorerUrl`. On `PAYMENT_TIMEOUT`, its error message includes `for the request <url> created <time>`; to keep waiting, pass that time as `--since` to `fast wait-for-payment`.
 5. `INVALID_USAGE` mentioning `--network mainnet` means the command ran on another network; re-run with `--network mainnet`.
 

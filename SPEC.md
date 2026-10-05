@@ -1771,7 +1771,7 @@ whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
 | `--to` | string | no | active account's Fast address | Who is to be paid: a bech32m `fast1...` address with a 32-byte payload, or a Fast ID name such as `alice.smith` (classified as in `fast send`, by full syntax). |
 | `--qr` | boolean | no | `false` | Also render the link as a terminal QR code: on stdout in human mode, on **stderr** with `--json` so stdout stays one JSON document. |
 | `--qr-file` | string | no | — | Write the link as an SVG QR code to this path (must end in `.svg`; an existing file is overwritten). The absolute path is returned as `qrFile`. |
-| `--wait` | boolean | no | `false` | After printing the link, wait until the payment arrives (see step 5). |
+| `--wait` | boolean | no | `false` | Wait until the payment arrives (see step 5). Human output prints the link first; with `--json`, stdout stays empty until the command finishes, and only the `--qr` (stderr) and `--qr-file` QR codes are written before the wait. |
 | `--timeout` | integer | no | `300` | With `--wait`: seconds to wait before failing with `PAYMENT_TIMEOUT`. A whole number from 1 to 2147483 (about 24 days), as for `fast wait-for-payment`; rejected without `--wait`. |
 
 **Behavior**

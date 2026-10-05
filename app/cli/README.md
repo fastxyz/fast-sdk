@@ -282,7 +282,12 @@ fast request 2.50 --network mainnet --to fast1someoneelse...
 fast request 2.50 --network mainnet --to alice.smith
 
 # Print the link, then block until the payment arrives (default timeout 300 s)
-fast request 10 --network mainnet --wait --json
+fast request 10 --network mainnet --wait
+
+# With --json, stdout stays empty until the payment arrives or the wait times out,
+# so share the link first: from an earlier `fast request 10 --network mainnet --json`
+# (the same --to and amount give the same link), or from a QR code written before the wait
+fast request 10 --network mainnet --wait --qr-file request.svg --json
 ```
 
 **Positional arguments:**
@@ -294,7 +299,7 @@ fast request 10 --network mainnet --wait --json
 - `--to <fast1...|name>` — Who is to be paid (default: the active account; with a multisig wallet, the wallet address): a valid `fast1...` address or a [Fast ID](https://id.fast.xyz) name such as `alice.smith`. A name is resolved on mainnet first and fails closed like in `fast send` (`INVALID_ADDRESS` if unregistered, `FAST_ID_RESOLUTION_FAILED` if the registry can't be read). The link then carries the name (`?to=alice.smith`), so the payer sees it and the app resolves it again at payment time; `--json` returns the resolved `address` plus `toName`.
 - `--qr` — Also print the link as a QR code in the terminal. With `--json`, the QR code goes to stderr so stdout stays a single JSON document.
 - `--qr-file <path.svg>` — Write the link as an SVG QR code to this path (overwritten if it exists).
-- `--wait` — After printing the link, wait until the payee receives exactly this amount of fastUSD from another address, sent after the request was created (same matching as `fast wait-for-payment`). Fails with `PAYMENT_TIMEOUT` (exit 1) if nothing arrives in time; the error message repeats the link and when the request was created (`created <createdAt>`), the `--since` for waiting again with `fast wait-for-payment`.
+- `--wait` — Wait until the payee receives exactly this amount of fastUSD from another address, sent after the request was created (same matching as `fast wait-for-payment`). Human output prints the link before waiting. With `--json`, stdout stays empty until the command finishes (the result then carries `url` and `payment`); only the `--qr` (stderr) and `--qr-file` QR codes come out before the wait. Fails with `PAYMENT_TIMEOUT` (exit 1) if nothing arrives in time; the error message repeats the link and when the request was created (`created <createdAt>`), the `--since` for waiting again with `fast wait-for-payment`.
 - `--timeout <seconds>` — With `--wait`, how long to wait (default: 300, at most 2147483, about 24 days). Rejected without `--wait`.
 
 **Output (`--json`):**

@@ -181,7 +181,7 @@ fast request <amount> [--to <fast1...|name>] [--qr] [--qr-file <path.svg>] [--wa
 | `--to <fast1...\|name>` | Who is to be paid; defaults to the active account. A `fast1...` address or a Fast ID name (`alice.smith`), resolved first; the link keeps the name and `--json` adds `toName` |
 | `--qr` | Also print a terminal QR code (goes to stderr with `--json`) |
 | `--qr-file <path.svg>` | Write an SVG QR code; its absolute path is returned as `qrFile` |
-| `--wait` | After printing the link, block until exactly this amount arrives from someone else; adds `payment` to the JSON |
+| `--wait` | Block until exactly this amount arrives from someone else; adds `payment` to the JSON. With `--json` nothing is printed until it finishes (see workflow 9) |
 | `--timeout <seconds>` | With `--wait`: give up after this long (default 300, max 2147483) with `PAYMENT_TIMEOUT` |
 
 Mainnet only. It only builds a link (`https://app.fast.xyz/send?to=…&amount=…`); nothing is signed or sent. A Fast ID `--to` is looked up on the registry first (network call); with `--wait` it then watches for the payment. See workflow 9.

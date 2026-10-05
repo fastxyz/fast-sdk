@@ -459,7 +459,7 @@ const requestParser = command(
     ),
     wait: withDefault(
       option('--wait', {
-        description: message`After printing the link, wait until the payment arrives`,
+        description: message`Wait until the payment arrives (human output prints the link first; --json prints only the final result)`,
       }),
       false,
     ),

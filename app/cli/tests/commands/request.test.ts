@@ -444,6 +444,18 @@ describe('diagnoseRequestArgv (command lines the parser rejects)', () => {
   it('leaves the parser message alone when the amount is there', () => {
     expect(diagnoseRequestArgv(['--network', 'mainnet', 'request', '5', '--bogus'])).toBeUndefined();
   });
+
+  it('does not mistake a negative token after an unknown option for the request amount', () => {
+    for (const argv of [
+      ['request', '--bogus', '-5'],
+      ['request', '--bogus=1', '-5'],
+      ['request', '-5', '--bogus'],
+      ['request', '-x', '-5'],
+    ]) {
+      expect(parse(parser, argv).success).toBe(false);
+      expect(diagnoseRequestArgv(argv)).toBeUndefined();
+    }
+  });
 });
 
 describe('fast request --wait', () => {
@@ -619,6 +631,77 @@ describe('fast request --to <Fast ID>', () => {
         address: bound,
         toName: 'alice.smith',
         amount: '10',
+      }),
+    ]);
+  });
+
+  it('starts the payment window after Fast ID resolution, not when the command starts', async () => {
+    const bound = await fastAddressOf(5);
+    const h: Harness = { lines: [], results: [], accountLookups: [] };
+    const beforeResolution = Date.parse('2026-10-02T03:00:00Z');
+    const unrelated = transfersFor(
+      bound,
+      [
+        rawTransfer({
+          hash: hashOf(1),
+          to: bound,
+          token_id: FASTUSD_ID,
+          amount: (10_000_000).toString(16),
+          submission_timestamp: '2026-10-02T03:00:05Z',
+        }),
+      ],
+      mainnet,
+    )[0]!;
+    const expected = transfersFor(
+      bound,
+      [
+        rawTransfer({
+          hash: hashOf(2),
+          to: bound,
+          token_id: FASTUSD_ID,
+          amount: (10_000_000).toString(16),
+          submission_timestamp: '2026-10-02T03:00:11Z',
+        }),
+      ],
+      mainnet,
+    )[0]!;
+    const explorer = mockExplorer(() => Effect.succeed(page([expected, unrelated])));
+    const layer = Layer.mergeAll(
+      serviceLayers(h, undefined),
+      clientConfig({ json: true }),
+      explorer.layer,
+      Layer.succeed(FastIdResolver, {
+        resolve: () =>
+          Effect.gen(function* () {
+            yield* TestClock.adjust(Duration.seconds(10));
+            return { name: 'alice.smith', address: bound };
+          }),
+      } as never),
+      Layer.succeed(Output, {
+        humanLine: (line: string) => Effect.sync(() => void h.lines.push(line)),
+        ok: (data: unknown) => Effect.sync(() => void h.results.push(data)),
+        fail: () => Effect.void,
+        humanTable: () => Effect.void,
+        debug: () => Effect.void,
+      } as never),
+    );
+
+    const exit = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(beforeResolution);
+        return yield* Fiber.await(
+          yield* Effect.fork(
+            request.handler({ cmd: 'request', amount: '10', to: 'alice.smith', qr: false, wait: true } as RequestArgs).pipe(Effect.provide(layer)),
+          ),
+        );
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+
+    expect(exit._tag).toBe('Success');
+    expect(h.results).toEqual([
+      expect.objectContaining({
+        createdAt: '2026-10-02T03:00:10.000Z',
+        payment: expect.objectContaining({ hash: hashOf(2) }),
       }),
     ]);
   });

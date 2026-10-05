@@ -3,7 +3,7 @@ import path from 'node:path';
 import { bech32m } from 'bech32';
 import { Clock, Effect, Option } from 'effect';
 import QRCode from 'qrcode';
-import { tokenizeArgv } from '../argv.js';
+import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS, tokenizeArgv } from '../argv.js';
 import type { RequestArgs } from '../cli.js';
 import {
   ExplorerNotConfiguredError,
@@ -90,6 +90,8 @@ export const normalizeRequestAmount = (raw: string, decimals: number, symbol: st
 
 /** `fast request`'s own value-taking options, whose values are not operands. */
 const REQUEST_VALUE_FLAGS = ['--to', '--qr-file', '--timeout'];
+const REQUEST_TAKES_VALUE = new Set<string>([...GLOBAL_VALUE_FLAGS, ...REQUEST_VALUE_FLAGS]);
+const REQUEST_FLAGS = new Set<string>([...GLOBAL_SWITCHES, ...GLOBAL_VALUE_FLAGS, ...REQUEST_VALUE_FLAGS, '--qr', '--wait']);
 
 /**
  * Explain a `fast request` command line the parser rejected, when argv shows the
@@ -100,6 +102,17 @@ const REQUEST_VALUE_FLAGS = ['--to', '--qr-file', '--timeout'];
  * message stands.
  */
 export const diagnoseRequestArgv = (argv: readonly string[]): InvalidAmountError | string | undefined => {
+  // Skip known option values, then let the parser/main.ts diagnose unknown
+  // options before interpreting a later negative token as the amount.
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (REQUEST_TAKES_VALUE.has(arg)) {
+      i++;
+      continue;
+    }
+    if (arg.startsWith('--') && !REQUEST_FLAGS.has(arg.split('=')[0]!)) return undefined;
+    if (arg.startsWith('-') && !arg.startsWith('--') && !/^-\.?\d/.test(arg)) return undefined;
+  }
   const { operands, negativeNumbers } = tokenizeArgv(argv, REQUEST_VALUE_FLAGS);
   if (operands.length >= 2) return undefined; // `request <amount>`
   const negative = negativeNumbers[0];
@@ -199,10 +212,6 @@ export const request: Command<RequestArgs> = {
       const config = yield* ClientConfig;
       const networkConfig = yield* NetworkConfigService;
 
-      // Taken before the link exists, so it is a safe lower bound for
-      // "payments received since this request", even if the payer acts at once.
-      const createdAt = new Date(yield* Clock.currentTimeMillis).toISOString();
-
       const qrFile = args.qrFile === undefined ? undefined : yield* resolveQrFilePath(args.qrFile);
 
       if (args.timeout !== undefined && !args.wait) {
@@ -233,6 +242,11 @@ export const request: Command<RequestArgs> = {
       const amount = yield* normalizeRequestAmount(args.amount, token.decimals, token.symbol);
       const payee = yield* resolvePayee(args.to, network.networkId);
       const payeeLabel = payee.name === undefined ? payee.address : `${payee.name} (${payee.address})`;
+
+      // Start the matching window after payee resolution, immediately before
+      // constructing the link; resolution may take time and unrelated payments
+      // received during it must not satisfy this request.
+      const createdAt = new Date(yield* Clock.currentTimeMillis).toISOString();
 
       // A Fast ID payee goes into the link as the name, as the app's own links do:
       // the payer sees the name, and the app resolves it again when they send.

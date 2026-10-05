@@ -3,7 +3,7 @@ import path from 'node:path';
 import { bech32m } from 'bech32';
 import { Clock, Effect, Option } from 'effect';
 import QRCode from 'qrcode';
-import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS, tokenizeArgv } from '../argv.js';
+import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS } from '../argv.js';
 import type { RequestArgs } from '../cli.js';
 import {
   ExplorerNotConfiguredError,
@@ -98,24 +98,31 @@ const REQUEST_FLAGS = new Set<string>([...GLOBAL_SWITCHES, ...GLOBAL_VALUE_FLAGS
  * real mistake. A negative whole amount (`fast request -5`) looks like an unknown
  * option to the parser and never reaches the handler, so it is reported here as
  * the same INVALID_AMOUNT the handler gives `0` or `-0.5`; a missing amount gets
- * a usage hint. Undefined when argv does have an amount, so the parser's own
- * message stands.
+ * a usage hint. Unknown long options are identified here, while option values
+ * and the `--` terminator retain their meaning. Undefined leaves other parse
+ * errors to the parser.
  */
 export const diagnoseRequestArgv = (argv: readonly string[]): InvalidAmountError | string | undefined => {
-  // Skip known option values, then let the parser/main.ts diagnose unknown
-  // options before interpreting a later negative token as the amount.
+  let operandCount = 0;
+  let negative: string | undefined;
+  let positionalOnly = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    if (REQUEST_TAKES_VALUE.has(arg)) {
+    if (!positionalOnly && arg === '--') {
+      positionalOnly = true;
+    } else if (!positionalOnly && REQUEST_TAKES_VALUE.has(arg)) {
       i++;
-      continue;
+    } else if (!positionalOnly && arg.startsWith('--')) {
+      const flag = arg.split('=')[0]!;
+      if (!REQUEST_FLAGS.has(flag)) return `Unknown option '${flag}'.`;
+    } else if (!positionalOnly && arg.startsWith('-')) {
+      if (!/^-\.?\d/.test(arg)) return undefined;
+      negative ??= arg;
+    } else {
+      operandCount++;
     }
-    if (arg.startsWith('--') && !REQUEST_FLAGS.has(arg.split('=')[0]!)) return undefined;
-    if (arg.startsWith('-') && !arg.startsWith('--') && !/^-\.?\d/.test(arg)) return undefined;
   }
-  const { operands, negativeNumbers } = tokenizeArgv(argv, REQUEST_VALUE_FLAGS);
-  if (operands.length >= 2) return undefined; // `request <amount>`
-  const negative = negativeNumbers[0];
+  if (operandCount >= 2) return undefined; // `request <amount>`
   return negative === undefined
     ? 'Missing required argument: <amount>'
     : new InvalidAmountError({ message: `Amount must be greater than zero (got "${negative}").` });

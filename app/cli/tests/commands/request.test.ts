@@ -441,8 +441,8 @@ describe('diagnoseRequestArgv (command lines the parser rejects)', () => {
     }
   });
 
-  it('leaves the parser message alone when the amount is there', () => {
-    expect(diagnoseRequestArgv(['--network', 'mainnet', 'request', '5', '--bogus'])).toBeUndefined();
+  it('reports the actual unknown option even when the amount is present', () => {
+    expect(diagnoseRequestArgv(['--network', 'mainnet', 'request', '5', '--bogus'])).toBe("Unknown option '--bogus'.");
   });
 
   it('does not mistake a negative token after an unknown option for the request amount', () => {
@@ -450,11 +450,22 @@ describe('diagnoseRequestArgv (command lines the parser rejects)', () => {
       ['request', '--bogus', '-5'],
       ['request', '--bogus=1', '-5'],
       ['request', '-5', '--bogus'],
-      ['request', '-x', '-5'],
     ]) {
       expect(parse(parser, argv).success).toBe(false);
-      expect(diagnoseRequestArgv(argv)).toBeUndefined();
+      expect(diagnoseRequestArgv(argv)).toBe("Unknown option '--bogus'.");
     }
+    expect(diagnoseRequestArgv(['request', '-x', '-5'])).toBeUndefined();
+  });
+
+  it('retains consumed option values and the end-of-options marker when diagnosing a rejected request', () => {
+    const withFilename = ['request', '--qr-file', '--receipt.svg', '--bogus', '-5', '--json'];
+    expect(parse(parser, withFilename).success).toBe(false);
+    expect(diagnoseRequestArgv(withFilename)).toBe("Unknown option '--bogus'.");
+
+    const terminator = ['request', '--json', '--'];
+    expect(parse(parser, terminator).success).toBe(false);
+    expect(diagnoseRequestArgv(terminator)).toBe('Missing required argument: <amount>');
+    expect(diagnoseRequestArgv(['request', '--', '--bogus'])).toBeUndefined();
   });
 });
 

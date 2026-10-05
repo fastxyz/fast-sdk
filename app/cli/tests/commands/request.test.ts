@@ -395,8 +395,16 @@ describe('fast request', () => {
 
 describe('fast request registration', () => {
   it('keeps shared request option arity aligned with the parser', () => {
+    const sampleValues = {
+      [REQUEST_OPTION.to]: 'alice.smith',
+      [REQUEST_OPTION.qrFile]: 'request.svg',
+      [REQUEST_OPTION.timeout]: '30',
+    } satisfies Record<(typeof REQUEST_VALUE_FLAGS)[number], string>;
     expect(new Set([...REQUEST_VALUE_FLAGS, ...REQUEST_SWITCHES])).toEqual(new Set(Object.values(REQUEST_OPTION)));
-    for (const flag of REQUEST_VALUE_FLAGS) expect(parse(parser, ['request', '5', flag]).success).toBe(false);
+    for (const flag of REQUEST_VALUE_FLAGS) {
+      expect(parse(parser, ['request', '5', flag]).success).toBe(false);
+      expect(parse(parser, ['request', '5', flag, sampleValues[flag]]).success).toBe(true);
+    }
     for (const flag of REQUEST_SWITCHES) expect(parse(parser, ['request', '5', flag]).success).toBe(true);
   });
 

@@ -10,12 +10,17 @@
 /** Global options that take the next argument as their value (`--network mainnet`). */
 export const GLOBAL_VALUE_FLAGS = ['--network', '--account', '--password'] as const;
 
+/** Global options that take no value. */
+export const GLOBAL_SWITCHES = ['--json', '--debug', '--non-interactive', '--help', '--version'] as const;
+
 /** An argument shaped like a negative number (`-5`, `-0.5`, `-.5`). */
 const NEGATIVE_NUMBER = /^-\.?\d/;
 
 export interface ArgvTokens {
   /** The command path and its operands, in order, with option values left out. */
   readonly operands: readonly string[];
+  /** Where each of `operands` sits in argv. */
+  readonly operandIndexes: readonly number[];
   /**
    * Negative numbers standing where an operand would. The parser reads some of
    * them (`-5`) as unknown options, so they never reach a command's own amount
@@ -34,6 +39,7 @@ export interface ArgvTokens {
 export const tokenizeArgv = (argv: readonly string[], valueFlags: readonly string[] = []): ArgvTokens => {
   const takesValue = new Set<string>([...GLOBAL_VALUE_FLAGS, ...valueFlags]);
   const operands: string[] = [];
+  const operandIndexes: number[] = [];
   const negativeNumbers: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -43,7 +49,8 @@ export const tokenizeArgv = (argv: readonly string[], valueFlags: readonly strin
       negativeNumbers.push(arg);
     } else if (!arg.startsWith('-')) {
       operands.push(arg);
+      operandIndexes.push(i);
     }
   }
-  return { operands, negativeNumbers };
+  return { operands, operandIndexes, negativeNumbers };
 };

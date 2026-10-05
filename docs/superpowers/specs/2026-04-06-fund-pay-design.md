@@ -25,8 +25,7 @@ Generates a fiat on-ramp URL and prints it.
 **Flow:**
 
 1. Resolve Fast address from `--address` or default account
-2. Construct URL:
-   `https://allramp.fast.xyz/?fastAddress=<address>`
+2. Construct the standalone on-ramp URL proposed at the time (that host and route have since been retired).
 3. Print URL interactively, ask user to open in browser
 4. JSON output: `{ url, address, tokenName }`
 

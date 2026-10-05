@@ -10,6 +10,7 @@ import { multiple, optional, withDefault } from '@optique/core/modifiers';
 import type { InferValue } from '@optique/core/parser';
 import { argument, command, constant, option, passThrough } from '@optique/core/primitives';
 import { choice, integer, string } from '@optique/core/valueparser';
+import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS } from './argv.js';
 
 // ---------------------------------------------------------------------------
 // Global options (shared by every leaf command)
@@ -53,6 +54,34 @@ export const globalOptions = object({
     () => process.env.FAST_PASSWORD,
   ),
 });
+
+const GLOBAL_OPTIONS_WITH_VALUES = new Set<string>(GLOBAL_VALUE_FLAGS);
+const GLOBAL_SWITCH_SET = new Set<string>(GLOBAL_SWITCHES);
+
+/** Read the command path after consuming global options, wherever they appear. */
+export function argsWithoutGlobalOptions(argv: readonly string[]): string[] {
+  const remaining: string[] = [];
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index]!;
+    const equals = arg.indexOf('=');
+    const optionName = equals === -1 ? arg : arg.slice(0, equals);
+    if (GLOBAL_OPTIONS_WITH_VALUES.has(optionName)) {
+      if (equals === -1) index++;
+      continue;
+    }
+    if (GLOBAL_SWITCH_SET.has(arg)) continue;
+    remaining.push(arg);
+  }
+  return remaining;
+}
+
+export function bareFundCommand(argv: readonly string[]): 'selector' | 'usdc-app' | null {
+  const args = argsWithoutGlobalOptions(argv);
+  if (args[0] !== 'fund') return null;
+  if (args[1] === undefined || args[1].startsWith('-')) return 'selector';
+  if (args[1] === 'usdc' && (args[2] === undefined || args[2].startsWith('-'))) return 'usdc-app';
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Account commands
@@ -447,6 +476,82 @@ const requestParser = command(
 // Fund commands
 // ---------------------------------------------------------------------------
 
+const fundSelectorParser = command(
+  'fund',
+  object({
+    cmd: constant('fund-selector' as const),
+    address: optional(
+      option('--address', string({ metavar: 'ADDRESS' }), {
+        description: message`Fast address to receive fastUSD (default: default account)`,
+      }),
+    ),
+    amount: optional(
+      option('--amount', string({ metavar: 'AMOUNT' }), {
+        description: message`Optional amount to prefill in the funding page`,
+      }),
+    ),
+  }),
+  {
+    description: message`Select Card, external USDC, Coinbase, or Swapper. All supported app routes credit fastUSD; use a direct command with --json or --non-interactive.`,
+  },
+);
+
+const fundCardParser = command(
+  'card',
+  object({
+    cmd: constant('fund-card' as const),
+    address: optional(
+      option('--address', string({ metavar: 'ADDRESS' }), {
+        description: message`Fast address to receive fastUSD (default: default account)`,
+      }),
+    ),
+    amount: optional(
+      option('--amount', string({ metavar: 'AMOUNT' }), {
+        description: message`Optional amount to prefill`,
+      }),
+    ),
+  }),
+  { description: message`Print the supported Card funding link; funds arrive as fastUSD` },
+);
+
+const fundUsdcAppParser = object({
+  cmd: constant('fund-usdc-app' as const),
+  address: optional(
+    option('--address', string({ metavar: 'ADDRESS' }), {
+      description: message`Fast address to receive fastUSD (default: default account)`,
+    }),
+  ),
+});
+
+const fundUsdcAppCommandParser = command(
+  'fund',
+  command('usdc', fundUsdcAppParser, {
+    description: message`Print the supported external-USDC link; the Fast-side asset is fastUSD`,
+  }),
+  { description: message`Open a supported funding route` },
+);
+
+const fundCryptoAppParser = command(
+  'crypto',
+  object({
+    cmd: constant('fund-crypto-app' as const),
+    supplier: option('--supplier', string({ metavar: 'coinbase|swapper' }), {
+      description: message`Supported app supplier: coinbase or swapper`,
+    }),
+    address: optional(
+      option('--address', string({ metavar: 'ADDRESS' }), {
+        description: message`Fast address to receive fastUSD (default: default account)`,
+      }),
+    ),
+    amount: optional(
+      option('--amount', string({ metavar: 'AMOUNT' }), {
+        description: message`Optional amount to prefill`,
+      }),
+    ),
+  }),
+  { description: message`Print a Coinbase or Swapper funding link; funds arrive as fastUSD` },
+);
+
 const fundUsdcFiatParser = command(
   'fiat',
   object({
@@ -457,7 +562,7 @@ const fundUsdcFiatParser = command(
       }),
     ),
   }),
-  { description: message`Get a fiat on-ramp funding URL (USDC via Ramp)` },
+  { description: message`Deprecated alias for the Card funding link` },
 );
 
 const fundUsdcCryptoParser = command(
@@ -472,7 +577,7 @@ const fundUsdcCryptoParser = command(
     }),
     token: optional(
       option('--token', string({ metavar: 'TOKEN' }), {
-        description: message`Token to bridge (default: USDC / testUSDC)`,
+        description: message`External EVM token to bridge (e.g. USDC); the Fast-side token comes from the selected route`,
       }),
     ),
     eip7702: withDefault(
@@ -482,11 +587,11 @@ const fundUsdcCryptoParser = command(
       false,
     ),
   }),
-  { description: message`Bridge USDC from an EVM chain into your Fast account` },
+  { description: message`Bridge external USDC from an EVM chain; the Fast-side asset is selected by the configured route` },
 );
 
 const fundUsdcGroup = command('usdc', or(fundUsdcFiatParser, fundUsdcCryptoParser), {
-  description: message`Fund your Fast account with USDC (fiat or crypto)`,
+  description: message`Open a mainnet USDC funding link or bridge USDC from an EVM chain; the Fast-side asset depends on the route`,
 });
 
 const fundFastUsdParser = command(
@@ -505,11 +610,13 @@ const fundFastUsdParser = command(
     ),
   }),
   {
-    description: message`Print a Fast web-app URL to fund your account with fastUSD (mainnet only)`,
+    description: message`Deprecated alias for the funding-method selector (mainnet only)`,
   },
 );
 
-const fundGroup = command('fund', or(fundUsdcGroup, fundFastUsdParser), { description: message`Fund your account` });
+const fundGroup = command('fund', or(fundCardParser, fundCryptoAppParser, fundUsdcGroup, fundFastUsdParser), {
+  description: message`Choose a hosted mainnet funding method or bridge USDC from EVM; the Fast-side asset depends on the route`,
+});
 
 // ---------------------------------------------------------------------------
 // Pay command
@@ -893,6 +1000,8 @@ const paymentCommands = or(sendParser, requestParser, waitForPaymentParser);
 const commands = or(accountGroup, networkGroup, infoGroup, paymentCommands, fundGroup, payParser, multisigGroup, tokenGroup, authorizeGroup);
 
 export const parser = merge(globalOptions, commands);
+export const fundSelectorCommandParser = merge(globalOptions, fundSelectorParser);
+export const fundUsdcAppCommandParserWithOptions = merge(globalOptions, fundUsdcAppCommandParser);
 
 // ---------------------------------------------------------------------------
 // Exported types — one per leaf command, plus the root union
@@ -924,6 +1033,10 @@ export type RequestArgs = InferValue<typeof requestParser>;
 export type FundUsdcFiatArgs = InferValue<typeof fundUsdcFiatParser>;
 export type FundUsdcCryptoArgs = InferValue<typeof fundUsdcCryptoParser>;
 export type FundFastUsdArgs = InferValue<typeof fundFastUsdParser>;
+export type FundSelectorArgs = InferValue<typeof fundSelectorParser>;
+export type FundCardArgs = InferValue<typeof fundCardParser>;
+export type FundUsdcAppArgs = InferValue<typeof fundUsdcAppParser>;
+export type FundCryptoAppArgs = InferValue<typeof fundCryptoAppParser>;
 export type PayArgs = InferValue<typeof payParser>;
 
 export type MultisigInitArgs = InferValue<typeof multisigInitParser>;
@@ -940,7 +1053,10 @@ export type AuthorizeRequestArgs = InferValue<typeof authorizeRequestParser>;
 export type AuthorizeCompleteArgs = InferValue<typeof authorizeCompleteParser>;
 
 /** The full parsed result: global options merged with the chosen command. */
-export type ParsedArgs = InferValue<typeof parser>;
+export type ParsedArgs =
+  | InferValue<typeof parser>
+  | InferValue<typeof fundSelectorCommandParser>
+  | InferValue<typeof fundUsdcAppCommandParserWithOptions>;
 
 /** Union of just the leaf-command discriminants. */
 export type CommandName = ParsedArgs['cmd'];

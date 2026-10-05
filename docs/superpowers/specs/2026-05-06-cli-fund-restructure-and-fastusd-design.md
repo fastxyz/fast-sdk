@@ -21,13 +21,13 @@ branch (PR #85) is untouched.
 
 ## Background
 
-### Today's `fund` group
+### `fund` group at the time of this historical design
 
 `fast fund` has two subcommands:
 
 | Command                                  | Behavior                                                                  |
 | ---------------------------------------- | ------------------------------------------------------------------------- |
-| `fast fund fiat`                         | Prints `https://ramp.fast.xyz/?to=<addr>` (Ramp → fastUSDC). Mainnet only.|
+| `fast fund fiat`                         | Printed the standalone on-ramp URL proposed at the time; that host and route have since been retired. Mainnet only.|
 | `fast fund crypto <amount> --chain <c>`  | Executes an EVM→Fast bridge via `@fastxyz/allset-sdk` → fastUSDC on Fast. |
 
 Both paths land on **fastUSDC** — the EVM-bridged Fast representation

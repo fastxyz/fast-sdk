@@ -235,6 +235,18 @@ describe('info history (network + local)', () => {
     expect(result.transactions.find((t) => t.hash === hashOf(10))).toEqual({ ...localSend, direction: 'out', source: 'local' });
   });
 
+  it('excludes local entries from another network when merging with the active network feed', async () => {
+    const mainnetLocal = entry({ hash: hashOf(101), network: 'mainnet', from: ME, to: LEO });
+    const testnetLocal = entry({ hash: hashOf(102), network: 'testnet', from: ME, to: LEO });
+    const mainnetNetwork = transfersFor(ME, [rawTransfer({ hash: hashOf(103), from: LEO, to: ME })], mainnet)[0]!;
+    const explorer = mockExplorer((params) => Effect.succeed(page(params.side === 'to' ? [mainnetNetwork] : [])));
+
+    const { hashes, result } = await runHistory({}, { network: mainnet, networkName: 'mainnet', entries: [testnetLocal, mainnetLocal], explorer });
+
+    expect(hashes).toEqual([hashOf(103), hashOf(101)]);
+    expect(result.transactions.every((transaction) => transaction.network === 'mainnet')).toBe(true);
+  });
+
   it('shapes network rows like local entries', async () => {
     const { result } = await runHistory({});
 
@@ -560,6 +572,20 @@ describe('info history paging', () => {
 });
 
 describe('info history --local', () => {
+  it('continues to show entries from every network when no account is selected', async () => {
+    const mainnetLocal = entry({ hash: hashOf(104), network: 'mainnet' });
+    const testnetLocal = entry({ hash: hashOf(105), network: 'testnet' });
+    const explorer = mockExplorer(() => Effect.succeed(page([])));
+
+    const { hashes, calls } = await runHistory(
+      { local: true },
+      { network: mainnet, networkName: 'mainnet', entries: [testnetLocal, mainnetLocal], explorer },
+    );
+
+    expect(hashes).toEqual([testnetLocal.hash, mainnetLocal.hash]);
+    expect(calls).toHaveLength(0);
+  });
+
   it('keeps the recorded direction after deleting the deposit sender account', async () => {
     const outboundDeposit = entry({
       hash: hashOf(95),

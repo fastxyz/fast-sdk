@@ -19,6 +19,7 @@ import { Output } from '../../services/output.js';
 import { type AccountInfo, AccountStore } from '../../services/storage/account.js';
 import { HistoryStore } from '../../services/storage/history.js';
 import { NetworkConfigService } from '../../services/storage/network.js';
+import { ensureMultisigNetwork } from '../../services/signer-resolver.js';
 import { resolveToken } from '../../services/token-resolver.js';
 import type { Command } from '../index.js';
 
@@ -198,6 +199,9 @@ export const infoHistory: Command<InfoHistoryArgs> = {
               Effect.catchTag('NoDefaultAccountError', () => Effect.succeed(Option.none<AccountInfo>())),
             );
       const network = yield* networkConfig.resolve(config.network);
+      if (!localOnly && Option.isSome(account) && account.value.kind === 'multisig') {
+        yield* ensureMultisigNetwork(account.value, config.network);
+      }
       const tokenMatches = makeTokenMatcher(args.token, network);
 
       const needed = offset + limit;

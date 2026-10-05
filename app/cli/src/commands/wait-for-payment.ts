@@ -16,6 +16,7 @@ import { FastRpc } from '../services/api/fast.js';
 import { ClientConfig } from '../services/config/client.js';
 import { validateWaitTimeoutSeconds, waitForIncoming } from '../services/incoming-payments.js';
 import { Output } from '../services/output.js';
+import { ensureMultisigNetwork } from '../services/signer-resolver.js';
 import { AccountStore } from '../services/storage/account.js';
 import { NetworkConfigService } from '../services/storage/network.js';
 import { findRequestedTokenMetadata } from '../services/token-metadata.js';
@@ -113,7 +114,14 @@ export const waitForPayment: Command<WaitForPaymentArgs> = {
       });
       const amountLabel = `${formatBaseUnits(amountRaw, decimals)} ${tokenLabel}`;
 
-      const address = args.to !== undefined ? yield* parseFastAddress('--to', args.to) : (yield* accounts.resolveAccount(config.account)).fastAddress;
+      let address: string;
+      if (args.to !== undefined) {
+        address = yield* parseFastAddress('--to', args.to);
+      } else {
+        const account = yield* accounts.resolveAccount(config.account);
+        if (account.kind === 'multisig') yield* ensureMultisigNetwork(account, config.network);
+        address = account.fastAddress;
+      }
       const from = args.from !== undefined ? yield* parseFastAddress('--from', args.from) : undefined;
       const since = new Date(sinceMs);
       const expected = `${amountLabel} to ${address}${from ? ` from ${from}` : ''} since ${args.since?.trim() ?? since.toISOString()}`;

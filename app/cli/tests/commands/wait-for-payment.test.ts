@@ -42,6 +42,23 @@ const account: AccountInfo = {
   createdAt: new Date(0).toISOString(),
 };
 
+const mainnetMultisig: AccountInfo = {
+  kind: 'multisig',
+  name: 'treasury',
+  fastAddress: ME,
+  multisigConfig: {
+    version: 1,
+    name: 'treasury',
+    signers: [ME, LEO],
+    quorum: 2,
+    configNonce: '0',
+    fastAddress: ME,
+    network: 'mainnet',
+  },
+  isDefault: true,
+  createdAt: new Date(0).toISOString(),
+};
+
 const at = (n: number, iso: string, overrides: Record<string, unknown> = {}, network: NetworkConfig = testnet, address = ME) =>
   transfersFor(address, [rawTransfer({ hash: hashOf(n), to: address, submission_timestamp: iso, ...overrides })], network)[0]!;
 
@@ -51,6 +68,7 @@ const run = async (
     explorer?: ReturnType<typeof mockExplorer>;
     network?: NetworkConfig;
     networkName?: string;
+    account?: AccountInfo;
     /** Advance the TestClock by this much after starting the command. */
     advance?: Duration.DurationInput;
   } = {},
@@ -61,7 +79,7 @@ const run = async (
   const explorer = opts.explorer ?? mockExplorer(() => Effect.succeed(page([])));
   const layer = Layer.mergeAll(
     explorer.layer,
-    Layer.succeed(AccountStore, { resolveAccount: () => Effect.sync(() => (accountLookups++, account)) } as never),
+    Layer.succeed(AccountStore, { resolveAccount: () => Effect.sync(() => (accountLookups++, opts.account ?? account)) } as never),
     Layer.succeed(NetworkConfigService, { resolve: () => Effect.succeed(opts.network ?? testnet) } as never),
     Layer.succeed(ClientConfig, {
       json: false,
@@ -99,6 +117,17 @@ const failure = (exit: Exit.Exit<unknown, unknown>) => {
 };
 
 describe('fast wait-for-payment', () => {
+  it('rejects a default multisig bound to another network before polling', async () => {
+    const explorer = mockExplorer(() => Effect.succeed(page([at(15, '2026-10-02T03:00:00Z')])));
+
+    const { exit, calls, lines, results } = await run({ amount: '0.1' }, { account: mainnetMultisig, explorer });
+
+    expect(failure(exit).errorCode).toBe('WALLET_NETWORK_MISMATCH');
+    expect(calls).toHaveLength(0);
+    expect(lines).toEqual([]);
+    expect(results).toEqual([]);
+  });
+
   it('honours a --since with microseconds: an earlier payment in the same millisecond does not count', async () => {
     const explorer = mockExplorer((_params, call) =>
       Effect.succeed(
@@ -171,7 +200,7 @@ describe('fast wait-for-payment', () => {
   it('--to watches another address without needing an account', async () => {
     const explorer = mockExplorer(() => Effect.succeed(page([at(7, '2026-10-02T03:00:00Z', {}, testnet, OTHER)])));
 
-    const { exit, results, calls, accountLookups } = await run({ amount: '0.1', to: OTHER.toUpperCase() }, { explorer });
+    const { exit, results, calls, accountLookups } = await run({ amount: '0.1', to: OTHER.toUpperCase() }, { explorer, account: mainnetMultisig });
 
     expect(Exit.isSuccess(exit)).toBe(true);
     expect(calls[0]!.address).toBe(OTHER);

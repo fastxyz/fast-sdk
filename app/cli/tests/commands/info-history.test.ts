@@ -39,6 +39,23 @@ const account: AccountInfo = {
   createdAt: new Date(0).toISOString(),
 };
 
+const mainnetMultisig: AccountInfo = {
+  kind: 'multisig',
+  name: 'treasury',
+  fastAddress: ME,
+  multisigConfig: {
+    version: 1,
+    name: 'treasury',
+    signers: [ME, LEO],
+    quorum: 2,
+    configNonce: '0',
+    fastAddress: ME,
+    network: 'mainnet',
+  },
+  isDefault: true,
+  createdAt: new Date(0).toISOString(),
+};
+
 const entry = (overrides: Partial<HistoryEntry>): HistoryEntry => ({
   hash: hashOf(99),
   type: 'transfer',
@@ -172,6 +189,15 @@ afterEach(() => {
 });
 
 describe('info history (network + local)', () => {
+  it('rejects a multisig bound to another network before explorer reads', async () => {
+    const explorer = mockExplorer(() => Effect.succeed(page([incoming])));
+
+    await expect(runHistory({}, { account: mainnetMultisig, entries: [], explorer })).rejects.toThrow(
+      'Multisig wallet "treasury" belongs to network "mainnet", but the active network is "testnet".',
+    );
+    expect(explorer.calls).toHaveLength(0);
+  });
+
   it('merges incoming and outgoing network transfers with local entries, newest first', async () => {
     const { result, hashes, calls } = await runHistory({});
 
@@ -522,6 +548,15 @@ describe('info history paging', () => {
 });
 
 describe('info history --local', () => {
+  it('keeps an account-bound local log available without a matching active network', async () => {
+    const explorer = mockExplorer(() => Effect.succeed(page([incoming])));
+
+    const { hashes, calls } = await runHistory({ local: true }, { account: mainnetMultisig, accountName: 'treasury', explorer });
+
+    expect(hashes).toContain(hashOf(10));
+    expect(calls).toHaveLength(0);
+  });
+
   it('lists the whole local log for every local account, without the network or an account lookup', async () => {
     const explorer = mockExplorer(() => Effect.succeed(page([incoming])));
 

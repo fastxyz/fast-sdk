@@ -418,7 +418,7 @@ fast --network testnet wait-for-payment --amount 0.5 --to fast1... --since 2026-
 - `--since <iso-time>` — Only accept payments submitted at or after this time (default: when the command starts). Times without a zone are read as UTC.
 - `--timeout <seconds>` — Give up after this many seconds (default: 300, at most 2147483, about 24 days)
 
-`--json` returns `{ ok: true, data: { hash, type, from, to, amount, formatted, tokenName, tokenId, timestamp, explorerUrl, network } }`. If nothing matching arrives in time, it exits 1 with `PAYMENT_TIMEOUT`; explorer errors while polling are retried until then, and the timeout message says if the last poll failed. Networks without an explorer API fail with `EXPLORER_NOT_CONFIGURED`.
+`--json` returns `{ ok: true, data: { hash, type, from, to, amount, formatted, tokenName, tokenId, timestamp, explorerUrl, network } }`. If no matching payment is observed in time, it exits 1 with `PAYMENT_TIMEOUT`; explorer errors while polling are retried until then, and the timeout message says if the last poll failed. A timeout does not prove that no payment arrived. Networks without an explorer API fail with `EXPLORER_NOT_CONFIGURED`.
 
 ---
 

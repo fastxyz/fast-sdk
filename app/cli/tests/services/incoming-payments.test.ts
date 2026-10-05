@@ -305,7 +305,7 @@ describe('waitForIncoming', () => {
     const error = exit.cause.error as PaymentTimeoutError;
     expect(error).toBeInstanceOf(PaymentTimeoutError);
     expect(error.errorCode).toBe('PAYMENT_TIMEOUT');
-    expect(error.message).toBe('No matching payment arrived within 10s (expected 0.1 testUSDC to me).');
+    expect(error.message).toBe('No matching payment was observed within 10s (expected 0.1 testUSDC to me).');
     // Polls at t = 0, 2, 4, 6, 8 (and possibly 10) seconds.
     expect(explorer.calls.length).toBeGreaterThanOrEqual(5);
   });
@@ -341,6 +341,7 @@ describe('waitForIncoming', () => {
 
     if (!Exit.isFailure(exit) || exit.cause._tag !== 'Fail') throw new Error('expected failure');
     expect(exit.cause.error).toBeInstanceOf(PaymentTimeoutError);
+    expect(exit.cause.error.message).toContain('No matching payment was observed within 5s');
     expect(exit.cause.error.message).toContain('a payment may have arrived unseen: request timed out after 10s');
     expect(exit.cause.error.message).toContain(`${100_000n} base units of token ${TESTUSDC_ID} to ${ME} since ${SINCE.toISOString()}`);
   });

@@ -234,7 +234,7 @@ describe('fast wait-for-payment', () => {
     const error = failure(exit);
     expect(error).toBeInstanceOf(PaymentTimeoutError);
     expect(error.errorCode).toBe('PAYMENT_TIMEOUT');
-    expect(error.message).toBe(`No matching payment arrived within 5s (expected 0.1 testUSDC to ${ME} since 1970-01-01T00:00:00.000Z).`);
+    expect(error.message).toBe(`No matching payment was observed within 5s (expected 0.1 testUSDC to ${ME} since 1970-01-01T00:00:00.000Z).`);
     expect(results).toEqual([]);
   });
 

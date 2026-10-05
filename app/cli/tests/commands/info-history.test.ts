@@ -39,6 +39,16 @@ const account: AccountInfo = {
   createdAt: new Date(0).toISOString(),
 };
 
+const recipientAccount: AccountInfo = {
+  kind: 'single',
+  name: 'recipient',
+  fastAddress: OTHER,
+  evmAddress: `0x${'bb'.repeat(20)}`,
+  isDefault: false,
+  encrypted: false,
+  createdAt: new Date(0).toISOString(),
+};
+
 const mainnetMultisig: AccountInfo = {
   kind: 'multisig',
   name: 'treasury',
@@ -128,6 +138,7 @@ const runHistory = async (
     explorer?: ReturnType<typeof mockExplorer>;
     /** Value of the global --account flag. */
     accountName?: string;
+    accounts?: AccountInfo[];
   } = {},
 ) => {
   const captured: Captured = { tables: [], results: [], warnings: [], statusUpdates: [] };
@@ -147,6 +158,7 @@ const runHistory = async (
     } as never),
     Layer.succeed(NetworkConfigService, { resolve: () => Effect.succeed(opts.network ?? testnet) } as never),
     Layer.succeed(AccountStore, {
+      list: () => Effect.succeed(opts.accounts ?? [account]),
       resolveAccount: (name: Option.Option<string>) => {
         accountLookups.push(name);
         return opts.account === null ? Effect.fail(new NoDefaultAccountError()) : Effect.succeed(opts.account ?? account);
@@ -548,6 +560,25 @@ describe('info history paging', () => {
 });
 
 describe('info history --local', () => {
+  it('classifies an EVM deposit to another local account as outgoing for its recording account', async () => {
+    const outboundDeposit = entry({
+      hash: hashOf(94),
+      from: MY_EVM,
+      to: OTHER,
+      route: 'evm-to-fast',
+    });
+    const opts = { entries: [outboundDeposit, localDeposit], accounts: [account, recipientAccount] };
+
+    const incomingOnly = await runHistory({ local: true, direction: 'in' }, opts);
+    const outgoingOnly = await runHistory({ local: true, direction: 'out' }, opts);
+
+    expect(incomingOnly.hashes).toEqual([localDeposit.hash]);
+    expect(outgoingOnly.hashes).toEqual([outboundDeposit.hash]);
+    expect(outgoingOnly.result.transactions[0]).toMatchObject({ from: MY_EVM, to: OTHER, direction: 'out', source: 'local' });
+    expect(incomingOnly.calls).toHaveLength(0);
+    expect(outgoingOnly.calls).toHaveLength(0);
+  });
+
   it('keeps an account-bound local log available without a matching active network', async () => {
     const explorer = mockExplorer(() => Effect.succeed(page([incoming])));
 

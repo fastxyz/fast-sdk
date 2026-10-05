@@ -272,7 +272,7 @@ Selected `errorCode` values used in the JSON envelope's `error.code` field
 | `INSUFFICIENT_BALANCE`            | 4    | Funding source (Fast or EVM) lacks enough balance to cover the requested amount.                                                  |
 | `FUNDING_REQUIRED`                | 4    | `fast fund usdc crypto`: derived EVM address has insufficient balance; the user must deposit before retrying.                     |
 | `TX_FAILED`                       | 6    | Transaction was rejected by the network.                                                                                          |
-| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`, `fast request --wait`: no matching payment arrived before `--timeout`.                                   |
+| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`, `fast request --wait`: no matching payment was confirmed before `--timeout`; an incomplete final explorer poll may have seen a match without confirming it as the earliest. |
 | `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response, including inconsistent paging fields or a malformed row). `fast info history` reports it as a warning instead. |
 | `EXPLORER_NOT_CONFIGURED`         | 2    | The network has no `explorerApiUrl`, so network history is unavailable (`fast wait-for-payment`).                                 |
 | `USER_CANCELLED`                  | 7    | Interactive confirmation declined.                                                                                                |
@@ -1061,10 +1061,13 @@ account exists, the whole local log is listed, as before network history.
 With `--local`, the explorer API is not called and only local entries are
 listed, as before network history: without `--account`, the whole local log
 for every local account (`account: null`); with `--account`, only that
-account's entries. `--direction` and the other filters still apply (a local
-entry's direction is read from the account that recorded it), and `warnings`
+account's entries. `--direction` and the other filters still apply (a new
+EVM → Fast entry records its direction relative to the submitting account), and `warnings`
 stays empty. `--local` skips only the explorer: pending bridge entries on the
 page are still re-checked against the AllSet portal, as before network history.
+For legacy EVM → Fast entries without a recorded direction, the sender's still-existing
+account determines the direction; if that account was deleted, the entry defaults to
+`out` rather than treating a surviving recipient account as proof of an incoming deposit.
 
 **Flags**
 
@@ -1682,8 +1685,9 @@ when all of these hold:
 If several match, the earliest is returned. Explorer errors during polling
 (timeout, HTTP error, malformed response) are retried until the deadline. If
 the last poll did not complete (it failed, or the deadline interrupted a request
-still in flight), the `PAYMENT_TIMEOUT` message says so, because a payment may
-then have arrived unseen. The
+still in flight), the `PAYMENT_TIMEOUT` message describes incomplete verification:
+an earlier page may already have shown a matching payment, but the full scan
+could not confirm it as the earliest. The
 `--since` default is the moment the command starts, compared with the
 explorer's submission time; pass an explicit `--since` when the payment may
 already have been sent.
@@ -1732,7 +1736,7 @@ already have been sent.
 | Token not found | 2 | `TOKEN_NOT_FOUND` |
 | No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
 | Network has no `explorerApiUrl` | 2 | `EXPLORER_NOT_CONFIGURED` |
-| Nothing matching arrived before `--timeout` (the message says if the last poll failed) | 1 | `PAYMENT_TIMEOUT` |
+| No matching payment was confirmed before `--timeout` (the message distinguishes an incomplete final poll) | 1 | `PAYMENT_TIMEOUT` |
 
 ### 6.22 `fast request`
 
@@ -1866,7 +1870,7 @@ transfer in the same shape as `fast wait-for-payment` returns (`hash`, `type`,
 | Default multisig wallet belongs to another network | 2 | `WALLET_NETWORK_MISMATCH` |
 | `--qr-file` cannot be written | 1 | `FILE_IO_ERROR` |
 | `--timeout` without `--wait`, or not a whole number from 1 to 2147483 | 2 | `INVALID_USAGE` |
-| `--wait` and nothing matching arrives before the timeout | 1 | `PAYMENT_TIMEOUT` |
+| `--wait` and no matching payment is confirmed before the timeout | 1 | `PAYMENT_TIMEOUT` |
 
 ## 7. Token Resolution Rules
 

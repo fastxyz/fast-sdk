@@ -476,6 +476,9 @@ export const send: Command<SendArgs> = {
         timestamp: new Date().toISOString(),
         explorerUrl,
         route,
+        ...(route === 'evm-to-fast'
+          ? { recordedDirection: address.toLowerCase() === accountInfo.fastAddress.toLowerCase() ? ('in' as const) : ('out' as const) }
+          : {}),
         chainId:
           route === 'evm-to-fast'
             ? network.allSet!.chains[fromChain!]!.chainId

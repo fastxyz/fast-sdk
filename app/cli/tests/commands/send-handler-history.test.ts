@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { send } from '../../src/commands/send.js';
 import { bundledNetworks } from '../../src/config/networks.js';
 import { DatabaseError } from '../../src/errors/index.js';
+import type { HistoryEntry } from '../../src/schemas/history.js';
 import { AllSet } from '../../src/services/api/allset.js';
 import { FastRpc } from '../../src/services/api/fast.js';
 import { ClientConfig } from '../../src/services/config/client.js';
@@ -16,6 +17,69 @@ import { NetworkConfigService } from '../../src/services/storage/network.js';
 const seed = (value: number) => new Uint8Array(32).fill(value);
 
 describe('send handler history', () => {
+  it.each(['self', 'other'] as const)('records the %s EVM deposit direction at submission time', async (destination) => {
+    const senderSeed = seed(3);
+    const senderSigner = new Signer(senderSeed);
+    const recipientSigner = new Signer(seed(4));
+    const account: AccountInfo = {
+      kind: 'single',
+      name: 'alice',
+      fastAddress: await senderSigner.getFastAddress(),
+      evmAddress: `0x${'11'.repeat(20)}`,
+      isDefault: true,
+      encrypted: false,
+      createdAt: new Date(0).toISOString(),
+    };
+    const recipient = destination === 'self' ? account.fastAddress : await recipientSigner.getFastAddress();
+    const recorded: HistoryEntry[] = [];
+    const layer = Layer.mergeAll(
+      Layer.succeed(AccountStore, {
+        resolveAccount: () => Effect.succeed(account),
+        export: () => Effect.succeed({ seed: senderSeed, account }),
+      } as never),
+      Layer.succeed(AllSet, {
+        createWallet: () => ({}),
+        createExecutor: () => ({}),
+        deposit: () => Effect.succeed({ txHash: `0x${'ab'.repeat(32)}`, estimatedTime: '1 minute' }),
+      } as never),
+      Layer.succeed(ClientConfig, {
+        json: true,
+        debug: false,
+        nonInteractive: true,
+        network: 'testnet',
+        account: Option.none(),
+        password: Option.none(),
+      }),
+      Layer.succeed(NetworkConfigService, { resolve: () => Effect.succeed(bundledNetworks.testnet!) } as never),
+      Layer.succeed(Output, { humanLine: () => Effect.void, ok: () => Effect.void, debug: () => Effect.void } as never),
+      Layer.succeed(Prompt, {
+        password: () => Effect.die('password prompt must not run'),
+        confirm: () => Effect.die('confirmation must not run'),
+      } as never),
+      Layer.succeed(HistoryStore, { record: (entry: HistoryEntry) => Effect.sync(() => void recorded.push(entry)) } as never),
+    );
+
+    await Effect.runPromise(
+      send
+        .handler({
+          address: recipient,
+          amount: '1',
+          token: 'testUSDC',
+          fromChain: 'arbitrum-sepolia',
+          replacePending: false,
+        } as never)
+        .pipe(Effect.provide(layer)),
+    );
+
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({
+      route: 'evm-to-fast',
+      from: account.evmAddress,
+      to: recipient,
+      recordedDirection: destination === 'self' ? 'in' : 'out',
+    });
+  });
+
   it('preserves a confirmed Fast-to-Fast settlement when local history fails', async () => {
     const senderSeed = seed(1);
     const senderSigner = new Signer(senderSeed);

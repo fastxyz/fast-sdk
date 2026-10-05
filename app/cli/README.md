@@ -302,7 +302,7 @@ fast wait-for-payment --amount 10 --to <data.address> --since <data.createdAt> -
 - `--to <fast1...|name>` — Who is to be paid (default: the active account; with a multisig wallet, the wallet address): a valid `fast1...` address or a [Fast ID](https://id.fast.xyz) name such as `alice.smith`. A name is resolved on mainnet first and fails closed like in `fast send` (`INVALID_ADDRESS` if unregistered, `FAST_ID_RESOLUTION_FAILED` if the registry can't be read). The link then carries the name (`?to=alice.smith`), so the payer sees it and the app resolves it again at payment time; `--json` returns the resolved `address` plus `toName`.
 - `--qr` — Also print the link as a QR code in the terminal. With `--json`, the QR code goes to stderr so stdout stays a single JSON document.
 - `--qr-file <path.svg>` — Write the link as an SVG QR code to this path (overwritten if it exists).
-- `--wait` — Wait until the payee receives exactly this amount of fastUSD from another address, sent after the request was created (same matching as `fast wait-for-payment`). Human output prints the link before waiting. With `--json`, stdout stays empty until the command finishes (the result then carries `url` and `payment`); only the `--qr` (stderr) and `--qr-file` QR codes come out before the wait. Fails with `PAYMENT_TIMEOUT` (exit 1) if nothing arrives in time; the error message repeats the link and when the request was created (`created <createdAt>`), the `--since` for waiting again with `fast wait-for-payment`.
+- `--wait` — Wait until the payee receives exactly this amount of fastUSD from another address, sent after the request was created (same matching as `fast wait-for-payment`). Human output prints the link before waiting. With `--json`, stdout stays empty until the command finishes (the result then carries `url` and `payment`); only the `--qr` (stderr) and `--qr-file` QR codes come out before the wait. Fails with `PAYMENT_TIMEOUT` (exit 1) if no matching payment is confirmed in time. If the final explorer poll did not complete, the error reports incomplete verification rather than claiming no payment was observed. The error message repeats the link and when the request was created (`created <createdAt>`), the `--since` for waiting again with `fast wait-for-payment`.
 - `--timeout <seconds>` — With `--wait`, how long to wait (default: 300, at most 2147483, about 24 days). Rejected without `--wait`.
 
 **Output (`--json`):**
@@ -395,6 +395,8 @@ fast info history --local
 
 Each row has the same fields as before plus `direction` (`in`, `out` or `self`, relative to the account) and `source` (`network` or `local`). A network transfer that this CLI also recorded locally (same Fast transaction hash) is shown once, as the local entry. `--json` output also includes `account` and a `warnings` array. If the explorer API is unreachable, or the network has no `explorerApiUrl`, the command still succeeds with local history only and reports why in `warnings` (and on stderr). A warning also appears if paging stopped before enough network rows matched the filters. Whenever `warnings` is non-empty, missing incoming payments do not mean nothing arrived. With no account at all, it lists the whole local log as before.
 
+For new EVM → Fast deposits, the CLI records the direction relative to the submitting account, so deleting that account does not change the local classification. Older entries without a recorded direction use the sender account if it still exists; otherwise they default to `out`. That legacy fallback is not proof that the deposit was not self-funded.
+
 ---
 
 ### `fast wait-for-payment`
@@ -418,7 +420,7 @@ fast --network testnet wait-for-payment --amount 0.5 --to fast1... --since 2026-
 - `--since <iso-time>` — Only accept payments submitted at or after this time (default: when the command starts). Times without a zone are read as UTC.
 - `--timeout <seconds>` — Give up after this many seconds (default: 300, at most 2147483, about 24 days)
 
-`--json` returns `{ ok: true, data: { hash, type, from, to, amount, formatted, tokenName, tokenId, timestamp, explorerUrl, network } }`. If nothing matching arrives in time, it exits 1 with `PAYMENT_TIMEOUT`; explorer errors while polling are retried until then, and the timeout message says if the last poll failed. Networks without an explorer API fail with `EXPLORER_NOT_CONFIGURED`.
+`--json` returns `{ ok: true, data: { hash, type, from, to, amount, formatted, tokenName, tokenId, timestamp, explorerUrl, network } }`. If no matching payment is confirmed in time, it exits 1 with `PAYMENT_TIMEOUT`; explorer errors while polling are retried until then. If the last poll did not complete, the timeout message describes incomplete verification, since an earlier page may already have shown a match that could not yet be confirmed as the earliest. A timeout does not prove that no payment arrived. Networks without an explorer API fail with `EXPLORER_NOT_CONFIGURED`.
 
 ---
 

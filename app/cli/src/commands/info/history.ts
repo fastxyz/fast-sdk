@@ -103,9 +103,18 @@ export const localDirection = (entry: HistoryEntry, account: AccountInfo): Trans
   return undefined;
 };
 
-/** Without an account, read a local entry from the perspective of the account that recorded it. */
-const recordedDirection = (entry: HistoryEntry): TransferDirection =>
-  entry.from === entry.to ? 'self' : inferRoute(entry) === 'evm-to-fast' ? 'in' : 'out';
+/** Without a selected account, use the EVM sender to identify who recorded a bridge deposit. */
+const recordedDirection = (entry: HistoryEntry, localAccounts: readonly AccountInfo[]): TransferDirection => {
+  if (entry.from === entry.to) return 'self';
+  if (inferRoute(entry) !== 'evm-to-fast') return 'out';
+  if (entry.recordedDirection) return entry.recordedDirection;
+
+  const recorder = localAccounts.find((account) => account.kind === 'single' && sameAddress(account.evmAddress, entry.from));
+  if (recorder) return sameAddress(entry.to, recorder.fastAddress) ? 'in' : 'out';
+  // Legacy entries may outlive their recording account. The recipient's
+  // continued presence alone does not establish the recorder's direction.
+  return 'out';
+};
 
 const networkRow = (t: NetworkTransfer, networkName: string): HistoryRow => ({
   hash: t.hash,
@@ -202,6 +211,7 @@ export const infoHistory: Command<InfoHistoryArgs> = {
       if (!localOnly && Option.isSome(account) && account.value.kind === 'multisig') {
         yield* ensureMultisigNetwork(account.value, config.network);
       }
+      const localAccounts = Option.isNone(account) ? yield* accounts.list() : [];
       const tokenMatches = makeTokenMatcher(args.token, network);
 
       const needed = offset + limit;
@@ -214,9 +224,10 @@ export const infoHistory: Command<InfoHistoryArgs> = {
       for (let scanned = 0; ; scanned += LOCAL_BATCH) {
         const batch = yield* history.list({ limit: LOCAL_BATCH, offset: scanned });
         for (const entry of batch) {
-          const d = Option.isSome(account) ? localDirection(entry, account.value) : recordedDirection(entry);
+          const d = Option.isSome(account) ? localDirection(entry, account.value) : recordedDirection(entry, localAccounts);
           if (d === undefined || !wantDirection(d) || !matchesParty(entry) || !tokenMatches(entry.tokenName, entry.tokenId)) continue;
-          localRows.push({ ...entry, direction: d, source: 'local' });
+          const { recordedDirection: _recordedDirection, ...publicEntry } = entry;
+          localRows.push({ ...publicEntry, direction: d, source: 'local' });
         }
         if (batch.length < LOCAL_BATCH || localRows.length >= needed + LOCAL_DEDUPE_SLACK) break;
       }

@@ -50,9 +50,11 @@ export class PaymentTimeoutError extends Data.TaggedError(
   readonly exitCode = 1 as const;
   readonly errorCode = "PAYMENT_TIMEOUT" as const;
   get message() {
-    const base = `No matching payment arrived within ${this.timeoutSeconds}s (expected ${this.expected}).`;
+    const base = this.lastError
+      ? `Payment verification did not complete within ${this.timeoutSeconds}s (expected ${this.expected}).`
+      : `No matching payment was observed within ${this.timeoutSeconds}s (expected ${this.expected}).`;
     return this.lastError
-      ? `${base} The last explorer poll did not complete, so a payment may have arrived unseen: ${this.lastError}`
+      ? `${base} The last explorer poll did not complete, so the earliest matching payment could not be confirmed: ${this.lastError}`
       : base;
   }
 }

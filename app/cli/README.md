@@ -406,7 +406,7 @@ Block until a matching incoming payment arrives, then print it. It polls the net
 fast --network mainnet wait-for-payment --amount 25 --from fast1leo... --json
 
 # Watch another address for 0.5 testUSDC sent since 12:00 UTC, for 10 minutes
-fast wait-for-payment --amount 0.5 --to fast1... --since 2026-10-02T12:00:00Z --timeout 600
+fast --network testnet wait-for-payment --amount 0.5 --to fast1... --since 2026-10-02T12:00:00Z --timeout 600
 ```
 
 **Options:**

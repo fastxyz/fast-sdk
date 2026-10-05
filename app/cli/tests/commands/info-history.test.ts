@@ -482,6 +482,25 @@ describe('info history paging', () => {
     expect(calls.filter((c) => c.side === 'from').map((c) => c.cursor)).toEqual([null, 'p2']);
   });
 
+  it('takes same-address Burns from one feed before counting default history pages', async () => {
+    const burn = (n: number, iso: string) =>
+      transfersFor(ME, [rawTransfer({ hash: hashOf(n), type: 'Burn', from: ME, to: ME, submission_timestamp: iso })])[0]!;
+    const out = (n: number, iso: string) => transfersFor(ME, [rawTransfer({ hash: hashOf(n), from: ME, to: OTHER, submission_timestamp: iso })])[0]!;
+    const burns = [burn(85, '2026-10-02T06:00:00Z'), burn(86, '2026-10-02T05:59:00Z')];
+    const explorer = mockExplorer((params) => {
+      if (params.side === 'to') return Effect.succeed(page(burns));
+      return params.cursor === null
+        ? Effect.succeed(page(burns, { hasMore: true, nextCursor: 'p2' }))
+        : Effect.succeed(page([out(87, '2026-10-02T05:58:00Z'), out(88, '2026-10-02T05:57:00Z')]));
+    });
+
+    const { hashes, result, calls } = await runHistory({ limit: 2 }, { entries: [], explorer });
+
+    expect(hashes).toEqual([hashOf(85), hashOf(86)]);
+    expect(result.transactions.map((t) => t.direction)).toEqual(['out', 'out']);
+    expect(calls.filter((c) => c.side === 'from').map((c) => c.cursor)).toEqual([null, 'p2']);
+  });
+
   it('stops paging a filter that matches nothing after a bounded number of pages, and says so', async () => {
     const explorer = mockExplorer((params, call) =>
       Effect.succeed(

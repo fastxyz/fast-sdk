@@ -1771,7 +1771,7 @@ whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
 | `--to` | string | no | active account's Fast address | Who is to be paid: a bech32m `fast1...` address with a 32-byte payload, or a Fast ID name such as `alice.smith` (classified as in `fast send`, by full syntax). |
 | `--qr` | boolean | no | `false` | Also render the link as a terminal QR code: on stdout in human mode, on **stderr** with `--json` so stdout stays one JSON document. |
 | `--qr-file` | string | no | — | Write the link as an SVG QR code to this path (must end in `.svg`; an existing file is overwritten). The absolute path is returned as `qrFile`. |
-| `--wait` | boolean | no | `false` | After printing the link, wait until the payment arrives (see step 5). |
+| `--wait` | boolean | no | `false` | Wait until the payment arrives (see step 5). Human output prints the link first; with `--json`, stdout stays empty until the command finishes, and only the `--qr` (stderr) and `--qr-file` QR codes are written before the wait. |
 | `--timeout` | integer | no | `300` | With `--wait`: seconds to wait before failing with `PAYMENT_TIMEOUT`. A whole number from 1 to 2147483 (about 24 days), as for `fast wait-for-payment`; rejected without `--wait`. |
 
 **Behavior**
@@ -1894,8 +1894,9 @@ Input value
 `--network <name>` selects which network configuration to use. Resolution:
 
 1. If `--network` is provided, use that name.
-2. Otherwise, use the default from `~/.fast/networks.json`.
-3. If no `networks.json` exists, default is `testnet`.
+2. Otherwise, use the default stored in `~/.fast/fast.db`, set with
+   `fast network set-default <name>`.
+3. A fresh install seeds that default as `mainnet`.
 
 Each network name maps to a complete configuration bundle covering:
 
@@ -1904,8 +1905,8 @@ Each network name maps to a complete configuration bundle covering:
   address, relayer URL, and token mappings (EVM address ↔ Fast token ID).
 
 `testnet` and `mainnet` are always available with bundled configs. Custom
-networks are added via `fast network add` and stored in
-`~/.fast/networks/<name>.json` (see section 3.5 for format).
+networks are added via `fast network add <name> --config <path>` and stored in
+`~/.fast/fast.db` (see section 3.5 for the config format).
 
 ## 9. Supported Chains and Tokens
 

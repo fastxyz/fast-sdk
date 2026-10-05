@@ -240,15 +240,16 @@ export const infoHistory: Command<InfoHistoryArgs> = {
         // Rows are de-duplicated while they are collected, so each feed stops
         // only once it holds `offset + limit` rows that will actually be shown:
         // a local entry with the same Fast transaction hash wins (it keeps the
-        // bridge route and status), and a self transfer, which both feeds
-        // return, is taken from the incoming feed only.
+        // bridge route and status). A same-address transfer appears in both
+        // feeds, so take it from the incoming feed only, including Burns whose
+        // displayed direction remains `out`.
         const localHashes = new Set(localRows.map((row) => normHex(row.hash)));
         const keep = (side: 'from' | 'to') => (t: NetworkTransfer) =>
           wantDirection(t.direction) &&
           matchesParty(t) &&
           tokenMatches(t.tokenName, t.tokenId) &&
           !localHashes.has(normHex(t.hash)) &&
-          !(side === 'from' && sides.length === 2 && t.direction === 'self');
+          !(side === 'from' && sides.length === 2 && sameAddress(t.from, t.to));
 
         // Enough pages to reach `offset + limit` rows, plus room for rows the
         // filters drop, so deep `--offset` values still reach older transfers.

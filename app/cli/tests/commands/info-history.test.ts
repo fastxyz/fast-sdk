@@ -236,6 +236,16 @@ describe('info history (network + local)', () => {
     expect(calls.map((c) => c.side)).toEqual(['from']);
   });
 
+  it('--direction out includes an explorer Burn with the same sender and recipient', async () => {
+    const burn = transfersFor(ME, [rawTransfer({ hash: hashOf(86), type: 'Burn', from: ME, to: ME })])[0]!;
+    const explorer = mockExplorer((params) => Effect.succeed(page(params.side === 'from' ? [burn] : [])));
+    const { result, hashes, calls } = await runHistory({ direction: 'out' }, { entries: [], explorer });
+
+    expect(hashes).toEqual([hashOf(86)]);
+    expect(result.transactions[0]).toMatchObject({ type: 'token-burn', direction: 'out', source: 'network' });
+    expect(calls.map((c) => c.side)).toEqual(['from']);
+  });
+
   it('--from filters by sender and skips the outgoing feed when the sender is someone else', async () => {
     const { hashes, calls } = await runHistory({ from: LEO });
 
@@ -469,6 +479,25 @@ describe('info history paging', () => {
     const { hashes, calls } = await runHistory({ limit: 4 }, { entries: [], explorer });
 
     expect(hashes).toEqual([hashOf(81), hashOf(82), hashOf(83), hashOf(84)]);
+    expect(calls.filter((c) => c.side === 'from').map((c) => c.cursor)).toEqual([null, 'p2']);
+  });
+
+  it('takes same-address Burns from one feed before counting default history pages', async () => {
+    const burn = (n: number, iso: string) =>
+      transfersFor(ME, [rawTransfer({ hash: hashOf(n), type: 'Burn', from: ME, to: ME, submission_timestamp: iso })])[0]!;
+    const out = (n: number, iso: string) => transfersFor(ME, [rawTransfer({ hash: hashOf(n), from: ME, to: OTHER, submission_timestamp: iso })])[0]!;
+    const burns = [burn(85, '2026-10-02T06:00:00Z'), burn(86, '2026-10-02T05:59:00Z')];
+    const explorer = mockExplorer((params) => {
+      if (params.side === 'to') return Effect.succeed(page(burns));
+      return params.cursor === null
+        ? Effect.succeed(page(burns, { hasMore: true, nextCursor: 'p2' }))
+        : Effect.succeed(page([out(87, '2026-10-02T05:58:00Z'), out(88, '2026-10-02T05:57:00Z')]));
+    });
+
+    const { hashes, result, calls } = await runHistory({ limit: 2 }, { entries: [], explorer });
+
+    expect(hashes).toEqual([hashOf(85), hashOf(86)]);
+    expect(result.transactions.map((t) => t.direction)).toEqual(['out', 'out']);
     expect(calls.filter((c) => c.side === 'from').map((c) => c.cursor)).toEqual([null, 'p2']);
   });
 

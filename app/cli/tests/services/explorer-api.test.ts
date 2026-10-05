@@ -302,6 +302,11 @@ describe('normalizeTransfer', () => {
     expect(self!.counterparty).toBe(ME);
   });
 
+  it('classifies a self-addressed Burn as outgoing, not a self transfer', () => {
+    const [burn] = transfersFor(ME, [rawTransfer({ type: 'Burn', from: ME, to: ME })]);
+    expect(burn).toMatchObject({ type: 'Burn', direction: 'out', from: ME, to: ME });
+  });
+
   it('keeps Mint rows (EVM → Fast deposits) as incoming from the bridge account', () => {
     const [t] = transfersFor(ME, [rawTransfer({ type: 'Mint', from: BRIDGE, amount: 'f4240' })]);
     expect(t).toMatchObject({ type: 'Mint', direction: 'in', from: BRIDGE, amount: 1_000_000n });

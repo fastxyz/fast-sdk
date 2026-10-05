@@ -272,7 +272,7 @@ Selected `errorCode` values used in the JSON envelope's `error.code` field
 | `INSUFFICIENT_BALANCE`            | 4    | Funding source (Fast or EVM) lacks enough balance to cover the requested amount.                                                  |
 | `FUNDING_REQUIRED`                | 4    | `fast fund usdc crypto`: derived EVM address has insufficient balance; the user must deposit before retrying.                     |
 | `TX_FAILED`                       | 6    | Transaction was rejected by the network.                                                                                          |
-| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`, `fast request --wait`: no matching payment arrived before `--timeout`.                                   |
+| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`, `fast request --wait`: no matching payment was observed before `--timeout`; this does not prove none arrived. |
 | `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response, including inconsistent paging fields or a malformed row). `fast info history` reports it as a warning instead. |
 | `EXPLORER_NOT_CONFIGURED`         | 2    | The network has no `explorerApiUrl`, so network history is unavailable (`fast wait-for-payment`).                                 |
 | `USER_CANCELLED`                  | 7    | Interactive confirmation declined.                                                                                                |
@@ -1732,7 +1732,7 @@ already have been sent.
 | Token not found | 2 | `TOKEN_NOT_FOUND` |
 | No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
 | Network has no `explorerApiUrl` | 2 | `EXPLORER_NOT_CONFIGURED` |
-| Nothing matching arrived before `--timeout` (the message says if the last poll failed) | 1 | `PAYMENT_TIMEOUT` |
+| No matching payment was observed before `--timeout` (the message says if the last poll failed) | 1 | `PAYMENT_TIMEOUT` |
 
 ### 6.22 `fast request`
 
@@ -1866,7 +1866,7 @@ transfer in the same shape as `fast wait-for-payment` returns (`hash`, `type`,
 | Default multisig wallet belongs to another network | 2 | `WALLET_NETWORK_MISMATCH` |
 | `--qr-file` cannot be written | 1 | `FILE_IO_ERROR` |
 | `--timeout` without `--wait`, or not a whole number from 1 to 2147483 | 2 | `INVALID_USAGE` |
-| `--wait` and nothing matching arrives before the timeout | 1 | `PAYMENT_TIMEOUT` |
+| `--wait` and no matching payment is observed before the timeout | 1 | `PAYMENT_TIMEOUT` |
 
 ## 7. Token Resolution Rules
 

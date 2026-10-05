@@ -100,7 +100,7 @@ Create a request link, then confirm the payment on the network: workflow 9 (`fas
 
 ### The user's own Fast app wallet
 
-To act on the wallet the user already has in the Fast app instead of a new CLI account, use the `key-handover` skill: `fast authorize request`, the user approves in their wallet and pastes back an encrypted code, then `fast authorize complete`. That command only decrypts the key; it doesn't add an account, so import it as the skill shows (`fast account import --key-file`) and then pass `--account <name>`, or make it the default with `fast account set-default <name>` if the user wants that. Never ask the user to paste a private key into the chat.
+To act on the wallet the user already has in the Fast app instead of a new CLI account, use the `key-handover` skill: `fast authorize request`, the user approves in their wallet and pastes back an encrypted code, then `fast authorize complete`. That command only decrypts the key; it doesn't add an account, so import it as the skill shows (`fast account import --name <new name> --key-file`). Then use the account that import returned: check that its `data.fastAddress` is the address the user approved, and pass `--account <data.name>`, or make it the default with `fast account set-default <data.name>` if the user wants that. Never ask the user to paste a private key into the chat.
 
 ---
 

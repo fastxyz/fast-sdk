@@ -53,32 +53,44 @@ form and run it once.
 complete` only decrypts the key; it doesn't add an account, so `fast send`
 and `fast info balance` would keep using the CLI's own account. Decrypt
 straight into a key file and import it, so the key never appears in your
-output, the shell history or the process list. Pick an account name that
-isn't in `fast account list` yet (the import fails with `ACCOUNT_EXISTS`
-otherwise), and set `FAST_PASSWORD` first if the key should be stored
-encrypted.
+output, the shell history or the process list. Set `NAME` to an account name
+that isn't in `fast account list` yet (the import fails with
+`ACCOUNT_EXISTS` otherwise), and set `FAST_PASSWORD` first if the key should
+be stored encrypted.
 
 ```bash
+NAME=app-wallet     # an account name not in `fast account list` yet
 KEYFILE=$(mktemp)   # created with mode 0600
-if ! fast authorize complete --message '<the code they pasted>' --json \
-  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);if(!r.private_key){process.stderr.write(s);process.exit(1)}process.stdout.write(JSON.stringify({privateKey:r.private_key}))})' \
+if ! fast authorize complete --message '<the code they pasted>' --print-account --json \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);if(!r.private_key){process.stderr.write(s);process.exit(1)}process.stderr.write(`Approved address: ${r.address}\n`);process.stdout.write(JSON.stringify({privateKey:r.private_key}))})' \
   > "$KEYFILE"; then
   rm -f "$KEYFILE"; false   # nothing was decrypted; the error is on stderr
-elif fast account import --name app-wallet --key-file "$KEYFILE" --json; then
+elif fast account import --name "$NAME" --key-file "$KEYFILE" --json; then
   rm -f "$KEYFILE"
 else
-  echo "Import failed. The decrypted key is kept in $KEYFILE (mode 0600): fix the error, retry the import with --key-file, then delete the file." >&2
+  echo "Import failed. The decrypted key is kept in $KEYFILE (mode 0600): fix the error, retry the import with a new --name and --key-file, then delete the file." >&2
   false
 fi
 ```
 
-If the import fails, the request is already consumed, so don't run
-`authorize complete` again: fix the cause (for example, choose another
-`--name`), rerun only `fast account import --key-file "$KEYFILE"`, then
-`rm -f "$KEYFILE"`.
+Note the `Approved address` it prints: that is the wallet the user approved.
 
-Then pass `--account app-wallet` to the commands that should use it, or run
-`fast account set-default app-wallet` if the user wants it as the default.
+If the import fails, the request is already consumed, so don't run
+`authorize complete` again. Fix the cause, then rerun only the import, with
+an explicit `--name` (without one, the import picks an automatic
+`account-N` name):
+
+```bash
+NAME=app-wallet-2   # another name not in `fast account list`
+fast account import --name "$NAME" --key-file "$KEYFILE" --json && rm -f "$KEYFILE"
+```
+
+From then on, use only the account that the successful import returned:
+check that its `data.fastAddress` is the `Approved address`, then pass
+`--account <data.name>` to the commands that should use it (or run
+`fast account set-default <data.name>` if the user wants it as the default).
+Never fall back to a name whose import failed: an account with that name
+already existed and holds a different key.
 Don't use `fast account import --private-key`: it puts the key on the
 command line.
 

@@ -9,6 +9,7 @@ import { Signer } from '@fastxyz/sdk';
 import { bech32, bech32m } from 'bech32';
 import { Duration, Effect, Exit, Fiber, Layer, Option, TestClock, TestContext } from 'effect';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { REQUEST_OPTION, REQUEST_SWITCHES, REQUEST_VALUE_FLAGS } from '../../src/argv.js';
 import { parser, type RequestArgs } from '../../src/cli.js';
 import { commands } from '../../src/commands/index.js';
 import {
@@ -393,6 +394,12 @@ describe('fast request', () => {
 });
 
 describe('fast request registration', () => {
+  it('keeps shared request option arity aligned with the parser', () => {
+    expect(new Set([...REQUEST_VALUE_FLAGS, ...REQUEST_SWITCHES])).toEqual(new Set(Object.values(REQUEST_OPTION)));
+    for (const flag of REQUEST_VALUE_FLAGS) expect(parse(parser, ['request', '5', flag]).success).toBe(false);
+    for (const flag of REQUEST_SWITCHES) expect(parse(parser, ['request', '5', flag]).success).toBe(true);
+  });
+
   it('parses `request <amount>` with its options', async () => {
     const payee = await fastAddressOf(6);
     const result = parse(parser, ['request', '10', '--to', payee, '--qr', '--qr-file', 'out.svg', '--network', 'mainnet']);
@@ -474,9 +481,12 @@ describe('diagnoseRequestArgv (command lines the parser rejects)', () => {
   it.each([
     ['request', '--qr-file', '--receipt.svg', '-x', '-5', '--json'],
     ['request', '--json', '--', '-5', '-6'],
+    ['request', '--json', '--qr-file'],
+    ['request', '--json', '--network'],
   ])('preserves the parser diagnostic when request diagnosis delegates for %j', (...argv) => {
     const parsed = parse(parser, argv);
     if (parsed.success) throw new Error('expected a rejected request');
+    expect(diagnoseRequestArgv(argv)).toBeUndefined();
     const entry = fileURLToPath(new URL('../../src/main.ts', import.meta.url));
     const run = spawnSync(process.execPath, ['--import', 'tsx', entry, ...argv], { encoding: 'utf8', timeout: 10_000 });
 

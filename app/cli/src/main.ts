@@ -19,7 +19,7 @@ import { getDocPageSync, parse } from "@optique/core/parser";
 import { Effect, Option } from "effect";
 
 import { type GlobalOptions, runHandler } from "./app.js";
-import { tokenizeArgv } from "./argv.js";
+import { REQUEST_OPTION, tokenizeArgv } from "./argv.js";
 import {
   bareFundCommand,
   fundSelectorCommandParser,
@@ -257,7 +257,7 @@ const SUBCOMMAND_REQUIREMENTS: Record<
   },
   request: {
     usage: "fast request <amount> [--to <fast1...|name>] [--qr] [--qr-file <path.svg>] [--wait [--timeout <seconds>]]",
-    options: ["--to", "--qr", "--qr-file", "--wait", "--timeout"],
+    options: Object.values(REQUEST_OPTION),
     skipUnknownFlagRescan: true,
     // A negative whole amount (`-5`) parses as an unknown option; report it as INVALID_AMOUNT.
     check: (_positionals, allArgv) => diagnoseRequestArgv(allArgv) ?? null,

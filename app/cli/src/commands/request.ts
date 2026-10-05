@@ -3,7 +3,7 @@ import path from 'node:path';
 import { bech32m } from 'bech32';
 import { Clock, Effect, Option } from 'effect';
 import QRCode from 'qrcode';
-import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS } from '../argv.js';
+import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS, REQUEST_SWITCHES, REQUEST_VALUE_FLAGS } from '../argv.js';
 import type { RequestArgs } from '../cli.js';
 import {
   ExplorerNotConfiguredError,
@@ -88,10 +88,8 @@ export const normalizeRequestAmount = (raw: string, decimals: number, symbol: st
   return Effect.succeed(fraction === '' ? whole : `${whole}.${fraction}`);
 };
 
-/** `fast request`'s own value-taking options, whose values are not operands. */
-const REQUEST_VALUE_FLAGS = ['--to', '--qr-file', '--timeout'];
 const REQUEST_TAKES_VALUE = new Set<string>([...GLOBAL_VALUE_FLAGS, ...REQUEST_VALUE_FLAGS]);
-const REQUEST_FLAGS = new Set<string>([...GLOBAL_SWITCHES, ...GLOBAL_VALUE_FLAGS, ...REQUEST_VALUE_FLAGS, '--qr', '--wait']);
+const REQUEST_FLAGS = new Set<string>([...GLOBAL_SWITCHES, ...GLOBAL_VALUE_FLAGS, ...REQUEST_VALUE_FLAGS, ...REQUEST_SWITCHES]);
 
 /**
  * Explain a `fast request` command line the parser rejected, when argv shows the
@@ -111,6 +109,7 @@ export const diagnoseRequestArgv = (argv: readonly string[]): InvalidAmountError
     if (!positionalOnly && arg === '--') {
       positionalOnly = true;
     } else if (!positionalOnly && REQUEST_TAKES_VALUE.has(arg)) {
+      if (i + 1 >= argv.length) return undefined; // Let the parser explain the missing option value.
       i++;
     } else if (!positionalOnly && arg.startsWith('--')) {
       const flag = arg.split('=')[0]!;

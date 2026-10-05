@@ -13,6 +13,18 @@ export const GLOBAL_VALUE_FLAGS = ['--network', '--account', '--password'] as co
 /** Global options that take no value. */
 export const GLOBAL_SWITCHES = ['--json', '--debug', '--non-interactive', '--help', '--version'] as const;
 
+/** Shared spellings for the request parser and its rejected-argv diagnosis. */
+export const REQUEST_OPTION = {
+  to: '--to',
+  qr: '--qr',
+  qrFile: '--qr-file',
+  wait: '--wait',
+  timeout: '--timeout',
+} as const;
+
+export const REQUEST_VALUE_FLAGS = [REQUEST_OPTION.to, REQUEST_OPTION.qrFile, REQUEST_OPTION.timeout] as const;
+export const REQUEST_SWITCHES = [REQUEST_OPTION.qr, REQUEST_OPTION.wait] as const;
+
 /** An argument shaped like a negative number (`-5`, `-0.5`, `-.5`). */
 const NEGATIVE_NUMBER = /^-\.?\d/;
 

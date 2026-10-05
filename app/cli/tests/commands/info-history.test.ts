@@ -560,6 +560,37 @@ describe('info history paging', () => {
 });
 
 describe('info history --local', () => {
+  it('keeps the recorded direction after deleting the deposit sender account', async () => {
+    const outboundDeposit = entry({
+      hash: hashOf(95),
+      from: MY_EVM,
+      to: OTHER,
+      route: 'evm-to-fast',
+      recordedDirection: 'out',
+    });
+    const opts = { entries: [outboundDeposit], accounts: [recipientAccount] };
+
+    const incomingOnly = await runHistory({ local: true, direction: 'in' }, opts);
+    const outgoingOnly = await runHistory({ local: true, direction: 'out' }, opts);
+
+    expect(incomingOnly.hashes).toEqual([]);
+    expect(outgoingOnly.hashes).toEqual([outboundDeposit.hash]);
+    expect(outgoingOnly.result.transactions[0]).not.toHaveProperty('recordedDirection');
+  });
+
+  it('does not infer an incoming legacy deposit solely from a surviving recipient account', async () => {
+    const legacyDeposit = entry({
+      hash: hashOf(96),
+      from: MY_EVM,
+      to: OTHER,
+      route: 'evm-to-fast',
+    });
+    const opts = { entries: [legacyDeposit], accounts: [recipientAccount] };
+
+    expect((await runHistory({ local: true, direction: 'in' }, opts)).hashes).toEqual([]);
+    expect((await runHistory({ local: true, direction: 'out' }, opts)).hashes).toEqual([legacyDeposit.hash]);
+  });
+
   it('classifies an EVM deposit to another local account as outgoing for its recording account', async () => {
     const outboundDeposit = entry({
       hash: hashOf(94),

@@ -395,6 +395,8 @@ fast info history --local
 
 Each row has the same fields as before plus `direction` (`in`, `out` or `self`, relative to the account) and `source` (`network` or `local`). A network transfer that this CLI also recorded locally (same Fast transaction hash) is shown once, as the local entry. `--json` output also includes `account` and a `warnings` array. If the explorer API is unreachable, or the network has no `explorerApiUrl`, the command still succeeds with local history only and reports why in `warnings` (and on stderr). A warning also appears if paging stopped before enough network rows matched the filters. Whenever `warnings` is non-empty, missing incoming payments do not mean nothing arrived. With no account at all, it lists the whole local log as before.
 
+For new EVM → Fast deposits, the CLI records the direction relative to the submitting account, so deleting that account does not change the local classification. Older entries without a recorded direction use the sender account if it still exists; otherwise they default to `out`. That legacy fallback is not proof that the deposit was not self-funded.
+
 ---
 
 ### `fast wait-for-payment`

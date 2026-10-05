@@ -18,6 +18,8 @@ export interface HistoryEntry {
   readonly explorerUrl: string | null;
   readonly route: "fast" | "evm-to-fast" | "fast-to-evm";
   readonly chainId: number | null;
+  /** Direction relative to the account that recorded an EVM deposit. */
+  readonly recordedDirection?: "in" | "out";
 }
 
 export const makeHistoryEntry = (

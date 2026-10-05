@@ -48,6 +48,7 @@ export const history = sqliteTable(
     explorerUrl: text("explorer_url"),
     route: text("route").notNull().default("fast"),
     chainId: integer("chain_id"),
+    recordedDirection: text("recorded_direction"),
   },
   (table) => [index("idx_history_timestamp").on(table.timestamp)],
 );

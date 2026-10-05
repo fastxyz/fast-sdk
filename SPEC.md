@@ -1061,10 +1061,13 @@ account exists, the whole local log is listed, as before network history.
 With `--local`, the explorer API is not called and only local entries are
 listed, as before network history: without `--account`, the whole local log
 for every local account (`account: null`); with `--account`, only that
-account's entries. `--direction` and the other filters still apply (a local
-entry's direction is read from the account that recorded it), and `warnings`
+account's entries. `--direction` and the other filters still apply (a new
+EVM → Fast entry records its direction relative to the submitting account), and `warnings`
 stays empty. `--local` skips only the explorer: pending bridge entries on the
 page are still re-checked against the AllSet portal, as before network history.
+For legacy EVM → Fast entries without a recorded direction, the sender's still-existing
+account determines the direction; if that account was deleted, the entry defaults to
+`out` rather than treating a surviving recipient account as proof of an incoming deposit.
 
 **Flags**
 

@@ -280,6 +280,7 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
             timestamp: new Date().toISOString(),
             explorerUrl,
             route: "evm-to-fast",
+            recordedDirection: "in",
             chainId: chainCfg.chainId,
           }),
         );
@@ -342,6 +343,7 @@ export const fundUsdcCrypto: Command<FundUsdcCryptoArgs> = {
           timestamp: new Date().toISOString(),
           explorerUrl,
           route: "evm-to-fast",
+          recordedDirection: "in",
           chainId: chainCfg.chainId,
         }),
       );

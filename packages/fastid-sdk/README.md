@@ -13,7 +13,7 @@ The [public package](https://www.npmjs.com/package/@fastxyz/fastid-sdk) is
 available on npm. Pin a version in an agent project:
 
 ```sh
-npm install @fastxyz/fastid-sdk@0.1.0
+npm install @fastxyz/fastid-sdk@0.2.0
 ```
 
 It builds and runs without access to the private Fast ID repository. The

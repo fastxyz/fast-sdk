@@ -349,12 +349,19 @@ describe('info history (network + local)', () => {
 
   it('without any account, shows the whole local log (old behaviour) and warns', async () => {
     const explorer = mockExplorer(() => Effect.succeed(page([])));
+    const otherNetwork = entry({
+      hash: hashOf(106),
+      network: 'mainnet',
+      from: ME,
+      to: LEO,
+      timestamp: '2026-10-02T00:15:00.000Z',
+    });
 
-    const { result, hashes, calls } = await runHistory({}, { account: null, explorer });
+    const { result, hashes, calls } = await runHistory({}, { account: null, explorer, entries: [...localEntries, otherNetwork] });
 
     expect(calls).toHaveLength(0);
-    expect(hashes).toEqual([hashOf(11), hashOf(10), hashOf(12), `0x${'cd'.repeat(32)}`]);
-    expect(result.transactions.map((t) => t.direction)).toEqual(['out', 'out', 'out', 'in']);
+    expect(hashes).toEqual([hashOf(11), hashOf(10), hashOf(12), `0x${'cd'.repeat(32)}`, hashOf(106)]);
+    expect(result.transactions.map((t) => t.direction)).toEqual(['out', 'out', 'out', 'in', 'out']);
     expect(result.account).toBeNull();
     expect(result.warnings[0]).toContain('No account selected');
   });

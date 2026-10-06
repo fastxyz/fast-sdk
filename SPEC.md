@@ -1026,11 +1026,13 @@ account), merging two sources:
   (`GET {explorerApiUrl}/explorer/transfers?from=|to=<address>`). This includes
   payments received from other accounts and EVM → Fast deposits, which appear
   as `Mint` rows (`type: "token-mint"`) from the bridge account. Rows without an
-  amount or token (e.g. `ExternalClaim`) are skipped. A row with no 32-byte
-  `hash`, a `from`/`to` that is not a Fast address, no ISO 8601
-  `submission_timestamp`, or (for `TokenTransfer`/`Mint`/`Burn`) no valid
-  `amount`, `token_id` and non-negative integer `op_index` makes the whole page a malformed response
-  (`EXPLORER_UNAVAILABLE`); it is never dropped silently.
+  amount or token (e.g. `ExternalClaim` or committee operations) are skipped;
+  a non-value row may legitimately have `to: null`. Every row needs a 32-byte
+  `hash`, a Fast `from` address and an ISO 8601 `submission_timestamp`.
+  `TokenTransfer`/`Mint`/`Burn` additionally need a Fast `to` address, valid
+  `amount` and `token_id`, and a non-negative integer `op_index`. A row missing
+  a required field, or with a malformed non-null recipient, makes the whole
+  page a malformed response (`EXPLORER_UNAVAILABLE`); it is never dropped silently.
 - **Local** — transactions this CLI submitted and recorded under `~/.fast`
   (including bridge routes and token operations), limited to entries that
   involve the account.

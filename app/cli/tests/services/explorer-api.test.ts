@@ -7,6 +7,7 @@ import {
   ExplorerApi,
   ExplorerApiLive,
   fetchExplorerRows,
+  listTransfersOn,
   type ListTransfersParams,
   normalizeTransfer,
   parseExplorerAmount,
@@ -135,6 +136,21 @@ describe('parseExplorerTransfersResponse', () => {
     expect(page.nextCursor).toBe('abc');
   });
 
+  it.each(['JoinCommittee', 'LeaveCommittee', 'ChangeCommittee'])('accepts a %s row without a recipient alongside a transfer', (type) => {
+    const page = parseExplorerTransfersResponse({
+      transfers: [rawTransfer({ hash: hashOf(2), from: ME, to: null, type, token_id: undefined, amount: undefined }), rawTransfer()],
+      has_more: true,
+      next_cursor: 'next-page',
+    });
+    if (typeof page === 'string') throw new Error(page);
+    expect(page.rows).toHaveLength(2);
+    expect(page.rows[0]).toMatchObject({ type, to: null });
+    expect(normalizeTransfer(page.rows[0]!, ME, testnet)).toBeUndefined();
+    expect(page.rows[1]!.hash).toBe(hashOf(1));
+    expect(page.hasMore).toBe(true);
+    expect(page.nextCursor).toBe('next-page');
+  });
+
   it('accepts real explorer rows of every type seen on mainnet (captured 2026-10-02)', () => {
     const real = [
       {
@@ -231,6 +247,7 @@ describe('parseExplorerTransfersResponse', () => {
       rawTransfer({ from: '' }),
       rawTransfer({ from: undefined }),
       rawTransfer({ to: evm }),
+      rawTransfer({ to: null }),
       rawTransfer({ from: wrongPrefix }),
       rawTransfer({ from: `${LEO.slice(0, -1)}x` }), // bad checksum
     ];
@@ -364,6 +381,37 @@ describe('ExplorerApiLive', () => {
         ),
       ),
     );
+
+  it('keeps transfers and page bounds when a committee operation has no recipient', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        json({
+          transfers: [
+            rawTransfer({
+              hash: hashOf(2),
+              from: ME,
+              to: null,
+              type: 'LeaveCommittee',
+              token_id: undefined,
+              amount: undefined,
+              submission_timestamp: '2026-10-01T00:00:00Z',
+            }),
+            rawTransfer({ from: ME, to: LEO }),
+          ],
+          has_more: true,
+          next_cursor: 'cursor-2',
+        }),
+      ),
+    );
+
+    const page = await Effect.runPromise(listTransfersOn(testnet, 'testnet', { address: ME, side: 'from' }));
+    expect(page.transfers.map((transfer) => transfer.hash)).toEqual([hashOf(1)]);
+    expect(page.hasMore).toBe(true);
+    expect(page.nextCursor).toBe('cursor-2');
+    expect(page.oldestTimestampMs).toBe(Date.UTC(2026, 9, 1));
+    expect(page.newestTimestampMs).toBe(Date.UTC(2026, 9, 2, 2, 59, 49, 705));
+  });
 
   it('queries the active network with the documented parameters and a request timeout', async () => {
     const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) =>

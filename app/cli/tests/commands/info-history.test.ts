@@ -4,6 +4,7 @@ import { infoHistory } from '../../src/commands/info/history.js';
 import { ExplorerUnavailableError, NoDefaultAccountError } from '../../src/errors/index.js';
 import type { HistoryEntry } from '../../src/schemas/history.js';
 import type { NetworkConfig } from '../../src/schemas/networks.js';
+import { listTransfersOn } from '../../src/services/api/explorer.js';
 import { ClientConfig } from '../../src/services/config/client.js';
 import { Output } from '../../src/services/output.js';
 import { type AccountInfo, AccountStore } from '../../src/services/storage/account.js';
@@ -201,6 +202,28 @@ afterEach(() => {
 });
 
 describe('info history (network + local)', () => {
+  it.each(['all', 'out'])('keeps outgoing transfers when a %s page also contains a recipient-less committee operation', async (direction) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input));
+        const transfers = url.searchParams.has('from')
+          ? [
+              rawTransfer({ hash: hashOf(2), from: ME, to: null, type: 'LeaveCommittee', token_id: undefined, amount: undefined }),
+              rawTransfer({ from: ME, to: LEO }),
+            ]
+          : [];
+        return new Response(JSON.stringify({ transfers, has_more: false, next_cursor: null }), { status: 200 });
+      }),
+    );
+    const explorer = mockExplorer((params) => listTransfersOn(testnet, 'testnet', params));
+
+    const { result, hashes } = await runHistory({ direction }, { entries: [], explorer });
+
+    expect(hashes).toEqual([hashOf(1)]);
+    expect(result.warnings).toEqual([]);
+  });
+
   it('rejects a multisig bound to another network before explorer reads', async () => {
     const explorer = mockExplorer(() => Effect.succeed(page([incoming])));
 

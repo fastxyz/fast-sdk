@@ -31,7 +31,7 @@ export const historyTypeOf = (type: ValueTransferType): 'transfer' | 'token-mint
 export interface ExplorerTransferRow {
   readonly hash: string;
   readonly from: string;
-  readonly to: string;
+  readonly to: string | null;
   readonly type: string;
   /** 0x-prefixed lowercase token id, or null when absent/malformed. */
   readonly tokenId: string | null;
@@ -214,9 +214,10 @@ const daysInMonth = (year: number, month: number): number => {
 const normalizeHex = (value: string): string => `0x${value.replace(/^0x/i, '').toLowerCase()}`;
 
 /**
- * Validate one row. Every row needs a 32-byte transaction hash, Fast addresses
- * as sender and recipient, and an ISO 8601 submission time; a value-moving row
- * (TokenTransfer, Mint, Burn) also needs a hex amount and a 32-byte token id.
+ * Validate one row. Every row needs a 32-byte transaction hash, a Fast sender,
+ * and an ISO 8601 submission time. A value-moving row (TokenTransfer, Mint,
+ * Burn) also needs a Fast recipient, a hex amount and a 32-byte token id.
+ * Non-value operations may have a null recipient.
  * Returns the reason when the row is malformed. Rows of other types (e.g.
  * `ExternalClaim`) need no amount and are filtered out later by normalizeTransfer.
  */
@@ -225,14 +226,15 @@ const parseRow = (raw: unknown): ExplorerTransferRow | string => {
   const r = raw as Record<string, unknown>;
   if (typeof r.hash !== 'string' || !HEX_HASH.test(r.hash)) return 'has no 32-byte "hash"';
   if (!isFastAddress(r.from)) return 'has a "from" that is not a Fast address';
-  if (!isFastAddress(r.to)) return 'has a "to" that is not a Fast address';
+  const type = typeof r.type === 'string' ? r.type : '';
+  const isValueRow = (VALUE_TRANSFER_TYPES as readonly string[]).includes(type);
+  const to = r.to === null ? null : isFastAddress(r.to) ? r.to : undefined;
+  if (to === undefined || (isValueRow && to === null)) return 'has a "to" that is not a Fast address';
   const timestampNs = parseIsoTimestampNs(r.submission_timestamp);
   if (timestampNs === null) return 'has no ISO 8601 "submission_timestamp"';
   const timestampMs = nsToMs(timestampNs);
-  const type = typeof r.type === 'string' ? r.type : '';
   const tokenId = typeof r.token_id === 'string' && HEX_TOKEN_ID.test(r.token_id) ? normalizeHex(r.token_id) : null;
   const amount = parseExplorerAmount(r.amount);
-  const isValueRow = (VALUE_TRANSFER_TYPES as readonly string[]).includes(type);
   if (isValueRow && (amount === null || tokenId === null)) {
     return `is a ${type} without a valid "amount" and "token_id"`;
   }
@@ -244,7 +246,7 @@ const parseRow = (raw: unknown): ExplorerTransferRow | string => {
   return {
     hash: normalizeHex(r.hash),
     from: r.from,
-    to: r.to,
+    to,
     type,
     tokenId,
     amount,
@@ -288,7 +290,7 @@ export const parseExplorerTransfersResponse = (body: unknown): ExplorerRowsPage 
  */
 export const normalizeTransfer = (row: ExplorerTransferRow, address: string, network: NetworkConfig): NetworkTransfer | undefined => {
   if (!(VALUE_TRANSFER_TYPES as readonly string[]).includes(row.type)) return undefined;
-  if (row.amount === null || row.tokenId === null) return undefined;
+  if (row.amount === null || row.tokenId === null || row.to === null) return undefined;
   const self = address.toLowerCase();
   const isFrom = row.from.toLowerCase() === self;
   const isTo = row.to.toLowerCase() === self;

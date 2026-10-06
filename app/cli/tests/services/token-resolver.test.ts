@@ -127,6 +127,36 @@ describe("resolveToken", () => {
   });
 });
 
+describe("resolveToken — case-insensitive symbols (SPEC §7)", () => {
+  const hex = (id: Uint8Array) => `0x${Buffer.from(id).toString("hex")}`;
+
+  it("resolves a symbol in any case, with and without chain context", () => {
+    expect(hex(resolveToken("usdc", MAINNET).fastTokenId)).toBe(
+      "0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130",
+    );
+    expect(hex(resolveToken("FASTUSD", MAINNET).fastTokenId)).toBe(MAINNET.defaultToken!.tokenId);
+    expect(resolveToken("usdc", MAINNET, "ethereum").evmAddress).toBe(
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    );
+    expect(resolveToken("TESTUSDC", TESTNET).decimals).toBe(6);
+  });
+
+  it("prefers an exact match over a case-insensitive one", () => {
+    const cfg: NetworkConfig = {
+      ...MAINNET,
+      defaultToken: { tokenId: `0x${"11".repeat(32)}`, symbol: "Usdc", decimals: 2 },
+    };
+    expect(resolveToken("USDC", cfg).decimals).toBe(6);
+    expect(resolveToken("Usdc", cfg).decimals).toBe(2);
+    expect(resolveToken("usdc", cfg).decimals).toBe(2);
+  });
+
+  it("still rejects unknown symbols", () => {
+    expect(() => resolveToken("usdt", MAINNET)).toThrow(TokenNotFoundError);
+    expect(() => resolveToken("wbtc", MAINNET, "ethereum")).toThrow(TokenNotFoundError);
+  });
+});
+
 describe("lookupTokenNameById", () => {
   it("returns the defaultToken symbol when its id matches (mainnet)", () => {
     const name = lookupTokenNameById(
@@ -214,6 +244,13 @@ describe("tokenIsKnownOnNetwork", () => {
 
   it("false for an unknown token", () => {
     expect(tokenIsKnownOnNetwork(mainnetCfg, "USDD")).toBe(false);
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "usdd")).toBe(false);
+  });
+
+  it("matches symbols in any case, like resolveToken", () => {
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "fastusd")).toBe(true);
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "FASTUSD")).toBe(true);
+    expect(tokenIsKnownOnNetwork(mainnetCfg, "usdc")).toBe(true);
   });
 
   it("false when network has no defaultToken and token only appears as unknown", () => {

@@ -9,7 +9,8 @@ import { message, optionName } from '@optique/core/message';
 import { multiple, optional, withDefault } from '@optique/core/modifiers';
 import type { InferValue } from '@optique/core/parser';
 import { argument, command, constant, option, passThrough } from '@optique/core/primitives';
-import { integer, string } from '@optique/core/valueparser';
+import { choice, integer, string } from '@optique/core/valueparser';
+import { GLOBAL_SWITCHES, GLOBAL_VALUE_FLAGS, REQUEST_OPTION } from './argv.js';
 
 // ---------------------------------------------------------------------------
 // Global options (shared by every leaf command)
@@ -54,8 +55,8 @@ export const globalOptions = object({
   ),
 });
 
-const GLOBAL_OPTIONS_WITH_VALUES = new Set(['--network', '--account', '--password']);
-const GLOBAL_SWITCHES = new Set(['--json', '--debug', '--non-interactive', '--help', '--version']);
+const GLOBAL_OPTIONS_WITH_VALUES = new Set<string>(GLOBAL_VALUE_FLAGS);
+const GLOBAL_SWITCH_SET = new Set<string>(GLOBAL_SWITCHES);
 
 /** Read the command path after consuming global options, wherever they appear. */
 export function argsWithoutGlobalOptions(argv: readonly string[]): string[] {
@@ -68,7 +69,7 @@ export function argsWithoutGlobalOptions(argv: readonly string[]): string[] {
       if (equals === -1) index++;
       continue;
     }
-    if (GLOBAL_SWITCHES.has(arg)) continue;
+    if (GLOBAL_SWITCH_SET.has(arg)) continue;
     remaining.push(arg);
   }
   return remaining;
@@ -295,8 +296,20 @@ const infoHistoryParser = command(
       }),
       0,
     ),
+    direction: withDefault(
+      option('--direction', choice(['in', 'out', 'all'] as const, { metavar: 'in|out|all' }), {
+        description: message`Only incoming (in), only outgoing (out), or all transfers`,
+      }),
+      'all' as const,
+    ),
+    local: withDefault(
+      option('--local', {
+        description: message`Only what this CLI recorded locally, for every local account (no explorer lookup)`,
+      }),
+      false,
+    ),
   }),
-  { description: message`Show transaction history` },
+  { description: message`Show transaction history (network + local)` },
 );
 
 const infoBridgeTokensParser = command(
@@ -330,7 +343,7 @@ const sendParser = command(
   object({
     cmd: constant('send' as const),
     address: argument(string({ metavar: 'ADDRESS' }), {
-      description: message`Recipient address (fast1... for Fast, 0x... for EVM)`,
+      description: message`Recipient: fast1... (Fast), 0x... (EVM), or a Fast ID name like alice.smith`,
     }),
     amount: argument(string({ metavar: 'AMOUNT' }), {
       description: message`Human-readable amount (e.g., 10.5)`,
@@ -374,6 +387,89 @@ const sendParser = command(
     ),
   }),
   { description: message`Send tokens (Fast → Fast, EVM → Fast, or Fast → EVM)` },
+);
+
+// ---------------------------------------------------------------------------
+// Wait-for-payment command (top-level)
+// ---------------------------------------------------------------------------
+
+const waitForPaymentParser = command(
+  'wait-for-payment',
+  object({
+    cmd: constant('wait-for-payment' as const),
+    amount: option('--amount', string({ metavar: 'AMOUNT' }), {
+      description: message`Exact amount expected, human-readable (e.g., 10.5)`,
+    }),
+    token: optional(
+      option('--token', string({ metavar: 'TOKEN' }), {
+        description: message`Token symbol or token ID (default: the network's default token)`,
+      }),
+    ),
+    from: optional(
+      option('--from', string({ metavar: 'ADDRESS' }), {
+        description: message`Only accept a payment sent by this fast1... address`,
+      }),
+    ),
+    to: optional(
+      option('--to', string({ metavar: 'ADDRESS' }), {
+        description: message`fast1... address to watch (default: the active account)`,
+      }),
+    ),
+    since: optional(
+      option('--since', string({ metavar: 'TIMESTAMP' }), {
+        description: message`Only accept payments at or after this ISO 8601 time (default: now)`,
+      }),
+    ),
+    timeout: withDefault(
+      option('--timeout', integer({ metavar: 'SECONDS' }), {
+        description: message`Give up after this many seconds`,
+      }),
+      300,
+    ),
+  }),
+  { description: message`Wait until a matching incoming payment arrives` },
+);
+
+// ---------------------------------------------------------------------------
+// Request command (top-level)
+// ---------------------------------------------------------------------------
+
+const requestParser = command(
+  'request',
+  object({
+    cmd: constant('request' as const),
+    amount: argument(string({ metavar: 'AMOUNT' }), {
+      description: message`Amount to request in fastUSD (e.g., 10 or 2.50)`,
+    }),
+    to: optional(
+      option(REQUEST_OPTION.to, string({ metavar: 'ADDRESS' }), {
+        description: message`Who is to be paid: a fast1... address or a Fast ID name like alice.smith (default: active account)`,
+      }),
+    ),
+    qr: withDefault(
+      option(REQUEST_OPTION.qr, {
+        description: message`Also print the link as a QR code in the terminal (stderr with --json)`,
+      }),
+      false,
+    ),
+    qrFile: optional(
+      option(REQUEST_OPTION.qrFile, string({ metavar: 'PATH' }), {
+        description: message`Write the link as an SVG QR code to this .svg path`,
+      }),
+    ),
+    wait: withDefault(
+      option(REQUEST_OPTION.wait, {
+        description: message`Wait until the payment arrives (human output prints the link first; --json prints only the final result)`,
+      }),
+      false,
+    ),
+    timeout: optional(
+      option(REQUEST_OPTION.timeout, integer({ metavar: 'SECONDS' }), {
+        description: message`With --wait: give up after this many seconds (default: 300)`,
+      }),
+    ),
+  }),
+  { description: message`Create a payment-request link someone can open to pay you (mainnet only)` },
 );
 
 // ---------------------------------------------------------------------------
@@ -897,7 +993,11 @@ const authorizeGroup = command('authorize', or(authorizeRequestParser, authorize
 // Root parser — merge global options with the command union
 // ---------------------------------------------------------------------------
 
-const commands = or(accountGroup, networkGroup, infoGroup, sendParser, fundGroup, payParser, multisigGroup, tokenGroup, authorizeGroup);
+// optique's `or` keeps precise types for at most 10 alternatives, so the
+// payment commands are grouped into one alternative.
+const paymentCommands = or(sendParser, requestParser, waitForPaymentParser);
+
+const commands = or(accountGroup, networkGroup, infoGroup, paymentCommands, fundGroup, payParser, multisigGroup, tokenGroup, authorizeGroup);
 
 export const parser = merge(globalOptions, commands);
 export const fundSelectorCommandParser = merge(globalOptions, fundSelectorParser);
@@ -927,6 +1027,8 @@ export type InfoBridgeTokensArgs = InferValue<typeof infoBridgeTokensParser>;
 export type InfoBridgeChainsArgs = InferValue<typeof infoBridgeChainsParser>;
 
 export type SendArgs = InferValue<typeof sendParser>;
+export type WaitForPaymentArgs = InferValue<typeof waitForPaymentParser>;
+export type RequestArgs = InferValue<typeof requestParser>;
 
 export type FundUsdcFiatArgs = InferValue<typeof fundUsdcFiatParser>;
 export type FundUsdcCryptoArgs = InferValue<typeof fundUsdcCryptoParser>;

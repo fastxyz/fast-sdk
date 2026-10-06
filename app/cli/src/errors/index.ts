@@ -1,4 +1,5 @@
 export * from "./account.js";
+export * from "./explorer.js";
 export * from "./io.js";
 export * from "./key-handover.js";
 export * from "./network.js";
@@ -20,6 +21,10 @@ import type {
   WalletNetworkMismatchError,
   WrongPasswordError,
 } from "./account.js";
+import type {
+  ExplorerNotConfiguredError,
+  ExplorerUnavailableError,
+} from "./explorer.js";
 import type {
   DatabaseError,
   FastSdkError,
@@ -47,6 +52,7 @@ import type {
   InvalidPaymentLinkError,
   PaymentFailedError,
   PaymentRejectedError,
+  PaymentTimeoutError,
 } from "./payment.js";
 import type {
   CommandUnsupportedForTokenError,
@@ -59,6 +65,7 @@ import type {
   TransactionFailedError,
   TransactionSubmissionUnknownError,
   TxNotFoundError,
+  FastIdResolutionError,
 } from "./transaction.js";
 import type {
   InvalidUsageError,
@@ -84,6 +91,7 @@ export type ClientError =
   | InvalidNetworkConfigError
   | DatabaseError
   | InvalidAddressError
+  | FastIdResolutionError
   | InvalidAmountError
   | CommandUnsupportedForTokenError
   | TokenNotFoundError
@@ -107,6 +115,9 @@ export type ClientError =
   | PaymentFailedError
   | InvalidPaymentLinkError
   | InsufficientPaymentBalanceError
+  | PaymentTimeoutError
+  | ExplorerUnavailableError
+  | ExplorerNotConfiguredError
   | FileIOError
   | MultiSigConfigInvalidError
   | NotAMemberError

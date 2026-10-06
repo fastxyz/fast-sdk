@@ -48,6 +48,12 @@ export type FastTokenConfig = typeof FastTokenSchema.Type;
 export const NetworkConfigSchema = Schema.Struct({
   url: Schema.String,
   explorerUrl: Schema.String,
+  /**
+   * Base URL of the explorer indexer API (serves `/explorer/transfers`). Used for
+   * network-backed history and `fast wait-for-payment`; networks without it only
+   * have the local history this CLI records.
+   */
+  explorerApiUrl: Schema.optional(Schema.String),
   networkId: NetworkId,
   defaultToken: Schema.optional(FastTokenSchema),
   allSet: Schema.optional(AllSetConfigSchema),

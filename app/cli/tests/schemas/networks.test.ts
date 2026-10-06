@@ -29,10 +29,26 @@ describe("NetworkConfigSchema", () => {
     };
     const parsed = Schema.decodeUnknownSync(NetworkConfigSchema)(config);
     expect(parsed.defaultToken).toBeUndefined();
+    expect(parsed.explorerApiUrl).toBeUndefined();
+  });
+
+  it("accepts an optional explorerApiUrl", () => {
+    const parsed = Schema.decodeUnknownSync(NetworkConfigSchema)({
+      url: "https://example",
+      explorerUrl: "https://explorer",
+      explorerApiUrl: "https://api.example",
+      networkId: "fast:mainnet",
+    });
+    expect(parsed.explorerApiUrl).toBe("https://api.example");
   });
 });
 
 describe("bundledNetworks", () => {
+  it("points mainnet and testnet at their explorer APIs", () => {
+    expect(bundledNetworks.mainnet!.explorerApiUrl).toBe("https://api.fast.xyz");
+    expect(bundledNetworks.testnet!.explorerApiUrl).toBe("https://testnet.api.fast.xyz");
+  });
+
   it("bundles Polygon mainnet USDC with the production bridge and relayer", () => {
     const polygon = bundledNetworks.mainnet!.allSet!.chains.polygon!;
     expect(polygon.chainId).toBe(137);

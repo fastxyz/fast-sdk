@@ -1,0 +1,1 @@
+ALTER TABLE `history` ADD `recorded_direction` text;

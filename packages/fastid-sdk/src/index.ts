@@ -14,6 +14,8 @@ export {
   type RevocableClaimKind,
 } from "./claims.js";
 export { IdClient, type IdClientOptions } from "./client.js";
+export { IdReader, type IdReaderOptions } from "./reader.js";
+export { isCanonicalName } from "./name.js";
 export * from "./errors.js";
 export { HttpError } from "./http.js";
 export { type IdNetwork } from "./networks.js";

@@ -203,6 +203,12 @@ refer to config files at `~/.fast/networks/<name>.json`.
 `--token` for `fast send` and `fast fund usdc crypto`; when absent, commands
 that accept `--token` require the flag to be specified explicitly.
 
+`explorerApiUrl` is optional: the base URL of the explorer indexer API that
+serves `GET /explorer/transfers` (bundled: `https://api.fast.xyz` on mainnet,
+`https://testnet.api.fast.xyz` on testnet). It enables network-backed
+`fast info history` and `fast wait-for-payment`; without it, history is local
+only and `wait-for-payment` exits with `EXPLORER_NOT_CONFIGURED`.
+
 ### 3.6 Auto-naming
 
 When a command creates an account without an explicit name, the CLI assigns
@@ -266,6 +272,9 @@ Selected `errorCode` values used in the JSON envelope's `error.code` field
 | `INSUFFICIENT_BALANCE`            | 4    | Funding source (Fast or EVM) lacks enough balance to cover the requested amount.                                                  |
 | `FUNDING_REQUIRED`                | 4    | `fast fund usdc crypto`: derived EVM address has insufficient balance; the user must deposit before retrying.                     |
 | `TX_FAILED`                       | 6    | Transaction was rejected by the network.                                                                                          |
+| `PAYMENT_TIMEOUT`                 | 1    | `fast wait-for-payment`, `fast request --wait`: no matching payment was confirmed before `--timeout`; an incomplete final explorer poll may have seen a match without confirming it as the earliest. |
+| `EXPLORER_UNAVAILABLE`            | 1    | The explorer API could not be read (timeout, HTTP error, malformed response, including inconsistent paging fields or a malformed row). `fast info history` reports it as a warning instead. |
+| `EXPLORER_NOT_CONFIGURED`         | 2    | The network has no `explorerApiUrl`, so network history is unavailable (`fast wait-for-payment`).                                 |
 | `USER_CANCELLED`                  | 7    | Interactive confirmation declined.                                                                                                |
 | `WRONG_PASSWORD` / `PASSWORD_REQUIRED` | 8 | Keystore password missing or incorrect.                                                                                           |
 
@@ -303,13 +312,15 @@ fast network remove          Remove a custom network
 fast info status             Health check for current network
 fast info balance            Show token balances for an address
 fast info tx                 Look up a transaction by hash
-fast info history            Show transaction history
+fast info history            Show transaction history (network + local)
 fast info bridge-tokens      List tokens available for Fast-EVM transfers (only USDC for now)
 fast info bridge-chains      List chains available for Fast-EVM transfers
 
 fast fund                    Fund fast account from crypto or fiat; may need human intervention
 fast send                    Send tokens between Fast and/or supported chains
 fast pay                     Pay via payment links/protocols (e.g., x402)
+fast wait-for-payment        Wait until a matching incoming payment arrives
+fast request                 Create a payment-request link for someone to pay you
 ```
 
 ### 6.1 `fast account create`
@@ -1001,29 +1012,84 @@ the items in `fast info history`'s `transactions` array:
 **Synopsis**
 
 ```text
-fast info history [--from <name|address>] [--to <address>] [--source <chain>]
-                  [--dest <chain>] [--token <value>] [--limit <n>]
-                  [--offset <n>]
+fast info history [--direction <in|out|all>] [--local] [--from <name|address>]
+                  [--to <address>] [--token <value>] [--limit <n>] [--offset <n>]
 ```
 
 **Description**
 
-Show transaction history, merging Fast-native transfers and AllSet bridge
-operations. Results are ordered by timestamp descending.
+Show the selected account's transaction history (`--account`, else the default
+account), merging two sources:
+
+- **Network** — Fast-side `TokenTransfer`, `Mint` and `Burn` rows that touch the
+  account, read from the network's explorer API
+  (`GET {explorerApiUrl}/explorer/transfers?from=|to=<address>`). This includes
+  payments received from other accounts and EVM → Fast deposits, which appear
+  as `Mint` rows (`type: "token-mint"`) from the bridge account. Rows without an
+  amount or token (e.g. `ExternalClaim` or committee operations) are skipped;
+  a non-value row may legitimately have `to: null`. Every row needs a 32-byte
+  `hash`, a Fast `from` address and an ISO 8601 `submission_timestamp`.
+  `TokenTransfer`/`Mint`/`Burn` additionally need a Fast `to` address, valid
+  `amount` and `token_id`, and a non-negative integer `op_index`. A row missing
+  a required field, or with a malformed non-null recipient, makes the whole
+  page a malformed response (`EXPLORER_UNAVAILABLE`); it is never dropped silently.
+- **Local** — transactions this CLI submitted and recorded under `~/.fast`
+  (including bridge routes and token operations), limited to entries that
+  involve the account.
+
+A network row whose Fast transaction hash matches a local entry is dropped in
+favour of the local entry. Results are ordered by timestamp descending; filters
+apply to both sources before `--offset`/`--limit`. Pending bridge entries on the
+returned page are re-checked against the AllSet portal as before.
+
+Both sources are read newest-first and only as far as the page needs. Local
+entries are read in batches of 200 until `offset + limit` (plus 20, for
+de-duplication) have matched or the log ends. Each explorer feed is paged until
+`offset + limit` rows that will be shown have matched, the feed ends, or it has
+read the pages `offset + limit` needs plus 20 more; in that last case a warning
+says older matching transfers may be missing. Rows are counted after
+de-duplication: a network row whose transaction this CLI recorded locally does
+not count, and when both feeds are read a self transfer is taken from the
+incoming feed only. A page whose `has_more` is true but has no `next_cursor`, or
+whose paging fields have the wrong type, is a malformed response
+(`EXPLORER_UNAVAILABLE`), never the end of the feed.
+
+If the explorer API cannot be read, or the network has no `explorerApiUrl`, the
+command still succeeds with local history only and explains why in `warnings`
+(human mode: `Warning: …` on stderr). Callers must not treat a missing incoming
+payment as proof that nothing arrived while `warnings` is non-empty. When no
+account exists, the whole local log is listed, as before network history.
+
+With `--local`, the explorer API is not called and only local entries are
+listed, as before network history: without `--account`, the whole local log
+for every local account (`account: null`); with `--account`, only that
+account's entries. `--direction` and the other filters still apply (a new
+EVM → Fast entry records its direction relative to the submitting account), and `warnings`
+stays empty. `--local` skips only the explorer: pending bridge entries on the
+page are still re-checked against the AllSet portal, as before network history.
+For legacy EVM → Fast entries without a recorded direction, the sender's still-existing
+account determines the direction; if that account was deleted, the entry defaults to
+`out` rather than treating a surviving recipient account as proof of an incoming deposit.
 
 **Flags**
 
 | Flag | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `--from` | string | no | all accounts | Filter by sender account name or address. |
+| `--direction` | `in` \| `out` \| `all` | no | `all` | Relative to the account: `in` = sent to it by another address, `out` = sent by it to another address. Self transfers (`self`) are only listed with `all`. |
+| `--local` | boolean | no | `false` | List only local entries, without calling the explorer API; every local account unless `--account` is given. |
+| `--from` | string | no | — | Filter by sender address. |
 | `--to` | string | no | — | Filter by recipient (Fast or EVM address). |
-| `--source` | string | no | — | Filter by source network/chain. |
-| `--dest` | string | no | — | Filter by destination network/chain. |
-| `--token` | string | no | — | Filter by token. See [Token Resolution](#7-token-resolution-rules). |
+| `--token` | string | no | — | Filter by token symbol (case-insensitive) or token ID; a symbol also matches the token ID it resolves to on the current network. See [Token Resolution](#7-token-resolution-rules). |
 | `--limit` | integer | no | `20` | Max number of records to return. |
 | `--offset` | integer | no | `0` | Number of records to skip. Use with `--limit` for pagination. |
 
 **Output (`--json`)**
+
+Every row keeps the local-entry fields and adds `direction` (`in`, `out` or
+`self`) and `source` (`network` or `local`). Network rows use base-unit
+`amount` decoded from the explorer's hex encoding, `status: "confirmed"`,
+`route: "fast"`, and the token symbol from the network config (the token ID
+when the token is not configured, with `formatted` then in base units).
 
 ```json
 {
@@ -1031,21 +1097,44 @@ operations. Results are ordered by timestamp descending.
   "data": {
     "transactions": [
       {
+        "hash": "0x5f1c...",
+        "type": "transfer",
+        "from": "fast1leo...",
+        "to": "fast1qw5...x9z",
+        "amount": "100000",
+        "formatted": "0.1",
+        "tokenName": "fastUSD",
+        "tokenId": "0xc655a123...",
+        "network": "mainnet",
+        "status": "confirmed",
+        "timestamp": "2026-10-02T02:59:49.705Z",
+        "explorerUrl": "https://explorer.fast.xyz/txs/0x5f1c...",
+        "route": "fast",
+        "chainId": null,
+        "direction": "in",
+        "source": "network"
+      },
+      {
         "hash": "0xabc123...",
         "type": "transfer",
         "from": "fast1qw5...x9z",
         "to": "fast1ab2...y3w",
         "amount": "10000000",
-        "formatted": "10.00",
-        "tokenName": "USDC",
+        "formatted": "10",
+        "tokenName": "fastUSD",
         "tokenId": "0xc655a123...",
-        "sourceChain": "fast",
-        "destChain": "fast",
+        "network": "mainnet",
         "status": "confirmed",
-        "timestamp": "2026-03-31T12:00:00Z",
-        "explorerUrl": "https://explorer.fast.xyz/tx/0xabc123..."
+        "timestamp": "2026-10-01T12:00:00.000Z",
+        "explorerUrl": "https://explorer.fast.xyz/txs/0xabc123...",
+        "route": "fast",
+        "chainId": null,
+        "direction": "out",
+        "source": "local"
       }
-    ]
+    ],
+    "account": "fast1qw5...x9z",
+    "warnings": []
   }
 }
 ```
@@ -1054,10 +1143,9 @@ operations. Results are ordered by timestamp descending.
 
 | Condition | Exit | Code |
 |---|---|---|
-| Account alias not found (`--from`) | 3 | `ACCOUNT_NOT_FOUND` |
-| Invalid address format (`--from` and `--to`) | 2 | `INVALID_ADDRESS` |
-| Token not found (`--token`) | 2 | `TOKEN_NOT_FOUND` |
-| RPC unreachable | 5 | `NETWORK_ERROR` |
+| Account alias not found (`--account`) | 2 | `ACCOUNT_NOT_FOUND` |
+| Invalid `--direction`, `--limit` or `--offset` | 2 | `INVALID_USAGE` |
+| Explorer API unreachable / not configured | 0 | — (local history plus a `warnings` entry) |
 
 ### 6.16 `fast info bridge-tokens`
 
@@ -1249,7 +1337,7 @@ and chain flags.
 
 | Arg | Type | Required | Description |
 |---|---|---|---|
-| `address` | string | yes | Recipient address (`fast1...` for Fast, `0x...` for EVM). |
+| `address` | string | yes | Recipient: `fast1...` (Fast), `0x...` (EVM), or a Fast ID name (`label.label`, e.g. `alice.smith`; see **Fast ID recipients**). |
 | `amount` | string | yes | Human-readable amount (e.g., `10.5`). Converted to smallest units using the token's decimals. |
 
 If the amount has more decimal places than the token supports, the CLI exits
@@ -1284,6 +1372,30 @@ needed, (3) submit the bridge deposit. The user sees a single confirmation
 prompt; the CLI manages the underlying transactions.
 With `--eip-7702`, all three operations (approve paymaster, approve bridge,
 deposit) are batched into a single UserOperation; gas is paid in token.
+
+**Fast ID recipients:**
+
+When `address` is not a well-formed address (a bech32m `fast` address with a
+32-byte payload, or `0x` followed by 40 hex digits) and, after trimming and
+lowercasing, is a canonical Fast ID name (two labels of `[a-z0-9_]{1,15}`,
+not reserved), the CLI resolves it before any account, token or signing step.
+Classification uses the full syntax, not the prefix: names always contain a
+dot and addresses never do, so `fast1alice.smith` and `0xabc.def` are names.
+
+1. The network's `networkId` must be `fast:mainnet` or `fast:testnet`; other
+   networks exit 2 (`INVALID_USAGE`).
+2. `--to-chain` with a name exits 2 (`INVALID_ADDRESS`): names resolve to Fast
+   addresses, and bridge-out needs a `0x...` recipient. `--from-chain` is allowed.
+3. The name is read from the Fast ID registry for that network
+   (`https://id.fast.xyz/<name>/id.json` on mainnet) with a 10 s timeout, via
+   `IdReader.resolve()` from `@fastxyz/fastid-sdk`, which checks that the
+   document's network and name binding match.
+4. Not registered (HTTP 404): exit 2, `INVALID_ADDRESS`. Any other failure
+   (timeout, transport error, inconsistent document): exit 1,
+   `FAST_ID_RESOLUTION_FAILED`. Nothing is signed or sent in either case.
+5. On success the resolved `fast1...` address is used for routing, signing,
+   history and `to`; the confirmation reads `To: alice.smith (fast1...)` and the
+   JSON output adds `"toName": "alice.smith"`.
 
 **Address validation rules:**
 
@@ -1537,6 +1649,231 @@ logic above). The `accepts` array shows all payment options from the merchant.
 | User declines confirmation | 7 | `USER_CANCELLED` |
 | RPC unreachable | 5 | `NETWORK_ERROR` |
 
+### 6.21 `fast wait-for-payment`
+
+**Synopsis**
+
+```text
+fast wait-for-payment --amount <amount> [--token <value>] [--from <fast1...>]
+                      [--to <fast1...>] [--since <iso-time>] [--timeout <seconds>]
+```
+
+**Description**
+
+Block until a matching incoming payment arrives on the current network, then
+print it. Read-only: no signing, no password.
+
+The CLI polls the explorer API's incoming feed for the watched address
+(`GET {explorerApiUrl}/explorer/transfers?to=<address>&order=desc&limit=50`,
+following `next_cursor` back to `--since`) every 2 seconds. There is no page
+cap; the timeout bounds the work. After a poll has read back to its floor, the
+next poll only reads back to the newest row it saw minus 5 minutes (never before
+`--since`), so rows the indexer publishes slightly late are still read. Every 30
+seconds, and on every poll in the last 30 seconds before the timeout, a poll
+reads back to `--since` again, so a payment the indexer publishes much later,
+with an older submission time, is still found before the command gives up.
+When an incremental poll finds a match, the whole window back to `--since` is
+read once more before the result is returned, so it is always the earliest
+matching payment in the window. A transfer matches
+when all of these hold:
+
+- its type is `TokenTransfer` or `Mint` (an EVM → Fast deposit);
+- `to` is the watched address and `from` is a different address;
+- its token is the requested token and its amount equals `--amount` exactly, in
+  base units;
+- `from` equals `--from`, when given;
+- its `submission_timestamp` is at or after `--since`.
+
+If several match, the earliest is returned. Explorer errors during polling
+(timeout, HTTP error, malformed response) are retried until the deadline. If
+the last poll did not complete (it failed, or the deadline interrupted a request
+still in flight), the `PAYMENT_TIMEOUT` message describes incomplete verification:
+an earlier page may already have shown a matching payment, but the full scan
+could not confirm it as the earliest. The
+`--since` default is the moment the command starts, compared with the
+explorer's submission time; pass an explicit `--since` when the payment may
+already have been sent.
+
+**Flags**
+
+| Flag | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `--amount` | string | yes | — | Exact human-readable amount (e.g. `10.5`), converted with the token's decimals as in `fast send`. More decimal places than the token supports, zero, or a non-number exits with `INVALID_AMOUNT`. |
+| `--token` | string | no | `network.defaultToken.symbol` | Token symbol or token ID. A token ID not in the network config gets its decimals from the Fast RPC. |
+| `--from` | string | no | — | Only accept a payment sent by this `fast1...` address. |
+| `--to` | string | no | active account | `fast1...` address to watch. |
+| `--since` | string | no | command start | ISO 8601 time (`YYYY-MM-DD`, optionally `THH:MM[:SS[.fff]]` and `Z` or `±HH:MM`); only payments submitted at or after it match. Times without a zone are UTC. Other formats and impossible dates (`2026-02-30`) are rejected with `INVALID_USAGE`. The fraction is kept to the nanosecond and compared exactly with the explorer's microsecond submission times, so a payment earlier within the same millisecond does not match. |
+| `--timeout` | integer | no | `300` | Seconds to wait before failing with `PAYMENT_TIMEOUT`: a whole number from 1 to 2147483 (about 24 days, the longest delay the runtime's timers support; a longer one would never fire). |
+
+**Output (`--json`)**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "hash": "0x5f1c...",
+    "type": "transfer",
+    "from": "fast1leo...",
+    "to": "fast1qw5...x9z",
+    "amount": "25000000",
+    "formatted": "25",
+    "tokenName": "fastUSD",
+    "tokenId": "0xc655a123...",
+    "timestamp": "2026-10-02T12:03:41.512Z",
+    "explorerUrl": "https://explorer.fast.xyz/txs/0x5f1c...",
+    "network": "mainnet"
+  }
+}
+```
+
+`type` is `transfer` for a Fast transfer and `token-mint` for a deposit.
+
+**Errors**
+
+| Condition | Exit | Code |
+|---|---|---|
+| `--amount` missing, invalid `--since` or `--timeout` | 2 | `INVALID_USAGE` |
+| Amount malformed, zero, or too precise | 2 | `INVALID_AMOUNT` |
+| `--from` / `--to` not a valid `fast1...` address | 2 | `INVALID_ADDRESS` |
+| Token not found | 2 | `TOKEN_NOT_FOUND` |
+| No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
+| Network has no `explorerApiUrl` | 2 | `EXPLORER_NOT_CONFIGURED` |
+| No matching payment was confirmed before `--timeout` (the message distinguishes an incomplete final poll) | 1 | `PAYMENT_TIMEOUT` |
+
+### 6.22 `fast request`
+
+**Synopsis**
+
+```text
+fast request <amount> [--to <fast-address|fast-id>] [--qr] [--qr-file <path.svg>]
+             [--wait [--timeout <seconds>]]
+```
+
+**Description**
+
+Create a payment-request link: an `https://app.fast.xyz/send?to=<address>&amount=<amount>`
+URL that opens the Fast app's Send screen with the recipient and amount
+prefilled. The payer reviews and confirms the transfer in the app. The command
+only builds the link: it signs nothing, sends nothing and needs no password.
+Network access: when `--to` is a Fast ID name, the name is first resolved on
+the network's Fast ID registry (an HTTP lookup), with or without `--wait`.
+Otherwise, without `--wait` it makes no network calls; with `--wait` it then
+watches the explorer API for the payment, like `fast wait-for-payment` (§6.21).
+
+**Arguments**
+
+| Arg | Type | Required | Description |
+|---|---|---|---|
+| `amount` | string | yes | Amount of the network's default token (`fastUSD`) to request. A positive decimal (`10`, `2.50`, `.5`) with at most `defaultToken.decimals` (6) significant decimal places. |
+
+The amount is normalized before it goes into the link: leading zeros in the
+whole part and trailing zeros in the fraction are dropped (`010.50` → `10.5`,
+`.5` → `0.5`, `1.0000000` → `1`).
+
+**Flags**
+
+| Flag | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `--to` | string | no | active account's Fast address | Who is to be paid: a bech32m `fast1...` address with a 32-byte payload, or a Fast ID name such as `alice.smith` (classified as in `fast send`, by full syntax). |
+| `--qr` | boolean | no | `false` | Also render the link as a terminal QR code: on stdout in human mode, on **stderr** with `--json` so stdout stays one JSON document. |
+| `--qr-file` | string | no | — | Write the link as an SVG QR code to this path (must end in `.svg`; an existing file is overwritten). The absolute path is returned as `qrFile`. |
+| `--wait` | boolean | no | `false` | Wait until the payment arrives (see step 5). Human output prints the link first; with `--json`, stdout stays empty until the command finishes, and only the `--qr` (stderr) and `--qr-file` QR codes are written before the wait. |
+| `--timeout` | integer | no | `300` | With `--wait`: seconds to wait before failing with `PAYMENT_TIMEOUT`. A whole number from 1 to 2147483 (about 24 days), as for `fast wait-for-payment`; rejected without `--wait`. |
+
+**Behavior**
+
+1. The network must be `mainnet`, because app.fast.xyz is mainnet only; any
+   other network exits 2 (`INVALID_USAGE`) and asks for `--network mainnet`.
+2. Validate and normalize `amount` against `network.defaultToken`.
+3. Resolve the payee: `--to` if given (no local account is read), otherwise the
+   active account (`--account` or the default). A multisig wallet resolves to
+   its wallet address and must belong to the active network
+   (`WALLET_NETWORK_MISMATCH` otherwise). A Fast ID name is resolved on the
+   network's Fast ID registry exactly as `fast send` does (see **Fast ID
+   recipients** in §6.19) and fails closed: an unregistered name exits 2
+   (`INVALID_ADDRESS`), an unreachable or inconsistent registry exits 1
+   (`FAST_ID_RESOLUTION_FAILED`), and no link is printed.
+4. Build the URL. For a Fast ID payee the link carries the name
+   (`?to=alice.smith`), as the app's own links do: the payer sees the name, and
+   the app resolves it again when they send. `address` is the address the name
+   resolved to, and `--wait` watches that address. Then write the `--qr-file`
+   SVG if requested, and print the result.
+5. With `--wait`: poll the payee's incoming feed as `fast wait-for-payment`
+   does, with `--amount` = the normalized amount, the network's default token,
+   `--to` = the payee and `--since` = `createdAt`. On a match, print it and
+   return the request with a `payment` object. On timeout, fail with
+   `PAYMENT_TIMEOUT`; the error message repeats the link and `createdAt`
+   (`… for the request <url> created <createdAt>`), since in `--json` mode the
+   error envelope replaces the result. That `createdAt` is the `--since` for
+   waiting again with `fast wait-for-payment`.
+
+`createdAt` is taken after payee resolution, immediately before the link is
+constructed. Payments received while resolving a Fast ID cannot satisfy the
+request. The amount, recipient, and time window identify candidate payments;
+they do not prove that a payer used this particular link.
+
+**Output (human)**
+
+```text
+Payment request: 10 fastUSD to fast1qw5...x9z (mainnet).
+Share this link with the payer. It opens the Fast app with the recipient and amount filled in:
+
+  https://app.fast.xyz/send?to=fast1qw5...x9z&amount=10
+
+Nothing has been paid yet: the payer still has to open the link and confirm the transfer.
+Check that it arrived with: fast info balance --network mainnet
+```
+
+The last line is printed only when the payee is the active account and
+`--wait` is not set. With `--wait`, the command instead prints
+`Waiting up to <n>s for the payment...` and, once it arrives,
+`Paid: <amount> fastUSD from <fast1...>` with the transaction hash, time and
+explorer link.
+
+**Output (`--json`)**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "url": "https://app.fast.xyz/send?to=fast1qw5...x9z&amount=10",
+    "address": "fast1qw5...x9z",
+    "amount": "10",
+    "token": "fastUSD",
+    "network": "mainnet",
+    "createdAt": "2026-10-02T12:00:00.000Z",
+    "qrFile": "/home/user/request.svg"
+  }
+}
+```
+
+With `--to alice.smith`, `url` is `https://app.fast.xyz/send?to=alice.smith&amount=10`,
+`address` is the resolved `fast1...` address, and `data` also has
+`"toName": "alice.smith"`.
+
+`amount` is the normalized decimal string. `qrFile` is present only with
+`--qr-file`. With `--wait`, `data` also contains `payment`, the matching
+transfer in the same shape as `fast wait-for-payment` returns (`hash`, `type`,
+`from`, `to`, `amount` in base units, `formatted`, `tokenName`, `tokenId`,
+`timestamp`, `explorerUrl`).
+
+**Errors**
+
+| Condition | Exit | Code |
+|---|---|---|
+| Missing amount, or unknown flag | 2 | `INVALID_USAGE` |
+| Network is not `mainnet` | 2 | `INVALID_USAGE` |
+| `--qr-file` path does not end in `.svg` | 2 | `INVALID_USAGE` |
+| Amount is not a positive decimal, is zero/negative, or has more than 6 decimal places | 2 | `INVALID_AMOUNT` |
+| `--to` is neither a valid Fast address nor a Fast ID name, or the name is not registered | 2 | `INVALID_ADDRESS` |
+| `--to` is a Fast ID name and the registry cannot be read or answers inconsistently | 1 | `FAST_ID_RESOLUTION_FAILED` |
+| No `--to` and no default account | 2 | `NO_DEFAULT_ACCOUNT` |
+| `--account` names an unknown account | 2 | `ACCOUNT_NOT_FOUND` |
+| Default multisig wallet belongs to another network | 2 | `WALLET_NETWORK_MISMATCH` |
+| `--qr-file` cannot be written | 1 | `FILE_IO_ERROR` |
+| `--timeout` without `--wait`, or not a whole number from 1 to 2147483 | 2 | `INVALID_USAGE` |
+| `--wait` and no matching payment is confirmed before the timeout | 1 | `PAYMENT_TIMEOUT` |
+
 ## 7. Token Resolution Rules
 
 The `--token <value>` flag accepts three input formats. Resolution is attempted
@@ -1565,8 +1902,9 @@ Input value
 `--network <name>` selects which network configuration to use. Resolution:
 
 1. If `--network` is provided, use that name.
-2. Otherwise, use the default from `~/.fast/networks.json`.
-3. If no `networks.json` exists, default is `testnet`.
+2. Otherwise, use the default stored in `~/.fast/fast.db`, set with
+   `fast network set-default <name>`.
+3. A fresh install seeds that default as `mainnet`.
 
 Each network name maps to a complete configuration bundle covering:
 
@@ -1575,8 +1913,8 @@ Each network name maps to a complete configuration bundle covering:
   address, relayer URL, and token mappings (EVM address ↔ Fast token ID).
 
 `testnet` and `mainnet` are always available with bundled configs. Custom
-networks are added via `fast network add` and stored in
-`~/.fast/networks/<name>.json` (see section 3.5 for format).
+networks are added via `fast network add <name> --config <path>` and stored in
+`~/.fast/fast.db` (see section 3.5 for the config format).
 
 ## 9. Supported Chains and Tokens
 

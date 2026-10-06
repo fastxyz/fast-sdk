@@ -37,3 +37,24 @@ export class InsufficientPaymentBalanceError extends Data.TaggedError(
   readonly exitCode = 4 as const;
   readonly errorCode = "INSUFFICIENT_PAYMENT_BALANCE" as const;
 }
+
+export class PaymentTimeoutError extends Data.TaggedError(
+  "PaymentTimeoutError",
+)<{
+  /** Human description of the payment that was expected. */
+  readonly expected: string;
+  readonly timeoutSeconds: number;
+  /** Why the final explorer poll did not complete (an error, or still in flight at the deadline). */
+  readonly lastError?: string;
+}> {
+  readonly exitCode = 1 as const;
+  readonly errorCode = "PAYMENT_TIMEOUT" as const;
+  get message() {
+    const base = this.lastError
+      ? `Payment verification did not complete within ${this.timeoutSeconds}s (expected ${this.expected}).`
+      : `No matching payment was observed within ${this.timeoutSeconds}s (expected ${this.expected}).`;
+    return this.lastError
+      ? `${base} The last explorer poll did not complete, so the earliest matching payment could not be confirmed: ${this.lastError}`
+      : base;
+  }
+}

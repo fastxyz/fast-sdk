@@ -31,6 +31,7 @@ const rowToEntry = (row: typeof history.$inferSelect): HistoryEntry => ({
   explorerUrl: row.explorerUrl,
   route: row.route as "fast" | "evm-to-fast" | "fast-to-evm",
   chainId: row.chainId,
+  ...(row.recordedDirection === 'in' || row.recordedDirection === 'out' ? { recordedDirection: row.recordedDirection } : {}),
 });
 
 // ── Raw DB helpers ──────────��───────────────────────────────────────────────
@@ -53,6 +54,7 @@ const insertHistoryEntry = (db: DrizzleDB, entry: HistoryEntry) =>
       explorerUrl: entry.explorerUrl,
       route: entry.route,
       chainId: entry.chainId,
+      recordedDirection: entry.recordedDirection ?? null,
     })
     .onConflictDoUpdate({
       target: history.hash,

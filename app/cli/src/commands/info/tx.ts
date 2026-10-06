@@ -32,6 +32,7 @@ export const infoTx: Command<InfoTxArgs> = {
     if (entry.explorerUrl) {
       yield* output.humanLine(`  Explorer:  ${entry.explorerUrl}`);
     }
-    yield* output.ok(entry);
+    const { recordedDirection: _recordedDirection, ...publicEntry } = entry;
+    yield* output.ok(publicEntry);
   }),
 };

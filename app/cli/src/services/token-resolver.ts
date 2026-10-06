@@ -9,11 +9,24 @@ export interface ResolvedToken {
 }
 
 /**
+ * Look a token symbol up in a `tokens` map: an exact key first, then a
+ * case-insensitive match (SPEC §7, e.g. "usdc" → "USDC").
+ */
+function findTokenKey(tokens: Record<string, unknown>, tokenName: string): string | undefined {
+  if (Object.hasOwn(tokens, tokenName)) return tokenName;
+  const wanted = tokenName.toLowerCase();
+  return Object.keys(tokens).find((key) => key.toLowerCase() === wanted);
+}
+
+/**
  * Map a token name to its on-Fast id, decimals, and (when bridging) EVM address.
  *
  * - With chain context (bridge route): only chain-scoped `allSet.chains[chain].tokens` is consulted.
  * - Without chain context (Fast→Fast): `network.defaultToken` is consulted first,
  *   then chain-scoped tokens.
+ *
+ * Symbols match exactly first; failing that, case-insensitively (SPEC §7), so
+ * `usdc` resolves like `USDC` and `fastusd` like `fastUSD`.
  */
 export function resolveToken(
   tokenName: string,
@@ -26,7 +39,8 @@ export function resolveToken(
     if (!allset) throw new TokenNotFoundError({ token: tokenName });
     const chainConfig = allset.chains[chain];
     if (!chainConfig) throw new UnsupportedChainError({ chain });
-    const token = chainConfig.tokens[tokenName];
+    const key = findTokenKey(chainConfig.tokens, tokenName);
+    const token = key === undefined ? undefined : chainConfig.tokens[key];
     if (!token) throw new TokenNotFoundError({ token: tokenName });
     return {
       fastTokenId: fromHex(token.fastTokenId),
@@ -35,21 +49,25 @@ export function resolveToken(
     };
   }
 
-  // No chain context (Fast → Fast):
-  // 1) Match against network.defaultToken (handles fastUSD on mainnet, testUSDC on testnet).
+  // No chain context (Fast → Fast). Exact matches win over case-insensitive ones.
   const def = networkConfig.defaultToken;
-  if (def && def.symbol === tokenName) {
-    return {
-      fastTokenId: fromHex(def.tokenId),
-      decimals: def.decimals,
-    };
-  }
+  const chains = Object.values(networkConfig.allSet?.chains ?? {});
+  for (const exact of [true, false]) {
+    const same = (symbol: string) =>
+      exact ? symbol === tokenName : symbol.toLowerCase() === tokenName.toLowerCase();
 
-  // 2) Fall back to scanning chain-scoped tokens (handles testUSDC, USDC, etc.).
-  const allset = networkConfig.allSet;
-  if (allset) {
-    for (const chainConfig of Object.values(allset.chains)) {
-      const token = chainConfig.tokens[tokenName];
+    // 1) network.defaultToken (fastUSD on mainnet, testUSDC on testnet).
+    if (def && same(def.symbol)) {
+      return {
+        fastTokenId: fromHex(def.tokenId),
+        decimals: def.decimals,
+      };
+    }
+
+    // 2) Chain-scoped tokens (testUSDC, USDC, etc.).
+    for (const chainConfig of chains) {
+      const key = Object.keys(chainConfig.tokens).find(same);
+      const token = key === undefined ? undefined : chainConfig.tokens[key];
       if (token) {
         return { fastTokenId: fromHex(token.fastTokenId), decimals: token.decimals };
       }
@@ -104,12 +122,42 @@ export function tokenIsKnownOnNetwork(
   networkConfig: NetworkConfig,
   tokenName: string,
 ): boolean {
-  if (networkConfig.defaultToken?.symbol === tokenName) return true;
-  const allset = networkConfig.allSet;
-  if (allset) {
-    for (const chain of Object.values(allset.chains)) {
-      if (chain.tokens[tokenName]) return true;
+  // Same matching as resolveToken without chain context (exact, then
+  // case-insensitive), so a spelling that resolves on a Fast-only route is
+  // also recognised when a bridge route rejects it.
+  try {
+    resolveToken(tokenName, networkConfig);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Label and decimals of a Fast-side token id, from the network's known tokens.
+ *
+ * Unlike `lookupTokenNameById` (which prefers chain-scoped bridge names), the
+ * network's `defaultToken` wins here, matching how `fast info balance` and
+ * `fast send` label the Fast-side asset (e.g. `fastUSD` rather than `USDC` on
+ * mainnet). Chain-scoped names are the fallback. Returns undefined for tokens
+ * the network config does not know.
+ */
+export function lookupFastTokenById(
+  networkConfig: NetworkConfig,
+  fastTokenId: string,
+): { readonly name: string; readonly decimals: number } | undefined {
+  const target = norm(fastTokenId);
+  const def = networkConfig.defaultToken;
+  if (def && norm(def.tokenId) === target) {
+    return { name: def.symbol, decimals: def.decimals };
+  }
+  const name = lookupTokenNameById(networkConfig, fastTokenId);
+  if (name === undefined) return undefined;
+  for (const chain of Object.values(networkConfig.allSet?.chains ?? {})) {
+    const entry = chain.tokens[name];
+    if (entry && norm(entry.fastTokenId) === target) {
+      return { name, decimals: entry.decimals };
     }
   }
-  return false;
+  return undefined;
 }

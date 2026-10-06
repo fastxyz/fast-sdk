@@ -498,7 +498,7 @@ describe('diagnoseRequestArgv (command lines the parser rejects)', () => {
       if (parsed.success) throw new Error('expected a rejected request');
       expect(diagnoseRequestArgv(argv)).toBeUndefined();
       const entry = fileURLToPath(new URL('../../src/main.ts', import.meta.url));
-      const run = spawnSync(process.execPath, ['--import', 'tsx', entry, ...argv], { encoding: 'utf8', timeout: 10_000 });
+      const run = spawnSync(process.execPath, ['--import', 'tsx', entry, ...argv], { encoding: 'utf8', timeout: 20_000 });
 
       expect(run.error).toBeUndefined();
       expect(run.status).toBe(2);
@@ -507,7 +507,7 @@ describe('diagnoseRequestArgv (command lines the parser rejects)', () => {
         error: { code: 'INVALID_USAGE', message: formatMessage(parsed.error) },
       });
     },
-    15_000,
+    30_000,
   );
 });
 

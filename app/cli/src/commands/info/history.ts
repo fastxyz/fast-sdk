@@ -224,6 +224,7 @@ export const infoHistory: Command<InfoHistoryArgs> = {
       for (let scanned = 0; ; scanned += LOCAL_BATCH) {
         const batch = yield* history.list({ limit: LOCAL_BATCH, offset: scanned });
         for (const entry of batch) {
+          if (!localOnly && Option.isSome(account) && entry.network !== config.network) continue;
           const d = Option.isSome(account) ? localDirection(entry, account.value) : recordedDirection(entry, localAccounts);
           if (d === undefined || !wantDirection(d) || !matchesParty(entry) || !tokenMatches(entry.tokenName, entry.tokenId)) continue;
           const { recordedDirection: _recordedDirection, ...publicEntry } = entry;

@@ -2,6 +2,8 @@
 
 Server SDK for the x402 HTTP Payment Protocol. Protect API routes with payment requirements using Express middleware.
 
+Release 1 adds a v2 `PAYMENT-REQUIRED` header beside the unchanged legacy 402 JSON body for mapped networks. Fast v2 offers advertise `extra.paymentFlow: "upfront"`. Sellers accept `PAYMENT-SIGNATURE` or legacy `X-PAYMENT` and emit both receipt headers; clients answer in the advertised version. Existing helpers retain their signatures. See [Release 1 scope and publishing gates](../../docs/x402/release-1.md).
+
 ## Use Cases
 
 - Protect API routes with payment requirements (HTTP 402)

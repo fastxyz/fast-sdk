@@ -8,3 +8,4 @@
 export * from './payment.js';
 export * from './networks.js';
 export * from './utils.js';
+export * from './v2.js';

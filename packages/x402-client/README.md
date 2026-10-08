@@ -173,9 +173,9 @@ console.log('Fast USDC balance:', balance); // bigint (smallest units)
 
 #### `parse402Response(response: Response): Promise<ParsedPaymentRequired>`
 
-Parse a raw HTTP 402 response into native upstream `PaymentRequiredV2` header data or the existing legacy `PaymentRequired` JSON body. A present `PAYMENT-REQUIRED` header takes priority and leaves the body unread. Headers must be canonical standard base64, no larger than 64 KiB encoded, and satisfy the upstream v2 schema with at least one offer. Invalid headers throw without falling back to the body or exposing their contents. Throws if the response status is not 402.
+Parse a raw HTTP 402 response into the existing v1-shaped `PaymentRequired` structure. A present `PAYMENT-REQUIRED` v2 header takes priority and leaves the body unread; its offers are normalized while preserving the original v2 requirement and requested version. Invalid headers throw without falling back to the body. Headers must be canonical standard base64 and no larger than 64 KiB encoded. Throws if the response status is not 402.
 
-This is read-only v2 support: `x402Pay` rejects v2 requirements with `v2 payment execution not enabled` and rejects any other declared protocol version except numeric `1` before execution. Legacy responses with no declared version retain existing behavior. This preparatory change does not enable v2 payments.
+Release 1 adds v2 payments without changing the public legacy requirement fields. The client answers in kind: a v1-only seller receives `X-PAYMENT`; a v2 seller receives `PAYMENT-SIGNATURE` echoing the original accepted offer. Either `PAYMENT-RESPONSE` or `X-PAYMENT-RESPONSE` can supply the receipt. Fast v2 offers must advertise `extra.paymentFlow: "upfront"`. See [Release 1 scope and publishing gates](../../docs/x402/release-1.md).
 
 ```typescript
 import { parse402Response } from '@fastxyz/x402-client';

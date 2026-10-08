@@ -6,7 +6,7 @@
  */
 
 import type { PaymentRequirement, VerifyResponse, SettleResponse } from '@fastxyz/x402-types';
-import { parsePrice, encodePayload, decodePayload } from '@fastxyz/x402-types';
+import { parsePrice, encodePayload, decodePayload, toV2, fromV2PaymentPayload, type PaymentPayloadV2 } from '@fastxyz/x402-types';
 
 import type { PaymentRequiredResponse, FacilitatorConfig, PaymentResponse, XPaymentPayload, RouteConfig } from './types.js';
 
@@ -42,10 +42,25 @@ export function createPaymentRequired(payTo: string, config: RouteConfig, resour
 }
 
 /**
- * Parse X-PAYMENT header.
+ * Encode native v2 requirements for a custom seller's PAYMENT-REQUIRED header.
  */
-export function parsePaymentHeader(header: string): XPaymentPayload {
-  return decodePayload<XPaymentPayload>(header);
+export function createPaymentRequiredHeader(payTo: string, config: RouteConfig, resource: string): string {
+  const requirement = createPaymentRequirement(payTo, config, resource);
+  return encodePayload({
+    x402Version: 2,
+    resource: { url: resource, description: requirement.description, mimeType: requirement.mimeType },
+    accepts: [toV2(requirement)],
+  });
+}
+
+/** Parse legacy headers, or normalize native headers against trusted seller terms. */
+export function parsePaymentHeader(header: string, expected?: PaymentRequirement): XPaymentPayload {
+  const decoded = decodePayload<XPaymentPayload | PaymentPayloadV2>(header);
+  if (decoded.x402Version === 2) {
+    if (!expected) throw new Error('Native payment requires trusted expected requirements');
+    return fromV2PaymentPayload(decoded as PaymentPayloadV2, expected);
+  }
+  return decoded as XPaymentPayload;
 }
 
 /**

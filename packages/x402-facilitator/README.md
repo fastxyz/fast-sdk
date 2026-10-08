@@ -2,6 +2,8 @@
 
 Payment verification and settlement for the x402 HTTP Payment Protocol.
 
+Release 1 normalizes v2 payment envelopes and requirements at the `verify` / `settle` boundaries, preserving the existing v1 verification and settlement paths for HTTP and in-process callers. Discovery advertises both protocol versions for mapped networks, plus extensions and signer information. V2 sellers use `PAYMENT-REQUIRED`, clients answer with `PAYMENT-SIGNATURE`, and receipts use `PAYMENT-RESPONSE`; legacy headers remain supported. This is a wire-format upgrade, not a redesign of Fast certificate trust or replay policy.
+
 Supports:
 
 - **EVM** — EIP-3009 `transferWithAuthorization` verification and settlement
@@ -123,7 +125,7 @@ if (result.isValid) {
 
 ### `settle(payload, requirement, config)`
 
-Settle a previously verified payment on the network. For EVM payments, calls `transferWithAuthorization` to actually move the USDC. For Fast payments, records the settlement on the network. Returns a `SettleResponse`.
+Settle a previously verified payment. For EVM payments, calls `transferWithAuthorization` to move the USDC. Fast is upfront: the client has already submitted the transfer, so this path verifies the certificate and returns its transaction ID without resubmitting it. Returns a `SettleResponse`.
 
 ```typescript
 import { settle } from '@fastxyz/x402-facilitator';

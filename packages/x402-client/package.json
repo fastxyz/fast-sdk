@@ -31,7 +31,6 @@
     "provenance": true
   },
   "dependencies": {
-    "@x402/core": "2.28.0",
     "@fastxyz/allset-sdk": "workspace:*",
     "@fastxyz/schema": "workspace:*",
     "@fastxyz/sdk": "workspace:*",

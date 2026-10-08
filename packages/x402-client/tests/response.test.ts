@@ -26,7 +26,12 @@ describe('authoritative PAYMENT-REQUIRED response header', () => {
     'decodes v2 without consuming compatibility body %s',
     async (body) => {
       const res = response(encode(v2), body);
-      expect(await parse402Response(res)).toEqual(v2);
+      const parsed = await parse402Response(res);
+      expect(parsed.x402Version).toBe(2);
+      expect(parsed.accepts?.[0].network).toBe('base-sepolia');
+      expect(parsed.accepts?.[0].maxAmountRequired).toBe('1000');
+      expect(parsed.accepts?.[0].originalV2Requirement).toEqual(v2.accepts[0]);
+      expect(parsed.originalV2).toEqual(v2);
       expect(res.bodyUsed).toBe(false);
     },
   );
@@ -62,12 +67,12 @@ describe('authoritative PAYMENT-REQUIRED response header', () => {
     expect(res.bodyUsed).toBe(false);
   });
 
-  it('fails closed before v2 payment execution or retry', async () => {
+  it('normalizes v2 before looking up legacy network configuration', async () => {
     const res = response(encode(v2), JSON.stringify(mock402Response('arbitrum-sepolia')));
     const fetch = vi.fn().mockResolvedValue(res);
     vi.stubGlobal('fetch', fetch);
     await expect(x402Pay({ url: 'https://example.com/paid', wallet: mockEvmWallet, verbose: true })).rejects.toThrow(
-      'v2 payment execution not enabled',
+      'No EVM chain config for network "base-sepolia"',
     );
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(res.bodyUsed).toBe(false);

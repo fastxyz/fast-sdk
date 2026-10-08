@@ -5,10 +5,31 @@
  * No hardcoded network lists — uses getNetworkType() from x402-types.
  */
 
-import { getNetworkType } from '@fastxyz/x402-types';
+import { getNetworkType, toCanonicalNetwork, encodePayload, toV2SettleResponse } from '@fastxyz/x402-types';
 
-import { createPaymentRequired, createPaymentRequirement, encodePaymentResponse, settlePayment, verifyPayment } from './payment.js';
+import {
+  createPaymentRequired,
+  createPaymentRequiredHeader,
+  createPaymentRequirement,
+  parsePaymentHeader,
+  encodePaymentResponse,
+  settlePayment,
+  verifyPayment,
+} from './payment.js';
 import type { FacilitatorConfig, MiddlewareOptions, PayToConfig, RouteConfig, RoutesConfig } from './types.js';
+import type { SettleResponse } from '@fastxyz/x402-types';
+
+function setNativeReceipt(res: Response, response: SettleResponse): void {
+  // A custom v1 chain need not have a native mapping. Preserve its legacy receipt.
+  if (response.network) {
+    try {
+      toCanonicalNetwork(response.network);
+    } catch {
+      return;
+    }
+  }
+  res.setHeader('PAYMENT-RESPONSE', encodePayload(toV2SettleResponse(response)));
+}
 
 // Express types (minimal to avoid hard dependency)
 export interface Request {
@@ -101,7 +122,8 @@ export function paymentMiddleware(payTo: PayToConfig, routes: RoutesConfig, faci
 
     log(`→ ${req.method} ${req.path} (${routeConfig.network}, ${routeConfig.price})`, opts);
 
-    const paymentHeader = req.header('X-PAYMENT');
+    const nativeHeader = req.header('PAYMENT-SIGNATURE');
+    let paymentHeader = nativeHeader ?? req.header('X-PAYMENT');
 
     let resolvedPayTo: string;
     try {
@@ -117,6 +139,12 @@ export function paymentMiddleware(payTo: PayToConfig, routes: RoutesConfig, faci
       log(`← 402 Payment Required (no X-PAYMENT header)`, opts);
       try {
         const paymentRequired = createPaymentRequired(resolvedPayTo, routeConfig, req.path);
+        try {
+          toCanonicalNetwork(routeConfig.network);
+          res.setHeader('PAYMENT-REQUIRED', createPaymentRequiredHeader(resolvedPayTo, routeConfig, req.path));
+        } catch {
+          /* Unmapped custom networks remain v1-only. */
+        }
         res.status(402);
         return res.json(paymentRequired);
       } catch (error) {
@@ -130,6 +158,18 @@ export function paymentMiddleware(payTo: PayToConfig, routes: RoutesConfig, faci
     log(`  X-PAYMENT header present (${paymentHeader.length} chars)`, opts);
 
     const paymentRequirement = createPaymentRequirement(resolvedPayTo, routeConfig, req.path);
+
+    if (nativeHeader !== undefined) {
+      try {
+        const decoded = parsePaymentHeader(nativeHeader, paymentRequirement);
+        // Normalize only after matching accepted against trusted route terms.
+        if (JSON.parse(Buffer.from(nativeHeader, 'base64').toString()).x402Version !== 2) throw new Error('Expected native v2 payment');
+        paymentHeader = encodePayload(decoded);
+      } catch (error) {
+        res.status(402);
+        return res.json({ error: error instanceof Error ? error.message : String(error), accepts: [paymentRequirement] });
+      }
+    }
 
     const isFast = getNetworkType(routeConfig.network) === 'fast';
 
@@ -159,6 +199,7 @@ export function paymentMiddleware(payTo: PayToConfig, routes: RoutesConfig, faci
             payer: verifyResult.payer,
           }),
         );
+        setNativeReceipt(res, { success: true, network: verifyResult.network || routeConfig.network, payer: verifyResult.payer });
         return next();
       }
 
@@ -187,6 +228,12 @@ export function paymentMiddleware(payTo: PayToConfig, routes: RoutesConfig, faci
           payer: settleResult.payer || verifyResult.payer,
         }),
       );
+      setNativeReceipt(res, {
+        success: true,
+        txHash: settleResult.txHash,
+        network: settleResult.network || verifyResult.network || routeConfig.network,
+        payer: settleResult.payer || verifyResult.payer,
+      });
 
       return next();
     } catch (error) {

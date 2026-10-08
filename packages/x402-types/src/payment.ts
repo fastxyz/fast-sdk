@@ -13,6 +13,8 @@
  * client (to consume), and facilitator (to verify/settle).
  */
 export interface PaymentRequirement {
+  originalV2Requirement?: import('./v2.js').PaymentRequirementV2;
+  originalV2Resource?: import('./v2.js').ResourceInfoV2;
   scheme: 'exact';
   network: string;
   maxAmountRequired: string;
@@ -111,7 +113,7 @@ export type NetworkType = 'evm' | 'fast' | 'svm';
  * Determine network type from a network identifier string.
  */
 export function getNetworkType(network: string): NetworkType {
-  if (network.startsWith('fast-')) return 'fast';
+  if (network.startsWith('fast-') || network.startsWith('fast:')) return 'fast';
   if (network.startsWith('solana')) return 'svm';
   return 'evm';
 }

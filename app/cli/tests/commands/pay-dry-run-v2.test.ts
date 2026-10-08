@@ -9,6 +9,7 @@ import { AccountStore } from '../../src/services/storage/account.js';
 import { NetworkConfigService } from '../../src/services/storage/network.js';
 import { HistoryStore } from '../../src/services/storage/history.js';
 import { Prompt } from '../../src/services/prompt.js';
+import { fromV2 } from '../../../../packages/x402-types/src/index.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -59,7 +60,10 @@ it.each([
     pay.handler({ url: 'https://example.com/paid', method: 'GET', header: [], dryRun: true } as PayArgs).pipe(Effect.provide(layer)),
   );
   expect(lines).toContain('  Amount:  1000');
-  expect(results).toEqual([{ statusCode: 402, paymentRequired: requirements, acceptedOptions: requirements.accepts }]);
+  const normalized = header
+    ? { x402Version: 2, accepts: requirements.accepts.map((opt) => fromV2(opt as never, nativeV2.resource)), originalV2: requirements }
+    : requirements;
+  expect(results).toEqual([{ statusCode: 402, paymentRequired: normalized, acceptedOptions: normalized.accepts }]);
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(res.bodyUsed).toBe(!header);
 });

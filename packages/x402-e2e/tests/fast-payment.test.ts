@@ -1,20 +1,18 @@
 /**
- * x402 End-to-End Test — Fast Testnet
+ * x402 End-to-End Test — FAST Mainnet (standalone, not the matrix gate)
  *
  * Spins up a facilitator server and a content server in-process,
  * then uses x402Pay() to exercise the full 402 payment flow
- * against the real Fast testnet.
+ * against FAST mainnet using real fastUSD.
  *
- * Requires explicit X402_LIVE_FAST=1 and externally provided environment with:
- *   FAST_TEST_RPC_URL=...
- *   FAST_TEST_SIGNER_PRIVATE_KEY=...
+ * Requires X402_LIVE_FAST=1, X402_MAINNET_SPENDING=1 and external credentials.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import express from 'express';
 import type { Server } from 'node:http';
 import { Signer, toFastAddress, toHex } from '@fastxyz/sdk';
-import { testnet } from '@fastxyz/sdk/networks';
+import { mainnet } from '@fastxyz/sdk/networks';
 import { createFacilitatorServer } from '@fastxyz/x402-facilitator';
 import { paymentMiddleware } from '@fastxyz/x402-server';
 import { x402Pay } from '@fastxyz/x402-client';
@@ -22,18 +20,18 @@ import type { FacilitatorConfig } from '@fastxyz/x402-facilitator';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const FAST_TEST_RPC_URL = process.env.FAST_TEST_RPC_URL;
-const FAST_TEST_SIGNER_PRIVATE_KEY = process.env.FAST_TEST_SIGNER_PRIVATE_KEY;
+const FAST_MAINNET_RPC_URL = process.env.FAST_MAINNET_RPC_URL;
+const FAST_MAINNET_SIGNER_PRIVATE_KEY = process.env.FAST_MAINNET_SIGNER_PRIVATE_KEY;
 
-const FAST_TESTNET_USDC_TOKEN_ID = '0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46';
+const FAST_MAINNET_TOKEN_ID = mainnet.defaultToken.tokenId;
 const PAYMENT_PRICE = '$0.001';
-const NETWORK = 'fast-testnet';
+const NETWORK = 'fast-mainnet';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function listenOnRandomPort(app: express.Express): Promise<{ server: Server; port: number }> {
   return new Promise((resolve, reject) => {
-    const server = app.listen(0, () => {
+    const server = app.listen(0, '127.0.0.1', () => {
       const addr = server.address();
       if (!addr || typeof addr === 'string') {
         reject(new Error('Failed to get server address'));
@@ -51,25 +49,17 @@ function closeServer(server: Server): Promise<void> {
 // ─── Test Suite ──────────────────────────────────────────────────────────────
 
 const skip = process.env.X402_LIVE_FAST !== '1';
-if (
-  !skip &&
-  (!FAST_TEST_RPC_URL ||
-    !FAST_TEST_SIGNER_PRIVATE_KEY ||
-    !process.env.FAST_TEST_RECIPIENT_PRIVATE_KEY ||
-    !process.env.FAST_TEST_COMMITTEE_PUBLIC_KEYS)
-) {
-  throw new Error('Explicit live Fast opt-in requires RPC, payer, controlled recipient key and trusted committee keys');
+if (!skip && process.env.X402_MAINNET_SPENDING !== '1') {
+  throw new Error('X402_MAINNET_SPENDING=1 is required to authorize real mainnet spending');
 }
-if (
-  !skip &&
-  (FAST_TEST_RPC_URL !== testnet.url ||
-    process.env.X402_CONTROLLED_RECIPIENTS !== '1' ||
-    process.env.FAST_TEST_COMMITTEE_PUBLIC_KEYS!.split(',').some((key) => !/^(?:0x)?[a-fA-F0-9]{64}$/.test(key.trim())))
-) {
-  throw new Error('Live Fast requires pinned testnet RPC, controlled recipient confirmation and nonempty trusted committee keys');
+if (!skip && (!FAST_MAINNET_RPC_URL || !FAST_MAINNET_SIGNER_PRIVATE_KEY || !process.env.FAST_MAINNET_RECIPIENT_PRIVATE_KEY)) {
+  throw new Error('Explicit live Fast opt-in requires RPC, payer and controlled recipient key');
+}
+if (!skip && (FAST_MAINNET_RPC_URL !== mainnet.url || process.env.X402_CONTROLLED_RECIPIENTS !== '1')) {
+  throw new Error('Live Fast requires pinned mainnet RPC and controlled recipient confirmation');
 }
 
-describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
+describe.skipIf(skip)('x402 E2E — FAST mainnet standalone payment flow', () => {
   let facilitatorServer: Server;
   let contentServer: Server;
   let facilitatorPort: number;
@@ -85,20 +75,20 @@ describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
 
   beforeAll(async () => {
     // ── Derive payer wallet ──
-    const payerSigner = new Signer(FAST_TEST_SIGNER_PRIVATE_KEY!);
+    const payerSigner = new Signer(FAST_MAINNET_SIGNER_PRIVATE_KEY!);
     const payerPublicKey = await payerSigner.getPublicKey();
     const payerAddress = toFastAddress(payerPublicKey);
 
     fastWallet = {
       type: 'fast',
-      privateKey: `0x${FAST_TEST_SIGNER_PRIVATE_KEY!.replace(/^0x/, '')}`,
+      privateKey: `0x${FAST_MAINNET_SIGNER_PRIVATE_KEY!.replace(/^0x/, '')}`,
       publicKey: toHex(payerPublicKey),
       address: payerAddress,
-      rpcUrl: FAST_TEST_RPC_URL!,
+      rpcUrl: FAST_MAINNET_RPC_URL!,
     };
 
     // ── Derive recipient address ──
-    const recipientSigner = new Signer(process.env.FAST_TEST_RECIPIENT_PRIVATE_KEY!);
+    const recipientSigner = new Signer(process.env.FAST_MAINNET_RECIPIENT_PRIVATE_KEY!);
     const recipientPublicKey = await recipientSigner.getPublicKey();
     recipientAddress = toFastAddress(recipientPublicKey);
     expect(recipientAddress).not.toBe(payerAddress);
@@ -107,8 +97,8 @@ describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
     const facilitatorConfig: FacilitatorConfig = {
       fastNetworks: {
         [NETWORK]: {
-          rpcUrl: FAST_TEST_RPC_URL!,
-          committeePublicKeys: process.env.FAST_TEST_COMMITTEE_PUBLIC_KEYS!.split(',').map((key) => key.trim()),
+          rpcUrl: FAST_MAINNET_RPC_URL!,
+          committeePublicKeys: [],
         },
       },
       debug: false,
@@ -139,7 +129,7 @@ describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
             price: PAYMENT_PRICE,
             network: NETWORK,
             networkConfig: {
-              asset: FAST_TESTNET_USDC_TOKEN_ID,
+              asset: FAST_MAINNET_TOKEN_ID,
               decimals: 6,
             },
           },
@@ -192,7 +182,7 @@ describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
     expect(req.scheme).toBe('exact');
     expect(req.network).toBe(NETWORK);
     expect(req.payTo).toBe(recipientAddress);
-    expect(req.asset).toBe(FAST_TESTNET_USDC_TOKEN_ID);
+    expect(req.asset).toBe(FAST_MAINNET_TOKEN_ID);
     expect(BigInt(req.maxAmountRequired)).toBe(1000n); // $0.001 = 1000 raw (6 decimals)
   });
 

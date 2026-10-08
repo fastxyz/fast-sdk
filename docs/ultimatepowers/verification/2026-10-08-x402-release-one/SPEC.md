@@ -203,39 +203,3 @@ claim <k> handleFastPayment(E,L,W) => fastResultWithHash(H) ... </k>
 supportedEvmSelectors(X) means `(X.assetTransferMethod absent or equal "eip3009") AND (X.paymentFlow absent or equal "authorization")`. Existing native original consistency checks still run before these selectors. The EVM handler invokes this validator as its first statement, before account creation, balance/provider access, signing and optional bridge. Thus an unsupported selector rejects even when bridging would otherwise be needed. The Fast returned field is now the local variable H directly, not receipt helper output; seller headers remain available as response data without modifying payment identity. Conditional domain is otherwise valid inputs and terminating existing provider path; async/provider semantics remain escalation-bounded.
 
 No new loop or recursion was introduced. Reuse the existing original metadata equality/membership circularities contract-only. Whole-envelope validation remains exact/known-only for every offer: a supported alternative plus unsupported network/scheme alternative rejects the entire native header, without legacy body downgrade. This deliberately restricted Release 1 domain is now explicit in public release/types/client docs, not broadened into capability-filtered negotiation.
-
-## Mainnet harness domain amendment — 2026-10-08
-
-Status: constructed (escalation-bounded), not machine-checked; partial correctness. Diff-scoped alignment against develop `a150bd5`, including configuration, standalone suite, matrix setup, tests and README. Approved domain: official SDK-pinned FAST mainnet and Base chain 8453. Earlier harness network and independently provisioned committee requirements are superseded, without altering production verification or establishing membership independently of RPC.
-
-`rpcTrustConfig(ENV)` requires live opt-in plus X402_MAINNET_SPENDING=1, pinned FAST mainnet URL, HTTPS Base RPC, controlled recipients and positive bounded facilitator funding; committee keys are not required or returned. Payer must differ from recipient/facilitator; those two EVM wallets may coincide. Existing key syntax/derived-address/chain/decimals checks remain. Both FAST suites use the unchanged empty-committee path requiring at least three valid distinct signatures. Production verifier remains contract-only; its optional lookup does not replace the mandatory case-level confirmation. The standalone suite additionally requires its own live opt-in.
-
-```k
-claim <k> readLiveConfig(ENV) => rpcTrustConfig(ENV) ... </k>
-  requires validRpcTrustHarnessInputs(ENV) [all-path]
-claim <k> readLiveConfig(ENV) => null ... </k>
-  <payments> 0 => 0 </payments>
-  requires ENV.liveMatrix =/=K "1" [all-path]
-claim <k> readLiveConfig(ENV) => error ... </k>
-  <payments> 0 => 0 </payments>
-  requires optedIn(ENV) andBool notBool validRpcTrustHarnessInputs(ENV) [all-path]
-claim <k> matrixFastCase(C) => confirmedCase(C) ... </k>
-  requires successfulPaidResponse(C) andBool mandatoryChecksSucceed(C)
-    andBool rpcIsAuthoritative(C)
-  ensures separatelyFetchedCertificatePresent andBool fetchedSenderNonceMatch
-    andBool computedFetchedHash ==K localSubmittedHash
-    andBool fetchedSignatureCount >=Int 3
-    andBool recipientDelta ==Int 1000 [all-path]
-claim <k> matrixFastCase(C) => failedCase ... </k>
-  <completed> N => N </completed>
-  requires mandatoryPostPaymentRpcFailure(C) [all-path]
-claim <k> matrixBaseCase(C) => confirmedCase(C) ... </k>
-  requires successfulPaidResponse(C) andBool mandatoryChecksSucceed(C)
-    andBool rpcIsAuthoritative(C)
-  ensures receiptSuccessful andBool creditBlock ==K receiptBlock
-    andBool recipientDelta ==Int 1000 [all-path]
-```
-
-The last claim concerns failure of the mandatory case-level confirmation, not the optional verifier lookup. Case-level lookup/hash/balance failures are not caught or skipped; cleanup runs in finally and completion increment remains after all assertions. This is partial correctness of gate evidence, not a statement that a failed case spent no funds: confirmation happens after the authorized payment. The same RPC supplies fetched certificate and balance; hash recomputation is a separate calculation but not an independently authenticated network authority.
-
-No loops/recursion changed. Reuse existing fixed-eight-case prefix circularity with strengthened premise `confirmedPrefixCount` meaning RPC-trust-confirmed cases in the new authorized domain. The standalone suite remains excluded from ordinary tests and is not the publication gate. All live financial outcomes, endpoint authenticity/availability, TLS/provider semantics and historical matrix success remain external open obligations; no new replay/trust architecture, live payment or machine proof is claimed.

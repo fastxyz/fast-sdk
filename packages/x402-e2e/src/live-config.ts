@@ -21,18 +21,12 @@ export function readLiveConfig(env: NodeJS.ProcessEnv) {
   if (fastRpcUrl !== testnet.url) throw new Error('FAST_TEST_RPC_URL must match the SDK pinned testnet URL');
   const baseRpcUrl = required('BASE_SEPOLIA_RPC_URL');
   if (new URL(baseRpcUrl).protocol !== 'https:') throw new Error('Base Sepolia RPC must use HTTPS');
-  const committeePublicKeys = required('FAST_TEST_COMMITTEE_PUBLIC_KEYS')
-    .split(',')
-    .map((v) => v.trim());
-  if (committeePublicKeys.some((v) => !/^(?:0x)?[a-fA-F0-9]{64}$/.test(v)))
-    throw new Error('Trusted committee keys must be nonempty 32-byte hex keys');
   const gasBudget = required('X402_MAX_FACILITATOR_ETH_WEI');
   if (!/^\d+$/.test(gasBudget) || BigInt(gasBudget) === 0n) throw new Error('Facilitator gas budget must be positive wei');
   if (required('X402_CONTROLLED_RECIPIENTS') !== '1') throw new Error('Confirm operator-controlled recipients with X402_CONTROLLED_RECIPIENTS=1');
   const config = {
     fastRpcUrl,
     baseRpcUrl,
-    committeePublicKeys,
     maxFacilitatorEthWei: BigInt(gasBudget),
     fastPayerKey: key('FAST_TEST_SIGNER_PRIVATE_KEY'),
     fastRecipientKey: key('FAST_TEST_RECIPIENT_PRIVATE_KEY'),

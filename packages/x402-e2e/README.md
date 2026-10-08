@@ -28,7 +28,6 @@ Only run after explicitly authorizing these testnet transfers. Supply environmen
 | `FAST_TEST_RPC_URL`                    | `https://testnet.api.fast.xyz/proxy-rest`, pinned to `@fastxyz/sdk/networks` `testnet.url` |
 | `FAST_TEST_SIGNER_PRIVATE_KEY`         | Funded testnet USDC payer, 32-byte hex                                                     |
 | `FAST_TEST_RECIPIENT_PRIVATE_KEY`      | Separate operator-controlled recipient, not a public/fixed seed                            |
-| `FAST_TEST_COMMITTEE_PUBLIC_KEYS`      | Nonempty comma-separated independently trusted 32-byte hex committee keys                  |
 | `BASE_SEPOLIA_RPC_URL`                 | HTTPS RPC; remote chain ID must equal 84532 before any payment                             |
 | `BASE_SEPOLIA_PAYER_PRIVATE_KEY`       | Funded Base Sepolia USDC payer                                                             |
 | `BASE_SEPOLIA_RECIPIENT_PRIVATE_KEY`   | Separate operator-controlled recipient                                                     |
@@ -36,7 +35,9 @@ Only run after explicitly authorizing these testnet transfers. Supply environmen
 | `X402_CONTROLLED_RECIPIENTS`           | `1`, confirms ownership/control of both recipients                                         |
 | `X402_MAX_FACILITATOR_ETH_WEI`         | Positive maximum permitted balance of the limited gas wallet, in wei                       |
 
-Private keys accept a single optional `0x` prefix. Payer/recipient keys must be distinct; all three EVM wallets must be distinct. Provision the facilitator with only the ETH you authorize spending; its on-chain balance must be positive and no greater than your configured ceiling before each case. This bounds funds at risk in that wallet, not a promised per-transaction gas price. Do not refill it during a run. Fast transaction fees are additional: similarly limit funds in the Fast payer. Trusted committee keys are operator-provided, not fetched from an untrusted RPC.
+Private keys accept a single optional `0x` prefix. Payer/recipient keys must be distinct; all three EVM wallets must be distinct. Provision the facilitator with only the ETH you authorize spending; its on-chain balance must be positive and no greater than your configured ceiling before each case. This bounds funds at risk in that wallet, not a promised per-transaction gas price. Do not refill it during a run. Fast transaction fees are additional: similarly limit funds in the Fast payer.
+
+This compatibility harness trusts the pinned official Fast testnet RPC as its network authority and does not require independently provisioned committee keys. It uses the facilitator's existing RPC-trust path (which emits a warning), without changing production verification. A Fast matrix case is counted only after the separate RPC certificate lookup succeeds, its independently recomputed transaction hash matches the paid result, and the recipient balance increases by exactly 1000 units. RPC errors, missing certificates, mismatched hashes, or balance failures fail the gate; they are never skipped. This tests compatibility, not independent validator-membership authentication. The older standalone Fast suite is still not the publication gate.
 
 Base Sepolia USDC is `0x036CbD53842c5426634e7929541eC2318f3dCF7e`, with EIP-712 name `USDC`, version `2`. Fast token ID is `0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46`. Both token decimals are independently checked before payment.
 

@@ -85,7 +85,10 @@ describe.skipIf(!config).sequential('published 1.0 × candidate 1.1 live compati
         app.use(
           createFacilitatorServer({
             debug: false,
-            fastNetworks: { 'fast-testnet': { rpcUrl: cfg.fastRpcUrl, committeePublicKeys: cfg.committeePublicKeys } },
+            // Compatibility gate trusts the pinned official testnet RPC, not a
+            // separately provisioned committee. The mandatory certificate/hash
+            // and balance checks below must succeed before this case is counted.
+            fastNetworks: { 'fast-testnet': { rpcUrl: cfg.fastRpcUrl, committeePublicKeys: [] } },
             evmPrivateKey: cfg.evmFacilitatorKey,
             evmChains: { 'base-sepolia': { chain: baseSepolia, rpcUrl: cfg.baseRpcUrl, usdcAddress: usdc, usdcName: 'USDC', usdcVersion: '2' } },
           }),

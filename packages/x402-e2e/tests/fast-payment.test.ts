@@ -51,22 +51,11 @@ function closeServer(server: Server): Promise<void> {
 // ─── Test Suite ──────────────────────────────────────────────────────────────
 
 const skip = process.env.X402_LIVE_FAST !== '1';
-if (
-  !skip &&
-  (!FAST_TEST_RPC_URL ||
-    !FAST_TEST_SIGNER_PRIVATE_KEY ||
-    !process.env.FAST_TEST_RECIPIENT_PRIVATE_KEY ||
-    !process.env.FAST_TEST_COMMITTEE_PUBLIC_KEYS)
-) {
-  throw new Error('Explicit live Fast opt-in requires RPC, payer, controlled recipient key and trusted committee keys');
+if (!skip && (!FAST_TEST_RPC_URL || !FAST_TEST_SIGNER_PRIVATE_KEY || !process.env.FAST_TEST_RECIPIENT_PRIVATE_KEY)) {
+  throw new Error('Explicit live Fast opt-in requires RPC, payer and controlled recipient key');
 }
-if (
-  !skip &&
-  (FAST_TEST_RPC_URL !== testnet.url ||
-    process.env.X402_CONTROLLED_RECIPIENTS !== '1' ||
-    process.env.FAST_TEST_COMMITTEE_PUBLIC_KEYS!.split(',').some((key) => !/^(?:0x)?[a-fA-F0-9]{64}$/.test(key.trim())))
-) {
-  throw new Error('Live Fast requires pinned testnet RPC, controlled recipient confirmation and nonempty trusted committee keys');
+if (!skip && (FAST_TEST_RPC_URL !== testnet.url || process.env.X402_CONTROLLED_RECIPIENTS !== '1')) {
+  throw new Error('Live Fast requires pinned testnet RPC and controlled recipient confirmation');
 }
 
 describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
@@ -108,7 +97,7 @@ describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
       fastNetworks: {
         [NETWORK]: {
           rpcUrl: FAST_TEST_RPC_URL!,
-          committeePublicKeys: process.env.FAST_TEST_COMMITTEE_PUBLIC_KEYS!.split(',').map((key) => key.trim()),
+          committeePublicKeys: [],
         },
       },
       debug: false,

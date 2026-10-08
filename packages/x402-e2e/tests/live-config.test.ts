@@ -6,7 +6,6 @@ const valid = {
   X402_LIVE_MATRIX: '1',
   FAST_TEST_RPC_URL: testnet.url,
   BASE_SEPOLIA_RPC_URL: 'https://example.invalid',
-  FAST_TEST_COMMITTEE_PUBLIC_KEYS: 'ab'.repeat(32),
   X402_CONTROLLED_RECIPIENTS: '1',
   X402_MAX_FACILITATOR_ETH_WEI: '10000',
   FAST_TEST_SIGNER_PRIVATE_KEY: '11'.repeat(32),
@@ -32,8 +31,11 @@ describe('live payment safety (no network or credentials)', () => {
     expect(readLiveConfig(valid)?.fastPayerKey).toBe(`0x${valid.FAST_TEST_SIGNER_PRIVATE_KEY}`);
     expect(() => readLiveConfig({ ...valid, FAST_TEST_RPC_URL: 'https://mainnet.invalid' })).toThrow(/pinned/);
   });
-  it('rejects empty trusted committee and unconfirmed recipient ownership', () => {
-    expect(() => readLiveConfig({ ...valid, FAST_TEST_COMMITTEE_PUBLIC_KEYS: ',' })).toThrow(/nonempty/);
+  it('uses the pinned official RPC without requiring separately provisioned committee keys', () => {
+    expect(readLiveConfig(valid)?.fastRpcUrl).toBe(testnet.url);
+    expect(readLiveConfig(valid)).not.toHaveProperty('committeePublicKeys');
+  });
+  it('rejects unconfirmed recipient ownership', () => {
     expect(() => readLiveConfig({ ...valid, X402_CONTROLLED_RECIPIENTS: '0' })).toThrow(/controlled/);
   });
   it('requires separate payer, recipient and limited facilitator wallets', () => {

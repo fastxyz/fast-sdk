@@ -65,7 +65,7 @@ supplied plan cannot be included in a `fast-sdk` PR; they are separate follow-up
 actions, not changes made by #184. Shop and marketplace implementation remains
 Release 2, with merchant PRs last as requested.
 
-Local verification: client 79 tests, server 34, facilitator 83, CLI v2 dry-run 4,
+Local verification: client 79 tests, server 37, facilitator 83, CLI v2 dry-run 4,
 and live-harness safety 6. Consumer results and their limitations are recorded in
 [`drop-in-evidence.md`](./drop-in-evidence.md). The live and complete drop-in
 publishing gates above remain open.

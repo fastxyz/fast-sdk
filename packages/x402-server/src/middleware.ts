@@ -136,7 +136,7 @@ export function paymentMiddleware(payTo: PayToConfig, routes: RoutesConfig, faci
     }
 
     if (!paymentHeader) {
-      log(`← 402 Payment Required (no X-PAYMENT header)`, opts);
+      log(`← 402 Payment Required (no PAYMENT-SIGNATURE or X-PAYMENT header)`, opts);
       try {
         const paymentRequired = createPaymentRequired(resolvedPayTo, routeConfig, req.path);
         try {
@@ -155,7 +155,7 @@ export function paymentMiddleware(payTo: PayToConfig, routes: RoutesConfig, faci
       }
     }
 
-    log(`  X-PAYMENT header present (${paymentHeader.length} chars)`, opts);
+    log(`  ${nativeHeader !== undefined ? 'PAYMENT-SIGNATURE' : 'X-PAYMENT'} header present (${paymentHeader.length} chars)`, opts);
 
     const paymentRequirement = createPaymentRequirement(resolvedPayTo, routeConfig, req.path);
 

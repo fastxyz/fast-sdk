@@ -22,6 +22,25 @@ function response() {
   };
 }
 afterEach(() => vi.unstubAllGlobals());
+it.each(['PAYMENT-SIGNATURE', 'X-PAYMENT', undefined])('logs the selected payment header %s accurately', async (name) => {
+  const output = vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ isValid: true, network: 'fast-testnet' }) }));
+  const header =
+    name === 'PAYMENT-SIGNATURE'
+      ? encodePayload({ x402Version: 2, accepted: toV2(createPaymentRequirement('seller', route, '/data')), payload: {} })
+      : encodePayload({ x402Version: 1, scheme: 'exact', network: 'fast-testnet', payload: {} });
+  try {
+    await paymentMiddleware('seller', { '/data': route }, { url: 'http://mock' })(
+      { method: 'GET', path: '/data', header: (key) => (key === name ? header : undefined) },
+      response(),
+      () => {},
+    );
+    const logs = output.mock.calls.flat().join('\n');
+    expect(logs).toContain(name ? `${name} header present` : 'no PAYMENT-SIGNATURE or X-PAYMENT header');
+  } finally {
+    output.mockRestore();
+  }
+});
 it('advertises native upfront beside the identical legacy body', async () => {
   const res = response();
   await paymentMiddleware(

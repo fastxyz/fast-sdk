@@ -204,11 +204,11 @@ supportedEvmSelectors(X) means `(X.assetTransferMethod absent or equal "eip3009"
 
 No new loop or recursion was introduced. Reuse the existing original metadata equality/membership circularities contract-only. Whole-envelope validation remains exact/known-only for every offer: a supported alternative plus unsupported network/scheme alternative rejects the entire native header, without legacy body downgrade. This deliberately restricted Release 1 domain is now explicit in public release/types/client docs, not broadened into capability-filtered negotiation.
 
-## Harness RPC-trust domain amendment — 2026-10-08
+## Mainnet harness domain amendment — 2026-10-08
 
-Status: constructed (escalation-bounded), not machine-checked; partial correctness. Diff-scoped harness review against develop `a150bd5`, including configuration, standalone suite, matrix setup, tests and README. User-approved intent explicitly removes the independently provisioned committee-key prerequisite for compatibility testing and trusts the pinned official Fast testnet RPC. This intentionally supersedes earlier live-harness statements requiring independently trusted committee keys; it does not strengthen production verification or establish validator membership independently of RPC.
+Status: constructed (escalation-bounded), not machine-checked; partial correctness. Diff-scoped alignment against develop `a150bd5`, including configuration, standalone suite, matrix setup, tests and README. Approved domain: official SDK-pinned FAST mainnet and Base chain 8453. Earlier harness network and independently provisioned committee requirements are superseded, without altering production verification or establishing membership independently of RPC.
 
-`rpcTrustConfig(ENV)` retains explicit spending opt-in, pinned Fast testnet URL, HTTPS Base RPC, controlled distinct wallets and positive bounded facilitator funding; committee keys are not required or returned. Existing key syntax/ownership/chain/decimals assertions remain. Both harness setups select the already-existing facilitator `committeePublicKeys: []` path. Production verification code is unchanged and stays contract-only; its optional RPC lookup may be skipped on error, so that verifier alone is not the mandatory live gate evidence.
+`rpcTrustConfig(ENV)` requires live opt-in plus X402_MAINNET_SPENDING=1, pinned FAST mainnet URL, HTTPS Base RPC, controlled recipients and positive bounded facilitator funding; committee keys are not required or returned. Payer must differ from recipient/facilitator; those two EVM wallets may coincide. Existing key syntax/derived-address/chain/decimals checks remain. Both FAST suites use the unchanged empty-committee path requiring at least three valid distinct signatures. Production verifier remains contract-only; its optional lookup does not replace the mandatory case-level confirmation. The standalone suite additionally requires its own live opt-in.
 
 ```k
 claim <k> readLiveConfig(ENV) => rpcTrustConfig(ENV) ... </k>
@@ -220,13 +220,20 @@ claim <k> readLiveConfig(ENV) => error ... </k>
   <payments> 0 => 0 </payments>
   requires optedIn(ENV) andBool notBool validRpcTrustHarnessInputs(ENV) [all-path]
 claim <k> matrixFastCase(C) => confirmedCase(C) ... </k>
-  requires validRpcTrustHarnessConfig(C) andBool rpcIsAuthoritative(C)
+  requires successfulPaidResponse(C) andBool mandatoryChecksSucceed(C)
+    andBool rpcIsAuthoritative(C)
   ensures separatelyFetchedCertificatePresent andBool fetchedSenderNonceMatch
     andBool computedFetchedHash ==K localSubmittedHash
+    andBool fetchedSignatureCount >=Int 3
     andBool recipientDelta ==Int 1000 [all-path]
 claim <k> matrixFastCase(C) => failedCase ... </k>
   <completed> N => N </completed>
   requires mandatoryPostPaymentRpcFailure(C) [all-path]
+claim <k> matrixBaseCase(C) => confirmedCase(C) ... </k>
+  requires successfulPaidResponse(C) andBool mandatoryChecksSucceed(C)
+    andBool rpcIsAuthoritative(C)
+  ensures receiptSuccessful andBool creditBlock ==K receiptBlock
+    andBool recipientDelta ==Int 1000 [all-path]
 ```
 
 The last claim concerns failure of the mandatory case-level confirmation, not the optional verifier lookup. Case-level lookup/hash/balance failures are not caught or skipped; cleanup runs in finally and completion increment remains after all assertions. This is partial correctness of gate evidence, not a statement that a failed case spent no funds: confirmation happens after the authorized payment. The same RPC supplies fetched certificate and balance; hash recomputation is a separate calculation but not an independently authenticated network authority.

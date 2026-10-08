@@ -11,6 +11,7 @@ import { bcsSchema, VersionedTransactionFromBcs } from '@fastxyz/schema';
 import type { VersionedTransaction, NetworkId } from '@fastxyz/schema';
 import { Schema } from 'effect';
 import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResult } from './types.js';
+import { validateRequestedProtocol, requestedPaymentPayload } from './protocol.js';
 
 // ─── Cached Providers ─────────────────────────────────────────────────────────
 
@@ -62,9 +63,12 @@ export function stringifyPaymentPayload(data: unknown): string {
  */
 function resolveNetworkId(network: string): NetworkId {
   switch (network) {
-    case 'fast-mainnet': return 'fast:mainnet';
-    case 'fast-testnet': return 'fast:testnet';
-    default: throw new Error(`Unknown Fast network: "${network}"`);
+    case 'fast-mainnet':
+      return 'fast:mainnet';
+    case 'fast-testnet':
+      return 'fast:testnet';
+    default:
+      throw new Error(`Unknown Fast network: "${network}"`);
   }
 }
 
@@ -82,6 +86,7 @@ export async function handleFastPayment(
   verbose: boolean = false,
   logs: string[] = [],
 ): Promise<X402PayResult> {
+  validateRequestedProtocol(paymentRequired, fastReq);
   const log = (msg: string) => {
     if (verbose) {
       logs.push(`[${new Date().toISOString()}] ${msg}`);
@@ -175,13 +180,14 @@ export async function handleFastPayment(
     },
   };
 
-  const payloadBase64 = Buffer.from(stringifyPaymentPayload(paymentPayload)).toString('base64');
+  const payloadBase64 = Buffer.from(stringifyPaymentPayload(requestedPaymentPayload(paymentRequired, fastReq, paymentPayload))).toString('base64');
   log(`  Payload base64 length: ${payloadBase64.length}`);
 
-  log(`[Fast] Sending paid request with X-PAYMENT header...`);
+  const paymentHeader = paymentRequired.x402Version === 2 ? 'PAYMENT-SIGNATURE' : 'X-PAYMENT';
+  log(`[Fast] Sending paid request with ${paymentHeader} header...`);
   const paidRes = await fetch(url, {
     method,
-    headers: { ...customHeaders, 'X-PAYMENT': payloadBase64 },
+    headers: { ...customHeaders, [paymentHeader]: payloadBase64 },
     body: requestBody,
   });
   log(`  Response: ${paidRes.status} ${paidRes.statusText}`);
@@ -209,6 +215,8 @@ export async function handleFastPayment(
       network: fastReq.network,
       amount: fastReq.maxAmountRequired,
       recipient: fastReq.payTo,
+      // Upfront Fast already has a certificate-derived identity; seller receipts
+      // cannot rename that transfer (including on an unsuccessful paid response).
       txHash,
       asset: fastReq.asset,
     },

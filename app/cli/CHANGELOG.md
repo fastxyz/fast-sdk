@@ -1,5 +1,18 @@
 # @fastxyz/cli
 
+## 1.6.0
+
+### Minor Changes
+
+- 303da43: `fast send` accepts Fast ID names (e.g. `alice.smith`) as recipients. The CLI resolves the name on the current network (mainnet or testnet) before signing, shows `alice.smith (fast1…)` in the confirmation and adds `toName` to `--json` output. Resolution fails closed: unregistered names exit with `INVALID_ADDRESS`, registry errors with `FAST_ID_RESOLUTION_FAILED`, and nothing is sent. Names are rejected with `--to-chain`. `@fastxyz/fastid-sdk` adds `IdReader`, a signer-free client for public identity reads, and exports `isCanonicalName`. Closes #163.
+- 3c508f3: Add `fast request <amount> [--to <fast1…|name>] [--qr] [--qr-file <path.svg>] [--wait [--timeout <seconds>]]`, which creates a payment-request link: an `https://app.fast.xyz/send?to=…&amount=…` URL that opens the Fast app's Send screen with the recipient and amount filled in. `--to` defaults to the active account (a multisig wallet resolves to its wallet address) and also accepts a Fast ID name, resolved first and kept as the name in the link (`toName` in `--json`), the amount is a positive fastUSD decimal with at most 6 decimal places, and the command is mainnet only (`INVALID_USAGE` elsewhere). Invalid input exits with `INVALID_AMOUNT` or `INVALID_ADDRESS`. `--json` returns `{ url, address, amount, token, network, createdAt }`, plus `qrFile` with `--qr-file`, which writes an SVG QR code. `--qr` prints a terminal QR code (on stderr with `--json`). Nothing is signed or sent, and it makes no network calls unless `--to` is a Fast ID name (resolved on the registry) or `--wait` is set. `--wait [--timeout <seconds>]` (default 300 s, at most 2147483 s, about 24 days) then blocks until the payee receives exactly that amount from someone else after the request was created, returning it as `payment`, or fails with `PAYMENT_TIMEOUT`. The CLI now depends on `qrcode`. Closes #161.
+- 0ccc716: `fast info history` now shows payments received from other accounts and EVM → Fast deposits: it reads the selected account's transfers from the network's explorer API (`explorerApiUrl`, bundled for mainnet and testnet) and merges them with the local history, newest first. New `--direction in|out|all`; each row gains `direction` (`in`/`out`/`self`) and `source` (`network`/`local`), and `--json` adds `account` and `warnings`. When the explorer cannot be read, the command still returns local history and reports why in `warnings`. The listing is now scoped to the selected account; `--local` keeps the previous behaviour (local log only, every local account, no explorer lookup). New `fast wait-for-payment --amount <x> [--token] [--from] [--to] [--since] [--timeout]` blocks until a matching incoming payment arrives (exact amount and token), or exits with `PAYMENT_TIMEOUT`. Token symbols now also resolve case-insensitively, as SPEC §7 describes (`--token usdc` works like `USDC`, in `send` too). Closes #162.
+
+### Patch Changes
+
+- 4206c57: Usage errors now find the command after global options that take a value: `fast --network mainnet send` reports the missing `<address>` instead of "Unknown command 'mainnet'", and the same holds for `--account` and `--password`.
+- f4fbc77: `fast wait-for-payment --timeout` (and `fast request --wait --timeout`) now accepts at most 2147483 seconds (about 24 days) and rejects longer values with `INVALID_USAGE`. Past that, the delay exceeds what the runtime's timers support, so the timeout never fired and the command waited forever.
+
 ## 1.5.0
 
 ### Minor Changes

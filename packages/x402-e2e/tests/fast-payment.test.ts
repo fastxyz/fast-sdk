@@ -5,7 +5,7 @@
  * then uses x402Pay() to exercise the full 402 payment flow
  * against the real Fast testnet.
  *
- * Requires .env at repo root with:
+ * Requires explicit X402_LIVE_FAST=1 and externally provided environment with:
  *   FAST_TEST_RPC_URL=...
  *   FAST_TEST_SIGNER_PRIVATE_KEY=...
  */
@@ -13,9 +13,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import express from 'express';
 import type { Server } from 'node:http';
-import { resolve } from 'node:path';
-import { config as loadEnv } from 'dotenv';
 import { Signer, toFastAddress, toHex } from '@fastxyz/sdk';
+import { testnet } from '@fastxyz/sdk/networks';
 import { createFacilitatorServer } from '@fastxyz/x402-facilitator';
 import { paymentMiddleware } from '@fastxyz/x402-server';
 import { x402Pay } from '@fastxyz/x402-client';
@@ -23,17 +22,12 @@ import type { FacilitatorConfig } from '@fastxyz/x402-facilitator';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-loadEnv({ path: resolve(import.meta.dirname, '../../..', '.env') });
-
 const FAST_TEST_RPC_URL = process.env.FAST_TEST_RPC_URL;
 const FAST_TEST_SIGNER_PRIVATE_KEY = process.env.FAST_TEST_SIGNER_PRIVATE_KEY;
 
 const FAST_TESTNET_USDC_TOKEN_ID = '0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46';
 const PAYMENT_PRICE = '$0.001';
 const NETWORK = 'fast-testnet';
-
-// Deterministic recipient — derived from a fixed seed (not the test wallet)
-const RECIPIENT_SEED = '0101010101010101010101010101010101010101010101010101010101010101';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -56,7 +50,24 @@ function closeServer(server: Server): Promise<void> {
 
 // ─── Test Suite ──────────────────────────────────────────────────────────────
 
-const skip = !FAST_TEST_RPC_URL || !FAST_TEST_SIGNER_PRIVATE_KEY;
+const skip = process.env.X402_LIVE_FAST !== '1';
+if (
+  !skip &&
+  (!FAST_TEST_RPC_URL ||
+    !FAST_TEST_SIGNER_PRIVATE_KEY ||
+    !process.env.FAST_TEST_RECIPIENT_PRIVATE_KEY ||
+    !process.env.FAST_TEST_COMMITTEE_PUBLIC_KEYS)
+) {
+  throw new Error('Explicit live Fast opt-in requires RPC, payer, controlled recipient key and trusted committee keys');
+}
+if (
+  !skip &&
+  (FAST_TEST_RPC_URL !== testnet.url ||
+    process.env.X402_CONTROLLED_RECIPIENTS !== '1' ||
+    process.env.FAST_TEST_COMMITTEE_PUBLIC_KEYS!.split(',').some((key) => !/^(?:0x)?[a-fA-F0-9]{64}$/.test(key.trim())))
+) {
+  throw new Error('Live Fast requires pinned testnet RPC, controlled recipient confirmation and nonempty trusted committee keys');
+}
 
 describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
   let facilitatorServer: Server;
@@ -80,23 +91,24 @@ describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
 
     fastWallet = {
       type: 'fast',
-      privateKey: `0x${FAST_TEST_SIGNER_PRIVATE_KEY!}`,
+      privateKey: `0x${FAST_TEST_SIGNER_PRIVATE_KEY!.replace(/^0x/, '')}`,
       publicKey: toHex(payerPublicKey),
       address: payerAddress,
       rpcUrl: FAST_TEST_RPC_URL!,
     };
 
     // ── Derive recipient address ──
-    const recipientSigner = new Signer(RECIPIENT_SEED);
+    const recipientSigner = new Signer(process.env.FAST_TEST_RECIPIENT_PRIVATE_KEY!);
     const recipientPublicKey = await recipientSigner.getPublicKey();
     recipientAddress = toFastAddress(recipientPublicKey);
+    expect(recipientAddress).not.toBe(payerAddress);
 
     // ── Start facilitator server ──
     const facilitatorConfig: FacilitatorConfig = {
       fastNetworks: {
         [NETWORK]: {
           rpcUrl: FAST_TEST_RPC_URL!,
-          committeePublicKeys: [],
+          committeePublicKeys: process.env.FAST_TEST_COMMITTEE_PUBLIC_KEYS!.split(',').map((key) => key.trim()),
         },
       },
       debug: false,
@@ -148,10 +160,7 @@ describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
   }, 30_000);
 
   afterAll(async () => {
-    await Promise.all([
-      contentServer && closeServer(contentServer),
-      facilitatorServer && closeServer(facilitatorServer),
-    ]);
+    await Promise.all([contentServer && closeServer(contentServer), facilitatorServer && closeServer(facilitatorServer)]);
   });
 
   it('returns 200 for unprotected routes', async () => {
@@ -187,31 +196,27 @@ describe.skipIf(skip)('x402 E2E — Fast testnet payment flow', () => {
     expect(BigInt(req.maxAmountRequired)).toBe(1000n); // $0.001 = 1000 raw (6 decimals)
   });
 
-  it(
-    'completes full payment flow via x402Pay',
-    async () => {
-      const result = await x402Pay({
-        url: `http://127.0.0.1:${contentPort}/premium`,
-        method: 'GET',
-        wallet: fastWallet,
-        verbose: true,
-      });
+  it('completes full payment flow via x402Pay', async () => {
+    const result = await x402Pay({
+      url: `http://127.0.0.1:${contentPort}/premium`,
+      method: 'GET',
+      wallet: fastWallet,
+      verbose: true,
+    });
 
-      // Payment succeeded
-      expect(result.success).toBe(true);
-      expect(result.statusCode).toBe(200);
+    // Payment succeeded
+    expect(result.success).toBe(true);
+    expect(result.statusCode).toBe(200);
 
-      // Content delivered
-      expect(result.body).toEqual({ message: 'premium content', secret: 42 });
+    // Content delivered
+    expect(result.body).toEqual({ message: 'premium content', secret: 42 });
 
-      // Payment details
-      expect(result.payment).toBeDefined();
-      expect(result.payment!.network).toBe(NETWORK);
-      expect(result.payment!.recipient).toBe(recipientAddress);
-      expect(result.payment!.txHash).toBeTruthy();
-      expect(typeof result.payment!.txHash).toBe('string');
-      expect(result.payment!.amount).toBe('0.001');
-    },
-    60_000,
-  );
+    // Payment details
+    expect(result.payment).toBeDefined();
+    expect(result.payment!.network).toBe(NETWORK);
+    expect(result.payment!.recipient).toBe(recipientAddress);
+    expect(result.payment!.txHash).toBeTruthy();
+    expect(typeof result.payment!.txHash).toBe('string');
+    expect(result.payment!.amount).toBe('1000');
+  }, 60_000);
 });

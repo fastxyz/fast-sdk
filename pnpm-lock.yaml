@@ -320,27 +320,36 @@ importers:
 
   packages/x402-e2e:
     dependencies:
+      '@fastxyz/schema':
+        specifier: workspace:*
+        version: link:../fast-schema
       '@fastxyz/sdk':
         specifier: workspace:*
         version: link:../fast-sdk
       '@fastxyz/x402-client':
         specifier: workspace:*
         version: link:../x402-client
+      '@fastxyz/x402-client-v1':
+        specifier: npm:@fastxyz/x402-client@1.0.10
+        version: '@fastxyz/x402-client@1.0.10(typescript@6.0.2)'
       '@fastxyz/x402-facilitator':
         specifier: workspace:*
         version: link:../x402-facilitator
       '@fastxyz/x402-server':
         specifier: workspace:*
         version: link:../x402-server
+      '@fastxyz/x402-server-v1':
+        specifier: npm:@fastxyz/x402-server@1.0.1
+        version: '@fastxyz/x402-server@1.0.1(express@4.22.1)'
       '@fastxyz/x402-types':
         specifier: workspace:*
         version: link:../x402-types
-      dotenv:
-        specifier: ^16.5.0
-        version: 16.6.1
       express:
         specifier: ^4.21.2
         version: 4.22.1
+      viem:
+        specifier: ^2.46.3
+        version: 2.47.6(typescript@6.0.2)
     devDependencies:
       '@types/express':
         specifier: ^4.17.21
@@ -1347,12 +1356,34 @@ packages:
     resolution: {integrity: sha512-iH1B076HoAshH1mLpHMgwdGeTs0CYwL0SPMkGuSebZrwBp16v415e9NZXg2jtrqPVQjf6IANe2Vtlr5KswtcZQ==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
+  '@fastxyz/allset-sdk@1.3.0':
+    resolution: {integrity: sha512-7oDf4okgNWwAJFIEZq628XkqGqH29dM/LU3oLTUNqBgCQQVv7SBIqoMGSzcnFqSnGMZ3lHzud9kRMbnzIM8xKg==}
+    engines: {node: '>=20'}
+
   '@fastxyz/schema@2.0.0':
     resolution: {integrity: sha512-aMMMoZJtJVQJCn+ER5Ec/Pdj5meSmqwbNjEHpwJy32PgiwJPoyDcXOCV7SU8igDUK5dDVEWQIm9WpJabtcN9PA==}
 
   '@fastxyz/sdk@2.3.1':
     resolution: {integrity: sha512-UaY1XbPGrT2RXWnNMtfrinF10OFCHRZuLiGPH1g+JEjxioPJCXxbCc0uhK38NdZmDfVLlEAVQfHs7gISLeVWCw==}
     engines: {node: '>=20'}
+
+  '@fastxyz/sdk@2.4.0':
+    resolution: {integrity: sha512-ETH+cMBsTYf7yOiOcq8NeTj+VIgudfH6WcbSBOI4rh4d9aRi//fioSloIP0kHiYdYBMwgNNsYpSQnIYMLIHLmA==}
+    engines: {node: '>=20'}
+
+  '@fastxyz/x402-client@1.0.10':
+    resolution: {integrity: sha512-wL7EKI+Nvce0tSt/cjE4+2WxzTLpn41rTPe8lq1AXGZXTYWyhhIV38dtGV1OiEW9wBvgcAfYdcPzFCj11D5hdA==}
+
+  '@fastxyz/x402-server@1.0.1':
+    resolution: {integrity: sha512-XKmAZTNk3qTC5fzDTuDcYFg0UEBO4B9I1kqCmj6nfOuEZriA2D8jTSw0uOOSwjfDTjjs5Anm92TrAl93jQ04jw==}
+    peerDependencies:
+      express: '>=4'
+    peerDependenciesMeta:
+      express:
+        optional: true
+
+  '@fastxyz/x402-types@1.0.1':
+    resolution: {integrity: sha512-cQS6IG9QvXkHy9EK3P+Er5FhA58ySejeeWVXSok4SovCumZj+qnk03rVMZyUeTyHyXTtoodJKc09qIjL6hf5RA==}
 
   '@hpke/common@1.10.1':
     resolution: {integrity: sha512-moJwhmtLtuxiUzzNp1jpfBfx8yefKoO9D/RCR9dmwrnc7qjJqId1rEtQz+lSlU5cabX8daToMSx/7HayXOiaFw==}
@@ -2270,10 +2301,6 @@ packages:
   dir-glob@3.0.1:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
     engines: {node: '>=8'}
-
-  dotenv@16.6.1:
-    resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
-    engines: {node: '>=12'}
 
   drizzle-kit@0.31.10:
     resolution: {integrity: sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw==}
@@ -4528,6 +4555,23 @@ snapshots:
       '@eslint/core': 1.1.1
       levn: 0.4.1
 
+  '@fastxyz/allset-sdk@1.3.0(typescript@6.0.2)':
+    dependencies:
+      '@fastxyz/schema': 2.0.0
+      '@fastxyz/sdk': 2.4.0
+      '@mysten/bcs': 2.0.3
+      '@noble/ed25519': 3.0.1
+      '@noble/hashes': 2.0.1
+      bech32: 2.0.0
+      effect: 3.21.4
+      json-with-bigint: 3.5.8
+      viem: 2.47.6(typescript@6.0.2)
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
+
   '@fastxyz/schema@2.0.0':
     dependencies:
       '@mysten/bcs': 2.0.3
@@ -4544,6 +4588,39 @@ snapshots:
       bech32: 2.0.0
       effect: 3.21.4
       json-with-bigint: 3.5.8
+
+  '@fastxyz/sdk@2.4.0':
+    dependencies:
+      '@fastxyz/schema': 2.0.0
+      '@hpke/core': 1.9.0
+      '@mysten/bcs': 2.0.3
+      '@noble/ed25519': 3.0.1
+      '@noble/hashes': 2.0.1
+      bech32: 2.0.0
+      effect: 3.21.4
+      json-with-bigint: 3.5.8
+
+  '@fastxyz/x402-client@1.0.10(typescript@6.0.2)':
+    dependencies:
+      '@fastxyz/allset-sdk': 1.3.0(typescript@6.0.2)
+      '@fastxyz/schema': 2.0.0
+      '@fastxyz/sdk': 2.4.0
+      '@fastxyz/x402-types': 1.0.1
+      effect: 3.21.4
+      viem: 2.47.6(typescript@6.0.2)
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
+
+  '@fastxyz/x402-server@1.0.1(express@4.22.1)':
+    dependencies:
+      '@fastxyz/x402-types': 1.0.1
+    optionalDependencies:
+      express: 4.22.1
+
+  '@fastxyz/x402-types@1.0.1': {}
 
   '@hpke/common@1.10.1': {}
 
@@ -5350,8 +5427,6 @@ snapshots:
   dir-glob@3.0.1:
     dependencies:
       path-type: 4.0.0
-
-  dotenv@16.6.1: {}
 
   drizzle-kit@0.31.10:
     dependencies:

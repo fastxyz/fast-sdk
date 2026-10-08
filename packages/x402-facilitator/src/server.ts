@@ -6,7 +6,8 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import type { PaymentPayload, SupportedPaymentKind } from '@fastxyz/x402-types';
+import { toCanonicalNetwork, type PaymentPayload, type PaymentPayloadV2, type SupportedPaymentKind } from '@fastxyz/x402-types';
+import { privateKeyToAccount } from 'viem/accounts';
 import type { FacilitatorConfig } from './types.js';
 import { verify } from './verify.js';
 import { settle } from './settle.js';
@@ -16,22 +17,10 @@ function log(message: string, config?: FacilitatorConfig): void {
   console.log(`[x402-facilitator] ${message}`);
 }
 
-/**
- * JSON.parse reviver that converts numeric strings to BigInt when they look like
- * large integers (used for timestamp_nanos and other BigInt fields in Fast transactions).
- */
-function bigIntReviver(_key: string, value: unknown): unknown {
-  if (typeof value === 'string' && /^-?\d+$/.test(value)) {
-    const num = BigInt(value);
-    if (num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER) {
-      return num;
-    }
-  }
-  return value;
-}
-
-function parseX402Payload(json: string): PaymentPayload {
-  return JSON.parse(json, bigIntReviver) as PaymentPayload;
+/** Decode protocol JSON without changing amount or authorization string types. */
+function parseX402Payload(json: string): PaymentPayload | PaymentPayloadV2 {
+  // BCS certificate converters handle decimal strings locally; protocol strings stay strings.
+  return JSON.parse(json) as PaymentPayload | PaymentPayloadV2;
 }
 
 /**
@@ -62,7 +51,7 @@ export function createFacilitatorRoutes(config: FacilitatorConfig = {}) {
           return;
         }
 
-        let decoded: PaymentPayload;
+        let decoded: PaymentPayload | PaymentPayloadV2;
         if (typeof paymentPayload === 'string') {
           try {
             decoded = parseX402Payload(Buffer.from(paymentPayload, 'base64').toString());
@@ -78,7 +67,7 @@ export function createFacilitatorRoutes(config: FacilitatorConfig = {}) {
           decoded = paymentPayload;
         }
 
-        log(`  Network: ${decoded.network}, Scheme: ${decoded.scheme}`, config);
+        log(`  Verifying x402 v${decoded.x402Version}`, config);
         const result = await verify(decoded, paymentRequirements, config);
         log(`  ${result.isValid ? '✓' : '✗'} Verify result: ${result.isValid ? 'valid' : result.invalidReason}`, config);
         res.json(result);
@@ -111,7 +100,7 @@ export function createFacilitatorRoutes(config: FacilitatorConfig = {}) {
           return;
         }
 
-        let decoded: PaymentPayload;
+        let decoded: PaymentPayload | PaymentPayloadV2;
         if (typeof paymentPayload === 'string') {
           try {
             decoded = parseX402Payload(Buffer.from(paymentPayload, 'base64').toString());
@@ -127,7 +116,7 @@ export function createFacilitatorRoutes(config: FacilitatorConfig = {}) {
           decoded = paymentPayload;
         }
 
-        log(`  Network: ${decoded.network}, settling...`, config);
+        log(`  Settling x402 v${decoded.x402Version}`, config);
         const result = await settle(decoded, paymentRequirements, config);
         log(`  ${result.success ? '✓' : '✗'} Settle result: ${result.success ? `tx=${result.txHash?.slice(0, 20)}...` : result.errorReason}`, config);
         res.json(result);
@@ -176,7 +165,23 @@ export function createFacilitatorRoutes(config: FacilitatorConfig = {}) {
         }
       }
 
-      res.json({ paymentKinds });
+      const kinds = paymentKinds.flatMap((kind) => {
+        try {
+          return [
+            {
+              ...kind,
+              x402Version: 2,
+              network: toCanonicalNetwork(kind.network),
+              ...(kind.network.startsWith('fast') && { extra: { ...kind.extra, paymentFlow: 'upfront' } }),
+            },
+          ];
+        } catch {
+          return [];
+        }
+      });
+      const signers =
+        config.evmPrivateKey && Object.keys(config.evmChains ?? {}).length ? { 'eip155:*': [privateKeyToAccount(config.evmPrivateKey).address] } : {};
+      res.json({ paymentKinds, kinds, extensions: [], signers });
     },
   });
 

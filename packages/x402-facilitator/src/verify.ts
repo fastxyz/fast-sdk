@@ -7,7 +7,8 @@
 import { createPublicKey, verify as verifySignature } from 'node:crypto';
 import { createPublicClient, http, type Address, type Hex, parseAbi } from 'viem';
 import type { PaymentPayload, PaymentRequirement, VerifyResponse, EvmPayload, FastPayload } from '@fastxyz/x402-types';
-import { getNetworkType } from '@fastxyz/x402-types';
+import { getNetworkType, toCanonicalNetwork, type PaymentPayloadV2, type PaymentRequirementV2 } from '@fastxyz/x402-types';
+import { normalizePayment } from './normalize.js';
 import type { FacilitatorConfig, FacilitatorEvmChainConfig, FacilitatorFastNetworkConfig } from './types.js';
 import { getNetworkId } from './types.js';
 import {
@@ -73,6 +74,21 @@ function getExpectedFastNetworkId(network: string): NetworkId | null {
 // ─── Main Entry ──────────────────────────────────────────────────────────────
 
 export async function verify(
+  paymentPayload: PaymentPayload | PaymentPayloadV2,
+  paymentRequirement: PaymentRequirement | PaymentRequirementV2,
+  config: FacilitatorConfig = {},
+): Promise<VerifyResponse> {
+  let normalized;
+  try {
+    normalized = normalizePayment(paymentPayload, paymentRequirement, config);
+  } catch {
+    return { isValid: false, invalidReason: 'accepted_payment_requirement_mismatch' };
+  }
+  const result = await verifyLegacy(normalized.payload, normalized.requirement, config);
+  return paymentPayload.x402Version === 2 && result.network ? { ...result, network: toCanonicalNetwork(result.network) } : result;
+}
+
+async function verifyLegacy(
   paymentPayload: PaymentPayload,
   paymentRequirement: PaymentRequirement,
   config: FacilitatorConfig = {},

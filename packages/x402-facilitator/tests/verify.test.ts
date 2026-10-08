@@ -6,6 +6,8 @@ import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
 import type { FastTransactionCertificate } from './helpers.js';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { verify } from '../src/verify.js';
+import { settle } from '../src/settle.js';
+import { toV2 } from '@fastxyz/x402-types';
 import { bytesToHex, createFastTransactionSigningMessage, serializeFastTransaction, unwrapFastTransaction } from '../src/fast-bcs.js';
 import type { FacilitatorConfig } from '../src/types.js';
 
@@ -72,9 +74,7 @@ describe('verify', () => {
 
           const fromNonce = url.searchParams.get('from_nonce') ?? '';
           // Derive sender hex from the stored certificates lookup
-          const certificate = [...proxyCertificates.entries()].find(
-            ([key]) => key.endsWith(`:${fromNonce}`),
-          )?.[1];
+          const certificate = [...proxyCertificates.entries()].find(([key]) => key.endsWith(`:${fromNonce}`))?.[1];
 
           return new Response(
             JSON.stringify(
@@ -300,7 +300,55 @@ describe('verify', () => {
       const result = await verifyFastFixture(payload, requirement);
       expect(result.isValid).toBe(true);
       expect(result.payer).toBeDefined();
+      const config = fastVerificationConfig(certificate, payload.network);
+      const native = { x402Version: 2 as const, accepted: toV2(requirement), payload: payload.payload };
+      const nativeResult = await verify(native, toV2(requirement), config);
+      expect(nativeResult).toEqual({ ...result, network: 'fast:testnet' });
+      const legacySettlement = await settle(payload, requirement, config);
+      const nativeSettlement = await settle(native, toV2(requirement), config);
+      expect(legacySettlement.success).toBe(true);
+      expect(nativeSettlement).toEqual({ ...legacySettlement, network: 'fast:testnet' });
     });
+
+    for (const paymentFlow of ['deferred', 'authorization', undefined]) {
+      it(`rejects native Fast flow ${String(paymentFlow)} even with a valid certificate`, async () => {
+        const certificate = createFastCertificate(recipient, oneUsdcUnits, tokenId);
+        const payload: PaymentPayload = {
+          x402Version: 1,
+          scheme: 'exact',
+          network: 'fast-testnet',
+          payload: { transactionCertificate: certificate },
+        };
+        const requirement: PaymentRequirement = {
+          scheme: 'exact',
+          network: 'fast-testnet',
+          maxAmountRequired: oneUsdcUnits.toString(),
+          resource: '/api/data',
+          description: 'Test',
+          mimeType: 'application/json',
+          payTo: recipientHex,
+          maxTimeoutSeconds: 60,
+          asset: bytesToHex(tokenId),
+        };
+        const config = fastVerificationConfig(certificate, payload.network);
+        expect((await verify(payload, requirement, config)).isValid).toBe(true);
+        // Native flow gating must not reinterpret pre-existing legacy metadata.
+        const legacyTerms = { ...requirement, extra: paymentFlow === undefined ? {} : { paymentFlow } };
+        expect((await verify(payload, legacyTerms, config)).isValid).toBe(true);
+        expect((await settle(payload, legacyTerms, config)).success).toBe(true);
+        const upfront = toV2(requirement);
+        expect((await verify({ x402Version: 2, accepted: upfront, payload: payload.payload }, upfront, config)).isValid).toBe(true);
+        const unsupported = { ...upfront, extra: paymentFlow === undefined ? {} : { paymentFlow } };
+        const native = { x402Version: 2 as const, accepted: unsupported, payload: payload.payload };
+        vi.mocked(fetch).mockClear();
+        for (const input of [native, payload]) {
+          expect((await verify(input, unsupported, config)).isValid).toBe(false);
+          expect((await settle(input, unsupported, config)).success).toBe(false);
+        }
+        expect((await verify(native, requirement, config)).isValid).toBe(false);
+        expect(fetch).not.toHaveBeenCalled();
+      });
+    }
 
     it('validates a certificate in typed variant format (Effect Schema decoded form)', async () => {
       // Create a standard keyed-variant certificate first

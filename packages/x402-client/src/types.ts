@@ -3,6 +3,11 @@
  */
 
 import type { NetworkId } from '@fastxyz/schema';
+import type { PaymentRequiredV2, PaymentRequirementV2, ResourceInfoV2 } from '@fastxyz/x402-types';
+export type { PaymentRequiredV2 };
+
+/** Native v2 header requirements or the existing legacy JSON body shape. */
+export type ParsedPaymentRequired = PaymentRequired;
 
 // Re-export shared types from x402-types
 export type {
@@ -20,6 +25,7 @@ export type {
  * Parsed 402 response
  */
 export interface PaymentRequired {
+  originalV2?: PaymentRequiredV2;
   x402Version?: number;
   accepts?: PaymentRequirement[];
 }
@@ -30,6 +36,9 @@ export interface PaymentRequired {
  * PaymentRequirement, but the client only inspects a subset.
  */
 export interface ClientPaymentRequirement {
+  originalV2Requirement?: PaymentRequirementV2;
+  originalV2Resource?: ResourceInfoV2;
+  maxTimeoutSeconds?: number;
   scheme: string;
   network: string;
   maxAmountRequired: string;

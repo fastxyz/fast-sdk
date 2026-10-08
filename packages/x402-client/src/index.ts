@@ -16,9 +16,11 @@ export { handleFastPayment, stringifyPaymentPayload } from './fast.js';
 export { handleEvmPayment } from './evm.js';
 
 import { getNetworkType } from '@fastxyz/x402-types';
+import { decodePaymentRequiredHeader } from '@x402/core/http';
+import { PaymentRequiredV2Schema } from '@x402/core/schemas';
 import type { EvmChainConfig } from '@fastxyz/x402-types';
 
-import type { X402PayParams, X402PayResult, PaymentRequired, ClientPaymentRequirement, Wallet, FastWallet, EvmWallet } from './types.js';
+import type { X402PayParams, X402PayResult, PaymentRequired, ParsedPaymentRequired, ClientPaymentRequirement, Wallet, FastWallet, EvmWallet } from './types.js';
 
 import { handleFastPayment, stringifyPaymentPayload } from './fast.js';
 import { handleEvmPayment } from './evm.js';
@@ -99,7 +101,14 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
 
   // Step 2: Parse 402 response
   log(`[Step 2] Parsing 402 payment requirements...`);
-  const paymentRequired = (await initialRes.json()) as PaymentRequired;
+  const parsedPaymentRequired = await parse402Response(initialRes);
+  if (parsedPaymentRequired.x402Version === 2) {
+    throw new Error('v2 payment execution not enabled');
+  }
+  if (parsedPaymentRequired.x402Version !== undefined && parsedPaymentRequired.x402Version !== 1) {
+    throw new Error('Unsupported x402 protocol version');
+  }
+  const paymentRequired = parsedPaymentRequired as PaymentRequired;
   log(`  Payment Required: ${JSON.stringify(paymentRequired, null, 2)}`);
 
   if (!paymentRequired.accepts || paymentRequired.accepts.length === 0) {
@@ -162,10 +171,32 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
 
 /**
  * Parse a 402 response to extract payment requirements.
+ * PAYMENT-REQUIRED is authoritative when present; it must contain native v2.
+ * Encoded headers are limited to 64 KiB before decoding. The legacy body is
+ * read only when the header is absent, preserving existing v1 behavior.
  */
-export async function parse402Response(response: Response): Promise<PaymentRequired> {
+export async function parse402Response(response: Response): Promise<ParsedPaymentRequired> {
   if (response.status !== 402) {
     throw new Error(`Expected 402 response, got ${response.status}`);
+  }
+  const header = response.headers.get('PAYMENT-REQUIRED');
+  if (header !== null) {
+    // Require canonical standard base64: Buffer decoding alone accepts junk,
+    // missing padding, and nonzero pad bits. Never include server data in errors.
+    if (header.length === 0 || header.length > 64 * 1024 ||
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(header)) {
+      throw new Error('Invalid PAYMENT-REQUIRED header');
+    }
+    try {
+      if (Buffer.from(header, 'base64').toString('base64') !== header) {
+        throw new Error('Noncanonical base64');
+      }
+      const decoded = decodePaymentRequiredHeader(header);
+      PaymentRequiredV2Schema.parse(decoded);
+      return decoded;
+    } catch {
+      throw new Error('Invalid PAYMENT-REQUIRED header');
+    }
   }
   return response.json() as Promise<PaymentRequired>;
 }

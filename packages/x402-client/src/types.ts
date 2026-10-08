@@ -3,6 +3,11 @@
  */
 
 import type { NetworkId } from '@fastxyz/schema';
+import type { PaymentRequired as PaymentRequiredV2 } from '@x402/core/types';
+export type { PaymentRequiredV2 };
+
+/** Native v2 header requirements or the existing legacy JSON body shape. */
+export type ParsedPaymentRequired = PaymentRequiredV2 | PaymentRequired;
 
 // Re-export shared types from x402-types
 export type {

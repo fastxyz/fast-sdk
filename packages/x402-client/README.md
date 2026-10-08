@@ -171,9 +171,11 @@ console.log('Fast USDC balance:', balance); // bigint (smallest units)
 
 ### Low-Level Utilities
 
-#### `parse402Response(response: Response): Promise<PaymentRequired>`
+#### `parse402Response(response: Response): Promise<ParsedPaymentRequired>`
 
-Parse a raw HTTP 402 response into a typed `PaymentRequired` object. Throws if the response status is not 402.
+Parse a raw HTTP 402 response into native upstream `PaymentRequiredV2` header data or the existing legacy `PaymentRequired` JSON body. A present `PAYMENT-REQUIRED` header takes priority and leaves the body unread. Headers must be canonical standard base64, no larger than 64 KiB encoded, and satisfy the upstream v2 schema with at least one offer. Invalid headers throw without falling back to the body or exposing their contents. Throws if the response status is not 402.
+
+This is read-only v2 support: `x402Pay` rejects v2 requirements with `v2 payment execution not enabled` and rejects any other declared protocol version except numeric `1` before execution. Legacy responses with no declared version retain existing behavior. This preparatory change does not enable v2 payments.
 
 ```typescript
 import { parse402Response } from '@fastxyz/x402-client';

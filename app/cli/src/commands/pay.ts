@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { Signer, toHex } from "@fastxyz/sdk";
-import type { EvmChainConfig, EvmWallet, FastWallet } from "@fastxyz/x402-client";
+import type { EvmChainConfig, EvmWallet, FastWallet, PaymentRequired, PaymentRequiredV2 } from "@fastxyz/x402-client";
 import { Effect } from "effect";
 import type { PayArgs } from "../cli.js";
 import { InternalError, InvalidPaymentLinkError, InvalidUsageError, WalletKindMismatchError } from "../errors/index.js";
@@ -124,7 +124,10 @@ export const pay: Command<PayArgs> = {
         yield* output.humanLine("Payment required:");
         for (const opt of accepts) {
           yield* output.humanLine(`  Network: ${opt.network}`);
-          yield* output.humanLine(`  Amount:  ${opt.maxAmountRequired}`);
+          const amount = result.paymentRequired.x402Version === 2
+            ? (opt as PaymentRequiredV2['accepts'][number]).amount
+            : (opt as NonNullable<PaymentRequired['accepts']>[number]).maxAmountRequired;
+          yield* output.humanLine(`  Amount:  ${amount}`);
           yield* output.humanLine(`  Pay to:  ${opt.payTo}`);
           yield* output.humanLine(
             `  Asset:   ${labelAssetForPayment(network, opt.asset)}`,

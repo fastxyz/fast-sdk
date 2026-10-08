@@ -289,6 +289,9 @@ importers:
 
   packages/x402-client:
     dependencies:
+      '@x402/core':
+        specifier: 2.28.0
+        version: 2.28.0
       '@fastxyz/allset-sdk':
         specifier: workspace:*
         version: link:../allset-sdk

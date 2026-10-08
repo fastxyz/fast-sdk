@@ -28,6 +28,7 @@ export { parsePrice, encodePayload, decodePayload } from './utils.js';
 export {
   createPaymentRequirement,
   createPaymentRequired,
+  createPaymentRequiredHeader,
   parsePaymentHeader,
   verifyPayment,
   settlePayment,

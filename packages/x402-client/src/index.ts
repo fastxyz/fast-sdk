@@ -15,13 +15,23 @@ export { bridgeFastusdcToUsdc, getFastBalance } from './bridge.js';
 export { handleFastPayment, stringifyPaymentPayload } from './fast.js';
 export { handleEvmPayment } from './evm.js';
 
-import { getNetworkType } from '@fastxyz/x402-types';
+import { getNetworkType, fromV2, validatePaymentRequiredV2 } from '@fastxyz/x402-types';
 import type { EvmChainConfig } from '@fastxyz/x402-types';
 
-import type { X402PayParams, X402PayResult, PaymentRequired, ClientPaymentRequirement, Wallet, FastWallet, EvmWallet } from './types.js';
+import type {
+  X402PayParams,
+  X402PayResult,
+  PaymentRequired,
+  ParsedPaymentRequired,
+  ClientPaymentRequirement,
+  Wallet,
+  FastWallet,
+  EvmWallet,
+} from './types.js';
 
 import { handleFastPayment, stringifyPaymentPayload } from './fast.js';
 import { handleEvmPayment } from './evm.js';
+import { resolveEvmNetworkConfig } from './protocol.js';
 
 // ─── Wallet helpers ───────────────────────────────────────────────────────────
 
@@ -99,7 +109,11 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
 
   // Step 2: Parse 402 response
   log(`[Step 2] Parsing 402 payment requirements...`);
-  const paymentRequired = (await initialRes.json()) as PaymentRequired;
+  const parsedPaymentRequired = await parse402Response(initialRes);
+  if (parsedPaymentRequired.x402Version !== undefined && parsedPaymentRequired.x402Version !== 1 && parsedPaymentRequired.x402Version !== 2) {
+    throw new Error('Unsupported x402 protocol version');
+  }
+  const paymentRequired = parsedPaymentRequired as PaymentRequired;
   log(`  Payment Required: ${JSON.stringify(paymentRequired, null, 2)}`);
 
   if (!paymentRequired.accepts || paymentRequired.accepts.length === 0) {
@@ -127,8 +141,8 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
   if (evmReq && evmWallet) {
     log(`  → Using EVM payment path`);
 
-    const chainConfig = evmNetworks?.[evmReq.network];
-    if (!chainConfig) {
+    const resolvedConfig = resolveEvmNetworkConfig(evmReq.network, evmNetworks);
+    if (!resolvedConfig) {
       throw new Error(`No EVM chain config for network "${evmReq.network}". ` + `Provide it via evmNetworks in X402PayParams.`);
     }
 
@@ -138,9 +152,9 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
       customHeaders,
       requestBody,
       paymentRequired,
-      evmReq,
+      { ...evmReq, network: resolvedConfig.network },
       evmWallet,
-      chainConfig,
+      resolvedConfig.config,
       verbose,
       logs,
       fastWallet,
@@ -162,10 +176,32 @@ export async function x402Pay(params: X402PayParams): Promise<X402PayResult> {
 
 /**
  * Parse a 402 response to extract payment requirements.
+ * PAYMENT-REQUIRED is authoritative when present; it must contain native v2.
+ * Encoded headers are limited to 64 KiB before decoding. The legacy body is
+ * read only when the header is absent, preserving existing v1 behavior.
  */
 export async function parse402Response(response: Response): Promise<PaymentRequired> {
   if (response.status !== 402) {
     throw new Error(`Expected 402 response, got ${response.status}`);
+  }
+  const header = response.headers.get('PAYMENT-REQUIRED');
+  if (header !== null) {
+    // Require canonical standard base64: Buffer decoding alone accepts junk,
+    // missing padding, and nonzero pad bits. Never include server data in errors.
+    if (header.length === 0 || header.length > 64 * 1024 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(header)) {
+      throw new Error('Invalid PAYMENT-REQUIRED header');
+    }
+    try {
+      if (Buffer.from(header, 'base64').toString('base64') !== header) {
+        throw new Error('Noncanonical base64');
+      }
+      const decoded: unknown = JSON.parse(Buffer.from(header, 'base64').toString('utf-8'));
+      validatePaymentRequiredV2(decoded);
+      // Release 1 adapter intentionally retains the public legacy return shape.
+      return { x402Version: 2, accepts: decoded.accepts.map((r) => fromV2(r, decoded.resource)), originalV2: decoded };
+    } catch {
+      throw new Error('Invalid PAYMENT-REQUIRED header');
+    }
   }
   return response.json() as Promise<PaymentRequired>;
 }

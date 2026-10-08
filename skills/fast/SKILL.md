@@ -98,6 +98,8 @@ Create a request link, then confirm the payment on the network: workflow 9 (`fas
 - **Fast Card** (via Pulsar, live since 2026-09-30). The CLI has no card commands. Don't claim you can order or top up the card; send to a card top-up address only when the user gives you the address and chain, and confirm it like any bridge-out.
 - **Paid APIs (x402).** `fast pay <url>` (workflow 8). Run it with `--dry-run` first and confirm the price with the user. The paid run then pays whatever the server asks at that moment, with no cap, so use it only with servers the user trusts.
 
+The x402 Release 1 adapters also support v2 headers (`PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, `PAYMENT-RESPONSE`) while retaining legacy headers. Clients answer in kind: a v1-only seller never receives a v2 payment. Dry runs keep the existing requirement shape; they do not authorize the subsequent payment.
+
 ### The user's own Fast app wallet
 
 To act on the wallet the user already has in the Fast app instead of a new CLI account, use the `key-handover` skill: `fast authorize request`, the user approves in their wallet and pastes back an encrypted code, then `fast authorize complete`. That command only decrypts the key; it doesn't add an account, so import it as the skill shows (`fast account import --name <new name> --key-file`). Then use the account that import returned: check that its `data.fastAddress` is the address the user approved, and pass `--account <data.name>`, or make it the default with `fast account set-default <data.name>` if the user wants that. Never ask the user to paste a private key into the chat.

@@ -10,6 +10,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import type { EvmChainConfig } from '@fastxyz/x402-types';
 import type { EvmWallet, FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResult, Eip3009Authorization, BridgeConfig } from './types.js';
 import { bridgeFastusdcToUsdc, getFastBalance } from './bridge.js';
+import { validateRequestedProtocol, requestedPaymentPayload, readPaymentReceipt } from './protocol.js';
 
 /**
  * Get EVM USDC balance
@@ -82,6 +83,7 @@ export async function handleEvmPayment(
   fastWallet?: FastWallet,
   bridgeConfig?: BridgeConfig,
 ): Promise<X402PayResult> {
+  validateRequestedProtocol(paymentRequired, evmReq);
   const log = (msg: string) => {
     if (verbose) {
       logs.push(`[${new Date().toISOString()}] ${msg}`);
@@ -258,13 +260,14 @@ export async function handleEvmPayment(
     },
   };
 
-  const payloadBase64 = Buffer.from(JSON.stringify(paymentPayload)).toString('base64');
+  const payloadBase64 = Buffer.from(JSON.stringify(requestedPaymentPayload(paymentRequired, evmReq, paymentPayload))).toString('base64');
   log(`  Payload base64 length: ${payloadBase64.length}`);
 
-  log(`[EVM] Sending paid request with X-PAYMENT header...`);
+  const paymentHeader = paymentRequired.x402Version === 2 ? 'PAYMENT-SIGNATURE' : 'X-PAYMENT';
+  log(`[EVM] Sending paid request with ${paymentHeader} header...`);
   const paidRes = await fetch(url, {
     method,
-    headers: { ...customHeaders, 'X-PAYMENT': payloadBase64 },
+    headers: { ...customHeaders, [paymentHeader]: payloadBase64 },
     body: requestBody,
   });
   log(`  Response: ${paidRes.status} ${paidRes.statusText}`);
@@ -289,6 +292,7 @@ export async function handleEvmPayment(
     }
   }
 
+  settleTxHash = readPaymentReceipt(paidRes)?.txHash ?? settleTxHash;
   const amountHuman = (Number(evmReq.maxAmountRequired) / 1e6).toString();
   const bridgeNote = bridged ? ` (auto-bridged ${bridgeTxHash?.slice(0, 10)}...)` : '';
 

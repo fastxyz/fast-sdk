@@ -9,7 +9,8 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { hashHex } from '@fastxyz/sdk';
 import { bcsSchema } from '@fastxyz/schema';
 import type { PaymentPayload, PaymentRequirement, SettleResponse, EvmPayload, FastPayload } from '@fastxyz/x402-types';
-import { getNetworkType } from '@fastxyz/x402-types';
+import { getNetworkType, toV2SettleResponse, type PaymentPayloadV2, type PaymentRequirementV2 } from '@fastxyz/x402-types';
+import { normalizePayment } from './normalize.js';
 import type { FacilitatorConfig } from './types.js';
 import { verify } from './verify.js';
 import { toBcsFormat } from './fast-bcs.js';
@@ -45,6 +46,21 @@ async function getCertificateHash(certificate: FastTransactionCertificate): Prom
 // ─── Main Entry ──────────────────────────────────────────────────────────────
 
 export async function settle(
+  paymentPayload: PaymentPayload | PaymentPayloadV2,
+  paymentRequirement: PaymentRequirement | PaymentRequirementV2,
+  config: FacilitatorConfig,
+): Promise<SettleResponse> {
+  let normalized;
+  try {
+    normalized = normalizePayment(paymentPayload, paymentRequirement, config);
+  } catch {
+    return { success: false, errorReason: 'accepted_payment_requirement_mismatch' };
+  }
+  const result = await settleLegacy(normalized.payload, normalized.requirement, config);
+  return paymentPayload.x402Version === 2 ? toV2SettleResponse(result) : result;
+}
+
+async function settleLegacy(
   paymentPayload: PaymentPayload,
   paymentRequirement: PaymentRequirement,
   config: FacilitatorConfig,

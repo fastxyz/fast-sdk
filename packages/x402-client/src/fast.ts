@@ -11,7 +11,7 @@ import { bcsSchema, VersionedTransactionFromBcs } from '@fastxyz/schema';
 import type { VersionedTransaction, NetworkId } from '@fastxyz/schema';
 import { Schema } from 'effect';
 import type { FastWallet, PaymentRequired, ClientPaymentRequirement, X402PayResult } from './types.js';
-import { validateRequestedProtocol, requestedPaymentPayload, readPaymentReceipt } from './protocol.js';
+import { validateRequestedProtocol, requestedPaymentPayload } from './protocol.js';
 
 // ─── Cached Providers ─────────────────────────────────────────────────────────
 
@@ -214,7 +214,9 @@ export async function handleFastPayment(
       network: fastReq.network,
       amount: fastReq.maxAmountRequired,
       recipient: fastReq.payTo,
-      txHash: readPaymentReceipt(paidRes)?.txHash ?? txHash,
+      // Upfront Fast already has a certificate-derived identity; seller receipts
+      // cannot rename that transfer (including on an unsuccessful paid response).
+      txHash,
       asset: fastReq.asset,
     },
     note: paidRes.ok

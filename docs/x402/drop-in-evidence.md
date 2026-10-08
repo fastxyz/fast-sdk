@@ -5,6 +5,11 @@ available when each copy was created. No consumer source, manifest, lockfile,
 deployment, order, or real payment was changed. Candidate artifacts were built
 from the Release 1 adapter work in this PR.
 
+These comparisons predate the review fixes after head `8dc921a` (the native EVM
+method/flow guard and preservation of Fast's local hash). They have not been
+repeated with those fixes; do not treat this table as exact-new-head consumer
+validation.
+
 | Consumer / immutable baseline                                    | Baseline and candidate results                                    | Remaining coverage                                                                                                              |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `fast-mcp` — `81fc3db71abaa972b65bdd4fda20cd292c4a49f2`          | 257 tests; build and lint passed                                  | Re-run against versioned 1.1 release candidates before publication                                                              |

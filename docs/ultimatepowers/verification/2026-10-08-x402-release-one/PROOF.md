@@ -104,3 +104,20 @@ env -u X402_LIVE_MATRIX -u X402_LIVE_FAST pnpm --filter @fastxyz/x402-e2e test:l
 ```
 
 The last command must fail with missing-opt-in error; that is safety evidence, not a passing live release gate. There are deliberately no invented kompile/kprove commands: these artifacts are a constructed proof with specified semantics gaps, not runnable K files.
+
+## 7. Receiving-review correction and strengthened proof — 2026-10-08
+
+Status: constructed (escalation-bounded), not machine-checked. This amendment supersedes the earlier omitted selector obligation and too-weak Fast receipt fallback statement for fixes against `8dc921af1438f7319c77ea52913edaa63035428e`. The independent counterproofs in the separate PR review FINDINGS are valid: echo preservation alone does not prove that the signed mechanism matches reserved EVM selectors, and preservation only when receipt hash is absent does not prove local Fast identity authority.
+
+F1 construction: native original snapshot/normalized equality and envelope membership are checked first. Canonical eip155 classification then inspects selected extra. Case Analysis splits method absent/eip3009 vs any other present value, then flow absent/authorization vs any other present value. Unsupported branches throw. Because handleEvmPayment's first statement is the validator call, Transitivity reaches that throw with account/provider/signing/bridge state framed unchanged; this also closes the insufficient-EVM-balance/funded-Fast-bridge witness. Supported branches return and compose with unchanged EIP-3009 body; unknown unrelated metadata is not stripped. Legacy version 1 returns from validation before these new guards. No total-provider-correctness proof is inferred.
+
+F3 construction: after the existing provider succeeds and local certificate hash H is established, response parsing does not overwrite H. The returned payment object assigns its txHash directly H and network directly fastReq.network. By framing and direct assignment, any native/legacy seller receipt H2, wrong network, failure flag or empty transaction is irrelevant to those fields, for both paid HTTP 200 and 402 outcomes. HTTP status still controls SDK success as before; an unsuccessful HTTP response remains unsuccessful, while its payment identity is retained. The existing CLI's success guard and recorded p.txHash now compose with H rather than receipt H2. No receipt trust policy or chain replay redesign is needed.
+
+| Strengthened VC | Disposition |
+| --- | --- |
+| Unsupported native EVM selector cannot reach any account/provider/sign/bridge body operation | Constructed by first-statement call and guard throw; six rejection regression rows pass. |
+| Supported omitted/explicit EIP-3009+authorization still echoes original and reads EVM settlement receipt | Constructed supported branch + unchanged EVM serialization/receipt path; both regression controls pass. |
+| Seller receipt cannot replace submitted Fast certificate hash/network | Constructed direct assignment and frame; four version/status conflict cases plus existing receipt variants pass. |
+| Unsupported unselected native network/scheme alternative rejects whole envelope | Unchanged whole-envelope validator; now explicit accepted public interoperability restriction, no wider negotiation theorem claimed. |
+
+Final independent local evidence: client 7 files / 79 tests passed. No runtime source changes/live payments/commits by this reviewer, no machine proof. Trusted base and escalation obligations remain those in §6. No unresolved blocking fix finding established.

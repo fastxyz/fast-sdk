@@ -24,6 +24,16 @@ payment flow; conversion does not resubmit an already-paid certificate. Existing
 certificate and EVM verification/settlement behavior stays in place. This is a
 wire-compatibility release, not a replay-ledger or trust-policy redesign.
 
+EVM v2 is restricted to EIP-3009 authorization (method and flow may be omitted or
+explicitly `eip3009` / `authorization`); unsupported selected behavior fails before
+money operations. Upfront Fast's certificate-derived transaction hash remains
+authoritative, regardless of seller receipt metadata.
+
+Native envelope validation requires **every** offer to use `exact` and a known
+mapped Fast/EVM network. Unsupported alternatives cause whole-envelope rejection,
+even alongside a supported offer. Capability-filtered negotiation is not included,
+and a present native header never downgrades to the legacy body.
+
 ## Release metadata
 
 Minor changesets target 1.1.0 for `x402-types`, `x402-client`, `x402-server`, and
@@ -55,7 +65,7 @@ supplied plan cannot be included in a `fast-sdk` PR; they are separate follow-up
 actions, not changes made by #184. Shop and marketplace implementation remains
 Release 2, with merchant PRs last as requested.
 
-Local verification: client 68 tests, server 34, facilitator 83, CLI v2 dry-run 4,
+Local verification: client 79 tests, server 34, facilitator 83, CLI v2 dry-run 4,
 and live-harness safety 6. Consumer results and their limitations are recorded in
 [`drop-in-evidence.md`](./drop-in-evidence.md). The live and complete drop-in
 publishing gates above remain open.

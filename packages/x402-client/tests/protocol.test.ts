@@ -24,6 +24,34 @@ const offer = {
   extra: { name: 'USD Coin', version: '2', unknown: [1, '2'] },
 };
 const resource = { url: 'https://example.com/paid', custom: [1, 2] };
+it.each([
+  { assetTransferMethod: 'permit2' },
+  { assetTransferMethod: 'erc7710' },
+  { assetTransferMethod: null },
+  { paymentFlow: 'upfront' },
+  { paymentFlow: 'escrow' },
+  { paymentFlow: 'unknown' },
+])('rejects unsupported native EVM behavior %j before RPC, signing or bridging', async (extra) => {
+  const nativeOffer = { ...offer, extra: { ...offer.extra, ...extra } };
+  const req = fromV2(nativeOffer, resource);
+  const fetch = vi.fn(() => {
+    throw new Error('Unexpected money-path RPC');
+  });
+  vi.stubGlobal('fetch', fetch);
+  await expect(
+    handleEvmPayment(
+      resource.url,
+      'GET',
+      {},
+      undefined,
+      { x402Version: 2, accepts: [req], originalV2: { x402Version: 2, accepts: [nativeOffer], resource } },
+      req,
+      mockEvmWallet,
+      mockEvmChainConfig['base-sepolia'],
+    ),
+  ).rejects.toThrow('Unsupported EVM v2');
+  expect(fetch).not.toHaveBeenCalled();
+});
 it('finds canonical equivalent caller config while retaining its legacy key', () => {
   const config = { ...mockEvmChainConfig['base-sepolia'], chainId: 11155111 };
   expect(resolveEvmNetworkConfig('ethereum-sepolia', { sepolia: config })).toEqual({ network: 'sepolia', config });
@@ -76,37 +104,41 @@ it.each([undefined, '', 42, {}])('does not expose invalid receipt transaction %#
   });
   expect(readPaymentReceipt(res)?.txHash).toBeUndefined();
 });
-it('EVM echoes the exact original native offer and reads native receipts', async () => {
-  const req = fromV2(offer, resource);
-  const fetch = vi.fn(async (_url, init) => {
-    const body = init?.body ? JSON.parse(init.body) : undefined;
-    if (body?.method === 'eth_call') return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result: '0x' + '186a0'.padStart(64, '0') }));
-    const headers = init.headers;
-    expect(headers['X-PAYMENT']).toBeUndefined();
-    const sent = JSON.parse(Buffer.from(headers['PAYMENT-SIGNATURE'], 'base64').toString());
-    expect(sent.x402Version).toBe(2);
-    expect(sent.accepted).toEqual(offer);
-    expect(sent.resource).toEqual(resource);
-    expect(sent.payload.authorization.value).toBe('100000');
-    return new Response('{}', {
-      headers: {
-        'PAYMENT-RESPONSE': Buffer.from(JSON.stringify({ success: true, transaction: '0xreceipt', network: offer.network })).toString('base64'),
-      },
+it.each([undefined, { assetTransferMethod: 'eip3009', paymentFlow: 'authorization' }])(
+  'EVM echoes the exact supported native offer %j and reads native receipts',
+  async (selectors) => {
+    const selected = { ...offer, extra: { ...offer.extra, ...selectors } };
+    const req = fromV2(selected, resource);
+    const fetch = vi.fn(async (_url, init) => {
+      const body = init?.body ? JSON.parse(init.body) : undefined;
+      if (body?.method === 'eth_call') return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result: '0x' + '186a0'.padStart(64, '0') }));
+      const headers = init.headers;
+      expect(headers['X-PAYMENT']).toBeUndefined();
+      const sent = JSON.parse(Buffer.from(headers['PAYMENT-SIGNATURE'], 'base64').toString());
+      expect(sent.x402Version).toBe(2);
+      expect(sent.accepted).toEqual(selected);
+      expect(sent.resource).toEqual(resource);
+      expect(sent.payload.authorization.value).toBe('100000');
+      return new Response('{}', {
+        headers: {
+          'PAYMENT-RESPONSE': Buffer.from(JSON.stringify({ success: true, transaction: '0xreceipt', network: offer.network })).toString('base64'),
+        },
+      });
     });
-  });
-  vi.stubGlobal('fetch', fetch);
-  const result = await handleEvmPayment(
-    resource.url,
-    'GET',
-    {},
-    undefined,
-    { x402Version: 2, accepts: [req], originalV2: { x402Version: 2, accepts: [offer], resource } },
-    req,
-    mockEvmWallet,
-    mockEvmChainConfig['base-sepolia'],
-  );
-  expect(result.payment?.txHash).toBe('0xreceipt');
-});
+    vi.stubGlobal('fetch', fetch);
+    const result = await handleEvmPayment(
+      resource.url,
+      'GET',
+      {},
+      undefined,
+      { x402Version: 2, accepts: [req], originalV2: { x402Version: 2, accepts: [selected], resource } },
+      req,
+      mockEvmWallet,
+      mockEvmChainConfig['base-sepolia'],
+    );
+    expect(result.payment?.txHash).toBe('0xreceipt');
+  },
+);
 it.each(['fast', 'evm'])('rejects missing native metadata before any %s money operations', async (kind) => {
   const req = { ...fromV2(offer, resource), originalV2Requirement: undefined };
   const fetch = vi.fn();

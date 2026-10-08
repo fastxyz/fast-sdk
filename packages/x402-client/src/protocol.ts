@@ -26,6 +26,16 @@ export function validateRequestedProtocol(required: PaymentRequired, requirement
   if (requirement.network.startsWith('fast') && requirement.originalV2Requirement!.extra?.paymentFlow !== 'upfront') {
     throw new Error('Unsupported Fast v2 payment flow');
   }
+  if (toCanonicalNetwork(requirement.network).startsWith('eip155:')) {
+    const extra = requirement.originalV2Requirement!.extra;
+    // Release 1 retains only the existing EIP-3009 authorization money path.
+    if (extra?.assetTransferMethod !== undefined && extra.assetTransferMethod !== 'eip3009') {
+      throw new Error('Unsupported EVM v2 asset transfer method');
+    }
+    if (extra?.paymentFlow !== undefined && extra.paymentFlow !== 'authorization') {
+      throw new Error('Unsupported EVM v2 payment flow');
+    }
+  }
 }
 export function requestedPaymentPayload(required: PaymentRequired, requirement: ClientPaymentRequirement, payload: PaymentPayload): unknown {
   validateRequestedProtocol(required, requirement);

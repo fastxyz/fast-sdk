@@ -174,3 +174,32 @@ Status: constructed (escalation-bounded), not machine-checked; partial correctne
 Live boundary preconditions: explicit X402_LIVE_MATRIX=1; complete syntactically validated external key/config values; separate controlled payer/recipient/facilitator wallets; pinned Fast testnet endpoint and independently trusted committee keys; Base chain ID 84532 and six-decimal token assertions before payment; bounded separately funded gas wallet, no refills during the authorized run. Ordinary test configuration excludes both live files and no dotenv load occurs. Fixed run registers eight sequential cases, each containing one pay invocation, zero harness retries and no bridge config. Only independently confirmed hash/receipt and exact 1000-unit recipient increment can increment completion; missing opt-in or fewer than eight completions fails the explicit release gate. RPC authenticity and live chain outcomes are open external obligations, not discharged by offline tests.
 
 Runnable K emission is explicitly escalation-bounded: faithful TypeScript/Express/Fetch/async/Vitest/provider semantics exceed the reused mini-imperative fragment. No invented runnable .k artifacts, toolchain commands or #Top are claimed. No test deletion is authorized or recommended. The constructed proof does not certify publishing readiness while historical live matrix and complete versioned downstream gates remain pending.
+
+## Receiving-review fixes F1/F3 and restriction F2 — 2026-10-08
+
+Status: constructed (escalation-bounded), not machine-checked; partial correctness. Diff-scoped fix review against `8dc921af1438f7319c77ea52913edaa63035428e`. Intent is the user's accepted independent F1/F3 fixes and F2 documentation restriction. Read the independent exact-head counterproofs in `/private/tmp/fast-sdk-pr184-formal-20261008/docs/ultimatepowers/verification/2026-10-08-x402-v2-compatibility/FINDINGS.md`. Earlier receipt/selector claims did not capture these adversarial obligations and are strengthened below; earlier approvals do not refute the independent counterexamples.
+
+Native EVM support is precisely omitted/eip3009 assetTransferMethod and omitted/authorization paymentFlow. Null/unknown/Permit2/ERC-7710 values are not supported. Legacy version 1 remains unchanged and arbitrary unrelated JSON extra metadata remains preserved. Fast local hash H, computed from the submitted certificate, is authoritative across both wire versions and any seller receipt metadata, regardless of paid HTTP success/failure.
+
+```k
+claim <k> validateRequestedProtocol(E,L) => error ... </k>
+  <effects> 0 => 0 </effects>
+  requires E.version ==Int 2 andBool canonical(L.network).isEip155
+    andBool notBool supportedEvmSelectors(orig(L).extra) [all-path]
+claim <k> validateRequestedProtocol(E,L) => .K ... </k>
+  requires consistentV2(E,L) andBool canonical(L.network).isEip155
+    andBool supportedEvmSelectors(orig(L).extra) [all-path]
+claim <k> handleEvmPayment(E,L,W,C) => error ... </k>
+  <effects> 0 => 0 </effects>
+  requires E.version ==Int 2 andBool notBool supportedEvmSelectors(orig(L).extra)
+    andBool otherwiseValidEvmInputs(E,L,W,C) [all-path]
+claim <k> handleFastPayment(E,L,W) => fastResultWithHash(H) ... </k>
+  requires existingFastPreconditions(W,L) andBool consistentProtocol(E,L)
+    andBool localSubmittedCertificateHash ==K H
+  ensures result.payment.txHash ==K H
+    andBool result.payment.network ==K L.network [all-path]
+```
+
+supportedEvmSelectors(X) means `(X.assetTransferMethod absent or equal "eip3009") AND (X.paymentFlow absent or equal "authorization")`. Existing native original consistency checks still run before these selectors. The EVM handler invokes this validator as its first statement, before account creation, balance/provider access, signing and optional bridge. Thus an unsupported selector rejects even when bridging would otherwise be needed. The Fast returned field is now the local variable H directly, not receipt helper output; seller headers remain available as response data without modifying payment identity. Conditional domain is otherwise valid inputs and terminating existing provider path; async/provider semantics remain escalation-bounded.
+
+No new loop or recursion was introduced. Reuse the existing original metadata equality/membership circularities contract-only. Whole-envelope validation remains exact/known-only for every offer: a supported alternative plus unsupported network/scheme alternative rejects the entire native header, without legacy body downgrade. This deliberately restricted Release 1 domain is now explicit in public release/types/client docs, not broadened into capability-filtered negotiation.

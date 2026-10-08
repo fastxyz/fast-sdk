@@ -78,5 +78,55 @@ it.each([1, 2, 'empty-native-receipt'])('Fast answers version %s exactly and kee
     publicKey: 'unused',
     rpcUrl: 'mock-fast',
   });
-  expect(result.payment?.txHash).toBe(variant === 'empty-native-receipt' ? 'local-hash' : 'receipt-hash');
+  expect(result.payment?.txHash).toBe('local-hash');
+});
+it.each([
+  [1, 200],
+  [2, 200],
+  [1, 402],
+  [2, 402],
+])('keeps the submitted Fast certificate hash with a conflicting failure receipt in v%s / HTTP %s', async (version, status) => {
+  const offer = {
+    scheme: 'exact',
+    network: 'fast:testnet',
+    amount: '1000',
+    asset: '0x' + '01'.repeat(32),
+    payTo: '0x' + '02'.repeat(32),
+    maxTimeoutSeconds: 60,
+    extra: { paymentFlow: 'upfront' },
+  };
+  const resource = { url: '/paid' };
+  const req = fromV2(offer, resource);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response('{}', {
+          status,
+          headers: {
+            [version === 2 ? 'PAYMENT-RESPONSE' : 'X-PAYMENT-RESPONSE']: Buffer.from(
+              JSON.stringify({
+                success: false,
+                transaction: 'unrelated-hash',
+                txHash: 'unrelated-hash',
+                network: 'eip155:84532',
+              }),
+            ).toString('base64'),
+          },
+        }),
+    ),
+  );
+  const result = await handleFastPayment(
+    '/paid',
+    'GET',
+    {},
+    undefined,
+    version === 2
+      ? { x402Version: 2, accepts: [req], originalV2: { x402Version: 2, accepts: [offer], resource } }
+      : { x402Version: 1, accepts: [req] },
+    req,
+    { type: 'fast', address: 'payer', privateKey: 'unused', publicKey: 'unused', rpcUrl: 'mock-fast' },
+  );
+  expect(result.payment?.txHash).toBe('local-hash');
+  expect(result.payment?.network).toBe('fast-testnet');
 });

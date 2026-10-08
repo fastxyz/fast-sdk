@@ -6,6 +6,8 @@ This package provides the canonical type definitions used across `@fastxyz/x402-
 
 Release 1 adds local v2 types, `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, and `PAYMENT-RESPONSE` constants, known legacy-to-CAIP network mappings, and `fromV2` / `toV2` converters. Existing internals remain v1-shaped behind these adapters; the client answers in the version requested by the seller. Original v2 offers are preserved for exact echoing rather than reconstructed from legacy fields.
 
+The native envelope validator is deliberately whole-envelope and known-only: all offers must use `exact` and mapped Fast/EVM networks. An unsupported alternative rejects the entire envelope, including supported alternatives. Capability-filtered mixed-envelope negotiation is outside Release 1.
+
 ## Use Cases
 
 Use this package when you need to reference x402 payment types (`PaymentRequirement`, `PaymentPayload`, `VerifyResponse`, etc.), define network configurations (`EvmChainConfig`, `FastNetworkConfig`), parse price strings into raw token units, encode/decode base64 JSON payloads for X-PAYMENT headers, or determine network type from a network name string.

@@ -177,6 +177,10 @@ Parse a raw HTTP 402 response into the existing v1-shaped `PaymentRequired` stru
 
 Release 1 adds v2 payments without changing the public legacy requirement fields. The client answers in kind: a v1-only seller receives `X-PAYMENT`; a v2 seller receives `PAYMENT-SIGNATURE` echoing the original accepted offer. Either `PAYMENT-RESPONSE` or `X-PAYMENT-RESPONSE` can supply the receipt. Fast v2 offers must advertise `extra.paymentFlow: "upfront"`. See [Release 1 scope and publishing gates](../../docs/x402/release-1.md).
 
+EVM v2 supports only EIP-3009 authorization: `extra.assetTransferMethod` must be omitted or `"eip3009"`, and `extra.paymentFlow` omitted or `"authorization"`. Unsupported selected methods/flows are rejected before signing, RPC or bridging. Fast's returned transaction hash always comes from the locally submitted certificate; receipt headers remain available in the response but cannot overwrite that identity.
+
+Interoperability limitation: every offer in a native v2 envelope must use `exact` and a known mapped Fast/EVM network. A mixed envelope containing an unsupported scheme or network is rejected in full, even if another offer is supported. Release 1 does not capability-filter alternatives or fall back to the legacy body when a native header is present.
+
 ```typescript
 import { parse402Response } from '@fastxyz/x402-client';
 

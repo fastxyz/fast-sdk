@@ -135,8 +135,10 @@ it.each([undefined, { assetTransferMethod: 'eip3009', paymentFlow: 'authorizatio
       req,
       mockEvmWallet,
       mockEvmChainConfig['base-sepolia'],
+      true,
     );
     expect(result.payment?.txHash).toBe('0xreceipt');
+    expect(result.logs?.join('\n')).toContain('Sending paid request with PAYMENT-SIGNATURE header');
   },
 );
 it.each(['fast', 'evm'])('rejects missing native metadata before any %s money operations', async (kind) => {

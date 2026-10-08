@@ -71,14 +71,24 @@ it.each([1, 2, 'empty-native-receipt'])('Fast answers version %s exactly and kee
       });
     }),
   );
-  const result = await handleFastPayment('/paid', 'GET', {}, undefined, required, req, {
-    type: 'fast',
-    address: 'payer',
-    privateKey: 'unused',
-    publicKey: 'unused',
-    rpcUrl: 'mock-fast',
-  });
+  const result = await handleFastPayment(
+    '/paid',
+    'GET',
+    {},
+    undefined,
+    required,
+    req,
+    {
+      type: 'fast',
+      address: 'payer',
+      privateKey: 'unused',
+      publicKey: 'unused',
+      rpcUrl: 'mock-fast',
+    },
+    true,
+  );
   expect(result.payment?.txHash).toBe('local-hash');
+  expect(result.logs?.join('\n')).toContain(`Sending paid request with ${version === 2 ? 'PAYMENT-SIGNATURE' : 'X-PAYMENT'} header`);
 });
 it.each([
   [1, 200],

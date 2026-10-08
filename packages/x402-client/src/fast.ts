@@ -183,10 +183,11 @@ export async function handleFastPayment(
   const payloadBase64 = Buffer.from(stringifyPaymentPayload(requestedPaymentPayload(paymentRequired, fastReq, paymentPayload))).toString('base64');
   log(`  Payload base64 length: ${payloadBase64.length}`);
 
-  log(`[Fast] Sending paid request with X-PAYMENT header...`);
+  const paymentHeader = paymentRequired.x402Version === 2 ? 'PAYMENT-SIGNATURE' : 'X-PAYMENT';
+  log(`[Fast] Sending paid request with ${paymentHeader} header...`);
   const paidRes = await fetch(url, {
     method,
-    headers: { ...customHeaders, [paymentRequired.x402Version === 2 ? 'PAYMENT-SIGNATURE' : 'X-PAYMENT']: payloadBase64 },
+    headers: { ...customHeaders, [paymentHeader]: payloadBase64 },
     body: requestBody,
   });
   log(`  Response: ${paidRes.status} ${paidRes.statusText}`);

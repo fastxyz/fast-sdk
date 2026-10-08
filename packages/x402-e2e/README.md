@@ -11,11 +11,11 @@ Pairs 1.0/1.0, 1.0/1.1, 1.1/1.0 and 1.1/1.1 run sequentially on FAST, then Base.
 ```sh
 pnpm --filter @fastxyz/x402-e2e build
 pnpm --filter @fastxyz/x402-e2e test
-# Without spending opt-in, the live suite skips all eight cases:
+# Without X402_LIVE_MATRIX=1, the live suite skips all eight cases:
 pnpm --filter @fastxyz/x402-e2e test:live-matrix
 ```
 
-Ordinary tests exclude both payment files and never spend funds. Neither suite loads `.env`. A skipped live run is not a gate pass. The older standalone FAST suite also requires `X402_LIVE_FAST=1` and `X402_MAINNET_SPENDING=1`; it is not the eight-case matrix gate.
+Ordinary tests exclude both payment files and never spend funds. Neither suite loads `.env`. A skipped live run is not a gate pass. Matrix opt-in without the mainnet-spending acknowledgement fails before execution in both live commands; it is not treated as a skipped run. The older standalone FAST suite also requires `X402_LIVE_FAST=1` and `X402_MAINNET_SPENDING=1`; it is not the eight-case matrix gate.
 
 ## Explicitly authorized mainnet execution
 

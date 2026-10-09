@@ -190,7 +190,11 @@ export async function runMultisigWithdrawal(
     return { pending };
   };
   const propose = async (stage: 'transfer' | 'intent', operation: OperationInputParams) => {
-    const info = await deps.provider.getAccountInfo({ address: route.sender, tokenBalancesFilter: null, stateKeyFilter: null });
+    const info = await deps.provider.getAccountInfo({
+      address: route.sender,
+      tokenBalancesFilter: [bytes(route.tokenFastTokenId)],
+      stateKeyFilter: null,
+    });
     assert.equal(info.pendingConfirmation, null, 'wallet has a pending confirmation');
     if (stage === 'transfer') {
       const balance = info.tokenBalance.find(([id]) => hash(toHex(id)) === hash(route.tokenFastTokenId))?.[1] ?? 0n;

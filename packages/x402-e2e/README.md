@@ -1,48 +1,51 @@
-# Live x402 compatibility gate
+# Mainnet x402 compatibility harness
 
-Status: **pending live execution**. Offline checks do not establish on-chain compatibility or authorize publishing. No live payments were made while creating this harness.
+The approved compatibility experiment completed four client/server pairs on **FAST mainnet** and **Base mainnet** using the versioned candidate `fb2ce143c8ea868105a6e23d3c623878a0dd0bf4`. See [payment evidence](../../docs/x402/mainnet-compatibility-evidence.md) for all eight hashes, package hashes and the two Base read-only reconciliations. This harness is aligned with that experiment; those historical results are **not a newly executed run of this harness revision**.
 
-The dedicated matrix uses genuine published npm baselines (`@fastxyz/x402-client@1.0.10` and `@fastxyz/x402-server@1.0.1`) via `-v1` aliases, and the workspace client/server as the candidate 1.1 implementation. Workspace version numbers need not yet say 1.1 before minor changesets are applied. The old implementation is never an alias of current source. All cases use the current dual-protocol facilitator.
+The matrix uses genuine published npm baselines (`@fastxyz/x402-client@1.0.10` and `@fastxyz/x402-server@1.0.1`) via `-v1` aliases and the workspace client/server as the candidate 1.1 implementation. Workspace package versions need not yet say 1.1 before versioning. All cases use the current dual-protocol facilitator; baseline implementations are never aliases of current source.
 
-Four client/server pairs (1.0/1.0, 1.0/1.1, 1.1/1.0, 1.1/1.1) run sequentially on Fast testnet, then sequentially on Base Sepolia. Each case makes one $0.001 USDC payment (1000 raw units at six decimals): eight payments, **$0.008 total plus additional network/gas fees**. There are no bridges or harness retries. Each case owns ephemeral loopback-only facilitator/content servers, closed in `finally`.
+Pairs 1.0/1.0, 1.0/1.1, 1.1/1.0 and 1.1/1.1 run sequentially on FAST, then Base. Each case pays 1000 raw units ($0.001 at six decimals): **$0.008 total plus Base gas**. FAST uses fastUSD; Base uses USDC. There are no bridges or payment retries. Ephemeral servers bind to loopback and close in `finally`.
 
 ## Offline checks
-
-The EVM content route echoes the middleware's real `X-PAYMENT-RESPONSE` transaction hash into its JSON body. This is needed because the genuine published 1.0 client only reads settlement hashes from the body, not receipt headers. It is an application response adaptation, not a modification of either baseline package; the hash must still correspond to a successful on-chain receipt.
 
 ```sh
 pnpm --filter @fastxyz/x402-e2e build
 pnpm --filter @fastxyz/x402-e2e test
+# Without X402_LIVE_MATRIX=1, the live suite skips all eight cases:
 pnpm --filter @fastxyz/x402-e2e test:live-matrix
 ```
 
-The ordinary test configuration excludes both live payment files, so the default command never pays. The last command skips all eight cases without explicit opt-in; a skipped run is **not** a release gate pass. Neither suite auto-loads `.env`. The older standalone Fast suite also requires `X402_LIVE_FAST=1`; do not use it as the eight-case release gate.
+Ordinary tests exclude both payment files and never spend funds. Neither suite loads `.env`. A skipped live run is not a gate pass. Matrix opt-in without the mainnet-spending acknowledgement fails before execution in both live commands; it is not treated as a skipped run. The older standalone FAST suite also requires `X402_LIVE_FAST=1` and `X402_MAINNET_SPENDING=1`; it is not the eight-case matrix gate.
 
-## Operator-provisioned live run
+## Explicitly authorized mainnet execution
 
-Only run after explicitly authorizing these testnet transfers. Supply environment variables externally; never commit keys or print their values:
+This command spends real funds. Provision dedicated, controlled wallets and supply variables externally; never commit private keys or print them. Prior experiments do not authorize another run, and their temporary wallet balances were returned to the original funders.
 
-| Variable                               | Required value/purpose                                                                     |
-| -------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `X402_LIVE_MATRIX`                     | `1`, explicit spending opt-in                                                              |
-| `FAST_TEST_RPC_URL`                    | `https://testnet.api.fast.xyz/proxy-rest`, pinned to `@fastxyz/sdk/networks` `testnet.url` |
-| `FAST_TEST_SIGNER_PRIVATE_KEY`         | Funded testnet USDC payer, 32-byte hex                                                     |
-| `FAST_TEST_RECIPIENT_PRIVATE_KEY`      | Separate operator-controlled recipient, not a public/fixed seed                            |
-| `FAST_TEST_COMMITTEE_PUBLIC_KEYS`      | Nonempty comma-separated independently trusted 32-byte hex committee keys                  |
-| `BASE_SEPOLIA_RPC_URL`                 | HTTPS RPC; remote chain ID must equal 84532 before any payment                             |
-| `BASE_SEPOLIA_PAYER_PRIVATE_KEY`       | Funded Base Sepolia USDC payer                                                             |
-| `BASE_SEPOLIA_RECIPIENT_PRIVATE_KEY`   | Separate operator-controlled recipient                                                     |
-| `BASE_SEPOLIA_FACILITATOR_PRIVATE_KEY` | Separate, limited-balance gas wallet                                                       |
-| `X402_CONTROLLED_RECIPIENTS`           | `1`, confirms ownership/control of both recipients                                         |
-| `X402_MAX_FACILITATOR_ETH_WEI`         | Positive maximum permitted balance of the limited gas wallet, in wei                       |
+| Variable | Required value/purpose |
+| --- | --- |
+| `X402_LIVE_MATRIX` | `1`, enables the matrix |
+| `X402_MAINNET_SPENDING` | `1`, explicit acknowledgement of real mainnet spending |
+| `FAST_MAINNET_RPC_URL` | `https://api.fast.xyz/proxy-rest`, pinned to SDK `mainnet.url` |
+| `FAST_MAINNET_SIGNER_PRIVATE_KEY` | Funded fastUSD payer, 32-byte hex |
+| `FAST_MAINNET_RECIPIENT_PRIVATE_KEY` | Separate controlled FAST recipient |
+| `BASE_RPC_URL` | HTTPS RPC, checked for chain ID 8453 before payment |
+| `BASE_PAYER_PRIVATE_KEY` | Funded Base USDC payer |
+| `BASE_RECIPIENT_PRIVATE_KEY` | Separate controlled Base recipient |
+| `BASE_FACILITATOR_PRIVATE_KEY` | Limited-balance gas wallet; may be the recipient, never the payer |
+| `X402_CONTROLLED_RECIPIENTS` | `1`, confirms control of recipients |
+| `X402_MAX_FACILITATOR_ETH_WEI` | Positive maximum permitted gas-wallet balance in wei |
 
-Private keys accept a single optional `0x` prefix. Payer/recipient keys must be distinct; all three EVM wallets must be distinct. Provision the facilitator with only the ETH you authorize spending; its on-chain balance must be positive and no greater than your configured ceiling before each case. This bounds funds at risk in that wallet, not a promised per-transaction gas price. Do not refill it during a run. Fast transaction fees are additional: similarly limit funds in the Fast payer. Trusted committee keys are operator-provided, not fetched from an untrusted RPC.
+Private keys accept one optional `0x` prefix. Payers must differ from their recipients; the EVM facilitator may be the recipient because gas spends ETH while payment credit is USDC. Limit the FAST payer's fastUSD, Base payer's USDC and facilitator's ETH to the authorized funds. The positive gas balance must not exceed the configured ceiling before each case. This bounds funded ETH at risk, not a guaranteed gas price. Do not refill wallets during a run.
 
-Base Sepolia USDC is `0x036CbD53842c5426634e7929541eC2318f3dCF7e`, with EIP-712 name `USDC`, version `2`. Fast token ID is `0xd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46`. Both token decimals are independently checked before payment.
+FAST trusts the SDK-pinned official mainnet RPC as network authority and uses the existing empty-committee facilitator path. **Production verification is unchanged: at least three distinct valid certificate signatures are still required.** A separate case-level certificate lookup, matching sender/nonce, independently recomputed transaction hash and exact 1000-unit recipient credit are mandatory. This verifies compatibility under RPC trust, not independently provisioned validator-membership authentication. Missing certificates, RPC errors and failed assertions fail the gate after a payment may already have occurred.
+
+FAST token: SDK `mainnet.defaultToken.tokenId` (`0xc655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130`), fastUSD, six decimals. Base USDC: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`, six decimals, EIP-712 name `USD Coin`, version `2`. Token decimals and Base chain ID are checked before spending.
 
 ```sh
-# With the complete environment provisioned and X402_LIVE_MATRIX=1:
+# Only after separate authorization and complete external configuration:
 pnpm --filter @fastxyz/x402-e2e test:live-gate
 ```
 
-The gate fails without opt-in, on incomplete/unsafe configuration, on any failed assertion, or without all eight successes. Assertions cover the legacy 402 body for every server, v2 `PAYMENT-REQUIRED` only for the candidate server, actual paid request headers (`X-PAYMENT` for old/mixed pairs, `PAYMENT-SIGNATURE` for new/new), paid content, payment network/recipient/asset, transaction hash confirmation, and an exact 1000-raw-unit recipient balance increase. Fast reports raw amount `1000`; EVM currently reports humanized `0.001` in both baseline and candidate. Base checks the successful receipt; Fast independently fetches the payer certificate by nonce and recomputes its transaction hash. No successful live gate or publication is claimed until the operator runs this command and records all eight passes.
+The gate fails without opt-in, unsafe/incomplete configuration, any failed case or fewer than eight successes. Assertions check the legacy challenge, v2 `PAYMENT-REQUIRED` for candidate servers, paid content and exact amount/network/recipient/asset. Old/mixed pairs send `X-PAYMENT`; new/new sends `PAYMENT-SIGNATURE`. FAST reports raw `1000`; Base reports `0.001`. Base confirms a successful receipt and balance at its block, rather than an immediate `latest` read. Published 1.0 EVM clients read the settlement hash from content, so the content route echoes the middleware's real receipt hash without changing the baseline package.
+
+The live runner stops scheduling cases after the first failure (`bail: 1`); the failed case's `finally` cleanup still runs, and the remaining cases cannot initiate payments. An interrupted matrix cannot satisfy the eight-success gate. Reconcile the recorded transaction before authorizing a new run. A failure after submission is not proof that nothing was paid. No automatic repayment or resume is provided. Offline green checks do not constitute a fresh live execution or authorize merge/publication.

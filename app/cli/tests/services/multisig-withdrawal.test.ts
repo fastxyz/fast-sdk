@@ -41,7 +41,7 @@ async function setup() {
     pending: unknown[] = [];
   let nonce = 0n;
   const provider = {
-    getAccountInfo: vi.fn(async () => ({
+    getAccountInfo: vi.fn(async (_params?: { tokenBalancesFilter: readonly Uint8Array[] | null }) => ({
       nextNonce: nonce,
       pendingConfirmation: null,
       tokenBalance: [[new Uint8Array(32).fill(1), 10000000n]],
@@ -91,6 +91,24 @@ async function setup() {
   };
 }
 describe('resumable AllSet multisig withdrawal', () => {
+  it('requests the withdrawal token balance when resuming a preflight-only journal', async () => {
+    const s = await setup();
+    const tokenId = new Uint8Array(32).fill(1);
+    s.store.write({ version: 1, route: s.r, evmStartBlock: '10' });
+    s.provider.getAccountInfo.mockImplementation(async (params) => ({
+      nextNonce: 0n,
+      pendingConfirmation: null,
+      // The REST API omits token balances when no filter is supplied.
+      tokenBalance: params?.tokenBalancesFilter?.some((id) => Buffer.from(id).equals(tokenId)) ? [[tokenId, 10000000n]] : [],
+    }));
+    expect((await s.run()).status).toBe('awaiting-transfer-signatures');
+    expect(s.provider.getAccountInfo).toHaveBeenCalledWith({
+      address: s.r.sender,
+      tokenBalancesFilter: [tokenId],
+      stateKeyFilter: null,
+    });
+    expect(s.provider.submitTransaction).toHaveBeenCalledTimes(1);
+  });
   it.each([null, false, 0, ''])('rejects a malformed saved transfer %s instead of paying again', async (transfer) => {
     const s = await setup();
     await s.run();
@@ -195,6 +213,16 @@ describe('resumable AllSet multisig withdrawal', () => {
     const s = await setup();
     s.provider.getAccountInfo.mockResolvedValueOnce({ nextNonce: 0n, pendingConfirmation: null, tokenBalance: [] });
     await expect(s.run()).rejects.toThrow('balance');
+    expect(s.provider.submitTransaction).not.toHaveBeenCalled();
+  });
+  it('refuses a requested token balance below the withdrawal amount', async () => {
+    const s = await setup();
+    s.provider.getAccountInfo.mockResolvedValueOnce({
+      nextNonce: 0n,
+      pendingConfirmation: null,
+      tokenBalance: [[new Uint8Array(32).fill(1), 999999n]],
+    });
+    await expect(s.run()).rejects.toThrow('insufficient Fast token balance');
     expect(s.provider.submitTransaction).not.toHaveBeenCalled();
   });
   it('never repeats an intent after a lost response', async () => {

@@ -1,5 +1,11 @@
 # @fastxyz/cli
 
+## 1.7.1
+
+### Patch Changes
+
+- 8259f81: Request the withdrawal token balance explicitly during multisig AllSet preflight, avoiding a false insufficient-balance error when the API omits unrequested token balances. Existing preflight-only journals can be resumed without creating a new payment.
+
 ## 1.7.0
 
 ### Minor Changes

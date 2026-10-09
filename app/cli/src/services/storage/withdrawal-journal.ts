@@ -45,7 +45,7 @@ export async function withWithdrawalJournal<T>(file: string, run: (store: Withdr
   const read = (): unknown => {
     let input: number;
     try {
-      input = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+      input = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw error;

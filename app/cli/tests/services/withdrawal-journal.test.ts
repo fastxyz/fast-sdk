@@ -1,4 +1,5 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +16,34 @@ afterEach(() => {
   dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true }));
 });
 describe('private withdrawal journal', () => {
+  it('rejects a FIFO without blocking, running the coordinator or leaving a lock', () => {
+    const path = file();
+    execFileSync('mkfifo', ['-m', '600', path]);
+    const module = new URL('../../src/services/storage/withdrawal-journal.ts', import.meta.url).href;
+    const child = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        '--input-type=module',
+        '-e',
+        `
+      import assert from 'node:assert/strict';
+      import { withWithdrawalJournal } from ${JSON.stringify(module)};
+      await assert.rejects(
+        withWithdrawalJournal(process.argv[1], async () => assert.fail('coordinator must not run')),
+        /withdrawal journal must be a private, owned regular file/,
+      );
+    `,
+        path,
+      ],
+      { encoding: 'utf8', timeout: 5000 },
+    );
+    expect(child.error).toBeUndefined();
+    expect(child.status, child.stderr).toBe(0);
+    expect(statSync(path).isFIFO()).toBe(true);
+    expect(existsSync(`${path}.lock`)).toBe(false);
+  }, 10000);
   it('rejects Windows explicitly before opening a journal or running the coordinator', async () => {
     const path = file();
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');

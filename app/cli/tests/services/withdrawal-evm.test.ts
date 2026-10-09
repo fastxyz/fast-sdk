@@ -27,6 +27,66 @@ const route: WithdrawalRoute = {
   crossSignUrl: 'https://cross.example',
 };
 const deps = () => liveWithdrawalDependencies(route, {} as never);
+const proxy = `0x${'06'.repeat(20)}` as const;
+const other = `0x${'07'.repeat(20)}` as const;
+const transferId = `0x${'33'.repeat(32)}` as const;
+const metadata = {
+  transactionHash: `0x${'11'.repeat(32)}` as const,
+  blockHash: `0x${'22'.repeat(32)}` as const,
+  blockNumber: 4010n,
+  removed: false,
+};
+const withdrawAbi = parseAbi([
+  'event Withdraw(uint256 indexed operationId, bytes32 indexed transferFastTxId, address indexed paymentToken, uint256 amount, uint256 chainId)',
+]);
+const sweepAbi = parseAbi(['event IntentDynamicallyTransferred(address tokenAddress, address recipient, uint256 amount)']);
+function withdraw(index = 0, id: `0x${string}` = transferId) {
+  const args = {
+    operationId: BigInt(index),
+    transferFastTxId: id,
+    paymentToken: route.tokenEvmAddress as `0x${string}`,
+    amount: 1000000n,
+    chainId: 421614n,
+  };
+  return {
+    ...metadata,
+    address: route.bridgeContract,
+    logIndex: index,
+    args,
+    topics: encodeEventTopics({ abi: withdrawAbi, eventName: 'Withdraw', args }),
+    data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [args.amount, args.chainId]),
+  };
+}
+function payment(index: number, to = route.receiver, from: string = proxy, amount = 1000000n) {
+  return {
+    ...metadata,
+    address: route.tokenEvmAddress,
+    logIndex: index,
+    topics: encodeEventTopics({
+      abi: parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']),
+      eventName: 'Transfer',
+      args: { from: from as `0x${string}`, to: to as `0x${string}` },
+    }),
+    data: encodeAbiParameters([{ type: 'uint256' }], [amount]),
+  };
+}
+function sweep(index: number, to = route.receiver, amount = 1000000n, address: string = proxy) {
+  return {
+    ...metadata,
+    address,
+    logIndex: index,
+    topics: encodeEventTopics({ abi: sweepAbi, eventName: 'IntentDynamicallyTransferred' }),
+    data: encodeAbiParameters(
+      [{ type: 'address' }, { type: 'address' }, { type: 'uint256' }],
+      [route.tokenEvmAddress as `0x${string}`, to as `0x${string}`, amount],
+    ),
+  };
+}
+async function settle(logs: unknown[], status = 'success', anchor = withdraw()) {
+  rpc.getLogs.mockResolvedValue([anchor]);
+  rpc.getTransactionReceipt.mockResolvedValue({ ...metadata, status, logs });
+  return deps().settlement(transferId, 4010n);
+}
 beforeEach(() => {
   vi.resetAllMocks();
   rpc.getChainId.mockResolvedValue(route.chainId);
@@ -40,6 +100,7 @@ beforeEach(() => {
         paused: false,
         mintableBridgeTokens: false,
         balanceOf: 2000000n,
+        intentExecutorProxy: proxy,
       })[functionName as string],
   );
 });
@@ -65,31 +126,64 @@ describe('withdrawal destination checks (read-only)', () => {
       [4010n, 4010n],
     ]);
   });
-  it('requires successful matching Withdraw receipt AND payment to the requested recipient', async () => {
-    const log = {
-      args: { paymentToken: route.tokenEvmAddress, amount: 1000000n, chainId: 421614n },
-      transactionHash: `0x${'11'.repeat(32)}`,
-      blockHash: `0x${'22'.repeat(32)}`,
-      removed: false,
-    };
-    rpc.getLogs.mockResolvedValue([log]);
-    rpc.getTransactionReceipt.mockResolvedValue({ status: 'success', blockHash: log.blockHash, logs: [] });
-    expect(await deps().settlement(`0x${'33'.repeat(32)}`, 4010n)).toBe(false);
-    const transfer = {
-      address: route.tokenEvmAddress,
-      topics: encodeEventTopics({
-        abi: parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']),
-        eventName: 'Transfer',
-        args: { from: route.bridgeContract as `0x${string}`, to: route.receiver as `0x${string}` },
-      }),
-      data: encodeAbiParameters([{ type: 'uint256' }], [1000000n]),
-    };
-    rpc.getTransactionReceipt.mockResolvedValue({ status: 'success', blockHash: log.blockHash, logs: [transfer] });
-    expect(await deps().settlement(`0x${'33'.repeat(32)}`, 4010n)).toBe(true);
-    const withDust = { ...transfer, data: encodeAbiParameters([{ type: 'uint256' }], [1000001n]) };
-    rpc.getTransactionReceipt.mockResolvedValue({ status: 'success', blockHash: log.blockHash, logs: [withDust] });
-    expect(await deps().settlement(`0x${'33'.repeat(32)}`, 4010n)).toBe(true);
-    rpc.getTransactionReceipt.mockResolvedValue({ status: 'reverted', blockHash: log.blockHash, logs: [transfer] });
-    expect(await deps().settlement(`0x${'33'.repeat(32)}`, 4010n)).toBe(false);
+  it('accepts the matching execution and its residual-balance sweep', async () => {
+    expect(await settle([withdraw(), payment(1), sweep(2)])).toBe(true);
+    expect(rpc.readContract).toHaveBeenCalledWith(expect.objectContaining({ functionName: 'intentExecutorProxy', blockNumber: 4010n }));
+    expect(await settle([withdraw(), payment(1, route.receiver, proxy, 1000001n), sweep(2, route.receiver, 1000001n)])).toBe(true);
+  });
+  it('rejects unsuccessful or absent receipt evidence', async () => {
+    expect(await settle([])).toBe(false);
+    expect(await settle([withdraw(), payment(1), sweep(2)], 'reverted')).toBe(false);
+  });
+  it('does not attribute an unrelated payment in the same receipt to this withdrawal', async () => {
+    expect(
+      await settle([
+        withdraw(),
+        payment(1, proxy, route.bridgeContract),
+        payment(2, other),
+        sweep(3, other),
+        payment(4, route.receiver, other),
+      ]),
+    ).toBe(false);
+  });
+  it('does not attribute a second withdrawal payment from the SAME proxy to the original ID', async () => {
+    expect(
+      await settle([
+        withdraw(),
+        payment(1, proxy, route.bridgeContract),
+        payment(2, other),
+        sweep(3, other),
+        withdraw(4, `0x${'44'.repeat(32)}`),
+        payment(5),
+        sweep(6),
+      ]),
+    ).toBe(false);
+  });
+  it('accepts a matching first withdrawal even when another follows in the receipt', async () => {
+    expect(await settle([withdraw(), payment(1), sweep(2), withdraw(3, `0x${'44'.repeat(32)}`), payment(4, other), sweep(5, other)])).toBe(
+      true,
+    );
+  });
+  it('anchors a matching later withdrawal independently of the preceding execution', async () => {
+    expect(
+      await settle(
+        [withdraw(0, `0x${'44'.repeat(32)}`), payment(1, other), sweep(2, other), withdraw(3), payment(4), sweep(5)],
+        'success',
+        withdraw(3),
+      ),
+    ).toBe(true);
+  });
+  it('stops at the next bridge event even without a preceding executor marker', async () => {
+    expect(await settle([withdraw(), withdraw(1, `0x${'44'.repeat(32)}`), payment(2), sweep(3)])).toBe(false);
+  });
+  it('fails closed for missing executor event, wrong emitter or wrong transfer sender', async () => {
+    expect(await settle([withdraw(), payment(1)])).toBe(false);
+    expect(await settle([withdraw(), payment(1), sweep(2, route.receiver, 1000000n, other)])).toBe(false);
+    expect(await settle([withdraw(), payment(1, route.receiver, other), sweep(2)])).toBe(false);
+  });
+  it('fails closed for an execution/payment amount mismatch or ambiguous ordering', async () => {
+    expect(await settle([withdraw(), payment(1), sweep(2, route.receiver, 1000001n)])).toBe(false);
+    expect(await settle([withdraw(), sweep(2), payment(1)])).toBe(false);
+    expect(await settle([withdraw(), payment(1), sweep(1)])).toBe(false);
   });
 });

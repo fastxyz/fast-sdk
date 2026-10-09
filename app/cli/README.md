@@ -168,8 +168,11 @@ fast send 0xRECIPIENT 1000 --token USDC --to-chain polygon \
    decoding is not authentication. The intent expires 24 hours after its creation.
 5. The coordinator repeats the same command to cross-sign, simulate execution and
    submit to the relayer. Repeat it later to observe settlement. Only a successful
-   matching EVM Withdraw receipt and token payment to the recipient produce
-   `completed`; relayer acceptance alone remains `awaiting-settlement`.
+   matching EVM Withdraw receipt and token payment tied to that withdrawal's
+   executor action produce `completed`; relayer acceptance alone remains
+   `awaiting-settlement`.
+   Settlement also requires the bridge's executor configuration at the receipt's
+   block; an RPC failure leaves the withdrawal pending rather than confirming payment.
 
 Safety and recovery:
 

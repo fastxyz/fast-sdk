@@ -269,11 +269,17 @@ export function liveWithdrawalDependencies(route: WithdrawalRoute, provider: Fas
     'function tokensMapping(bytes32) view returns (address)',
     'function mintableBridgeTokens(address) view returns (bool)',
     'function paused() view returns (bool)',
+    'function intentExecutorProxy() view returns (address)',
     'function transferAndExecute(bytes encodedTransferClaim, bytes transferProof, bytes encodedIntentClaim, bytes intentProof)',
   ]);
   const erc20Abi = parseAbi([
     'function balanceOf(address) view returns (uint256)',
     'event Transfer(address indexed from, address indexed to, uint256 value)',
+  ]);
+  const executorAbi = parseAbi([
+    'event IntentDynamicallyTransferred(address tokenAddress, address recipient, uint256 amount)',
+    'event IntentExecuted(address targetAddress, bytes callData, uint256 amount, bytes result)',
+    'event IntentDynamicallyDeposited(address tokenAddress, bytes32 receiver, uint256 amount)',
   ]);
   const bridge = route.bridgeContract as `0x${string}`;
   const token = route.tokenEvmAddress as `0x${string}`;
@@ -342,17 +348,75 @@ export function liveWithdrawalDependencies(route: WithdrawalRoute, provider: Fas
           )
             continue;
           const receipt = await evm.getTransactionReceipt({ hash: log.transactionHash });
-          const paidRecipient = receipt.logs.some((item) => {
-            if (item.address.toLowerCase() !== token.toLowerCase()) return false;
-            try {
-              const decoded = decodeEventLog({ abi: erc20Abi, eventName: 'Transfer', data: item.data, topics: item.topics });
-              // DynamicTransfer sweeps proxy dust as well as this withdrawal's amount.
-              return decoded.args.to.toLowerCase() === route.receiver.toLowerCase() && decoded.args.value >= BigInt(route.amount);
-            } catch {
-              return false;
-            }
+          if (
+            receipt.status !== 'success' ||
+            receipt.blockHash !== log.blockHash ||
+            receipt.transactionHash !== log.transactionHash ||
+            log.removed
+          )
+            continue;
+          if (
+            receipt.logs.some(
+              (item, index) =>
+                item.logIndex === null ||
+                !Number.isSafeInteger(item.logIndex) ||
+                item.logIndex < 0 ||
+                (index > 0 && item.logIndex <= receipt.logs[index - 1]!.logIndex),
+            )
+          )
+            continue;
+          const anchor = receipt.logs.findIndex(
+            (item) =>
+              item.logIndex === log.logIndex &&
+              item.address.toLowerCase() === bridge.toLowerCase() &&
+              item.data === log.data &&
+              item.topics.length === log.topics.length &&
+              item.topics.every((topic, index) => topic === log.topics[index]),
+          );
+          if (anchor < 0) continue;
+          const executor = await evm.readContract({
+            address: bridge,
+            abi: bridgeAbi,
+            functionName: 'intentExecutorProxy',
+            blockNumber: receipt.blockNumber,
           });
-          if (receipt.status === 'success' && receipt.blockHash === log.blockHash && !log.removed && paidRecipient) return true;
+          const payments: typeof receipt.logs = [];
+          // Bridge emits Withdraw before executing intents. Stop at the next bridge
+          // event or the first executor action: another execution cannot supply proof.
+          for (const item of receipt.logs.slice(anchor + 1)) {
+            if (item.address.toLowerCase() === bridge.toLowerCase()) break;
+            if (item.address.toLowerCase() === executor.toLowerCase()) {
+              try {
+                const action = decodeEventLog({ abi: executorAbi, data: item.data, topics: item.topics });
+                if (
+                  action.eventName !== 'IntentDynamicallyTransferred' ||
+                  action.args.tokenAddress.toLowerCase() !== token.toLowerCase() ||
+                  action.args.recipient.toLowerCase() !== route.receiver.toLowerCase() ||
+                  action.args.amount < BigInt(route.amount)
+                )
+                  break;
+                const paidRecipient = payments.some((payment) => {
+                  if (payment.address.toLowerCase() !== token.toLowerCase()) return false;
+                  try {
+                    const decoded = decodeEventLog({ abi: erc20Abi, eventName: 'Transfer', data: payment.data, topics: payment.topics });
+                    // DynamicTransfer sweeps proxy dust too; bind its exact amount.
+                    return (
+                      decoded.args.from.toLowerCase() === executor.toLowerCase() &&
+                      decoded.args.to.toLowerCase() === route.receiver.toLowerCase() &&
+                      decoded.args.value === action.args.amount
+                    );
+                  } catch {
+                    return false;
+                  }
+                });
+                if (paidRecipient) return true;
+                break;
+              } catch {
+                continue;
+              }
+            }
+            payments.push(item);
+          }
         }
       }
       return false;

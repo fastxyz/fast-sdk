@@ -358,6 +358,11 @@ const sendParser = command(
         description: message`Fast transfer memo (max 32 bytes UTF-8)`,
       }),
     ),
+    withdrawal: optional(
+      option('--withdrawal', string({ metavar: 'FILE' }), {
+        description: message`Private recovery journal for multisig Fast → EVM; reuse the same file to resume`,
+      }),
+    ),
     fromChain: optional(
       option('--from-chain', string({ metavar: 'CHAIN' }), {
         description: message`Source EVM chain for bridge-in (e.g., arbitrum-sepolia)`,

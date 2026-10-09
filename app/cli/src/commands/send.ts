@@ -33,6 +33,8 @@ import { HistoryStore, recordConfirmedHistory } from '../services/storage/histor
 import { NetworkConfigService } from '../services/storage/network.js';
 import { resolveToken, tokenIsKnownOnNetwork } from '../services/token-resolver.js';
 import { submitOperation } from '../services/tx-pipeline.js';
+import { liveWithdrawalDependencies, runMultisigWithdrawal } from '../services/multisig-withdrawal.js';
+import { withWithdrawalJournal } from '../services/storage/withdrawal-journal.js';
 import type { Command } from './index.js';
 
 export const send: Command<SendArgs> = {
@@ -231,12 +233,14 @@ export const send: Command<SendArgs> = {
 
       const amountRaw = BigInt(Math.round(amountFloat * 10 ** decimals));
 
-      // Resolve account.
-      // EVM-bridging routes require a single-signer account (we need the seed
-      // to sign EVM transactions). Fast → Fast tolerates multisig and uses
-      // resolveSigner to dispatch on account kind.
       const accountInfo = yield* accounts.resolveAccount(config.account);
-      if ((route === 'evm-to-fast' || route === 'fast-to-evm') && accountInfo.kind !== 'single') {
+      if (args.withdrawal && (route !== 'fast-to-evm' || accountInfo.kind !== 'multisig')) {
+        return yield* Effect.fail(new InvalidUsageError({message:'--withdrawal is only supported for multisig Fast → EVM withdrawals.'}));
+      }
+      if (route === 'fast-to-evm' && accountInfo.kind === 'multisig' && (!args.withdrawal || args.memo || args.replacePending || args.eip7702)) {
+        return yield* Effect.fail(new InvalidUsageError({message:'Multisig withdrawal requires --withdrawal FILE; memo, replace-pending and eip7702 are not supported. Reuse the same file to resume, never a new file to retry.'}));
+      }
+      if (route === 'evm-to-fast' && accountInfo.kind !== 'single') {
         return yield* Effect.fail(
           new WalletKindMismatchError({
             name: accountInfo.name,
@@ -246,7 +250,6 @@ export const send: Command<SendArgs> = {
         );
       }
 
-      // The route-specific guard above narrows EVM routes to single-signer.
       // Pre-derive the "from" address used in the confirmation prompt + history.
       const fromAddress = route === 'evm-to-fast' && accountInfo.kind === 'single' ? accountInfo.evmAddress : accountInfo.fastAddress;
 
@@ -346,18 +349,6 @@ export const send: Command<SendArgs> = {
         }
       } else if (route === 'fast-to-evm') {
         // ── Fast → EVM (bridge-out) ─────────────────────────────────────────
-        if (accountInfo.kind !== 'single') {
-          return yield* Effect.fail(
-            new WalletKindMismatchError({
-              name: accountInfo.name,
-              expected: 'single',
-              hint: 'EVM bridging requires a single-signer account.',
-            }),
-          );
-        }
-        const password = accountInfo.encrypted ? yield* prompt.password() : null;
-        const { seed } = yield* accounts.export(accountInfo.name, password);
-
         const allset = network.allSet;
         if (!allset) {
           return yield* Effect.fail(new InvalidNetworkConfigError({ name: config.network }));
@@ -366,6 +357,50 @@ export const send: Command<SendArgs> = {
         if (!chainCfg) {
           return yield* Effect.fail(new UnsupportedChainError({ chain: toChain! }));
         }
+
+        if (accountInfo.kind === 'multisig') {
+          if (!/^[0-9]+(?:\.[0-9]+)?$/.test(args.amount)) {
+            return yield* Effect.fail(new InvalidAmountError({ message: 'Multisig withdrawal requires a plain decimal amount.' }));
+          }
+          const [whole, fraction = ''] = args.amount.split('.');
+          const exactAmount = BigInt(whole!) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, '0') || '0');
+          const resolved = yield* resolveSigner({
+            account: accountInfo,
+            asMember: args.as,
+            network: config.network,
+            passwordFor: (member) => member.encrypted ? prompt.password() : Effect.succeed(null),
+          });
+          if (resolved.kind !== 'multisig') return yield* Effect.fail(new InvalidUsageError({ message: 'Expected a multisig signer.' }));
+          const withdrawalRoute = {
+            networkId: network.networkId,
+            sender: accountInfo.fastAddress,
+            chainId: chainCfg.chainId,
+            amount: exactAmount.toString(),
+            fastBridgeAddress: chainCfg.fastBridgeAddress,
+            tokenFastTokenId: toHex(tokenInfo.fastTokenId),
+            tokenEvmAddress: tokenInfo.evmAddress!,
+            receiver: address,
+            bridgeContract: chainCfg.bridgeContract,
+            evmRpcUrl: chainCfg.evmRpcUrl,
+            crossSignUrl: allset.crossSignUrl,
+            relayerUrl: chainCfg.relayerUrl,
+          };
+          const result = yield* Effect.tryPromise({
+            try: () => withWithdrawalJournal(args.withdrawal!, (store) => runMultisigWithdrawal(
+              withdrawalRoute, resolved.signer, store, liveWithdrawalDependencies(withdrawalRoute, new FastProvider(network)),
+            )),
+            catch: (error) => new TransactionFailedError({ message: `Withdrawal paused; reuse ${args.withdrawal}. ${String(error)}` }),
+          });
+          yield* output.humanLine(`Withdrawal: ${result.status}. Journal: ${args.withdrawal}`);
+          if (result.status.startsWith('awaiting-') && result.status.endsWith('-signatures')) {
+            yield* output.humanLine(`Cosigner: inspect fast multisig pending, then fast multisig vote --tx ${result.txHash}. Re-run this exact send command after quorum.`);
+          }
+          yield* output.humanLine('Never use a new journal to retry this withdrawal. An uncertain result requires reconciliation, not another payment.');
+          yield* output.ok({ ...result, withdrawal: args.withdrawal, wallet: accountInfo.name });
+          return;
+        }
+        const password = accountInfo.encrypted ? yield* prompt.password() : null;
+        const { seed } = yield* accounts.export(accountInfo.name, password);
 
         const signer = new Signer(seed);
         const provider = new FastProvider(network);

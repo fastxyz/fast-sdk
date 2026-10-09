@@ -1,5 +1,29 @@
 import type { TransactionEnvelope, VersionedTransaction } from '@fastxyz/schema';
 import { toFastAddress, toHex } from '@fastxyz/sdk';
+import { buildIntentClaimBytes, buildTransferIntent } from '@fastxyz/allset-sdk';
+import { decodeAbiParameters, parseAbiParameters } from 'viem';
+
+const withdrawalAbi = parseAbiParameters('(bytes32 transferFastTxId, uint256 deadline, (uint8 action, bytes payload, uint256 value)[] intents)');
+const transferAbi = parseAbiParameters('address token, address recipient');
+
+const withdrawalSummary = (operation: Operation): string[] => {
+  if (operation.type !== 'ExternalClaim') return [];
+  const data = (operation.value as {claim?: {claimData?: unknown}})?.claim?.claimData;
+  if (!(data instanceof Uint8Array)) return [];
+  try {
+    const [claim] = decodeAbiParameters(withdrawalAbi, toHex(data) as `0x${string}`);
+    const intent = claim.intents[0];
+    if (claim.intents.length !== 1 || !intent || intent.action !== 1 || intent.value !== 0n) return [];
+    const [token, recipient] = decodeAbiParameters(transferAbi, intent.payload);
+    // Decode only the exact canonical subset this command creates; retain raw evidence below.
+    const encoded = buildIntentClaimBytes({transferFastTxId:claim.transferFastTxId,deadline:claim.deadline,intents:[buildTransferIntent(token,recipient)]});
+    if (toHex(encoded) !== toHex(data)) return [];
+    return ['      AllSet legacy withdrawal intent (decoded, not authenticated)',
+      `      Transfer: ${claim.transferFastTxId}`, `      Deadline: ${claim.deadline} (Unix seconds)`,
+      `      Token: ${token}`, `      Recipient: ${recipient}`,
+      '      Check the linked transfer amount, bridge and destination chain independently before voting.'];
+  } catch { return []; }
+};
 
 type Operation = {
   readonly type: string;
@@ -62,6 +86,7 @@ export const summarizeTransaction = (envelope: TransactionEnvelope): readonly st
   for (let index = 0; index < operations.length; index++) {
     const operation = operations[index]!;
     lines.push(`  [${index + 1}] ${operation.type}`);
+    lines.push(...withdrawalSummary(operation));
     lines.push(`      ${JSON.stringify(normalize(operation.value ?? null), null, 2).replace(/\n/g, '\n      ')}`);
   }
   return lines;

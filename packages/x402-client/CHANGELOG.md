@@ -10,7 +10,7 @@
   The CLI inherits v2 dry-run and payment support without command-code changes.
 
   The four x402 packages target 1.1.0. Publishing remains gated on the approved
-  live testnet version matrix and drop-in consumer checks; this changeset alone
+  live FAST/Base mainnet version matrix and drop-in consumer checks; this changeset alone
   does not establish those gates or authorize publication.
 
 ### Patch Changes

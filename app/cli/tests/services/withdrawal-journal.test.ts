@@ -1,7 +1,7 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { withWithdrawalJournal } from '../../src/services/storage/withdrawal-journal.js';
 
 const dirs: string[] = [];
@@ -10,8 +10,20 @@ const file = () => {
   dirs.push(dir);
   return join(dir, 'withdrawal.json');
 };
-afterEach(() => dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true })));
+afterEach(() => {
+  vi.restoreAllMocks();
+  dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true }));
+});
 describe('private withdrawal journal', () => {
+  it('rejects Windows explicitly before opening a journal or running the coordinator', async () => {
+    const path = file();
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    const run = vi.fn();
+    await expect(withWithdrawalJournal(path, run)).rejects.toThrow('Multisig withdrawal journals currently support macOS and Linux only');
+    expect(run).not.toHaveBeenCalled();
+    expect(existsSync(path)).toBe(false);
+    expect(existsSync(`${path}.lock`)).toBe(false);
+  });
   it.each(['null', '[]', '"unexpected"'])('does not treat existing %s as a new withdrawal', async (content) => {
     const path = file();
     writeFileSync(path, content, { mode: 0o600 });

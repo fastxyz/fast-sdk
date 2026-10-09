@@ -176,6 +176,10 @@ fast send 0xRECIPIENT 1000 --token USDC --to-chain polygon \
 
 Safety and recovery:
 
+- Multisig withdrawal journals support macOS and Linux only; Windows is rejected
+  before opening the journal. Private POSIX ownership and permissions are required.
+- RPC, cross-sign and relayer endpoints may rotate during recovery. The signed
+  route remains fixed, and changing endpoints never retries an uncertain attempt.
 - Keep the journal until settlement. It contains public signed envelopes, never
   seeds. Keep the directory private (0700) and the journal private (0600).
 - **Never use another file to retry a withdrawal.** That means a new payment.

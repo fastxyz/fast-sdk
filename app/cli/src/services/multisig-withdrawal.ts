@@ -92,7 +92,20 @@ export async function runMultisigWithdrawal(
   const loaded = store.read();
   const journal = (loaded ?? { version: 1, route, evmStartBlock: String(await deps.getEvmBlock()) }) as WithdrawalJournal;
   assert.equal(journal.version, 1, 'unsupported withdrawal journal version');
-  assert.equal(canonical(journal.route), canonical(route), 'withdrawal route differs from the original journal');
+  // Endpoints can rotate; only transaction-defining fields bind the saved operation.
+  const routeIdentity = (r: WithdrawalRoute) =>
+    canonical([
+      r.networkId,
+      r.sender,
+      r.chainId,
+      r.amount,
+      r.fastBridgeAddress,
+      r.tokenFastTokenId,
+      r.tokenEvmAddress,
+      r.receiver,
+      r.bridgeContract,
+    ]);
+  assert.equal(routeIdentity(journal.route), routeIdentity(route), 'withdrawal route differs from the original journal');
   assert.match(journal.evmStartBlock, /^(0|[1-9][0-9]*)$/, 'invalid withdrawal start block');
   for (const stage of ['transfer', 'intent'] as const) {
     if (Object.hasOwn(journal, stage)) {

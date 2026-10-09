@@ -266,6 +266,55 @@ describe('resumable AllSet multisig withdrawal', () => {
     await expect(runMultisigWithdrawal({ ...s.r, receiver: `0x${'05'.repeat(20)}` }, s.signer, s.store, s.deps)).rejects.toThrow('route');
     expect(s.provider.submitTransaction).toHaveBeenCalledTimes(1);
   });
+  it.each([
+    ['networkId', 'fast:mainnet'],
+    ['sender', 'different-sender'],
+    ['chainId', 1],
+    ['amount', '2000000'],
+    ['fastBridgeAddress', 'use-sender'],
+    ['tokenFastTokenId', `0x${'05'.repeat(32)}`],
+    ['tokenEvmAddress', `0x${'05'.repeat(20)}`],
+    ['bridgeContract', `0x${'05'.repeat(20)}`],
+  ])('still rejects a changed %s when endpoints rotate', async (field, value) => {
+    const s = await setup();
+    await s.run();
+    const changed = { ...s.r, evmRpcUrl: 'https://new-rpc.example', [field]: value === 'use-sender' ? s.r.sender : value };
+    await expect(runMultisigWithdrawal(changed, s.signer, s.store, s.deps)).rejects.toThrow();
+    expect(s.provider.submitTransaction).toHaveBeenCalledTimes(1);
+    expect(s.deps.relay).not.toHaveBeenCalled();
+  });
+  it('recovers a paid transfer with rotated endpoints without replacing its signed identity', async () => {
+    const s = await setup();
+    await s.run();
+    s.confirm();
+    const original = structuredClone(s.saved.transfer);
+    const rotated = {
+      ...s.r,
+      evmRpcUrl: 'https://new-rpc.example',
+      crossSignUrl: 'https://new-cross.example',
+      relayerUrl: 'https://new-relay.example',
+    };
+    expect((await runMultisigWithdrawal(rotated, s.signer, s.store, s.deps)).status).toBe('awaiting-intent-signatures');
+    s.confirm();
+    expect((await runMultisigWithdrawal(rotated, s.signer, s.store, s.deps)).status).toBe('awaiting-settlement');
+    expect(s.saved.transfer).toEqual(original);
+    expect(s.deps.crossSign).toHaveBeenCalledWith(expect.anything(), rotated.crossSignUrl);
+    expect(s.deps.relay).toHaveBeenCalledWith(expect.objectContaining({ relayerUrl: rotated.relayerUrl }));
+    expect(s.provider.submitTransaction).toHaveBeenCalledTimes(2);
+  });
+  it('does not retry an uncertain relay after endpoint rotation', async () => {
+    const s = await setup();
+    await s.run();
+    s.confirm();
+    await s.run();
+    s.confirm();
+    s.deps.relay.mockRejectedValueOnce(new Error('lost response'));
+    await expect(s.run()).rejects.toThrow('lost response');
+    const rotated = { ...s.r, relayerUrl: 'https://new-relay.example' };
+    expect((await runMultisigWithdrawal(rotated, s.signer, s.store, s.deps)).status).toBe('relay-uncertain');
+    expect(s.deps.relay).toHaveBeenCalledTimes(1);
+    expect(s.provider.submitTransaction).toHaveBeenCalledTimes(2);
+  });
   it('refuses a different certificate occupying the saved nonce', async () => {
     const s = await setup();
     await s.run();

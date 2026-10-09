@@ -18,6 +18,7 @@ import type { WithdrawalStore } from '../multisig-withdrawal.js';
 
 /** Crash leaves the lock in place: reconcile existing attempts before removing it manually. */
 export async function withWithdrawalJournal<T>(file: string, run: (store: WithdrawalStore) => Promise<T>): Promise<T> {
+  if (process.platform === 'win32') throw new Error('Multisig withdrawal journals currently support macOS and Linux only');
   file = resolve(file);
   const directory = realpathSync(dirname(file));
   file = join(directory, basename(file));

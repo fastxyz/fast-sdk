@@ -135,6 +135,72 @@ Signer order is canonicalized by decoded 32-byte address (not bech32 text).
 `vote` prints the complete transaction before an interactive signature. Export
 uses exclusive file creation and never overwrites an existing file.
 
+#### Multisig AllSet withdrawals (two signing rounds)
+
+Fast → EVM withdrawals support a multisig account with an explicit local
+recovery journal. Each signer keeps their own key; the coordinator never needs
+the other signer's seed. EVM → Fast deposits still require a single-signer account.
+
+Create a private directory once, then initiate the withdrawal:
+
+```bash
+mkdir -p "$HOME/.fast/withdrawals"
+chmod 700 "$HOME/.fast/withdrawals"
+fast send 0xRECIPIENT 1000 --token USDC --to-chain polygon \
+  --network mainnet --account treasury --as alice \
+  --withdrawal "$HOME/.fast/withdrawals/rebalance.json"
+```
+
+1. The coordinator's first call proposes the Fast token transfer to the bridge.
+2. The cosigner independently checks network, bridge, token and amount, then votes
+   for the exact hash returned by the coordinator:
+
+   ```bash
+   fast multisig pending --network mainnet --account treasury --as bob
+   fast multisig vote --network mainnet --account treasury --as bob --tx 0xTRANSFER_HASH
+   ```
+
+3. After quorum, the coordinator repeats the **exact same `send` command and file**.
+   This proposes the linked AllSet intent, not another token transfer.
+4. The cosigner inspects pending again and votes with `--tx 0xINTENT_HASH`. The
+   summary decodes the linked transfer, token, recipient and deadline, alongside
+   the raw claim. Check the destination chain and bridge against the first round;
+   decoding is not authentication. The intent expires 24 hours after its creation.
+5. The coordinator repeats the same command to cross-sign, simulate execution and
+   submit to the relayer. Repeat it later to observe settlement. Only a successful
+   matching EVM Withdraw receipt and token payment tied to that withdrawal's
+   executor action produce `completed`; relayer acceptance alone remains
+   `awaiting-settlement`.
+   Settlement also requires the bridge's executor configuration at the receipt's
+   block; an RPC failure leaves the withdrawal pending rather than confirming payment.
+
+Safety and recovery:
+
+- Multisig withdrawal journals support macOS and Linux only; Windows is rejected
+  before opening the journal. Private POSIX ownership and permissions are required.
+- RPC, cross-sign and relayer endpoints may rotate during recovery. The signed
+  route remains fixed, and changing endpoints never retries an uncertain attempt.
+- Keep the journal until settlement. It contains public signed envelopes, never
+  seeds. Keep the directory private (0700) and the journal private (0600).
+- **Never use another file to retry a withdrawal.** That means a new payment.
+  Use one coordinator and serialize treasury activity across devices; the local
+  lock is not a distributed exactly-once guarantee.
+- Each signed transaction is saved before submission. A lost response is
+  reconciled by exact certificate/proposal identity, never by amount or timing.
+  An uncertain submission is not automatically resent. Missing proposals,
+  expired intents, rejected/uncertain relay attempts and revoked transfers require
+  manual recovery of the original transfer, not a new payment. Revoke is not
+  implemented by this command.
+- A crash can leave `FILE.lock`. Reconcile the original hashes and account state
+  before manually removing that lock. Do not edit or delete journal stages.
+- RPC chain, bridge binding, token mapping, pause state and available liquidity
+  are checked before payment. These are snapshots, not reservations. Keep enough
+  Fast gas for both signing rounds; later liquidity or service changes can still
+  require recovery. A successful simulation is not a settlement guarantee.
+- `--memo`, `--replace-pending` and `--eip-7702` are not supported for this flow.
+
+Single-signer withdrawals keep their existing behavior and do not use this journal.
+
 Initiating `send` or `token` operations performs a best-effort preflight and
 refuses when it observes another multisig proposal at the current nonce.
 Inspect it with `fast multisig pending`; only pass `--replace-pending` when

@@ -38,6 +38,10 @@ export class InsufficientFundingError extends Data.TaggedError(
 )<{
   readonly message: string;
   readonly currentBalance: bigint;
+  /** Required fee amount, when the validator rejected a fee payment. */
+  readonly needed?: bigint;
+  /** Fee token bytes, or null for the native token. Absent for non-fee errors. */
+  readonly tokenId?: Uint8Array | null;
 }> {}
 
 /**

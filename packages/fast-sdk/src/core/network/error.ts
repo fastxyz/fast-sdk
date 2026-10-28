@@ -1,3 +1,4 @@
+import { InsufficientFundingError } from "../error/fastset";
 import { RestError } from "../error/network";
 import {
   DatabaseError,
@@ -12,6 +13,16 @@ import {
   VerifierSigsInvalidError,
 } from "../error/proxy";
 
+const parseBalance = (value: unknown): bigint | undefined => {
+  // Balance is signed; classification must not impose fee-accounting rules.
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) ? BigInt(value) : undefined;
+  }
+  if (typeof value === "string" && /^-?\d+$/.test(value)) return BigInt(value);
+  return undefined;
+};
+
 /** Parse a REST error envelope into a typed error. */
 export const parseRestError = (
   status: number,
@@ -21,6 +32,37 @@ export const parseRestError = (
   const d = details as Record<string, unknown> | undefined;
 
   switch (code) {
+    case "VALIDATOR_REJECTED": {
+      const funding = d?.InsufficientFundingForFee;
+      if (
+        typeof funding === "object" &&
+        funding !== null &&
+        !Array.isArray(funding)
+      ) {
+        const f = funding as Record<string, unknown>;
+        const currentBalance = parseBalance(f.current_balance);
+        const needed = parseBalance(f.needed);
+        const tokenId = f.token_id;
+        if (
+          currentBalance !== undefined &&
+          needed !== undefined &&
+          (tokenId === null ||
+            (Array.isArray(tokenId) &&
+              tokenId.length === 32 &&
+              Array.from(tokenId).every(
+                (byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255,
+              )))
+        ) {
+          return new InsufficientFundingError({
+            message,
+            currentBalance,
+            needed,
+            tokenId: tokenId === null ? null : new Uint8Array(tokenId),
+          });
+        }
+      }
+      return new RestError({ status, code, message, details });
+    }
     case "INVALID_REQUEST":
       return new InvalidRequestError({ message });
     case "NOT_FOUND":

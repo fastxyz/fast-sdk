@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseRestError } from "../../src/core/network/error";
 import { restCallEffect } from "../../src/core/network/rest";
 import { run } from "../../src/core/run";
 import {
   BcsEncodeError,
   FastProvider,
   GeneralError,
+  InsufficientFundingError,
   InvalidRequestError,
   IpRateLimitedError,
   NotFoundError,
@@ -191,6 +193,192 @@ describe("Error handling", () => {
     });
   });
 
+  describe("Validator fee rejections", () => {
+    const tokenId = [
+      215, 58, 6, 121, 162, 190, 70, 152, 30, 42, 138, 237, 236, 217, 81, 200,
+      182, 105, 14, 125, 95, 133, 2, 179, 78, 211, 255, 76, 194, 22, 59, 70,
+    ];
+    const call = () =>
+      run(restCallEffect("http://localhost:9999", { method: "POST", path: "/v1/test" }));
+
+    it("exposes the captured fee rejection as InsufficientFundingError", async () => {
+      mockRestError(400, {
+        code: "VALIDATOR_REJECTED",
+        message: "validator rejected transaction: insufficient funds for fee",
+        details: {
+          InsufficientFundingForFee: {
+            current_balance: "0",
+            token_id: tokenId,
+            needed: "1",
+          },
+        },
+      });
+
+      const error = await call().catch((error) => error);
+      expect(error).toBeInstanceOf(InsufficientFundingError);
+      expect(error).toMatchObject({
+        _tag: "InsufficientFundingError",
+        message: "validator rejected transaction: insufficient funds for fee",
+        currentBalance: 0n,
+        tokenId: new Uint8Array(tokenId),
+        needed: 1n,
+      });
+    });
+
+    it("preserves balances beyond Number.MAX_SAFE_INTEGER", async () => {
+      mockRestError(400, {
+        code: "VALIDATOR_REJECTED",
+        message: "insufficient fee balance",
+        details: {
+          InsufficientFundingForFee: {
+            current_balance: "9007199254740993",
+            token_id: null,
+            needed: "340282366920938463463374607431768211455",
+          },
+        },
+      });
+
+      const error = await call().catch((error) => error);
+      expect(error).toBeInstanceOf(InsufficientFundingError);
+      expect(error).toMatchObject({
+        currentBalance: 9007199254740993n,
+        tokenId: null,
+        needed: 340282366920938463463374607431768211455n,
+      });
+    });
+
+    it("accepts safe integer balances", async () => {
+      mockRestError(400, {
+        code: "VALIDATOR_REJECTED",
+        message: "insufficient fee balance",
+        details: {
+          InsufficientFundingForFee: { current_balance: 0, token_id: null, needed: 1 },
+        },
+      });
+
+      const error = await call().catch((error) => error);
+      expect(error).toBeInstanceOf(InsufficientFundingError);
+      expect(error).toMatchObject({ currentBalance: 0n, tokenId: null, needed: 1n });
+    });
+
+    it("preserves bigint balances already decoded from JSON", () => {
+      const error = parseRestError(400, {
+        code: "VALIDATOR_REJECTED",
+        message: "insufficient fee balance",
+        details: {
+          InsufficientFundingForFee: {
+            current_balance: 9007199254740993n,
+            token_id: null,
+            needed: 9007199254740994n,
+          },
+        },
+      });
+      expect(error).toBeInstanceOf(InsufficientFundingError);
+      expect(error).toMatchObject({
+        currentBalance: 9007199254740993n,
+        needed: 9007199254740994n,
+      });
+    });
+
+    it("does not coerce unsafe numeric balances", () => {
+      const error = parseRestError(400, {
+        code: "VALIDATOR_REJECTED",
+        message: "insufficient fee balance",
+        details: {
+          InsufficientFundingForFee: {
+            current_balance: Number.MAX_SAFE_INTEGER + 1,
+            token_id: null,
+            needed: "9007199254740993",
+          },
+        },
+      });
+      expect(error).toBeInstanceOf(RestError);
+    });
+
+    it.each([
+      ["-9007199254740993", "1", -9007199254740993n, 1n],
+      ["0", "-9007199254740993", 0n, -9007199254740993n],
+      [-1, -2, -1n, -2n],
+    ])("preserves signed Balance fields (%s, %s)", async (current, needed, balance, fee) => {
+      mockRestError(400, {
+        code: "VALIDATOR_REJECTED",
+        message: "insufficient fee balance",
+        details: {
+          InsufficientFundingForFee: {
+            current_balance: current,
+            token_id: null,
+            needed,
+          },
+        },
+      });
+      const error = await call().catch((error) => error);
+      expect(error).toBeInstanceOf(InsufficientFundingError);
+      expect(error).toMatchObject({ currentBalance: balance, needed: fee });
+    });
+
+    it("preserves negative bigint Balance fields", () => {
+      const error = parseRestError(400, {
+        code: "VALIDATOR_REJECTED",
+        message: "insufficient fee balance",
+        details: {
+          InsufficientFundingForFee: {
+            current_balance: -9007199254740993n,
+            token_id: null,
+            needed: -9007199254740994n,
+          },
+        },
+      });
+      expect(error).toBeInstanceOf(InsufficientFundingError);
+      expect(error).toMatchObject({
+        currentBalance: -9007199254740993n,
+        needed: -9007199254740994n,
+      });
+    });
+
+    it.each([
+      undefined,
+      null,
+      [],
+      "InsufficientFundingForFee",
+      { OtherValidatorError: {} },
+      { InsufficientFundingForFee: null },
+      { InsufficientFundingForFee: {} },
+      { InsufficientFundingForFee: { current_balance: "0", needed: "1" } },
+      { InsufficientFundingForFee: { current_balance: "0", token_id: null } },
+      ...[
+        { current_balance: "not a balance" },
+        { current_balance: "" },
+        { current_balance: "-1.5" },
+        { current_balance: null },
+        { current_balance: 0.5 },
+        { needed: false },
+        { needed: "1.5" },
+        { needed: "-1.5" },
+        { token_id: [] },
+        { token_id: [...tokenId.slice(0, 31), 256] },
+        { token_id: [...tokenId.slice(0, 31), 0.5] },
+        { token_id: "not token bytes" },
+      ].map((overrides) => ({
+        InsufficientFundingForFee: {
+          current_balance: "0", token_id: null, needed: "1", ...overrides,
+        },
+      })),
+    ])("keeps malformed or unknown details as RestError: %j", async (details) => {
+      mockRestError(400, {
+        code: "VALIDATOR_REJECTED", message: "validator rejection", details,
+      });
+
+      const error = await call().catch((error) => error);
+      if (!(error instanceof RestError)) {
+        expect.unreachable("Expected a RestError");
+      }
+      expect(error).toMatchObject({
+        status: 400, code: "VALIDATOR_REJECTED", message: "validator rejection",
+      });
+      expect(error.details).toEqual(details);
+    });
+  });
+
   describe("Fallback: unknown error codes", () => {
     it("wraps unknown code in RestError", async () => {
       mockRestError(418, { code: "TEAPOT", message: "I'm a teapot" });
@@ -208,6 +396,14 @@ describe("Error handling", () => {
   });
 
   describe("Error class properties", () => {
+    it("keeps the existing InsufficientFundingError constructor compatible", () => {
+      const error = new InsufficientFundingError({
+        message: "insufficient funds",
+        currentBalance: 0n,
+      });
+      expect(error).toMatchObject({ _tag: "InsufficientFundingError", currentBalance: 0n });
+    });
+
     it("RpcTimeoutError has _tag, method, timeoutMs", () => {
       const err = new RpcTimeoutError({ method: "test", timeoutMs: 5000 });
       expect(err._tag).toBe("RpcTimeoutError");

@@ -69,7 +69,10 @@ describe("restCallEffect", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/v1/test?key=value"),
-      { method: "GET" },
+      expect.objectContaining({
+        method: "GET",
+        signal: expect.objectContaining({ aborted: false }),
+      }),
     );
   });
 
@@ -129,6 +132,75 @@ describe("restCallEffect", () => {
         expect(e.timeoutMs).toBe(50);
       }
     }
+  });
+
+  it("aborts an in-flight fetch when the REST timeout expires", async () => {
+    const aborted = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, opts?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          opts?.signal?.addEventListener(
+            "abort",
+            () => {
+              aborted();
+              reject(new Error("Request aborted"));
+            },
+            { once: true },
+          );
+        }),
+      ),
+    );
+
+    await expect(
+      run(
+        restCallEffect("http://localhost", {
+          method: "GET",
+          path: "/v1/slow",
+          timeoutMs: 20,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(RestTimeoutError);
+    expect(aborted).toHaveBeenCalledOnce();
+  });
+
+  it("aborts a pending response body when the REST timeout expires", async () => {
+    const aborted = vi.fn();
+    const readBody = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, opts?: RequestInit) =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => {
+            readBody();
+            return new Promise((_resolve, reject) => {
+              opts?.signal?.addEventListener(
+                "abort",
+                () => {
+                  aborted();
+                  reject(new Error("Body aborted"));
+                },
+                { once: true },
+              );
+            });
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      run(
+        restCallEffect("http://localhost", {
+          method: "GET",
+          path: "/v1/slow-body",
+          timeoutMs: 20,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(RestTimeoutError);
+    expect(readBody).toHaveBeenCalledOnce();
+    expect(aborted).toHaveBeenCalledOnce();
   });
 
   it("throws on network failure", async () => {

@@ -51,8 +51,11 @@ export const restCallEffect = (
       fetchOpts.body = JSONStringify(opts.body);
     }
 
-    const res = yield* Effect.tryPromise(() => fetch(url.toString(), fetchOpts));
-    const text = yield* Effect.tryPromise(() => res.text());
+    const { res, text } = yield* Effect.tryPromise(async (signal) => {
+      const res = await fetch(url.toString(), { ...fetchOpts, signal });
+      const text = await res.text();
+      return { res, text };
+    });
 
     let json: unknown;
     try {

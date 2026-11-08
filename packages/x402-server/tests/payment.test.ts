@@ -3,7 +3,8 @@
  */
 
 import { describe, it, afterEach, expect } from 'vitest';
-import { createPaymentRequirement, createPaymentRequired, parsePaymentHeader, encodePaymentResponse } from '../src/payment.js';
+import { createPaymentRequirement, createPaymentRequired, createPaymentRequiredHeader, parsePaymentHeader, encodePaymentResponse } from '../src/payment.js';
+import { decodePayload, type PaymentRequiredV2 } from '@fastxyz/x402-types';
 
 const originalFetch = globalThis.fetch;
 
@@ -25,6 +26,17 @@ describe('x402-server payment', () => {
   });
 
   describe('createPaymentRequirement', () => {
+    it.each(['$1', '1 USDC'])('should advertise whole-unit price %s in raw units', (price) => {
+      const req = createPaymentRequirement(
+        'seller',
+        { price, network: 'fast-testnet', networkConfig: FAST_TESTNET_CONFIG },
+        '/api/data',
+      );
+
+      expect(req.maxAmountRequired).toBe('1000000');
+      expect(req.asset).toBe(FAST_TESTNET_CONFIG.asset);
+    });
+
     it('should create EVM payment requirement', () => {
       const req = createPaymentRequirement(
         '0x1234567890abcdef1234567890abcdef12345678',
@@ -90,6 +102,19 @@ describe('x402-server payment', () => {
   });
 
   describe('createPaymentRequired', () => {
+    it('should advertise the same whole-unit amount in the native v2 header', () => {
+      const header = createPaymentRequiredHeader(
+        'seller',
+        { price: '$1', network: 'fast-testnet', networkConfig: FAST_TESTNET_CONFIG },
+        '/api/data',
+      );
+      const response = decodePayload<PaymentRequiredV2>(header);
+
+      expect(response.x402Version).toBe(2);
+      expect(response.accepts[0].amount).toBe('1000000');
+      expect(response.resource.url).toBe('/api/data');
+    });
+
     it('should create 402 response body', () => {
       const response = createPaymentRequired(
         '0x123',

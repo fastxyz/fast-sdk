@@ -15,12 +15,14 @@
  * @param decimals  Token decimals (default: 6 for USDC)
  */
 export function parsePrice(price: string, decimals: number = 6): string {
+  const hasCurrency = /\$|usdc/i.test(price);
   const cleaned = price
     .replace(/[$,\s]/g, '')
     .replace(/usdc/i, '')
     .trim();
 
-  if (/^\d+$/.test(cleaned)) {
+  // Only unitless integer strings are already in raw token units.
+  if (!hasCurrency && /^\d+$/.test(cleaned)) {
     return cleaned;
   }
 

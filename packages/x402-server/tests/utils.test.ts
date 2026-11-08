@@ -13,6 +13,19 @@ describe('x402-server utils', () => {
       expect(parsePrice('$0.01')).toBe('10000');
     });
 
+    it.each(['$1', '1 USDC', '1USDC', '1 usdc', ' $1 ', ' 1 USDC '])('should scale whole-unit price %s', (price) => {
+      expect(parsePrice(price)).toBe('1000000');
+    });
+
+    it('should scale whole-unit prices with thousands separators', () => {
+      expect(parsePrice('$1,000')).toBe('1000000000');
+      expect(parsePrice('1,000 USDC')).toBe('1000000000');
+    });
+
+    it.each(['$0', '0 USDC', '$0.00', '0.00 USDC'])('should preserve zero price %s', (price) => {
+      expect(parsePrice(price)).toBe('0');
+    });
+
     it('should parse decimal format', () => {
       expect(parsePrice('0.10')).toBe('100000');
       expect(parsePrice('1.5')).toBe('1500000');
@@ -25,8 +38,10 @@ describe('x402-server utils', () => {
     });
 
     it('should parse raw integer amounts', () => {
+      expect(parsePrice('1')).toBe('1');
       expect(parsePrice('100000')).toBe('100000');
       expect(parsePrice('1000000')).toBe('1000000');
+      expect(parsePrice('000100')).toBe('000100');
     });
 
     it('should handle custom decimals', () => {
@@ -34,9 +49,16 @@ describe('x402-server utils', () => {
       expect(parsePrice('0.5', 8)).toBe('50000000');
     });
 
+    it('should scale whole-unit prices using custom decimals', () => {
+      expect(parsePrice('$2', 8)).toBe('200000000');
+      expect(parsePrice('2 USDC', 0)).toBe('2');
+    });
+
     it('should throw for invalid format', () => {
       expect(() => parsePrice('invalid')).toThrow(/Invalid price format/);
       expect(() => parsePrice('abc')).toThrow(/Invalid price format/);
+      expect(() => parsePrice('$')).toThrow(/Invalid price format/);
+      expect(() => parsePrice('USDC')).toThrow(/Invalid price format/);
     });
   });
 

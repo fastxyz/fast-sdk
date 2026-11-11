@@ -50,6 +50,7 @@ function makeFakeLocalStorage(opts: {
 
 interface SetupOpts {
   signUrl?: string;
+  timeoutMs?: number;
   initialStorage?: Record<string, string>;
   throwOn?: Set<"getItem" | "setItem" | "removeItem">;
   storageKey?: string;
@@ -114,6 +115,7 @@ function setup(opts: SetupOpts = {}) {
 
   const client = new FastWalletClient({
     signUrl: opts.signUrl ?? SIGN_URL,
+    timeoutMs: opts.timeoutMs,
     connectUrl: CONNECT_URL,
     storageKey: opts.storageKey,
     windowRef,
@@ -238,7 +240,7 @@ describe("FastWalletClient.connect (popup flow)", () => {
     const pending = fake.client.connect({ metadata: TEST_METADATA });
     const challenge = "ab".repeat(16);
     const request = new URL(fake.lastOpenUrl!).searchParams.get("request");
-    const message = { t: "fast-popup-origin-challenge", challenge, request };
+    const message = { t: "fast-popup-origin-challenge", version: 2, challenge, request };
     fake.emitMessage({ source: {}, data: message });
     fake.emitMessage({ origin: "https://evil.example", data: message });
     expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
@@ -246,10 +248,18 @@ describe("FastWalletClient.connect (popup flow)", () => {
     expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
     fake.emitMessage({ data: message });
     expect(fake.lastPopup.postMessage).toHaveBeenCalledWith(
-      { t: "fast-popup-origin-proof", challenge, request }, POPUP_ORIGIN,
+      { t: "fast-popup-origin-proof", version: 2, challenge, request }, POPUP_ORIGIN,
     );
     fake.emitMessage({ data: { t: "fast-popup-result", ok: true, result: { address: VALID_ADDRESS } } });
     await pending;
+  });
+
+  it("fails promptly when an older popup sends an unversioned connect challenge", async () => {
+    const fake = setup({ timeoutMs: 20 });
+    const pending = fake.client.connect({ metadata: TEST_METADATA });
+    fake.emitMessage({ data: { t: "fast-popup-origin-challenge", challenge: "ab".repeat(16) } });
+    await expect(pending).rejects.toMatchObject({ code: "invalid_payload" });
+    expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
   });
 
   it("opens connect popup with base64url ?request= envelope and resolves on success", async () => {
@@ -524,18 +534,42 @@ describe("FastWalletClient cross-method in-flight cancellation", () => {
 });
 
 describe("FastWalletClient signer identity", () => {
-  it("does not answer connect challenges from a signing URL with a request parameter", async () => {
-    const fake = setup({ signUrl: `${SIGN_URL}?request=attacker-request` });
+  it("rejects a connect challenge from a signing URL with a request parameter", async () => {
+    const fake = setup({ signUrl: `${SIGN_URL}?request=attacker-request`, timeoutMs: 20 });
     const pending = fake.client.sign({ bytes: [1], metadata: TEST_METADATA });
     fake.emitMessage({ data: {
       t: "fast-popup-origin-challenge",
+      version: 2,
       challenge: "ab".repeat(16),
       request: "attacker-request",
     } });
     expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
-    fake.emitMessage({ data: {
-      t: "fast-popup-result", ok: true, result: { signature: "a".repeat(128) },
-    } });
+    await expect(pending).rejects.toMatchObject({ code: "invalid_payload" });
+  });
+
+  it("fails promptly on an old unversioned signing challenge", async () => {
+    const fake = setup({ timeoutMs: 20 });
+    const pending = fake.client.sign({ bytes: [1], metadata: TEST_METADATA });
+    fake.emitMessage({ data: { t: "fast-popup-sign-origin-challenge", challenge: "ab".repeat(16) } });
+    await expect(pending).rejects.toMatchObject({ code: "invalid_payload" });
+    expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("answers only a versioned sign challenge for the exact generated tx", async () => {
+    const fake = setup();
+    const pending = fake.client.sign({ bytes: [1], metadata: TEST_METADATA });
+    const tx = new URL(fake.lastOpenUrl!).searchParams.get("tx");
+    const challenge = "ab".repeat(16);
+    const message = { t: "fast-popup-sign-origin-challenge", version: 2, challenge, tx };
+    fake.emitMessage({ source: {}, data: message });
+    fake.emitMessage({ origin: "https://evil.example", data: message });
+    fake.emitMessage({ data: { ...message, tx: "attacker-tx" } });
+    expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
+    fake.emitMessage({ data: message });
+    expect(fake.lastPopup.postMessage).toHaveBeenCalledWith(
+      { t: "fast-popup-sign-origin-proof", version: 2, challenge, tx }, POPUP_ORIGIN,
+    );
+    fake.emitMessage({ data: { t: "fast-popup-result", ok: true, result: { signature: "a".repeat(128) } } });
     await pending;
   });
 

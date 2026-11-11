@@ -20,6 +20,7 @@ const TEST_METADATA = {
 interface FakePopup {
   closed: boolean;
   close: Mock<() => void>;
+  postMessage: Mock<(message: unknown, targetOrigin: string) => void>;
 }
 
 /** In-memory localStorage shim; `throwOn` simulates QuotaExceededError etc. */
@@ -75,6 +76,7 @@ function setup(opts: SetupOpts = {}) {
       close: vi.fn<() => void>(() => {
         popup.closed = true;
       }),
+      postMessage: vi.fn<(message: unknown, targetOrigin: string) => void>(),
     };
     popups.push(popup);
     return popup;
@@ -230,6 +232,22 @@ describe("FastWalletClient.connect (cached branch)", () => {
 });
 
 describe("FastWalletClient.connect (popup flow)", () => {
+  it("answers an origin challenge only from its own popup origin and source", async () => {
+    const fake = setup();
+    const pending = fake.client.connect({ metadata: TEST_METADATA });
+    const challenge = "ab".repeat(16);
+    const message = { t: "fast-popup-origin-challenge", challenge };
+    fake.emitMessage({ source: {}, data: message });
+    fake.emitMessage({ origin: "https://evil.example", data: message });
+    expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
+    fake.emitMessage({ data: message });
+    expect(fake.lastPopup.postMessage).toHaveBeenCalledWith(
+      { t: "fast-popup-origin-proof", challenge }, POPUP_ORIGIN,
+    );
+    fake.emitMessage({ data: { t: "fast-popup-result", ok: true, result: { address: VALID_ADDRESS } } });
+    await pending;
+  });
+
   it("opens connect popup with base64url ?request= envelope and resolves on success", async () => {
     const fake = setup();
     const promise = fake.client.connect({
@@ -427,6 +445,7 @@ describe("FastWalletClient.connect (timer-driven popup paths)", () => {
         close: vi.fn<() => void>(() => {
           popup.closed = true;
         }),
+        postMessage: vi.fn<(message: unknown, targetOrigin: string) => void>(),
       };
       popups.push(popup);
       return popup;

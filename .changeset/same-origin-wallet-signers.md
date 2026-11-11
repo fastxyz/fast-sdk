@@ -2,4 +2,4 @@
 "@fastxyz/sdk": patch
 ---
 
-Bind popup signing requests to the connected address cached by each wallet client, so separate clients on one origin can use different FAST accounts.
+Bind popup signing requests to each client's connected address and answer origin challenges from the Fast App popup, including when a dApp suppresses its referrer.

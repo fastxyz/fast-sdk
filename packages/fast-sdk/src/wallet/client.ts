@@ -16,6 +16,7 @@ import type {
 export interface PopupWindowLike {
   closed: boolean;
   close(): void;
+  postMessage?(message: unknown, targetOrigin: string): void;
 }
 
 /** Minimal subset of window injected for testability. */
@@ -304,13 +305,17 @@ export class FastWalletClient {
     return new Promise<ResultMsg>((resolve, reject) => {
       let settled = false;
       const listener = (ev: MessageEventLike) => {
-        if (
-          ev.source !== popup ||
-          ev.origin !== expectedOrigin ||
-          (ev.data as { t?: unknown })?.t !== "fast-popup-result"
-        ) {
+        if (ev.source !== popup || ev.origin !== expectedOrigin) return;
+        const data = ev.data as { t?: unknown; challenge?: unknown } | null;
+        if (data?.t === "fast-popup-origin-challenge") {
+          if (typeof data.challenge === "string" && /^[0-9a-f]{32}$/.test(data.challenge)) {
+            try {
+              popup.postMessage?.({ t: "fast-popup-origin-proof", challenge: data.challenge }, expectedOrigin);
+            } catch {}
+          }
           return;
         }
+        if (data?.t !== "fast-popup-result") return;
         let msg: ResultMsg;
         try {
           msg = parseResultMsg(ev.data);

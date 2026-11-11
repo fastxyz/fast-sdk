@@ -1,5 +1,12 @@
 # @fastxyz/fastid-sdk
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [de26d8f]
+  - @fastxyz/sdk@2.4.1
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @fastxyz/sdk
 
+## 2.4.1
+
+### Patch Changes
+
+- de26d8f: Bind popup signing requests to each client's connected address and answer origin challenges from the Fast App popup, including when a dApp suppresses its referrer.
+
 ## 2.4.0
 
 ### Minor Changes

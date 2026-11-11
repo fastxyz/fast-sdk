@@ -191,7 +191,7 @@ export class FastWalletClient {
     u.searchParams.set("request", request);
     const url = u.toString();
 
-    return this.openPopupAndAwait(url, this.connectOrigin).then((msg) => {
+    return this.openPopupAndAwait(url, this.connectOrigin, { kind: "connect", payload: request }).then((msg) => {
       if (!msg.ok) {
         throw new FastWalletError(msg.error.code, msg.error.message);
       }
@@ -240,7 +240,7 @@ export class FastWalletClient {
     u.searchParams.set("tx", tx);
     const url = u.toString();
 
-    return this.openPopupAndAwait(url, this.signOrigin).then((msg) => {
+    return this.openPopupAndAwait(url, this.signOrigin, { kind: "sign", payload: tx }).then((msg) => {
       if (!msg.ok) {
         throw new FastWalletError(msg.error.code, msg.error.message);
       }
@@ -266,6 +266,7 @@ export class FastWalletClient {
   private openPopupAndAwait(
     url: string,
     expectedOrigin: string,
+    proof: { kind: "connect" | "sign"; payload: string },
   ): Promise<ResultMsg> {
     if (this.inFlight) {
       const prev = this.inFlight;
@@ -292,7 +293,7 @@ export class FastWalletClient {
       );
     }
 
-    const popup = this.windowRef.open(url, "fast-wallet", POPUP_FEATURES);
+    const popup = this.windowRef.open(url, "_blank", POPUP_FEATURES);
     if (!popup) {
       return Promise.reject(
         new FastWalletError(
@@ -306,11 +307,22 @@ export class FastWalletClient {
       let settled = false;
       const listener = (ev: MessageEventLike) => {
         if (ev.source !== popup || ev.origin !== expectedOrigin) return;
-        const data = ev.data as { t?: unknown; challenge?: unknown } | null;
-        if (data?.t === "fast-popup-origin-challenge") {
-          if (typeof data.challenge === "string" && /^[0-9a-f]{32}$/.test(data.challenge)) {
+        const data = ev.data as { t?: unknown; version?: unknown; challenge?: unknown; request?: unknown; tx?: unknown } | null;
+        if (data?.t === "fast-popup-origin-challenge" || data?.t === "fast-popup-sign-origin-challenge") {
+          const challengeType = proof.kind === "connect"
+            ? "fast-popup-origin-challenge" : "fast-popup-sign-origin-challenge";
+          if (data.t !== challengeType || data.version !== 2) {
+            popup.close();
+            finish(() => reject(new FastWalletError("invalid_payload", "The wallet popup is incompatible with this SDK (origin proof v2 required).")));
+            return;
+          }
+          const payload = proof.kind === "connect" ? data.request : data.tx;
+          if (payload === proof.payload
+            && typeof data.challenge === "string" && /^[0-9a-f]{32}$/.test(data.challenge)) {
             try {
-              popup.postMessage?.({ t: "fast-popup-origin-proof", challenge: data.challenge }, expectedOrigin);
+              const proofType = proof.kind === "connect" ? "fast-popup-origin-proof" : "fast-popup-sign-origin-proof";
+              const binding = proof.kind === "connect" ? { request: proof.payload } : { tx: proof.payload };
+              popup.postMessage?.({ t: proofType, version: 2, challenge: data.challenge, ...binding }, expectedOrigin);
             } catch {}
           }
           return;

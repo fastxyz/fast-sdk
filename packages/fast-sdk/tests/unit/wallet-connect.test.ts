@@ -49,6 +49,7 @@ function makeFakeLocalStorage(opts: {
 }
 
 interface SetupOpts {
+  signUrl?: string;
   initialStorage?: Record<string, string>;
   throwOn?: Set<"getItem" | "setItem" | "removeItem">;
   storageKey?: string;
@@ -112,7 +113,7 @@ function setup(opts: SetupOpts = {}) {
   }
 
   const client = new FastWalletClient({
-    signUrl: SIGN_URL,
+    signUrl: opts.signUrl ?? SIGN_URL,
     connectUrl: CONNECT_URL,
     storageKey: opts.storageKey,
     windowRef,
@@ -523,6 +524,21 @@ describe("FastWalletClient cross-method in-flight cancellation", () => {
 });
 
 describe("FastWalletClient signer identity", () => {
+  it("does not answer connect challenges from a signing URL with a request parameter", async () => {
+    const fake = setup({ signUrl: `${SIGN_URL}?request=attacker-request` });
+    const pending = fake.client.sign({ bytes: [1], metadata: TEST_METADATA });
+    fake.emitMessage({ data: {
+      t: "fast-popup-origin-challenge",
+      challenge: "ab".repeat(16),
+      request: "attacker-request",
+    } });
+    expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
+    fake.emitMessage({ data: {
+      t: "fast-popup-result", ok: true, result: { signature: "a".repeat(128) },
+    } });
+    await pending;
+  });
+
   it("binds each same-origin client's raw sign request to its own cached address", async () => {
     const fake = setup({ storageKey: "client-a" });
     const clientB = new FastWalletClient({

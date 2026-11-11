@@ -191,7 +191,7 @@ export class FastWalletClient {
     u.searchParams.set("request", request);
     const url = u.toString();
 
-    return this.openPopupAndAwait(url, this.connectOrigin).then((msg) => {
+    return this.openPopupAndAwait(url, this.connectOrigin, request).then((msg) => {
       if (!msg.ok) {
         throw new FastWalletError(msg.error.code, msg.error.message);
       }
@@ -266,6 +266,7 @@ export class FastWalletClient {
   private openPopupAndAwait(
     url: string,
     expectedOrigin: string,
+    connectRequest?: string,
   ): Promise<ResultMsg> {
     if (this.inFlight) {
       const prev = this.inFlight;
@@ -304,15 +305,14 @@ export class FastWalletClient {
 
     return new Promise<ResultMsg>((resolve, reject) => {
       let settled = false;
-      const openedRequest = new URL(url).searchParams.get("request");
       const listener = (ev: MessageEventLike) => {
         if (ev.source !== popup || ev.origin !== expectedOrigin) return;
         const data = ev.data as { t?: unknown; challenge?: unknown; request?: unknown } | null;
         if (data?.t === "fast-popup-origin-challenge") {
-          if (openedRequest && data.request === openedRequest
+          if (connectRequest && data.request === connectRequest
             && typeof data.challenge === "string" && /^[0-9a-f]{32}$/.test(data.challenge)) {
             try {
-              popup.postMessage?.({ t: "fast-popup-origin-proof", challenge: data.challenge, request: openedRequest }, expectedOrigin);
+              popup.postMessage?.({ t: "fast-popup-origin-proof", challenge: data.challenge, request: connectRequest }, expectedOrigin);
             } catch {}
           }
           return;

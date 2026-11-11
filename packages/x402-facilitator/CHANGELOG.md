@@ -1,5 +1,12 @@
 # @fastxyz/x402-facilitator
 
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [de26d8f]
+  - @fastxyz/sdk@2.4.1
+
 ## 1.1.0
 
 ### Minor Changes

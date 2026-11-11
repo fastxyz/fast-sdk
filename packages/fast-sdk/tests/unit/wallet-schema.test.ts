@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { bech32m } from "bech32";
+import { toFastAddress } from "../../src/interface/convert";
 import {
   parseConnectRequestEnvelope,
   parseResultMsg,
@@ -25,6 +27,24 @@ const VALID_ENVELOPE = {
 };
 
 describe("parseSignRequestEnvelope", () => {
+  it("preserves a valid expected signer", () => {
+    const address = toFastAddress(new Uint8Array(32).fill(7));
+    expect(parseSignRequestEnvelope({ ...VALID_ENVELOPE, expectedAddress: address }).expectedAddress)
+      .toBe(address);
+  });
+
+  it("rejects expected signers with a bad checksum, wrong prefix, or wrong payload length", () => {
+    const valid = toFastAddress(new Uint8Array(32).fill(7));
+    const invalid = [
+      `${valid.slice(0, -1)}${valid.endsWith("q") ? "p" : "q"}`,
+      bech32m.encode("other", bech32m.toWords(new Uint8Array(32).fill(7))),
+      bech32m.encode("fast", bech32m.toWords(new Uint8Array(31).fill(7)))
+    ];
+    for (const expectedAddress of invalid) {
+      expect(() => parseSignRequestEnvelope({ ...VALID_ENVELOPE, expectedAddress })).toThrow();
+    }
+  });
+
   it("accepts a valid envelope", () => {
     const parsed = parseSignRequestEnvelope(VALID_ENVELOPE);
     expect(parsed.dappOrigin).toBe("https://my-dapp.com");

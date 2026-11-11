@@ -17,6 +17,8 @@ export interface SignRequestEnvelope {
   dappOrigin: string;
   /** Final to-be-signed bytes prepared by the dapp using fast-sdk; each element 0-255. */
   bytes: number[];
+  /** Cached address for this client instance; binds raw signing to its own connection. */
+  expectedAddress?: string;
   metadata: DappMetadata;
 }
 

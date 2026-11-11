@@ -218,6 +218,7 @@ export class FastWalletClient {
     const envelope = {
       dappOrigin: this.windowRef.location.origin,
       bytes: args.bytes,
+      expectedAddress: this.getAddress() ?? undefined,
       metadata: args.metadata,
     };
 

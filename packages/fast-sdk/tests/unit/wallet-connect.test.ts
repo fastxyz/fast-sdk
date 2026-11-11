@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 import { FastWalletClient } from "../../src/wallet/client";
 import { FastWalletError } from "../../src/wallet/errors";
+import { toFastAddress } from "../../src/interface/convert";
 
 const SIGN_URL = "https://app.fast.xyz/sign";
 const CONNECT_URL = "https://app.fast.xyz/connect";
@@ -10,6 +11,7 @@ const DAPP_ORIGIN = "https://my-dapp.com";
 const DEFAULT_STORAGE_KEY = "fastxyz:wallet:address";
 const VALID_ADDRESS =
   "fast1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs93v4kv";
+const OTHER_ADDRESS = toFastAddress(new Uint8Array(32).fill(2));
 const TEST_METADATA = {
   name: "Test Dapp",
   origin: DAPP_ORIGIN,
@@ -495,5 +497,48 @@ describe("FastWalletClient cross-method in-flight cancellation", () => {
         result: { address: VALID_ADDRESS },
       },
     });
+  });
+});
+
+describe("FastWalletClient signer identity", () => {
+  it("binds each same-origin client's raw sign request to its own cached address", async () => {
+    const fake = setup({ storageKey: "client-a" });
+    const clientB = new FastWalletClient({
+      signUrl: SIGN_URL,
+      connectUrl: CONNECT_URL,
+      storageKey: "client-b",
+      windowRef: fake.windowRef,
+    });
+    const connectA = fake.client.connect({ metadata: TEST_METADATA });
+    fake.emitMessage({
+      data: { t: "fast-popup-result", ok: true, result: { address: VALID_ADDRESS } },
+    });
+    await connectA;
+    const connectB = clientB.connect({ metadata: TEST_METADATA });
+    fake.emitMessage({
+      data: { t: "fast-popup-result", ok: true, result: { address: OTHER_ADDRESS } },
+    });
+    await connectB;
+    expect(fake.client.getAddress()).toBe(VALID_ADDRESS);
+    expect(clientB.getAddress()).toBe(OTHER_ADDRESS);
+
+    const first = fake.client.sign({ bytes: [1], metadata: TEST_METADATA });
+    fake.emitMessage({
+      data: { t: "fast-popup-result", ok: true, result: { signature: "a".repeat(128) } },
+    });
+    await first;
+    const second = clientB.sign({ bytes: [2], metadata: TEST_METADATA });
+    fake.emitMessage({
+      data: { t: "fast-popup-result", ok: true, result: { signature: "b".repeat(128) } },
+    });
+    await second;
+    const requests = fake.windowRef.open.mock.calls.slice(2).map(([url]) => {
+      const encoded = new URL(url).searchParams.get("tx")!;
+      return JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    });
+    expect(requests.map((request) => request.expectedAddress)).toEqual([
+      VALID_ADDRESS,
+      OTHER_ADDRESS,
+    ]);
   });
 });

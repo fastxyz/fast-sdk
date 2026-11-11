@@ -31,9 +31,25 @@ const DappMetadataSchema = Schema.Struct({
   icon: Schema.optional(Schema.String),
 });
 
+const AddressSchema = Schema.String.pipe(
+  Schema.filter(
+    (s) => {
+      try {
+        return fromFastAddress(s).byteLength === 32;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message: () => "must be a valid bech32m fast1 address (32-byte payload)",
+    },
+  ),
+);
+
 const SignRequestEnvelopeSchema = Schema.Struct({
   dappOrigin: OriginSchema,
   bytes: Schema.mutable(Schema.Array(ByteSchema).pipe(Schema.maxItems(8192))),
+  expectedAddress: Schema.optional(AddressSchema),
   metadata: DappMetadataSchema,
 }).pipe(
   Schema.filter((env) => env.metadata.origin === env.dappOrigin, {
@@ -52,21 +68,6 @@ const ConnectRequestEnvelopeSchema = Schema.Struct({
 
 const SignatureSchema = Schema.String.pipe(
   Schema.pattern(/^[0-9a-fA-F]{128}$/),
-);
-
-const AddressSchema = Schema.String.pipe(
-  Schema.filter(
-    (s) => {
-      try {
-        return fromFastAddress(s).byteLength === 32;
-      } catch {
-        return false;
-      }
-    },
-    {
-      message: () => "must be a valid bech32m fast1 address (32-byte payload)",
-    },
-  ),
 );
 
 const ErrorCodeSchema = Schema.Literal(

@@ -304,13 +304,15 @@ export class FastWalletClient {
 
     return new Promise<ResultMsg>((resolve, reject) => {
       let settled = false;
+      const openedRequest = new URL(url).searchParams.get("request");
       const listener = (ev: MessageEventLike) => {
         if (ev.source !== popup || ev.origin !== expectedOrigin) return;
-        const data = ev.data as { t?: unknown; challenge?: unknown } | null;
+        const data = ev.data as { t?: unknown; challenge?: unknown; request?: unknown } | null;
         if (data?.t === "fast-popup-origin-challenge") {
-          if (typeof data.challenge === "string" && /^[0-9a-f]{32}$/.test(data.challenge)) {
+          if (openedRequest && data.request === openedRequest
+            && typeof data.challenge === "string" && /^[0-9a-f]{32}$/.test(data.challenge)) {
             try {
-              popup.postMessage?.({ t: "fast-popup-origin-proof", challenge: data.challenge }, expectedOrigin);
+              popup.postMessage?.({ t: "fast-popup-origin-proof", challenge: data.challenge, request: openedRequest }, expectedOrigin);
             } catch {}
           }
           return;

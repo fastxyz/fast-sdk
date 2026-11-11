@@ -236,13 +236,16 @@ describe("FastWalletClient.connect (popup flow)", () => {
     const fake = setup();
     const pending = fake.client.connect({ metadata: TEST_METADATA });
     const challenge = "ab".repeat(16);
-    const message = { t: "fast-popup-origin-challenge", challenge };
+    const request = new URL(fake.lastOpenUrl!).searchParams.get("request");
+    const message = { t: "fast-popup-origin-challenge", challenge, request };
     fake.emitMessage({ source: {}, data: message });
     fake.emitMessage({ origin: "https://evil.example", data: message });
     expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
+    fake.emitMessage({ data: { ...message, request: "attacker-request" } });
+    expect(fake.lastPopup.postMessage).not.toHaveBeenCalled();
     fake.emitMessage({ data: message });
     expect(fake.lastPopup.postMessage).toHaveBeenCalledWith(
-      { t: "fast-popup-origin-proof", challenge }, POPUP_ORIGIN,
+      { t: "fast-popup-origin-proof", challenge, request }, POPUP_ORIGIN,
     );
     fake.emitMessage({ data: { t: "fast-popup-result", ok: true, result: { address: VALID_ADDRESS } } });
     await pending;

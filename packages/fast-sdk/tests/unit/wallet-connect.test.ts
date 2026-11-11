@@ -51,6 +51,7 @@ function makeFakeLocalStorage(opts: {
 interface SetupOpts {
   signUrl?: string;
   timeoutMs?: number;
+  reuseNamedTargets?: boolean;
   initialStorage?: Record<string, string>;
   throwOn?: Set<"getItem" | "setItem" | "removeItem">;
   storageKey?: string;
@@ -70,6 +71,7 @@ function setup(opts: SetupOpts = {}) {
 
   const listeners: Array<(ev: unknown) => void> = [];
   const popups: FakePopup[] = [];
+  const namedPopups = new Map<string, FakePopup>();
   let lastOpenUrl: string | null = null;
 
   function makePopup(): FakePopup {
@@ -87,9 +89,17 @@ function setup(opts: SetupOpts = {}) {
   const windowRef = {
     location: { origin: DAPP_ORIGIN },
     localStorage: storage,
-    open: vi.fn((url: string) => {
+    open: vi.fn((url: string, target: string) => {
       lastOpenUrl = url;
-      return opts.openReturnsNull ? null : makePopup();
+      if (opts.openReturnsNull) return null;
+      if (opts.reuseNamedTargets && target !== "_blank") {
+        const existing = namedPopups.get(target);
+        if (existing) return existing;
+        const popup = makePopup();
+        namedPopups.set(target, popup);
+        return popup;
+      }
+      return makePopup();
     }),
     addEventListener: vi.fn((_type: string, l: (ev: unknown) => void) => {
       listeners.push(l);
@@ -534,6 +544,34 @@ describe("FastWalletClient cross-method in-flight cancellation", () => {
 });
 
 describe("FastWalletClient signer identity", () => {
+  it("keeps simultaneous clients' sign and connect popups isolated when named windows are reused", async () => {
+    const fake = setup({ reuseNamedTargets: true });
+    const second = new FastWalletClient({
+      signUrl: SIGN_URL, connectUrl: CONNECT_URL, storageKey: "second-client", windowRef: fake.windowRef,
+    });
+    const signing = fake.client.sign({ bytes: [1], metadata: TEST_METADATA });
+    const signPopup = fake.lastPopup;
+    const connecting = second.connect({ metadata: TEST_METADATA });
+    const connectPopup = fake.lastPopup;
+    expect(connectPopup).not.toBe(signPopup);
+    const request = new URL(fake.lastOpenUrl!).searchParams.get("request");
+    fake.emitMessage({ source: connectPopup, data: {
+      t: "fast-popup-origin-challenge", version: 2, challenge: "ab".repeat(16), request,
+    } });
+    expect(signPopup.closed).toBe(false);
+    expect(connectPopup.postMessage).toHaveBeenCalledWith({
+      t: "fast-popup-origin-proof", version: 2, challenge: "ab".repeat(16), request,
+    }, POPUP_ORIGIN);
+    fake.emitMessage({ source: connectPopup, data: {
+      t: "fast-popup-result", ok: true, result: { address: VALID_ADDRESS },
+    } });
+    fake.emitMessage({ source: signPopup, data: {
+      t: "fast-popup-result", ok: true, result: { signature: "a".repeat(128) },
+    } });
+    await expect(connecting).resolves.toEqual({ address: VALID_ADDRESS });
+    await expect(signing).resolves.toEqual({ signature: "a".repeat(128) });
+  });
+
   it("rejects a connect challenge from a signing URL with a request parameter", async () => {
     const fake = setup({ signUrl: `${SIGN_URL}?request=attacker-request`, timeoutMs: 20 });
     const pending = fake.client.sign({ bytes: [1], metadata: TEST_METADATA });

@@ -293,7 +293,7 @@ export class FastWalletClient {
       );
     }
 
-    const popup = this.windowRef.open(url, "fast-wallet", POPUP_FEATURES);
+    const popup = this.windowRef.open(url, "_blank", POPUP_FEATURES);
     if (!popup) {
       return Promise.reject(
         new FastWalletError(
